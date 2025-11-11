@@ -89,4 +89,104 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Categories queries
+export async function getAllCategories() {
+  const db = await getDb();
+  if (!db) return [];
+  const { categories } = await import("../drizzle/schema");
+  return await db.select().from(categories);
+}
+
+export async function getCategoryBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { categories } = await import("../drizzle/schema");
+  const result = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Products queries
+export async function getAllProducts() {
+  const db = await getDb();
+  if (!db) return [];
+  const { products } = await import("../drizzle/schema");
+  return await db.select().from(products);
+}
+
+export async function getFeaturedProducts(limit: number = 8) {
+  const db = await getDb();
+  if (!db) return [];
+  const { products } = await import("../drizzle/schema");
+  const { desc } = await import("drizzle-orm");
+  return await db.select().from(products).where(eq(products.featured, 1)).orderBy(desc(products.createdAt)).limit(limit);
+}
+
+export async function getProductsByCategory(categoryId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { products } = await import("../drizzle/schema");
+  return await db.select().from(products).where(eq(products.categoryId, categoryId));
+}
+
+export async function getProductBySlug(slug: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const { products } = await import("../drizzle/schema");
+  const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// Product images queries
+export async function getProductImages(productId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { productImages } = await import("../drizzle/schema");
+  const { asc } = await import("drizzle-orm");
+  return await db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.displayOrder));
+}
+
+// Reviews queries
+export async function getProductReviews(productId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { reviews, users } = await import("../drizzle/schema");
+  const { desc } = await import("drizzle-orm");
+  
+  const result = await db
+    .select({
+      id: reviews.id,
+      rating: reviews.rating,
+      comment: reviews.comment,
+      createdAt: reviews.createdAt,
+      userName: users.name,
+    })
+    .from(reviews)
+    .leftJoin(users, eq(reviews.userId, users.id))
+    .where(eq(reviews.productId, productId))
+    .orderBy(desc(reviews.createdAt));
+  
+  return result;
+}
+
+export async function getAverageRating(productId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const { reviews } = await import("../drizzle/schema");
+  const { avg, sql } = await import("drizzle-orm");
+  
+  const result = await db
+    .select({ average: avg(reviews.rating) })
+    .from(reviews)
+    .where(eq(reviews.productId, productId));
+  
+  return result[0]?.average ? Number(result[0].average) : 0;
+}
+
+// Contact message
+export async function createContactMessage(data: { name: string; email: string; subject?: string; message: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { contactMessages } = await import("../drizzle/schema");
+  
+  await db.insert(contactMessages).values(data);
+}
