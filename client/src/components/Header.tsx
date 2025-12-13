@@ -1,14 +1,18 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Search, Heart, ShoppingCart, User } from "lucide-react";
+import { Menu, X, Heart, ShoppingCart, User } from "lucide-react";
 import { useState } from "react";
 import { getAllCategories } from "@/data/mockData";
+import SearchBar from "./SearchBar";
+import { useCart } from "@/hooks/useCart";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<number | null>(null);
   const [location] = useLocation();
   const categories = getAllCategories();
+  const { getItemCount } = useCart();
+  const cartCount = getItemCount();
 
   const isActive = (path: string) => location === path;
 
@@ -34,10 +38,10 @@ export default function Header() {
 
       {/* Main Navigation */}
       <nav className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           {/* Logo */}
           <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer group">
+            <div className="flex items-center gap-2 cursor-pointer group flex-shrink-0">
               <div className="bg-gray-800 p-2 rounded">
                 <span className="text-orange-500 text-xl font-bold">≡</span>
               </div>
@@ -134,17 +138,26 @@ export default function Header() {
             </Link>
           </div>
 
+          {/* Search Bar - Desktop */}
+          <div className="hidden md:block flex-1 max-w-xs">
+            <SearchBar />
+          </div>
+
           {/* Right Icons */}
           <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-              <Search className="h-5 w-5 text-gray-700" />
-            </button>
             <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block">
               <Heart className="h-5 w-5 text-gray-700" />
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block">
-              <ShoppingCart className="h-5 w-5 text-gray-700" />
-            </button>
+            <Link href="/panier">
+              <div className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+                <ShoppingCart className="h-5 w-5 text-gray-700" />
+                {cartCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </div>
+            </Link>
             <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:inline-flex gap-2">
               <User className="h-4 w-4" />
               <span>Mon compte</span>
@@ -162,6 +175,11 @@ export default function Header() {
               )}
             </button>
           </div>
+        </div>
+
+        {/* Mobile Search Bar */}
+        <div className="md:hidden mt-4">
+          <SearchBar />
         </div>
 
         {/* Mobile Menu */}

@@ -10,6 +10,7 @@ import Category from "./pages/Category";
 import Product from "./pages/Product";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
+import Cart from "./pages/Cart";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path={"/produit/:slug"} component={Product} />
       <Route path={"/a-propos"} component={About} />
       <Route path={"/contact"} component={Contact} />
+      <Route path={"/panier"} component={Cart} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
