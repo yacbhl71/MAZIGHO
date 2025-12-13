@@ -105,25 +105,25 @@ export default function Header() {
               </div>
             </div>
 
-            <Link href="/a-propos">
+            <Link href="/nouveautes">
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
-                isActive("/a-propos") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
+                isActive("/nouveautes") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Nouveautés
               </span>
             </Link>
 
-            <Link href="/a-propos">
+            <Link href="/best-sellers">
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
-                isActive("/a-propos") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
+                isActive("/best-sellers") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Best-sellers
               </span>
             </Link>
 
-            <Link href="/a-propos">
+            <Link href="/promos">
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded text-orange-500 transition-colors ${
-                isActive("/a-propos") ? "bg-orange-50" : "hover:bg-orange-50"
+                isActive("/promos") ? "bg-orange-50" : "hover:bg-orange-50"
               }`}>
                 Promos
               </span>
@@ -219,6 +219,24 @@ export default function Header() {
                 </div>
               )}
             </div>
+
+            <Link href="/nouveautes">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
+                Nouveautés
+              </div>
+            </Link>
+
+            <Link href="/best-sellers">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
+                Best-sellers
+              </div>
+            </Link>
+
+            <Link href="/promos">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm text-orange-500 font-semibold">
+                Promos
+              </div>
+            </Link>
 
             <Link href="/contact">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
