@@ -28,7 +28,7 @@ export default function HeroBanner() {
   return (
     <div className="relative w-full h-96 md:h-[500px] lg:h-[600px] overflow-hidden">
       {/* Slides */}
-      {banners.map((banner, index) => (
+      {banners.map((banner, index: number) => (
         <div
           key={banner.id}
           className={`absolute inset-0 transition-opacity duration-1000 ${
@@ -90,7 +90,7 @@ export default function HeroBanner() {
 
       {/* Dots Navigation */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-        {banners.map((_, index) => (
+        {banners.map((_: typeof banners[0], index: number) => (
           <button
             key={index}
             onClick={() => setCurrentSlide(index)}

@@ -9,7 +9,7 @@ import { getAllCategories, getFeaturedProducts } from "@/data/mockData";
 
 export default function Home() {
   const categories = getAllCategories();
-  const featuredProducts = getFeaturedProducts(8);
+  const featuredProducts = getFeaturedProducts();
 
   return (
     <div className="min-h-screen flex flex-col bg-white">

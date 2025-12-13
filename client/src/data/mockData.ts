@@ -1,4 +1,3 @@
-// Données statiques pour le site e-commerce
 
 export interface Category {
   id: number;
@@ -97,6 +96,15 @@ export const categories: Category[] = [
     icon: "🚗",
     subcategories: ["Supports téléphone voiture", "Nettoyage auto", "Sécurité & assistance"],
   },
+  {
+    id: 6,
+    name: "Mode",
+    slug: "mode",
+    description: "Vêtements, Chaussures, Accessoires de mode",
+    imageUrl: null,
+    icon: "👗",
+    subcategories: ["Vêtements", "Chaussures", "Accessoires de mode", "Sacs à main", "Bijoux"],
+  },
 ];
 
 // Produits avec options et images multiples
@@ -148,308 +156,265 @@ export const products: Product[] = [
     name: "Support Téléphone Voiture",
     slug: "support-telephone-voiture",
     description: "Support magnétique pour téléphone, fixation au tableau de bord. Rotation à 360°.",
-    longDescription: "Support téléphone magnétique ultra-puissant pour voiture. Fixation facile au tableau de bord ou au pare-brise. Rotation à 360° pour une visibilité optimale. Aimants puissants qui ne rayent pas votre téléphone.",
+    longDescription: "Support magnétique universel pour téléphone en voiture. Fixation simple au tableau de bord avec ventouse puissante. Rotation à 360° pour tous les angles. Compatible avec tous les téléphones.",
     price: 1599,
-    originalPrice: null,
+    originalPrice: 2499,
     stock: 25,
     featured: 1,
     images: [
       { id: 4, productId: 2, imageUrl: "", displayOrder: 1 },
       { id: 5, productId: 2, imageUrl: "", displayOrder: 2 },
     ],
-    reviews: [],
-    averageRating: 4.5,
+    reviews: [
+      {
+        id: 3,
+        productId: 2,
+        rating: 4,
+        comment: "Très pratique, bien fixé au tableau de bord",
+        userName: "Hassan K.",
+        createdAt: "2024-11-05",
+      },
+    ],
+    averageRating: 4,
     options: [
-      { id: "color-1", type: "color", label: "Noir", value: "black" },
-      { id: "color-2", type: "color", label: "Argent", value: "silver" },
+      { id: "color-4", type: "color", label: "Noir", value: "black" },
+      { id: "color-5", type: "color", label: "Gris", value: "gray" },
     ],
   },
   {
     id: 3,
     categoryId: 2,
-    name: "Boîtes de Rangement",
-    slug: "boites-rangement",
-    description: "Set de 3 boîtes de rangement transparentes avec couvercle. Parfait pour l'organisation.",
-    longDescription: "Set de 3 boîtes de rangement transparentes en plastique durable. Couvercles hermétiques pour une meilleure conservation. Parfait pour organiser votre cuisine, salle de bain ou placard. Empilables pour gagner de la place.",
-    price: 2499,
-    originalPrice: null,
-    stock: 20,
+    name: "Organiseur de Rangement",
+    slug: "organiseur-rangement",
+    description: "Boîte de rangement modulable avec compartiments ajustables.",
+    longDescription: "Organiseur de rangement modulable avec compartiments ajustables. Parfait pour organiser votre maison. Matériau durable et facile à nettoyer.",
+    price: 1299,
+    originalPrice: 1899,
+    stock: 30,
     featured: 1,
     images: [
       { id: 6, productId: 3, imageUrl: "", displayOrder: 1 },
-      { id: 7, productId: 3, imageUrl: "", displayOrder: 2 },
-      { id: 8, productId: 3, imageUrl: "", displayOrder: 3 },
+    ],
+    reviews: [],
+    averageRating: 0,
+    options: [
+      { id: "color-6", type: "color", label: "Blanc", value: "white" },
+      { id: "color-7", type: "color", label: "Gris", value: "gray" },
+    ],
+  },
+  {
+    id: 4,
+    categoryId: 3,
+    name: "Crème Hydratante Premium",
+    slug: "creme-hydratante-premium",
+    description: "Crème hydratante pour tous les types de peau. Formule naturelle et efficace.",
+    longDescription: "Crème hydratante premium avec ingrédients naturels. Hydrate en profondeur et laisse la peau douce et lumineuse. Convient à tous les types de peau.",
+    price: 2999,
+    originalPrice: 4499,
+    stock: 50,
+    featured: 1,
+    images: [
+      { id: 7, productId: 4, imageUrl: "", displayOrder: 1 },
     ],
     reviews: [
       {
-        id: 3,
-        productId: 3,
+        id: 4,
+        productId: 4,
         rating: 5,
-        comment: "Très pratique et bien fabriquées !",
-        userName: "Marie D.",
+        comment: "Ma peau est devenue très douce et hydratée !",
+        userName: "Leila B.",
+        createdAt: "2024-11-12",
+      },
+    ],
+    averageRating: 5,
+  },
+  {
+    id: 5,
+    categoryId: 4,
+    name: "Tapis de Yoga Premium",
+    slug: "tapis-yoga-premium",
+    description: "Tapis de yoga antidérapant avec sangle de transport.",
+    longDescription: "Tapis de yoga premium antidérapant avec sangle de transport incluse. Épaisseur 6mm pour un confort optimal. Matériau écologique et durable.",
+    price: 3999,
+    originalPrice: 5999,
+    stock: 20,
+    featured: 1,
+    images: [
+      { id: 8, productId: 5, imageUrl: "", displayOrder: 1 },
+    ],
+    reviews: [
+      {
+        id: 5,
+        productId: 5,
+        rating: 5,
+        comment: "Excellent tapis, très confortable pour le yoga",
+        userName: "Noor A.",
         createdAt: "2024-11-09",
       },
     ],
     averageRating: 5,
     options: [
-      { id: "size-1", type: "size", label: "Petit", value: "small" },
-      { id: "size-2", type: "size", label: "Moyen", value: "medium" },
-      { id: "size-3", type: "size", label: "Grand", value: "large" },
-    ],
-  },
-  {
-    id: 4,
-    categoryId: 2,
-    name: "Ustensiles de Cuisine",
-    slug: "ustensiles-cuisine",
-    description: "Set complet d'ustensiles de cuisine en silicone de qualité alimentaire.",
-    longDescription: "Set complet de 12 ustensiles de cuisine en silicone de qualité alimentaire. Résistant à la chaleur jusqu'à 250°C. Idéal pour tous les types de cuisson. Facile à nettoyer et durable.",
-    price: 3499,
-    originalPrice: 4999,
-    stock: 10,
-    featured: 1,
-    images: [
-      { id: 9, productId: 4, imageUrl: "", displayOrder: 1 },
-      { id: 10, productId: 4, imageUrl: "", displayOrder: 2 },
-      { id: 11, productId: 4, imageUrl: "", displayOrder: 3 },
-      { id: 12, productId: 4, imageUrl: "", displayOrder: 4 },
-    ],
-    reviews: [],
-    averageRating: 5,
-    options: [
-      { id: "color-1", type: "color", label: "Rose", value: "pink" },
-      { id: "color-2", type: "color", label: "Bleu", value: "blue" },
-      { id: "color-3", type: "color", label: "Vert", value: "green" },
-    ],
-  },
-  {
-    id: 5,
-    categoryId: 3,
-    name: "Masque Visage Hydratant",
-    slug: "masque-visage-hydratant",
-    description: "Masque hydratant premium pour tous les types de peau. Résultats visibles en 10 minutes.",
-    longDescription: "Masque hydratant premium à base d'ingrédients naturels. Convient à tous les types de peau. Résultats visibles après une seule application. À utiliser 2-3 fois par semaine pour des résultats optimaux.",
-    price: 1999,
-    originalPrice: null,
-    stock: 30,
-    featured: 1,
-    images: [
-      { id: 13, productId: 5, imageUrl: "", displayOrder: 1 },
-      { id: 14, productId: 5, imageUrl: "", displayOrder: 2 },
-    ],
-    reviews: [
-      {
-        id: 4,
-        productId: 5,
-        rating: 5,
-        comment: "Ma peau est devenue très douce et hydratée !",
-        userName: "Leila K.",
-        createdAt: "2024-11-06",
-      },
-      {
-        id: 5,
-        productId: 5,
-        rating: 4,
-        comment: "Bon produit, légèrement cher mais efficace",
-        userName: "Nadia S.",
-        createdAt: "2024-11-04",
-      },
-    ],
-    averageRating: 4.5,
-    options: [
-      { id: "size-1", type: "size", label: "50ml", value: "50ml" },
-      { id: "size-2", type: "size", label: "100ml", value: "100ml" },
+      { id: "color-8", type: "color", label: "Rose", value: "pink" },
+      { id: "color-9", type: "color", label: "Bleu", value: "blue" },
+      { id: "color-10", type: "color", label: "Vert", value: "green" },
     ],
   },
   {
     id: 6,
-    categoryId: 3,
-    name: "Brosse Massage Cuir Chevelu",
-    slug: "brosse-massage-cuir-chevelu",
-    description: "Brosse de massage pour cuir chevelu avec vibration. Relaxation et bien-être garantis.",
-    longDescription: "Brosse de massage électrique pour cuir chevelu avec 3 niveaux de vibration. Stimule la circulation sanguine et détend les muscles. Batterie rechargeable avec 2 heures d'autonomie. Idéale pour la relaxation quotidienne.",
-    price: 2299,
-    originalPrice: null,
+    categoryId: 5,
+    name: "Nettoyant Auto Écologique",
+    slug: "nettoyant-auto-ecologique",
+    description: "Nettoyant auto écologique et biodégradable.",
+    longDescription: "Nettoyant auto écologique et biodégradable. Nettoie en profondeur sans endommager la peinture. Formule concentrée, économique et respectueuse de l'environnement.",
+    price: 999,
+    originalPrice: 1499,
     stock: 40,
     featured: 0,
     images: [
-      { id: 15, productId: 6, imageUrl: "", displayOrder: 1 },
-      { id: 16, productId: 6, imageUrl: "", displayOrder: 2 },
-      { id: 17, productId: 6, imageUrl: "", displayOrder: 3 },
+      { id: 9, productId: 6, imageUrl: "", displayOrder: 1 },
     ],
     reviews: [],
-    averageRating: 4.5,
-    options: [
-      { id: "color-1", type: "color", label: "Rose", value: "pink" },
-      { id: "color-2", type: "color", label: "Noir", value: "black" },
-    ],
+    averageRating: 0,
   },
   {
     id: 7,
-    categoryId: 4,
-    name: "Tapis de Yoga Premium",
-    slug: "tapis-yoga-premium",
-    description: "Tapis de yoga antidérapant avec sangle de transport. Épaisseur 6mm pour confort optimal.",
-    longDescription: "Tapis de yoga premium en caoutchouc naturel. Antidérapant sur les deux côtés. Épaisseur 6mm pour un confort optimal. Sangle de transport incluse. Facile à nettoyer et durable.",
-    price: 3999,
-    originalPrice: null,
-    stock: 35,
-    featured: 1,
+    categoryId: 1,
+    name: "Câble USB-C Renforcé",
+    slug: "cable-usb-c-renforce",
+    description: "Câble USB-C renforcé avec gaine de protection.",
+    longDescription: "Câble USB-C renforcé avec gaine de protection en nylon tressé. Durabilité garantie avec 10000+ cycles de flexion. Charge et synchronisation rapides.",
+    price: 899,
+    originalPrice: 1299,
+    stock: 60,
+    featured: 0,
     images: [
-      { id: 18, productId: 7, imageUrl: "", displayOrder: 1 },
-      { id: 19, productId: 7, imageUrl: "", displayOrder: 2 },
-      { id: 20, productId: 7, imageUrl: "", displayOrder: 3 },
+      { id: 10, productId: 7, imageUrl: "", displayOrder: 1 },
     ],
-    reviews: [
-      {
-        id: 6,
-        productId: 7,
-        rating: 5,
-        comment: "Excellent tapis, très confortable et durable !",
-        userName: "Sophie P.",
-        createdAt: "2024-11-03",
-      },
-    ],
-    averageRating: 5,
+    reviews: [],
+    averageRating: 0,
     options: [
-      { id: "color-1", type: "color", label: "Noir", value: "black" },
-      { id: "color-2", type: "color", label: "Gris", value: "gray" },
-      { id: "color-3", type: "color", label: "Violet", value: "purple" },
+      { id: "color-11", type: "color", label: "Noir", value: "black" },
+      { id: "color-12", type: "color", label: "Blanc", value: "white" },
     ],
   },
   {
     id: 8,
-    categoryId: 4,
-    name: "Haltères Ajustables",
-    slug: "halteres-ajustables",
-    description: "Paire d'haltères ajustables de 2kg à 10kg. Idéal pour l'entraînement à domicile.",
-    longDescription: "Paire d'haltères ajustables avec poids de 2kg à 10kg. Système de verrouillage sécurisé. Poignées ergonomiques antidérapantes. Parfait pour tous les niveaux de fitness.",
-    price: 4999,
-    originalPrice: null,
-    stock: 25,
+    categoryId: 2,
+    name: "Conteneurs de Cuisine",
+    slug: "conteneurs-cuisine",
+    description: "Set de conteneurs hermétiques pour la cuisine.",
+    longDescription: "Set de 3 conteneurs hermétiques pour la cuisine. Parfaits pour conserver les aliments frais. Matériau sans BPA et facile à nettoyer.",
+    price: 1799,
+    originalPrice: 2599,
+    stock: 35,
     featured: 0,
     images: [
-      { id: 21, productId: 8, imageUrl: "", displayOrder: 1 },
-      { id: 22, productId: 8, imageUrl: "", displayOrder: 2 },
+      { id: 11, productId: 8, imageUrl: "", displayOrder: 1 },
     ],
     reviews: [],
-    averageRating: 4.5,
+    averageRating: 0,
     options: [
-      { id: "weight-1", type: "size", label: "2-5 kg", value: "2-5kg" },
-      { id: "weight-2", type: "size", label: "5-10 kg", value: "5-10kg" },
+      { id: "color-13", type: "color", label: "Transparent", value: "white" },
     ],
   },
   {
     id: 9,
-    categoryId: 5,
-    name: "Support Téléphone Voiture Magnétique",
-    slug: "support-telephone-voiture-magnetique",
-    description: "Support magnétique ultra-puissant pour voiture. Fixation facile au tableau de bord.",
-    longDescription: "Support téléphone magnétique ultra-puissant pour voiture. Aimants puissants qui ne rayent pas votre téléphone. Fixation facile au tableau de bord ou au pare-brise. Rotation à 360° pour une visibilité optimale.",
-    price: 1899,
-    originalPrice: 2499,
-    stock: 8,
-    featured: 1,
+    categoryId: 3,
+    name: "Masque Facial Hydratant",
+    slug: "masque-facial-hydratant",
+    description: "Masque facial hydratant avec extrait de miel.",
+    longDescription: "Masque facial hydratant premium avec extrait de miel naturel. Hydrate et revitalise la peau en 15 minutes. Convient à tous les types de peau.",
+    price: 1599,
+    originalPrice: 2299,
+    stock: 45,
+    featured: 0,
     images: [
-      { id: 23, productId: 9, imageUrl: "", displayOrder: 1 },
-      { id: 24, productId: 9, imageUrl: "", displayOrder: 2 },
-      { id: 25, productId: 9, imageUrl: "", displayOrder: 3 },
+      { id: 12, productId: 9, imageUrl: "", displayOrder: 1 },
     ],
-    reviews: [
-      {
-        id: 7,
-        productId: 9,
-        rating: 5,
-        comment: "Très solide et pratique ! Je le recommande !",
-        userName: "Hassan B.",
-        createdAt: "2024-11-05",
-      },
-    ],
-    averageRating: 5,
-    options: [
-      { id: "color-1", type: "color", label: "Noir", value: "black" },
-      { id: "color-2", type: "color", label: "Argent", value: "silver" },
-      { id: "color-3", type: "color", label: "Or", value: "gold" },
-    ],
+    reviews: [],
+    averageRating: 0,
   },
   {
     id: 10,
-    categoryId: 5,
-    name: "Produit Nettoyage Auto",
-    slug: "produit-nettoyage-auto",
-    description: "Produit nettoyant multi-usages pour voiture. Efficace sur tous les types de surfaces.",
-    longDescription: "Produit nettoyant multi-usages pour voiture. Efficace sur la peinture, les vitres, les plastiques et les sièges. Formule écologique et biodégradable. Laisse un fini brillant et protecteur.",
-    price: 999,
-    originalPrice: null,
+    categoryId: 4,
+    name: "Haltères Ajustables",
+    slug: "halteres-ajustables",
+    description: "Paire d'haltères ajustables de 2kg à 10kg.",
+    longDescription: "Paire d'haltères ajustables de 2kg à 10kg pour l'entraînement à domicile. Design compact et sécurisé. Parfait pour tous les niveaux de fitness.",
+    price: 4999,
+    originalPrice: 7499,
     stock: 15,
     featured: 0,
     images: [
-      { id: 26, productId: 10, imageUrl: "", displayOrder: 1 },
-      { id: 27, productId: 10, imageUrl: "", displayOrder: 2 },
+      { id: 13, productId: 10, imageUrl: "", displayOrder: 1 },
     ],
     reviews: [],
-    averageRating: 4.5,
+    averageRating: 0,
     options: [
-      { id: "size-1", type: "size", label: "500ml", value: "500ml" },
-      { id: "size-2", type: "size", label: "1L", value: "1L" },
-      { id: "size-3", type: "size", label: "5L", value: "5L" },
+      { id: "color-14", type: "color", label: "Noir", value: "black" },
+      { id: "color-15", type: "color", label: "Gris", value: "gray" },
     ],
   },
 ];
 
-// Bannières pour le carrousel
-export const banners = [
-  {
-    id: 1,
-    title: "Découvrez nos Meilleures Offres",
-    subtitle: "Simplifiez votre quotidien avec style",
-    image: null,
-    buttonText: "Commander Maintenant",
-    buttonLink: "/boutique",
-  },
-  {
-    id: 2,
-    title: "Technologie & Innovation",
-    subtitle: "Les derniers gadgets et accessoires tech",
-    image: null,
-    buttonText: "Voir les Produits",
-    buttonLink: "/categorie/high-tech-gadgets",
-  },
-  {
-    id: 3,
-    title: "Beauté & Bien-Être",
-    subtitle: "Prenez soin de vous avec nos produits premium",
-    image: null,
-    buttonText: "Parcourir",
-    buttonLink: "/categorie/beaute-bien-etre",
-  },
-];
-
-// Fonctions utilitaires
 export function getAllCategories(): Category[] {
   return categories;
 }
 
 export function getCategoryBySlug(slug: string): Category | undefined {
-  return categories.find(c => c.slug === slug);
+  return categories.find((cat) => cat.slug === slug);
 }
 
 export function getAllProducts(): Product[] {
   return products;
 }
 
-export function getFeaturedProducts(limit: number = 8): Product[] {
-  return products.filter(p => p.featured === 1).slice(0, limit);
+export function getProductBySlug(slug: string): Product | undefined {
+  return products.find((prod) => prod.slug === slug);
 }
 
 export function getProductsByCategory(categoryId: number): Product[] {
-  return products.filter(p => p.categoryId === categoryId);
+  return products.filter((prod) => prod.categoryId === categoryId);
 }
 
-export function getProductBySlug(slug: string): Product | undefined {
-  return products.find(p => p.slug === slug);
+export function getFeaturedProducts(): Product[] {
+  return products.filter((prod) => prod.featured === 1).slice(0, 8);
 }
 
-export function getBanners() {
+
+// Banners pour le carrousel
+export interface Banner {
+  id: number;
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  buttonLink: string;
+}
+
+export const banners: Banner[] = [
+  {
+    id: 1,
+    title: "Découvrez nos Meilleures Offres",
+    subtitle: "Simplifiez votre quotidien avec style",
+    buttonText: "Commander Maintenant",
+    buttonLink: "/boutique",
+  },
+  {
+    id: 2,
+    title: "Mode & Accessoires",
+    subtitle: "Les dernières tendances de la saison",
+    buttonText: "Voir la Collection",
+    buttonLink: "/categorie/mode",
+  },
+  {
+    id: 3,
+    title: "Beauté & Bien-Être",
+    subtitle: "Prenez soin de vous avec nos produits premium",
+    buttonText: "Découvrir",
+    buttonLink: "/categorie/beaute-bien-etre",
+  },
+];
+
+export function getBanners(): Banner[] {
   return banners;
 }

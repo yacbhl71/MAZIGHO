@@ -19,51 +19,51 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 px-4">
-        <div className="container mx-auto flex items-center justify-center gap-8 text-sm md:text-base flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">⚡</span>
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-2 px-4">
+        <div className="container mx-auto flex items-center justify-center gap-6 text-xs md:text-sm flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span>⚡</span>
             <span>-10% avec code BIENVENUE</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🚚</span>
+          <div className="flex items-center gap-1.5">
+            <span>🚚</span>
             <span>Livraison Suisse & Europe</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">📦</span>
+          <div className="flex items-center gap-1.5">
+            <span>📦</span>
             <span>Retours gratuits 30 jours</span>
           </div>
         </div>
       </div>
 
       {/* Main Navigation */}
-      <nav className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between gap-4">
+      <nav className="container mx-auto px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
           {/* Logo */}
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer group flex-shrink-0">
-              <div className="bg-gray-800 p-2 rounded">
-                <span className="text-orange-500 text-xl font-bold">≡</span>
+              <div className="bg-gray-800 p-1.5 rounded">
+                <span className="text-orange-500 text-lg font-bold">≡</span>
               </div>
-              <span className="text-xl font-bold text-orange-500 hidden sm:inline">
-                BOUTIQUE PREMIUM
+              <span className="text-lg font-bold text-orange-500 hidden sm:inline whitespace-nowrap">
+                MAZIGHO
               </span>
             </div>
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden lg:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-1">
             <Link href="/">
-              <span className={`cursor-pointer font-medium transition-colors ${
-                isActive("/") ? "text-orange-500" : "text-gray-700 hover:text-orange-500"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+                isActive("/") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Accueil
               </span>
             </Link>
 
             <Link href="/boutique">
-              <span className={`cursor-pointer font-medium transition-colors flex items-center gap-1 ${
-                isActive("/boutique") ? "text-orange-500" : "text-gray-700 hover:text-orange-500"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+                isActive("/boutique") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Boutique
               </span>
@@ -71,29 +71,29 @@ export default function Header() {
 
             {/* Categories Dropdown */}
             <div className="relative group">
-              <button className="font-medium text-gray-700 hover:text-orange-500 transition-colors flex items-center gap-1 bg-orange-100 px-4 py-2 rounded">
+              <button className="font-medium text-sm text-gray-700 hover:text-orange-500 transition-colors flex items-center gap-1 bg-orange-100 px-3 py-2 rounded hover:bg-orange-200">
                 Catégories
                 <span className="text-xs">▼</span>
               </button>
-              <div className="absolute left-0 mt-0 w-96 bg-white rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-4">
-                <div className="grid grid-cols-2 gap-6 px-6">
+              <div className="absolute left-0 mt-0 w-full min-w-max bg-white rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-4 z-50">
+                <div className="grid grid-cols-2 gap-4 px-6">
                   {categories.map((cat) => (
                     <Link key={cat.id} href={`/categorie/${cat.slug}`}>
-                      <div className="cursor-pointer group/item">
-                        <div className="flex items-start gap-3 mb-3">
-                          <span className="text-2xl">{cat.icon}</span>
+                      <div className="cursor-pointer group/item py-2">
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-xl">{cat.icon}</span>
                           <div>
-                            <h3 className="font-semibold text-gray-800 group-hover/item:text-orange-500 transition-colors">
+                            <h3 className="font-semibold text-sm text-gray-800 group-hover/item:text-orange-500 transition-colors">
                               {cat.name}
                             </h3>
-                            <p className="text-xs text-gray-500 mt-1">{cat.description}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">{cat.description}</p>
                           </div>
                         </div>
                         {cat.subcategories && (
-                          <ul className="text-sm text-gray-600 space-y-1 ml-8">
-                            {cat.subcategories.map((sub, idx) => (
+                          <ul className="text-xs text-gray-600 space-y-0.5 ml-7">
+                            {cat.subcategories.slice(0, 3).map((sub, idx) => (
                               <li key={idx} className="hover:text-orange-500 transition-colors">
-                                {sub}
+                                • {sub}
                               </li>
                             ))}
                           </ul>
@@ -106,32 +106,32 @@ export default function Header() {
             </div>
 
             <Link href="/a-propos">
-              <span className={`cursor-pointer font-medium transition-colors ${
-                isActive("/a-propos") ? "text-orange-500" : "text-gray-700 hover:text-orange-500"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+                isActive("/a-propos") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Nouveautés
               </span>
             </Link>
 
             <Link href="/a-propos">
-              <span className={`cursor-pointer font-medium transition-colors ${
-                isActive("/a-propos") ? "text-orange-500" : "text-gray-700 hover:text-orange-500"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+                isActive("/a-propos") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Best-sellers
               </span>
             </Link>
 
             <Link href="/a-propos">
-              <span className={`cursor-pointer font-medium text-orange-500 transition-colors ${
-                isActive("/a-propos") ? "text-orange-600" : "hover:text-orange-600"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded text-orange-500 transition-colors ${
+                isActive("/a-propos") ? "bg-orange-50" : "hover:bg-orange-50"
               }`}>
                 Promos
               </span>
             </Link>
 
             <Link href="/contact">
-              <span className={`cursor-pointer font-medium transition-colors ${
-                isActive("/contact") ? "text-orange-500" : "text-gray-700 hover:text-orange-500"
+              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+                isActive("/contact") ? "text-orange-500 bg-orange-50" : "text-gray-700 hover:text-orange-500 hover:bg-orange-50"
               }`}>
                 Contact
               </span>
@@ -139,12 +139,12 @@ export default function Header() {
           </div>
 
           {/* Search Bar - Desktop */}
-          <div className="hidden md:block flex-1 max-w-xs">
+          <div className="hidden md:block flex-1 max-w-xs mx-4">
             <SearchBar />
           </div>
 
           {/* Right Icons */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block">
               <Heart className="h-5 w-5 text-gray-700" />
             </button>
@@ -158,7 +158,7 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:inline-flex gap-2">
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:inline-flex gap-2 text-sm px-3 py-2 h-auto">
               <User className="h-4 w-4" />
               <span>Mon compte</span>
             </Button>
@@ -178,40 +178,40 @@ export default function Header() {
         </div>
 
         {/* Mobile Search Bar */}
-        <div className="md:hidden mt-4">
+        <div className="md:hidden mt-3">
           <SearchBar />
         </div>
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-3">
+          <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-2">
             <Link href="/">
-              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
                 Accueil
               </div>
             </Link>
             <Link href="/boutique">
-              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
                 Boutique
               </div>
             </Link>
 
             {/* Mobile Categories */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               <button
                 onClick={() => setOpenDropdown(openDropdown === 0 ? null : 0)}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded font-medium flex items-center justify-between"
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded font-medium flex items-center justify-between text-sm"
               >
                 Catégories
-                <span className={`transition-transform ${openDropdown === 0 ? "rotate-180" : ""}`}>
+                <span className={`transition-transform text-xs ${openDropdown === 0 ? "rotate-180" : ""}`}>
                   ▼
                 </span>
               </button>
               {openDropdown === 0 && (
-                <div className="bg-gray-50 rounded space-y-2 p-2">
+                <div className="bg-gray-50 rounded space-y-1 p-2">
                   {categories.map((cat) => (
                     <Link key={cat.id} href={`/categorie/${cat.slug}`}>
-                      <div className="px-4 py-2 hover:bg-white rounded cursor-pointer text-sm">
+                      <div className="px-4 py-2 hover:bg-white rounded cursor-pointer text-xs">
                         {cat.icon} {cat.name}
                       </div>
                     </Link>
@@ -221,12 +221,12 @@ export default function Header() {
             </div>
 
             <Link href="/contact">
-              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer">
+              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
                 Contact
               </div>
             </Link>
 
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4">
+            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm">
               <User className="h-4 w-4" />
               Mon compte
             </Button>
