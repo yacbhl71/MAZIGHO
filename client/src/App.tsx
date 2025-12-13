@@ -14,6 +14,8 @@ import Cart from "./pages/Cart";
 import Nouveautes from "./pages/Nouveautes";
 import BestSellers from "./pages/BestSellers";
 import Promos from "./pages/Promos";
+import Account from "./pages/Account";
+import Favorites from "./pages/Favorites";
 
 function Router() {
   return (
@@ -28,6 +30,8 @@ function Router() {
       <Route path={"/nouveautes"} component={Nouveautes} />
       <Route path={"/best-sellers"} component={BestSellers} />
       <Route path={"/promos"} component={Promos} />
+      <Route path={"/mon-compte"} component={Account} />
+      <Route path={"/favoris"} component={Favorites} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

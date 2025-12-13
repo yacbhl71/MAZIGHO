@@ -5,6 +5,7 @@ import { useState } from "react";
 import { getAllCategories } from "@/data/mockData";
 import SearchBar from "./SearchBar";
 import { useCart } from "@/hooks/useCart";
+import { useFavorites } from "@/hooks/useFavorites";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -12,7 +13,9 @@ export default function Header() {
   const [location] = useLocation();
   const categories = getAllCategories();
   const { getItemCount } = useCart();
+  const { favorites } = useFavorites();
   const cartCount = getItemCount();
+  const favoritesCount = favorites.length;
 
   const isActive = (path: string) => location === path;
 
@@ -145,9 +148,16 @@ export default function Header() {
 
           {/* Right Icons */}
           <div className="flex items-center gap-2">
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block">
-              <Heart className="h-5 w-5 text-gray-700" />
-            </button>
+            <Link href="/favoris">
+              <div className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden sm:block">
+                <Heart className="h-5 w-5 text-gray-700" />
+                {favoritesCount > 0 && (
+                  <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {favoritesCount}
+                  </span>
+                )}
+              </div>
+            </Link>
             <Link href="/panier">
               <div className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <ShoppingCart className="h-5 w-5 text-gray-700" />
@@ -158,10 +168,12 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:inline-flex gap-2 text-sm px-3 py-2 h-auto">
-              <User className="h-4 w-4" />
-              <span>Mon compte</span>
-            </Button>
+            <Link href="/mon-compte">
+              <Button className="bg-orange-500 hover:bg-orange-600 text-white hidden sm:inline-flex gap-2 text-sm px-3 py-2 h-auto">
+                <User className="h-4 w-4" />
+                <span>Mon compte</span>
+              </Button>
+            </Link>
 
             {/* Mobile Menu Button */}
             <button

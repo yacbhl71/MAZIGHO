@@ -1,27 +1,24 @@
-import { Link, useRoute } from "wouter";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Heart, ShoppingCart, ArrowLeft } from "lucide-react";
+import { Star, Heart, ShoppingCart, ArrowLeft, Trash2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getAllProducts, getAllCategories } from "@/data/mockData";
+import { getAllProducts } from "@/data/mockData";
 import { useCart } from "@/hooks/useCart";
+import { useFavorites } from "@/hooks/useFavorites";
 import { useState } from "react";
 
-export default function Category() {
-  const [, params] = useRoute("/categorie/:slug");
-  const slug = params?.slug || "";
-  
-  const categories = getAllCategories();
-  const category = categories.find(c => c.slug === slug);
+export default function Favorites() {
   const allProducts = getAllProducts();
-  const products = category ? allProducts.filter(p => p.categoryId === category.id) : [];
-  
+  const { favorites, removeFavorite } = useFavorites();
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
+  const favoriteProducts = allProducts.filter(p => favorites.includes(p.id));
+
   const handleAddToCart = (productId: number) => {
-    const product = products.find(p => p.id === productId);
+    const product = favoriteProducts.find(p => p.id === productId);
     if (product) {
       addToCart(productId, product.name, product.price, 1);
       setAddedToCart(productId);
@@ -29,48 +26,28 @@ export default function Category() {
     }
   };
 
-  if (!category) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center py-20">
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">Catégorie introuvable</h1>
-            <p className="text-gray-600 mb-6">La catégorie que vous recherchez n'existe pas.</p>
-            <Link href="/boutique">
-              <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                Retour à la boutique
-              </Button>
-            </Link>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
 
       <main className="flex-1">
         {/* Header Section */}
-        <section className="bg-gradient-to-r from-orange-50 to-teal-50 py-12 md:py-16">
+        <section className="bg-gradient-to-r from-red-50 to-pink-50 py-12 md:py-16">
           <div className="container mx-auto px-4">
-            <Link href="/boutique">
+            <Link href="/">
               <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
                 <ArrowLeft className="h-5 w-5" />
-                <span className="font-medium">Retour à la boutique</span>
+                <span className="font-medium">Retour à l'accueil</span>
               </div>
             </Link>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-5xl">{category.icon}</span>
+              <Heart className="h-8 w-8 text-red-500 fill-red-500" />
               <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                {category.name}
+                Mes Favoris
               </h1>
             </div>
             <p className="text-lg text-gray-600 max-w-2xl">
-              {category.description}
+              {favoriteProducts.length} produit{favoriteProducts.length !== 1 ? 's' : ''} en attente
             </p>
           </div>
         </section>
@@ -78,9 +55,9 @@ export default function Category() {
         {/* Products Grid */}
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            {products.length > 0 ? (
+            {favoriteProducts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map((product) => (
+                {favoriteProducts.map((product) => (
                   <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                       {/* Product Image */}
@@ -157,8 +134,12 @@ export default function Category() {
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
                           </button>
-                          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Ajouter à la wishlist">
-                            <Heart className="h-5 w-5 text-gray-700" />
+                          <button
+                            onClick={() => removeFavorite(product.id)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Supprimer des favoris"
+                          >
+                            <Trash2 className="h-5 w-5 text-red-600" />
                           </button>
                         </div>
 
@@ -173,11 +154,15 @@ export default function Category() {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Aucun produit dans cette catégorie pour le moment.</p>
+              <div className="text-center py-20">
+                <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aucun favori pour le moment</h2>
+                <p className="text-gray-600 mb-6">
+                  Commencez à ajouter vos produits préférés à votre liste de souhaits !
+                </p>
                 <Link href="/boutique">
-                  <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
-                    Voir tous les produits
+                  <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                    Découvrir les produits
                   </Button>
                 </Link>
               </div>
