@@ -20,6 +20,7 @@ import Orders from "./pages/Orders";
 import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import FAQ from "./pages/FAQ";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path={"/parametres"} component={SettingsPage} />
       <Route path={"/login"} component={Login} />
       <Route path={"/register"} component={Register} />
+      <Route path={"/faq"} component={FAQ} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
