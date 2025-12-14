@@ -16,6 +16,8 @@ import BestSellers from "./pages/BestSellers";
 import Promos from "./pages/Promos";
 import Account from "./pages/Account";
 import Favorites from "./pages/Favorites";
+import Orders from "./pages/Orders";
+import SettingsPage from "./pages/Settings";
 
 function Router() {
   return (
@@ -32,6 +34,8 @@ function Router() {
       <Route path={"/promos"} component={Promos} />
       <Route path={"/mon-compte"} component={Account} />
       <Route path={"/favoris"} component={Favorites} />
+      <Route path={"/commandes"} component={Orders} />
+      <Route path={"/parametres"} component={SettingsPage} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

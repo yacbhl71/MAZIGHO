@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
-import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -17,20 +16,7 @@ export default function Contact() {
     subject: "",
     message: "",
   });
-
-  const sendMessage = trpc.contact.send.useMutation({
-    onSuccess: () => {
-      toast.success("Message envoyé avec succès !", {
-        description: "Nous vous répondrons dans les plus brefs délais.",
-      });
-      setFormData({ name: "", email: "", subject: "", message: "" });
-    },
-    onError: (error) => {
-      toast.error("Erreur lors de l'envoi", {
-        description: error.message || "Veuillez réessayer plus tard.",
-      });
-    },
-  });
+  const [isSending, setIsSending] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +24,15 @@ export default function Contact() {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
-    sendMessage.mutate(formData);
+    setIsSending(true);
+    // Simuler l'envoi du message
+    setTimeout(() => {
+      toast.success("Message envoyé avec succès !", {
+        description: "Nous vous répondrons dans les plus brefs délais.",
+      });
+      setFormData({ name: "", email: "", subject: "", message: "" });
+      setIsSending(false);
+    }, 1000);
   };
 
   return (
@@ -172,9 +166,9 @@ export default function Contact() {
                         type="submit"
                         size="lg"
                         className="w-full gap-2"
-                        disabled={sendMessage.isPending}
+                        disabled={isSending}
                       >
-                        {sendMessage.isPending ? (
+                        {isSending ? (
                           <>Envoi en cours...</>
                         ) : (
                           <>

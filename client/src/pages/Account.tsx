@@ -105,7 +105,8 @@ export default function Account() {
                   </Link>
 
                   {/* Settings */}
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <Link href="/parametres">
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
                         <div className="bg-green-100 p-3 rounded-lg">
@@ -122,9 +123,11 @@ export default function Account() {
                       </div>
                     </CardContent>
                   </Card>
+                  </Link>
 
                   {/* Logout */}
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <Link href="/">
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                     <CardContent className="p-6">
                       <div className="flex items-start gap-4">
                         <div className="bg-gray-100 p-3 rounded-lg">
@@ -141,6 +144,7 @@ export default function Account() {
                       </div>
                     </CardContent>
                   </Card>
+                  </Link>
                 </div>
               </div>
             </div>
