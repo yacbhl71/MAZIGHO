@@ -18,6 +18,8 @@ import Account from "./pages/Account";
 import Favorites from "./pages/Favorites";
 import Orders from "./pages/Orders";
 import SettingsPage from "./pages/Settings";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
 function Router() {
   return (
@@ -36,6 +38,8 @@ function Router() {
       <Route path={"/favoris"} component={Favorites} />
       <Route path={"/commandes"} component={Orders} />
       <Route path={"/parametres"} component={SettingsPage} />
+      <Route path={"/login"} component={Login} />
+      <Route path={"/register"} component={Register} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
