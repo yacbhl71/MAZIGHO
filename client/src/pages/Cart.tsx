@@ -189,7 +189,10 @@ export default function Cart() {
                   </div>
 
                   {/* Checkout Button */}
-                  <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 text-lg font-semibold">
+                  <Button 
+                    onClick={() => setLocation("/commander")}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 text-lg font-semibold"
+                  >
                     Procéder au paiement
                   </Button>
 

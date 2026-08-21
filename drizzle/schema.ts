@@ -1,17 +1,10 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
  */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -32,6 +25,7 @@ export const categories = mysqlTable("categories", {
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   description: text("description"),
   imageUrl: varchar("imageUrl", { length: 500 }),
+  displayOrder: int("displayOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -49,6 +43,7 @@ export const products = mysqlTable("products", {
   originalPrice: int("originalPrice"), // Original price for discounts
   stock: int("stock").default(0).notNull(),
   featured: int("featured").default(0).notNull(), // 0 or 1 for boolean
+  status: mysqlEnum("status", ["active", "draft", "archived"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -68,6 +63,62 @@ export const productImages = mysqlTable("productImages", {
 export type ProductImage = typeof productImages.$inferSelect;
 export type InsertProductImage = typeof productImages.$inferInsert;
 
+// Orders table
+export const orders = mysqlTable("orders", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "shipped", "delivered", "cancelled"]).default("pending").notNull(),
+  totalAmount: int("totalAmount").notNull(), // Total in cents
+  shippingAddress: text("shippingAddress").notNull(),
+  billingAddress: text("billingAddress"),
+  paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),
+  paymentMethod: varchar("paymentMethod", { length: 50 }),
+  trackingNumber: varchar("trackingNumber", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = typeof orders.$inferInsert;
+
+// Order items table
+export const orderItems = mysqlTable("orderItems", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  productId: int("productId").notNull(),
+  quantity: int("quantity").notNull(),
+  priceAtPurchase: int("priceAtPurchase").notNull(), // Price in cents
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OrderItem = typeof orderItems.$inferSelect;
+export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+// Cart table
+export const carts = mysqlTable("carts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Cart = typeof carts.$inferSelect;
+export type InsertCart = typeof carts.$inferInsert;
+
+// Cart items table
+export const cartItems = mysqlTable("cartItems", {
+  id: int("id").autoincrement().primaryKey(),
+  cartId: int("cartId").notNull(),
+  productId: int("productId").notNull(),
+  quantity: int("quantity").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CartItem = typeof cartItems.$inferSelect;
+export type InsertCartItem = typeof cartItems.$inferInsert;
+
 // Reviews table
 export const reviews = mysqlTable("reviews", {
   id: int("id").autoincrement().primaryKey(),
@@ -75,6 +126,7 @@ export const reviews = mysqlTable("reviews", {
   userId: int("userId").notNull(),
   rating: int("rating").notNull(), // 1-5
   comment: text("comment"),
+  status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -88,8 +140,36 @@ export const contactMessages = mysqlTable("contactMessages", {
   email: varchar("email", { length: 320 }).notNull(),
   subject: varchar("subject", { length: 200 }),
   message: text("message").notNull(),
+  status: mysqlEnum("status", ["unread", "read", "archived"]).default("unread").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type ContactMessage = typeof contactMessages.$inferSelect;
 export type InsertContactMessage = typeof contactMessages.$inferInsert;
+
+// Banners table
+export const banners = mysqlTable("banners", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  subtitle: text("subtitle"),
+  imageUrl: varchar("imageUrl", { length: 500 }).notNull(),
+  linkUrl: varchar("linkUrl", { length: 500 }),
+  active: int("active").default(1).notNull(),
+  displayOrder: int("displayOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Banner = typeof banners.$inferSelect;
+export type InsertBanner = typeof banners.$inferInsert;
+
+// Settings table
+export const settings = mysqlTable("settings", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Setting = typeof settings.$inferSelect;
+export type InsertSetting = typeof settings.$inferInsert;

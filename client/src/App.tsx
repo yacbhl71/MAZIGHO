@@ -15,6 +15,17 @@ import Nouveautes from "./pages/Nouveautes";
 import BestSellers from "./pages/BestSellers";
 import Promos from "./pages/Promos";
 import Account from "./pages/Account";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminProducts from "./pages/admin/AdminProducts";
+import AdminOrders from "./pages/admin/AdminOrders";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminCategories from "./pages/admin/AdminCategories";
+import AdminReviews from "./pages/admin/AdminReviews";
+import AdminMessages from "./pages/admin/AdminMessages";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminContent from "./pages/admin/AdminContent";
+import Checkout from "./pages/Checkout";
+import OrderConfirmation from "./pages/OrderConfirmation";
 import Favorites from "./pages/Favorites";
 import Orders from "./pages/Orders";
 import SettingsPage from "./pages/Settings";
@@ -33,6 +44,8 @@ function Router() {
       <Route path={"/a-propos"} component={About} />
       <Route path={"/contact"} component={Contact} />
       <Route path={"/panier"} component={Cart} />
+      <Route path={"/commander"} component={Checkout} />
+      <Route path={"/commande-confirmation/:id"} component={OrderConfirmation} />
       <Route path={"/nouveautes"} component={Nouveautes} />
       <Route path={"/best-sellers"} component={BestSellers} />
       <Route path={"/promos"} component={Promos} />
@@ -44,6 +57,15 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/faq" component={FAQ} />
+      <Route path={"/admin"} component={AdminDashboard} />
+      <Route path={"/admin/produits"} component={AdminProducts} />
+      <Route path={"/admin/categories"} component={AdminCategories} />
+      <Route path={"/admin/commandes"} component={AdminOrders} />
+      <Route path={"/admin/utilisateurs"} component={AdminUsers} />
+      <Route path={"/admin/avis"} component={AdminReviews} />
+      <Route path={"/admin/contenu"} component={AdminContent} />
+      <Route path={"/admin/messages"} component={AdminMessages} />
+      <Route path={"/admin/parametres"} component={AdminSettings} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

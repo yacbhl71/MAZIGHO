@@ -21,15 +21,23 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: LayoutDashboard, label: "Tableau de Bord", path: "/admin" },
+  { icon: Package, label: "Produits", path: "/admin/produits" },
+  { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
+  { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
+  { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
+  { icon: Star, label: "Avis Clients", path: "/admin/avis" },
+  { icon: Layout, label: "Contenu", path: "/admin/contenu" },
+  { icon: MessageSquare, label: "Messages", path: "/admin/messages" },
+  { icon: Settings, label: "Paramètres", path: "/admin/parametres" },
+  { icon: Home, label: "Retour au Site", path: "/" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -56,35 +64,37 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />
   }
 
-  if (!user) {
+  if (!user || user.role !== 'admin') {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl">
           <div className="flex flex-col items-center gap-6">
-            <div className="relative group">
-              <div className="relative">
-                <img
-                  src={APP_LOGO}
-                  alt={APP_TITLE}
-                  className="h-20 w-20 rounded-xl object-cover shadow"
-                />
-              </div>
+            <div className="relative">
+              <img
+                src={APP_LOGO}
+                alt={APP_TITLE}
+                className="h-20 w-20 rounded-xl object-cover shadow"
+              />
             </div>
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">{APP_TITLE}</h1>
               <p className="text-sm text-muted-foreground">
-                Please sign in to continue
+                {!user ? "Veuillez vous connecter pour continuer" : "Accès réservé aux administrateurs"}
               </p>
             </div>
           </div>
           <Button
             onClick={() => {
-              window.location.href = getLoginUrl();
+              if (!user) {
+                window.location.href = getLoginUrl();
+              } else {
+                window.location.href = "/";
+              }
             }}
             size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
+            className="w-full shadow-lg hover:shadow-xl transition-all bg-orange-500 hover:bg-orange-600"
           >
-            Sign in
+            {!user ? "Se connecter" : "Retour à l'accueil"}
           </Button>
         </div>
       </div>
@@ -193,7 +203,7 @@ function DashboardLayoutContent({
                       alt="Logo"
                     />
                     <span className="font-semibold tracking-tight truncate">
-                      {APP_TITLE}
+                      {APP_TITLE} Admin
                     </span>
                   </div>
                   <button
@@ -255,7 +265,7 @@ function DashboardLayoutContent({
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
+                  <span>Déconnexion</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
