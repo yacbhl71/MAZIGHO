@@ -64,4 +64,6 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  startServer().catch(console.error);
+}
