@@ -445,9 +445,9 @@ export async function addToCart(userId: number, productId: number, quantity: num
   const cart = await getCart(userId);
   if (!cart) throw new Error("Cart not found");
 
+  const { and } = await import("drizzle-orm");
   const existingItem = await db.select().from(cartItems)
-    .where(eq(cartItems.cartId, cart.id))
-    .where(eq(cartItems.productId, productId))
+    .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)))
     .limit(1);
 
   if (existingItem.length > 0) {
@@ -473,15 +473,14 @@ export async function updateCartItem(userId: number, productId: number, quantity
   const cart = await getCart(userId);
   if (!cart) throw new Error("Cart not found");
 
+  const { and } = await import("drizzle-orm");
   if (quantity <= 0) {
     await db.delete(cartItems)
-      .where(eq(cartItems.cartId, cart.id))
-      .where(eq(cartItems.productId, productId));
+      .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)));
   } else {
     await db.update(cartItems)
       .set({ quantity })
-      .where(eq(cartItems.cartId, cart.id))
-      .where(eq(cartItems.productId, productId));
+      .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)));
   }
 
   return { success: true };
@@ -549,9 +548,9 @@ export async function getOrderDetail(userId: number, orderId: number) {
   if (!db) return null;
   const { orders, orderItems, products } = await import("../drizzle/schema");
   
+  const { and } = await import("drizzle-orm");
   const order = await db.select().from(orders)
-    .where(eq(orders.id, orderId))
-    .where(eq(orders.userId, userId))
+    .where(and(eq(orders.id, orderId), eq(orders.userId, userId)))
     .limit(1);
 
   if (order.length === 0) return null;

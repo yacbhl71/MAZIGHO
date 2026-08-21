@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { User, LogOut, Heart, ShoppingBag, Settings, ArrowLeft } from "lucide-react";
+import { User, LogOut, Heart, ShoppingBag, Settings, ArrowLeft, LayoutDashboard } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useLocalAuth } from "@/hooks/useLocalAuth";
@@ -201,6 +201,29 @@ export default function Account() {
                       </CardContent>
                     </Card>
                   </Link>
+
+                  {/* Admin Dashboard - Only for admins */}
+                  {(user as any)?.role === 'admin' && (
+                    <Link href="/admin">
+                      <Card className="hover:shadow-lg transition-shadow cursor-pointer border-orange-200 bg-orange-50/30">
+                        <CardContent className="p-6">
+                          <div className="flex items-start gap-4">
+                            <div className="bg-orange-100 p-3 rounded-lg">
+                              <LayoutDashboard className="h-6 w-6 text-orange-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-800 mb-1">
+                                Administration
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Gérer la boutique, les produits et les commandes
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )}
 
                   {/* Logout */}
                   <Card
