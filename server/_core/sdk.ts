@@ -6,6 +6,7 @@ import {
 } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
+import { createHash } from "node:crypto";
 import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
@@ -163,7 +164,18 @@ class SDKServer {
   }
 
   private getSessionSecret() {
-    const secret = ENV.cookieSecret;
+    // JWT_SECRET is the preferred dedicated key. Older Vercel configurations
+    // may omit it even though DATABASE_URL is already a protected server-only
+    // secret. The fallback is domain-separated and never sent to the client.
+    const secret = ENV.cookieSecret || (ENV.databaseUrl
+      ? createHash("sha256")
+          .update("mazigho-local-session-v1:")
+          .update(ENV.databaseUrl)
+          .digest("base64url")
+      : "");
+    if (!secret) {
+      throw new Error("La clé de session serveur est absente.");
+    }
     return new TextEncoder().encode(secret);
   }
 
