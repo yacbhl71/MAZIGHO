@@ -182,10 +182,29 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
   
   // Try to find price in script blocks if not in meta/json-ld
   let priceFromScript = null;
-  const priceMatch = html.match(/["']formatedAmount["']\s*:\s*["']([^"']+)["']/i) || 
-                     html.match(/["']priceText["']\s*:\s*["']([^"']+)["']/i) ||
-                     html.match(/["']actPriceText["']\s*:\s*["']([^"']+)["']/i);
-  if (priceMatch) priceFromScript = parsePrice(priceMatch[1]);
+  const pricePatterns = [
+    /["']formatedAmount["']\s*:\s*["']([^"']+)["']/i,
+    /["']priceText["']\s*:\s*["']([^"']+)["']/i,
+    /["']actPriceText["']\s*:\s*["']([^"']+)["']/i,
+    /["']minPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']maxPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']priceValue["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']amount["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']skuAmount["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']activityPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /["']originalPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+  ];
+
+  for (const pattern of pricePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      const parsed = parsePrice(match[1]);
+      if (parsed && parsed > 0) {
+        priceFromScript = parsed;
+        break;
+      }
+    }
+  }
 
   const name = String(productJson?.name || extractMeta(html, 'og:title') || stripTags(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || '') || 'Produit importé').slice(0, 200);
   const description = String(productJson?.description || extractMeta(html, 'og:description') || '').trim().slice(0, 10_000) || null;
