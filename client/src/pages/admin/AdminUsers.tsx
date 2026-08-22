@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { User, Shield, UserCog, Loader2, UserPlus, Mail, ShieldCheck } from "lucide-react";
+import { User, Shield, UserCog, Loader2, UserPlus, Mail, ShieldCheck, ShieldBan, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -39,10 +39,34 @@ export default function AdminUsers() {
     onError: (error) => toast.error(`Erreur : ${error.message}`),
   });
 
+  const setAccountStatus = trpc.admin.users.setAccountStatus.useMutation({
+    onSuccess: async () => { toast.success("Statut du compte mis à jour"); await refetch(); },
+    onError: error => toast.error(error.message || "Modification impossible."),
+  });
+
+  const deleteUser = trpc.admin.users.delete.useMutation({
+    onSuccess: async () => { toast.success("Utilisateur supprimé"); await refetch(); },
+    onError: error => toast.error(error.message || "Suppression impossible."),
+  });
+
   const handleToggleRole = (id: number, currentRole: string) => {
     const newRole = currentRole === "admin" ? "user" : "admin";
     if (confirm(`Voulez-vous changer le rôle de cet utilisateur en ${newRole} ?`)) {
       updateRole.mutate({ id, role: newRole as "user" | "admin" });
+    }
+  };
+
+  const handleToggleBlock = (id: number, currentStatus: "active" | "blocked") => {
+    const accountStatus = currentStatus === "active" ? "blocked" : "active";
+    const action = accountStatus === "blocked" ? "bloquer" : "débloquer";
+    if (confirm(`Voulez-vous ${action} ce compte ?`)) {
+      setAccountStatus.mutate({ id, accountStatus });
+    }
+  };
+
+  const handleDelete = (id: number, email: string | null) => {
+    if (confirm(`Supprimer définitivement le compte ${email || "sélectionné"} ? Cette action est irréversible. Les comptes ayant des commandes ne peuvent pas être supprimés.`)) {
+      deleteUser.mutate({ id });
     }
   };
 
@@ -75,6 +99,7 @@ export default function AdminUsers() {
                 <TableHead>Utilisateur</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Rôle</TableHead>
+                <TableHead>Statut</TableHead>
                 <TableHead>Dernière connexion</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -86,13 +111,14 @@ export default function AdminUsers() {
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-48" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-44 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : users?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                     Aucun utilisateur trouvé.
                   </TableCell>
                 </TableRow>
@@ -117,12 +143,31 @@ export default function AdminUsers() {
                         ) : "Client"}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={user.accountStatus === "blocked" ? "destructive" : "outline"}>
+                        {user.accountStatus === "blocked" ? "Bloqué" : "Actif"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{user.lastSignedIn ? new Date(user.lastSignedIn).toLocaleDateString() : "Jamais"}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled={updateRole.isPending} onClick={() => handleToggleRole(user.id, user.role)}>
-                        {updateRole.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserCog className="mr-2 h-4 w-4" />}
-                        Changer Rôle
-                      </Button>
+                      {user.role === "admin" ? (
+                        <span className="text-xs text-muted-foreground">Compte protégé</span>
+                      ) : (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button variant="outline" size="sm" disabled={updateRole.isPending} onClick={() => handleToggleRole(user.id, user.role)}>
+                            {updateRole.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <UserCog className="mr-1 h-4 w-4" />}
+                            Rôle
+                          </Button>
+                          <Button variant="outline" size="sm" disabled={setAccountStatus.isPending} onClick={() => handleToggleBlock(user.id, user.accountStatus)}>
+                            {setAccountStatus.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldBan className="mr-1 h-4 w-4" />}
+                            {user.accountStatus === "blocked" ? "Débloquer" : "Bloquer"}
+                          </Button>
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={deleteUser.isPending} onClick={() => handleDelete(user.id, user.email)}>
+                            {deleteUser.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+                            Supprimer
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))

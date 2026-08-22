@@ -10,6 +10,29 @@ const { users, categories, products, productImages, reviews, contactMessages, or
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
+let _accountStatusColumnReady: Promise<void> | null = null;
+
+async function ensureAccountStatusColumn() {
+  if (_accountStatusColumnReady) return _accountStatusColumnReady;
+
+  _accountStatusColumnReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    try {
+      await db.execute(
+        sql.raw("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `accountStatus` enum('active', 'blocked') NOT NULL DEFAULT 'active'")
+      );
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) {
+        throw error;
+      }
+    }
+  })();
+
+  return _accountStatusColumnReady;
+}
 
 async function ensurePasswordHashColumn() {
   if (_passwordHashColumnReady) return _passwordHashColumnReady;
@@ -66,6 +89,7 @@ export async function getDb() {
 
 export async function upsertUser(user: InsertUser): Promise<void> {
   await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -126,6 +150,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
 export async function getUserByOpenId(openId: string) {
   await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot get user: database not available");
@@ -137,6 +162,7 @@ export async function getUserByOpenId(openId: string) {
 
 export async function getUserByEmail(email: string) {
   await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) return undefined;
 
@@ -157,6 +183,7 @@ export async function createPasswordUser(input: {
   passwordHash: string;
 }) {
   await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
@@ -178,6 +205,7 @@ export async function updatePasswordUser(input: {
   passwordHash: string;
 }) {
   await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
@@ -681,6 +709,7 @@ export async function updateOrderStatus(id: number, status: any, trackingNumber?
 }
 
 export async function getAllUsersAdmin() {
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) return [];
 
@@ -692,6 +721,7 @@ export async function getAllUsersAdmin() {
       email: users.email,
       loginMethod: users.loginMethod,
       role: users.role,
+      accountStatus: users.accountStatus,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
       lastSignedIn: users.lastSignedIn,
@@ -699,11 +729,83 @@ export async function getAllUsersAdmin() {
     .from(users);
 }
 
-export async function updateUserRole(id: number, role: any) {
+async function getManageableUser(tx: any, targetId: number, actorId: number) {
+  const target = await tx
+    .select({ id: users.id, role: users.role, accountStatus: users.accountStatus })
+    .from(users)
+    .where(eq(users.id, targetId))
+    .limit(1);
+
+  if (target.length === 0) throw new Error("USER_NOT_FOUND");
+  if (target[0].id === actorId) throw new Error("CANNOT_MANAGE_SELF");
+  if (target[0].role === "admin") throw new Error("ADMIN_ACCOUNT_PROTECTED");
+  return target[0];
+}
+
+export async function updateUserRoleAdmin(input: {
+  id: number;
+  role: "user" | "admin";
+  actorId: number;
+}) {
+  await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { users } = await import("../drizzle/schema");
-  await db.update(users).set({ role }).where(eq(users.id, id));
+
+  await db.transaction(async tx => {
+    await getManageableUser(tx, input.id, input.actorId);
+    await tx.update(users).set({ role: input.role }).where(eq(users.id, input.id));
+  });
+  return { success: true };
+}
+
+export async function setUserAccountStatusAdmin(input: {
+  id: number;
+  accountStatus: "active" | "blocked";
+  actorId: number;
+}) {
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async tx => {
+    await getManageableUser(tx, input.id, input.actorId);
+    await tx
+      .update(users)
+      .set({ accountStatus: input.accountStatus })
+      .where(eq(users.id, input.id));
+  });
+  return { success: true };
+}
+
+export async function deleteUserAdmin(input: { id: number; actorId: number }) {
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async tx => {
+    await getManageableUser(tx, input.id, input.actorId);
+
+    const orderCount = await tx
+      .select({ value: count() })
+      .from(orders)
+      .where(eq(orders.userId, input.id));
+    if ((orderCount[0]?.value ?? 0) > 0) {
+      throw new Error("USER_HAS_ORDERS");
+    }
+
+    const cart = await tx
+      .select({ id: carts.id })
+      .from(carts)
+      .where(eq(carts.userId, input.id))
+      .limit(1);
+    if (cart[0]) {
+      await tx.delete(cartItems).where(eq(cartItems.cartId, cart[0].id));
+      await tx.delete(carts).where(eq(carts.id, cart[0].id));
+    }
+
+    await tx.delete(reviews).where(eq(reviews.userId, input.id));
+    await tx.delete(users).where(eq(users.id, input.id));
+  });
   return { success: true };
 }
 

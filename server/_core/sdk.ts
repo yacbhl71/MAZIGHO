@@ -311,6 +311,9 @@ class SDKServer {
     if (!user) {
       throw ForbiddenError("User not found");
     }
+    if (user.accountStatus === "blocked") {
+      throw ForbiddenError("Account blocked");
+    }
 
     await db.upsertUser({
       openId: user.openId,

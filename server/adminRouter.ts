@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
@@ -8,6 +9,23 @@ import {
   previewSupplierProductFromHtml,
   previewProductInput,
 } from "./dropshipping";
+
+function rethrowUserManagementError(error: unknown): never {
+  const code = String(error);
+  if (code.includes("CANNOT_MANAGE_SELF")) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Vous ne pouvez pas modifier votre propre compte ici." });
+  }
+  if (code.includes("ADMIN_ACCOUNT_PROTECTED")) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Un compte administrateur est protégé contre cette action." });
+  }
+  if (code.includes("USER_HAS_ORDERS")) {
+    throw new TRPCError({ code: "CONFLICT", message: "Ce client a des commandes : bloquez son compte au lieu de le supprimer." });
+  }
+  if (code.includes("USER_NOT_FOUND")) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Utilisateur introuvable." });
+  }
+  throw error;
+}
 
 export const adminRouter = router({
   // Dashboard Stats
@@ -228,8 +246,29 @@ export const adminRouter = router({
     updateRole: adminProcedure.input(z.object({
       id: z.number(),
       role: z.enum(["user", "admin"]),
-    })).mutation(async ({ input }) => {
-      return await db.updateUserRole(input.id, input.role);
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        return await db.updateUserRoleAdmin({ ...input, actorId: ctx.user.id });
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
+    }),
+    setAccountStatus: adminProcedure.input(z.object({
+      id: z.number(),
+      accountStatus: z.enum(["active", "blocked"]),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        return await db.setUserAccountStatusAdmin({ ...input, actorId: ctx.user.id });
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+      try {
+        return await db.deleteUserAdmin({ ...input, actorId: ctx.user.id });
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
     }),
   }),
 

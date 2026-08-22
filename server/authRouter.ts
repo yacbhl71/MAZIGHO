@@ -140,6 +140,12 @@ export const authRouter = router({
           message: "Adresse e-mail ou mot de passe incorrect.",
         });
       }
+      if (user.accountStatus === "blocked") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Ce compte est bloqué. Contactez le support MAZIGHO.",
+        });
+      }
 
       await markUserSignedIn(user.openId);
       await createSession(ctx, user);
