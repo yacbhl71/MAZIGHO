@@ -18,6 +18,7 @@ export default function RecoverOwner() {
   const [confirmation, setConfirmation] = useState("");
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [persistentError, setPersistentError] = useState<string | null>(null);
 
   const recover = trpc.auth.repairOwnerV3.useMutation({
     onSuccess: async () => {
@@ -25,13 +26,20 @@ export default function RecoverOwner() {
       toast.success("Votre compte propriétaire est sécurisé et activé.");
       setLocation("/admin");
     },
-    onError: error => toast.error(error.message || "Récupération impossible."),
+    onError: error => {
+      const message = error.message || "Récupération impossible.";
+      setPersistentError(message);
+      toast.error(message);
+    },
   });
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setPersistentError(null);
     if (password !== confirmation) {
-      toast.error("Les deux mots de passe ne correspondent pas.");
+      const message = "Les deux mots de passe ne correspondent pas.";
+      setPersistentError(message);
+      toast.error(message);
       return;
     }
     recover.mutate({ email, password, code: code.trim() });
@@ -50,6 +58,13 @@ export default function RecoverOwner() {
               <p className="text-center text-xs font-semibold uppercase tracking-widest text-orange-600">Reprise sécurisée · version 3</p>
               <h1 className="mt-2 text-2xl font-semibold text-gray-800 text-center">Sécuriser mon compte existant</h1>
               <p className="mt-2 text-center text-sm text-gray-600">Utilisez cette page uniquement si votre adresse e-mail existait déjà avant la mise à jour de sécurité.</p>
+              {persistentError && (
+                <div role="alert" className="mt-5 rounded-lg border border-red-300 bg-red-50 p-4 text-left text-sm font-medium text-red-900">
+                  <p className="font-semibold">La récupération n’a pas pu être finalisée</p>
+                  <p className="mt-1">{persistentError}</p>
+                  <p className="mt-2 text-xs font-normal">Gardez cette page ouverte et communiquez ce message exact au support MAZIGHO.</p>
+                </div>
+              )}
 
               <form className="mt-7 space-y-5" onSubmit={handleSubmit}>
                 <div className="space-y-2">
