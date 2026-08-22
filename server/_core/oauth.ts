@@ -1,5 +1,11 @@
-import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { parse as parseCookie } from "cookie";
 import type { Express, Request, Response } from "express";
+import {
+  COOKIE_NAME,
+  decodeOAuthState,
+  ONE_YEAR_MS,
+  OAUTH_STATE_COOKIE,
+} from "@shared/const";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
@@ -18,6 +24,21 @@ export function registerOAuthRoutes(app: Express) {
       res.status(400).json({ error: "code and state are required" });
       return;
     }
+
+    const { nonce } = decodeOAuthState(state);
+    const expectedNonce = parseCookie(req.headers.cookie ?? "")[OAUTH_STATE_COOKIE];
+
+    if (!nonce || !expectedNonce || nonce !== expectedNonce) {
+      res.status(403).json({ error: "invalid oauth state" });
+      return;
+    }
+
+    res.clearCookie(OAUTH_STATE_COOKIE, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "none",
+      secure: true,
+    });
 
     try {
       const tokenResponse = await sdk.exchangeCodeForToken(code, state);
@@ -42,7 +63,10 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.cookie(COOKIE_NAME, sessionToken, {
+        ...cookieOptions,
+        maxAge: ONE_YEAR_MS,
+      });
 
       res.redirect(302, "/");
     } catch (error) {
