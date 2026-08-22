@@ -56,6 +56,14 @@ export default function AdminCategories() {
     onError: (error) => toast.error(`Erreur : ${error.message}`),
   });
 
+  const seedCategories = trpc.admin.categories.seedDefault.useMutation({
+    onSuccess: (data) => {
+      toast.success(`${data.createdCount} catégories restaurées avec succès !`);
+      refetch();
+    },
+    onError: (error) => toast.error(`Erreur : ${error.message}`),
+  });
+
   const resetForm = () => {
     setName("");
     setSlug("");
@@ -96,6 +104,12 @@ export default function AdminCategories() {
     }
   };
 
+  const handleSeed = () => {
+    if (confirm("Voulez-vous restaurer les catégories et bannières professionnelles par défaut ?")) {
+      seedCategories.mutate();
+    }
+  };
+
   const generateSlug = (val: string) => {
     setName(val);
     setSlug(val.toLowerCase().replace(/ /g, "-").replace(/[^\w-]+/g, ""));
@@ -109,12 +123,17 @@ export default function AdminCategories() {
             <h1 className="text-3xl font-bold tracking-tight">Gestion des Catégories</h1>
             <p className="text-muted-foreground">Organisez vos produits par catégories pour faciliter la navigation.</p>
           </div>
-          <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-orange-500 hover:bg-orange-600">
-                <Plus className="mr-2 h-4 w-4" /> Nouvelle Catégorie
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleSeed} disabled={seedCategories.isPending}>
+              {seedCategories.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderTree className="mr-2 h-4 w-4" />}
+              Restaurer les défauts
+            </Button>
+            <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-orange-500 hover:bg-orange-600">
+                  <Plus className="mr-2 h-4 w-4" /> Nouvelle Catégorie
+                </Button>
+              </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <form onSubmit={handleSubmit}>
                 <DialogHeader>
@@ -163,6 +182,7 @@ export default function AdminCategories() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <div className="border rounded-lg bg-white overflow-hidden">

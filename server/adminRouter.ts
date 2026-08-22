@@ -95,6 +95,41 @@ export const adminRouter = router({
     delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteCategory(input);
     }),
+    seedDefault: adminProcedure.mutation(async () => {
+      const demoCategories = [
+        { name: "High-Tech & Gadgets", slug: "high-tech-gadgets", description: "Accessoires téléphone, Gadgets innovants, Charge & Câbles", icon: "📱", displayOrder: 1 },
+        { name: "Maison & Organisation", slug: "maison-organisation", description: "Rangement malin, Cuisine pratique, Nettoyage intelligent", icon: "🏠", displayOrder: 2 },
+        { name: "Beauté & Bien-Être", slug: "beaute-bien-etre", description: "Soins visage, Massage & relaxation, Coiffure", icon: "💄", displayOrder: 3 },
+        { name: "Sport & Fitness", slug: "sport-fitness", description: "Fitness à domicile, Yoga & pilates, Accessoires sport", icon: "🏋️", displayOrder: 4 },
+        { name: "Auto & Accessoires", slug: "auto-accessoires", description: "Supports téléphone voiture, Nettoyage auto, Sécurité & assistance", icon: "🚗", displayOrder: 5 },
+        { name: "Mode", slug: "mode", description: "Vêtements, Chaussures, Accessoires de mode", icon: "👗", displayOrder: 6 },
+      ];
+      
+      let createdCount = 0;
+      for (const cat of demoCategories) {
+        const existing = await db.getCategoryBySlug(cat.slug);
+        if (!existing) {
+          await db.createCategory(cat);
+          createdCount++;
+        }
+      }
+      
+      // Also seed banners
+      const demoBanners = [
+        { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", linkUrl: "/boutique", active: 1, displayOrder: 1 },
+        { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
+        { title: "Beauté & Bien-Être", subtitle: "Prenez soin de vous avec nos produits premium", linkUrl: "/categorie/beaute-bien-etre", active: 1, displayOrder: 3 },
+      ];
+      
+      for (const banner of demoBanners) {
+        const existing = await db.getAllBannersAdmin();
+        if (!existing.find(b => b.title === banner.title)) {
+          await db.createBanner(banner);
+        }
+      }
+      
+      return { success: true, createdCount };
+    }),
   }),
 
   // Orders Management
