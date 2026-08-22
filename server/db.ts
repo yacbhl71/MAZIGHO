@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import type { InsertUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import mysql from "mysql2/promise";
 
 const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems, banners, settings, promotions } = schema;
 
@@ -13,7 +14,15 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       console.log("[Database] Connecting to:", process.env.DATABASE_URL.split("@")[1]); // Log host only for security
-      _db = drizzle(process.env.DATABASE_URL, { schema, mode: 'default' });
+      
+      const connection = await mysql.createConnection({
+        uri: process.env.DATABASE_URL,
+        ssl: {
+          rejectUnauthorized: true,
+        },
+      });
+      
+      _db = drizzle(connection, { schema, mode: 'default' });
     } catch (error) {
       console.error("[Database] Failed to connect:", error);
       _db = null;
