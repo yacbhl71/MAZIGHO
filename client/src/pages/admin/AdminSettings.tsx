@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Globe, Truck, CreditCard, Bell } from "lucide-react";
+import { Save, Globe, Truck, CreditCard, Bell, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function AdminSettings() {
   const [isSaving, setIsSaving] = useState(false);
@@ -16,7 +17,7 @@ export default function AdminSettings() {
     setIsSaving(true);
     setTimeout(() => {
       setIsSaving(false);
-      toast.success("Paramètres enregistrés avec succès");
+      toast.success("Paramètres enregistrés avec succès (simulation)");
     }, 1000);
   };
 
@@ -27,6 +28,14 @@ export default function AdminSettings() {
           <h1 className="text-3xl font-bold tracking-tight">Paramètres du Site</h1>
           <p className="text-muted-foreground">Configurez les options générales, la livraison et les paiements.</p>
         </div>
+
+        <Alert className="bg-blue-50 border-blue-200 text-blue-800">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertTitle>Module en cours de développement</AlertTitle>
+          <AlertDescription>
+            Les paramètres modifiés ici ne sont pas encore persistés en base de données. Cette interface sert d'aperçu pour la configuration finale.
+          </AlertDescription>
+        </Alert>
 
         <Tabs defaultValue="general" className="space-y-4">
           <TabsList>
