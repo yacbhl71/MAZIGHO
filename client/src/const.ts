@@ -1,5 +1,5 @@
-import { encodeOAuthState } from "@shared/const";
-export { COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE } from "@shared/const";
+import { encodeOAuthState, MANUS_APP_ID } from "@shared/const";
+export { COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE, MANUS_APP_ID } from "@shared/const";
 
 export const APP_TITLE = import.meta.env.VITE_APP_TITLE || "App";
 
@@ -11,7 +11,7 @@ const OAUTH_PORTAL_URL = "https://manus.im";
 // duplicated in a host-only cookie and in state so the callback can reject
 // login CSRF and session-fixation attempts.
 export const getLoginUrl = () => {
-  const appId = import.meta.env.VITE_APP_ID;
+  const appId = MANUS_APP_ID;
   const redirectUri = `${window.location.origin}/api/oauth/callback`;
   const nonce = crypto.randomUUID();
 
