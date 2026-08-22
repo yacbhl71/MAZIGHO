@@ -96,33 +96,41 @@ export const adminRouter = router({
       return await db.deleteCategory(input);
     }),
     seedDefault: adminProcedure.mutation(async () => {
-      // 1. Create tables if they don't exist
-      const dbInstance = await db.getDb();
-      if (!dbInstance) throw new Error("Base de données non disponible");
-      
-      console.log("Initialisation de la structure des tables...");
-      
-      // We run raw SQL for table creation to ensure everything is ready
-      // This is safe because we use IF NOT EXISTS
-      const tables = [
-        "CREATE TABLE IF NOT EXISTS `users` (`id` int AUTO_INCREMENT PRIMARY KEY, `openId` varchar(64) NOT NULL UNIQUE, `name` text, `email` varchar(320), `loginMethod` varchar(64), `role` enum('user','admin') DEFAULT 'user' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL, `lastSignedIn` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `categories` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(100) NOT NULL, `slug` varchar(100) NOT NULL UNIQUE, `description` text, `imageUrl` varchar(500), `icon` varchar(20), `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `products` (`id` int AUTO_INCREMENT PRIMARY KEY, `categoryId` int NOT NULL, `name` varchar(200) NOT NULL, `slug` varchar(200) NOT NULL UNIQUE, `description` text, `longDescription` text, `price` int NOT NULL, `originalPrice` int, `stock` int DEFAULT 0 NOT NULL, `featured` int DEFAULT 0 NOT NULL, `status` enum('active','draft','archived') DEFAULT 'active' NOT NULL, `supplier` varchar(32), `supplierProductId` varchar(128), `supplierUrl` varchar(1000), `supplierPrice` int, `options` text, `lastSyncedAt` timestamp, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `productImages` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `imageUrl` varchar(500) NOT NULL, `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `orders` (`id` int AUTO_INCREMENT PRIMARY KEY, `userId` int NOT NULL, `status` enum('pending','processing','shipped','delivered','cancelled') DEFAULT 'pending' NOT NULL, `totalAmount` int NOT NULL, `shippingAddress` text NOT NULL, `billingAddress` text, `paymentStatus` enum('unpaid','paid','refunded') DEFAULT 'unpaid' NOT NULL, `paymentMethod` varchar(50), `trackingNumber` varchar(100), `notes` text, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `orderItems` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `productId` int NOT NULL, `quantity` int NOT NULL, `priceAtPurchase` int NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `reviews` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `userId` int NOT NULL, `rating` int NOT NULL, `comment` text, `status` enum('pending','approved','rejected') DEFAULT 'pending' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `contactMessages` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(200) NOT NULL, `email` varchar(320) NOT NULL, `subject` varchar(200), `message` text NOT NULL, `status` enum('unread','read','archived') DEFAULT 'unread' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `banners` (`id` int AUTO_INCREMENT PRIMARY KEY, `title` varchar(200) NOT NULL, `subtitle` text, `imageUrl` varchar(500) NOT NULL, `linkUrl` varchar(500), `active` int DEFAULT 1 NOT NULL, `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `settings` (`id` int AUTO_INCREMENT PRIMARY KEY, `key` varchar(100) NOT NULL UNIQUE, `value` text NOT NULL, `description` text, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)",
-        "CREATE TABLE IF NOT EXISTS `promotions` (`id` int AUTO_INCREMENT PRIMARY KEY, `code` varchar(64) NOT NULL UNIQUE, `type` enum('percent','fixed') DEFAULT 'percent' NOT NULL, `value` int NOT NULL, `minOrderAmount` int, `maxUses` int, `usedCount` int DEFAULT 0 NOT NULL, `active` int DEFAULT 1 NOT NULL, `startsAt` timestamp, `expiresAt` timestamp, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)"
-      ];
-      
-      const { sql } = await import("drizzle-orm");
-      for (const query of tables) {
-        await dbInstance.execute(sql.raw(query));
+      const logs: string[] = [];
+      const connectionString = process.env.DATABASE_URL;
+      if (!connectionString) throw new Error("DATABASE_URL non définie");
+
+      logs.push("Connexion directe pour initialisation...");
+      const mysql = await import("mysql2/promise");
+      const connection = await mysql.createConnection({
+        uri: connectionString,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      try {
+        const tables = [
+          { name: "users", sql: "CREATE TABLE IF NOT EXISTS `users` (`id` int AUTO_INCREMENT PRIMARY KEY, `openId` varchar(64) NOT NULL UNIQUE, `name` text, `email` varchar(320), `loginMethod` varchar(64), `role` enum('user','admin') DEFAULT 'user' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL, `lastSignedIn` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "categories", sql: "CREATE TABLE IF NOT EXISTS `categories` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(100) NOT NULL, `slug` varchar(100) NOT NULL UNIQUE, `description` text, `imageUrl` varchar(500), `icon` varchar(20), `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "products", sql: "CREATE TABLE IF NOT EXISTS `products` (`id` int AUTO_INCREMENT PRIMARY KEY, `categoryId` int NOT NULL, `name` varchar(200) NOT NULL, `slug` varchar(200) NOT NULL UNIQUE, `description` text, `longDescription` text, `price` int NOT NULL, `originalPrice` int, `stock` int DEFAULT 0 NOT NULL, `featured` int DEFAULT 0 NOT NULL, `status` enum('active','draft','archived') DEFAULT 'active' NOT NULL, `supplier` varchar(32), `supplierProductId` varchar(128), `supplierUrl` varchar(1000), `supplierPrice` int, `options` text, `lastSyncedAt` timestamp, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "productImages", sql: "CREATE TABLE IF NOT EXISTS `productImages` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `imageUrl` varchar(500) NOT NULL, `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "orders", sql: "CREATE TABLE IF NOT EXISTS `orders` (`id` int AUTO_INCREMENT PRIMARY KEY, `userId` int NOT NULL, `status` enum('pending','processing','shipped','delivered','cancelled') DEFAULT 'pending' NOT NULL, `totalAmount` int NOT NULL, `shippingAddress` text NOT NULL, `billingAddress` text, `paymentStatus` enum('unpaid','paid','refunded') DEFAULT 'unpaid' NOT NULL, `paymentMethod` varchar(50), `trackingNumber` varchar(100), `notes` text, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "orderItems", sql: "CREATE TABLE IF NOT EXISTS `orderItems` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `productId` int NOT NULL, `quantity` int NOT NULL, `priceAtPurchase` int NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "reviews", sql: "CREATE TABLE IF NOT EXISTS `reviews` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `userId` int NOT NULL, `rating` int NOT NULL, `comment` text, `status` enum('pending','approved','rejected') DEFAULT 'pending' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "contactMessages", sql: "CREATE TABLE IF NOT EXISTS `contactMessages` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(200) NOT NULL, `email` varchar(320) NOT NULL, `subject` varchar(200), `message` text NOT NULL, `status` enum('unread','read','archived') DEFAULT 'unread' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "banners", sql: "CREATE TABLE IF NOT EXISTS `banners` (`id` int AUTO_INCREMENT PRIMARY KEY, `title` varchar(200) NOT NULL, `subtitle` text, `imageUrl` varchar(500) NOT NULL, `linkUrl` varchar(500), `active` int DEFAULT 1 NOT NULL, `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "settings", sql: "CREATE TABLE IF NOT EXISTS `settings` (`id` int AUTO_INCREMENT PRIMARY KEY, `key` varchar(100) NOT NULL UNIQUE, `value` text NOT NULL, `description` text, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)" },
+          { name: "promotions", sql: "CREATE TABLE IF NOT EXISTS `promotions` (`id` int AUTO_INCREMENT PRIMARY KEY, `code` varchar(64) NOT NULL UNIQUE, `type` enum('percent','fixed') DEFAULT 'percent' NOT NULL, `value` int NOT NULL, `minOrderAmount` int, `maxUses` int, `usedCount` int DEFAULT 0 NOT NULL, `active` int DEFAULT 1 NOT NULL, `startsAt` timestamp, `expiresAt` timestamp, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL)" }
+        ];
+
+        for (const table of tables) {
+          logs.push(`Création table ${table.name}...`);
+          await connection.execute(table.sql);
+        }
+        logs.push("Toutes les tables sont prêtes.");
+      } finally {
+        await connection.end();
       }
-      
+
       const demoCategories = [
         { name: "High-Tech & Gadgets", slug: "high-tech-gadgets", description: "Accessoires téléphone, Gadgets innovants, Charge & Câbles", icon: "📱", displayOrder: 1 },
         { name: "Maison & Organisation", slug: "maison-organisation", description: "Rangement malin, Cuisine pratique, Nettoyage intelligent", icon: "🏠", displayOrder: 2 },
@@ -155,7 +163,7 @@ export const adminRouter = router({
         }
       }
       
-      return { success: true, createdCount };
+      return { success: true, createdCount, logs };
     }),
   }),
 
