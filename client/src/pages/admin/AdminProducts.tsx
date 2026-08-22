@@ -271,8 +271,8 @@ export default function AdminProducts() {
           </div>
         </div>
 
-        <div className="border rounded-lg bg-white overflow-hidden">
-          <Table>
+        <div className="border rounded-lg bg-white overflow-x-auto">
+          <Table className="min-w-[800px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Produit</TableHead>
