@@ -108,6 +108,7 @@ export const adminRouter = router({
       });
 
       try {
+        // 1. CREATE TABLES
         const tables = [
           { name: "users", sql: "CREATE TABLE IF NOT EXISTS `users` (`id` int AUTO_INCREMENT PRIMARY KEY, `openId` varchar(64) NOT NULL UNIQUE, `name` text, `email` varchar(320), `loginMethod` varchar(64), `role` enum('user','admin') DEFAULT 'user' NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL, `updatedAt` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL, `lastSignedIn` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
           { name: "categories", sql: "CREATE TABLE IF NOT EXISTS `categories` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(100) NOT NULL, `slug` varchar(100) NOT NULL UNIQUE, `description` text, `imageUrl` varchar(500), `icon` varchar(20), `displayOrder` int DEFAULT 0 NOT NULL, `createdAt` timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL)" },
@@ -126,44 +127,56 @@ export const adminRouter = router({
           logs.push(`Création table ${table.name}...`);
           await connection.execute(table.sql);
         }
-        logs.push("Toutes les tables sont prêtes.");
+
+        // 2. INSERT CATEGORIES (Direct SQL)
+        const demoCategories = [
+          { name: "High-Tech & Gadgets", slug: "high-tech-gadgets", description: "Accessoires téléphone, Gadgets innovants, Charge & Câbles", icon: "📱", displayOrder: 1 },
+          { name: "Maison & Organisation", slug: "maison-organisation", description: "Rangement malin, Cuisine pratique, Nettoyage intelligent", icon: "🏠", displayOrder: 2 },
+          { name: "Beauté & Bien-Être", slug: "beaute-bien-etre", description: "Soins visage, Massage & relaxation, Coiffure", icon: "💄", displayOrder: 3 },
+          { name: "Sport & Fitness", slug: "sport-fitness", description: "Fitness à domicile, Yoga & pilates, Accessoires sport", icon: "🏋️", displayOrder: 4 },
+          { name: "Auto & Accessoires", slug: "auto-accessoires", description: "Supports téléphone voiture, Nettoyage auto, Sécurité & assistance", icon: "🚗", displayOrder: 5 },
+          { name: "Mode", slug: "mode", description: "Vêtements, Chaussures, Accessoires de mode", icon: "👗", displayOrder: 6 },
+        ];
+
+        let createdCount = 0;
+        for (const cat of demoCategories) {
+          const [rows]: any = await connection.execute("SELECT id FROM categories WHERE slug = ?", [cat.slug]);
+          if (rows.length === 0) {
+            logs.push(`Insertion catégorie ${cat.name}...`);
+            await connection.execute(
+              "INSERT INTO categories (name, slug, description, icon, displayOrder) VALUES (?, ?, ?, ?, ?)",
+              [cat.name, cat.slug, cat.description, cat.icon, cat.displayOrder]
+            );
+            createdCount++;
+          }
+        }
+
+        // 3. INSERT BANNERS (Direct SQL)
+        const demoBanners = [
+          { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", imageUrl: "https://placehold.co/1200x600/FF8C00/FFFFFF?text=MEILLEURES+OFFRES", linkUrl: "/boutique", active: 1, displayOrder: 1 },
+          { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", imageUrl: "https://placehold.co/1200x600/4B0082/FFFFFF?text=MODE+ET+ACCESSOIRES", linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
+          { title: "Beauté & Bien-Être", subtitle: "Prenez soin de vous avec nos produits premium", imageUrl: "https://placehold.co/1200x600/FF69B4/FFFFFF?text=BEAUTE+ET+BIEN+ETRE", linkUrl: "/categorie/beaute-bien-etre", active: 1, displayOrder: 3 },
+        ];
+
+        for (const banner of demoBanners) {
+          const [rows]: any = await connection.execute("SELECT id FROM banners WHERE title = ?", [banner.title]);
+          if (rows.length === 0) {
+            logs.push(`Insertion bannière ${banner.title}...`);
+            await connection.execute(
+              "INSERT INTO banners (title, subtitle, imageUrl, linkUrl, active, displayOrder) VALUES (?, ?, ?, ?, ?, ?)",
+              [banner.title, banner.subtitle, banner.imageUrl, banner.linkUrl, banner.active, banner.displayOrder]
+            );
+          }
+        }
+
+        logs.push("Initialisation terminée avec succès.");
+        return { success: true, createdCount, logs };
+      } catch (err: any) {
+        logs.push(`ERREUR: ${err.message}`);
+        throw new Error(`Échec de l'initialisation: ${err.message}. Logs: ${logs.join(" | ")}`);
       } finally {
         await connection.end();
       }
-
-      const demoCategories = [
-        { name: "High-Tech & Gadgets", slug: "high-tech-gadgets", description: "Accessoires téléphone, Gadgets innovants, Charge & Câbles", icon: "📱", displayOrder: 1 },
-        { name: "Maison & Organisation", slug: "maison-organisation", description: "Rangement malin, Cuisine pratique, Nettoyage intelligent", icon: "🏠", displayOrder: 2 },
-        { name: "Beauté & Bien-Être", slug: "beaute-bien-etre", description: "Soins visage, Massage & relaxation, Coiffure", icon: "💄", displayOrder: 3 },
-        { name: "Sport & Fitness", slug: "sport-fitness", description: "Fitness à domicile, Yoga & pilates, Accessoires sport", icon: "🏋️", displayOrder: 4 },
-        { name: "Auto & Accessoires", slug: "auto-accessoires", description: "Supports téléphone voiture, Nettoyage auto, Sécurité & assistance", icon: "🚗", displayOrder: 5 },
-        { name: "Mode", slug: "mode", description: "Vêtements, Chaussures, Accessoires de mode", icon: "👗", displayOrder: 6 },
-      ];
-      
-      let createdCount = 0;
-      for (const cat of demoCategories) {
-        const existing = await db.getCategoryBySlug(cat.slug);
-        if (!existing) {
-          await db.createCategory(cat);
-          createdCount++;
-        }
-      }
-      
-      // Also seed banners
-      const demoBanners = [
-        { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", linkUrl: "/boutique", active: 1, displayOrder: 1 },
-        { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
-        { title: "Beauté & Bien-Être", subtitle: "Prenez soin de vous avec nos produits premium", linkUrl: "/categorie/beaute-bien-etre", active: 1, displayOrder: 3 },
-      ];
-      
-      for (const banner of demoBanners) {
-        const existing = await db.getAllBannersAdmin();
-        if (!existing.find(b => b.title === banner.title)) {
-          await db.createBanner(banner);
-        }
-      }
-      
-      return { success: true, createdCount, logs };
     }),
   }),
 
