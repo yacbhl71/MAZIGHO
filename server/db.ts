@@ -1,7 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, asc, count, sum, avg } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import * as schema from "../drizzle/schema";
 import { ENV } from './_core/env';
+
+const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems } = schema;
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -9,9 +11,10 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      console.log("[Database] Connecting to:", process.env.DATABASE_URL.split("@")[1]); // Log host only for security
+      _db = drizzle(process.env.DATABASE_URL, { schema, mode: 'default' });
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to connect:", error);
       _db = null;
     }
   }
@@ -93,14 +96,14 @@ export async function getUserByOpenId(openId: string) {
 export async function getAllCategories() {
   const db = await getDb();
   if (!db) return [];
-  const { categories } = await import("../drizzle/schema");
+  
   return await db.select().from(categories);
 }
 
 export async function getCategoryBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const { categories } = await import("../drizzle/schema");
+  
   const result = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -109,29 +112,29 @@ export async function getCategoryBySlug(slug: string) {
 export async function getAllProducts() {
   const db = await getDb();
   if (!db) return [];
-  const { products } = await import("../drizzle/schema");
+  
   return await db.select().from(products);
 }
 
 export async function getFeaturedProducts(limit: number = 8) {
   const db = await getDb();
   if (!db) return [];
-  const { products } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
+  
   return await db.select().from(products).where(eq(products.featured, 1)).orderBy(desc(products.createdAt)).limit(limit);
 }
 
 export async function getProductsByCategory(categoryId: number) {
   const db = await getDb();
   if (!db) return [];
-  const { products } = await import("../drizzle/schema");
+  
   return await db.select().from(products).where(eq(products.categoryId, categoryId));
 }
 
 export async function getProductBySlug(slug: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const { products } = await import("../drizzle/schema");
+  
   const result = await db.select().from(products).where(eq(products.slug, slug)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -140,8 +143,8 @@ export async function getProductBySlug(slug: string) {
 export async function getProductImages(productId: number) {
   const db = await getDb();
   if (!db) return [];
-  const { productImages } = await import("../drizzle/schema");
-  const { asc } = await import("drizzle-orm");
+  
+  
   return await db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.displayOrder));
 }
 
@@ -149,8 +152,8 @@ export async function getProductImages(productId: number) {
 export async function getProductReviews(productId: number) {
   const db = await getDb();
   if (!db) return [];
-  const { reviews, users } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
+  
   
   const result = await db
     .select({
@@ -172,7 +175,7 @@ export async function getAverageRating(productId: number) {
   const db = await getDb();
   if (!db) return 0;
   const { reviews } = await import("../drizzle/schema");
-  const { avg, sql } = await import("drizzle-orm");
+  
   
   const result = await db
     .select({ average: avg(reviews.rating) })
@@ -186,7 +189,7 @@ export async function getAverageRating(productId: number) {
 export async function createContactMessage(data: { name: string; email: string; subject?: string; message: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { contactMessages } = await import("../drizzle/schema");
+  
   
   await db.insert(contactMessages).values(data);
 }
@@ -195,8 +198,8 @@ export async function createContactMessage(data: { name: string; email: string; 
 export async function getAdminStats() {
   const db = await getDb();
   if (!db) return null;
-  const { products, orders, users, reviews } = await import("../drizzle/schema");
-  const { count, sum } = await import("drizzle-orm");
+  const { produ
+  
 
   const [productCount, orderCount, userCount, totalRevenue, pendingReviews] = await Promise.all([
     db.select({ value: count() }).from(products),
@@ -217,20 +220,30 @@ export async function getAdminStats() {
 
 export async function getAllProductsAdmin() {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) throw new Error("Base de données non disponible");
   const { products, categories } = await import("../drizzle/schema");
+  
+  
   return await db.select({
     id: products.id,
     name: products.name,
+    slug: products.slug,
+    description: products.description,
     price: products.price,
+    originalPrice: products.originalPrice,
     stock: products.stock,
+    featured: products.featured,
     status: products.status,
+    categoryId: products.categoryId,
+    categoryName: categories.name,
     supplier: products.supplier,
     supplierUrl: products.supplierUrl,
     supplierPrice: products.supplierPrice,
     lastSyncedAt: products.lastSyncedAt,
-    categoryName: categories.name,
-  }).from(products).leftJoin(categories, eq(products.categoryId, categories.id));
+    createdAt: products.createdAt,
+  }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .orderBy(desc(products.createdAt));
 }
 
 export async function createProduct(data: any) {
@@ -296,7 +309,7 @@ export async function deleteProduct(id: number) {
 export async function createCategory(data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { categories } = await import("../drizzle/schema");
+  
   const result = await db.insert(categories).values(data);
   return { id: (result as any)[0].insertId };
 }
@@ -304,7 +317,7 @@ export async function createCategory(data: any) {
 export async function updateCategory(id: number, data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { categories } = await import("../drizzle/schema");
+  
   await db.update(categories).set(data).where(eq(categories.id, id));
   return { success: true };
 }
@@ -328,7 +341,7 @@ export async function getAllOrdersAdmin() {
   const db = await getDb();
   if (!db) return [];
   const { orders, users } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
   
   return await db.select({
     id: orders.id,
@@ -343,7 +356,7 @@ export async function getAllOrdersAdmin() {
 export async function updateOrderStatus(id: number, status: any, trackingNumber?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { orders } = await import("../drizzle/schema");
+  
   
   const updateData: any = { status };
   if (trackingNumber) updateData.trackingNumber = trackingNumber;
@@ -371,7 +384,7 @@ export async function getAllReviewsAdmin() {
   const db = await getDb();
   if (!db) return [];
   const { reviews, products, users } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
   
   return await db.select({
     id: reviews.id,
@@ -398,15 +411,15 @@ export async function updateReviewStatus(id: number, status: any) {
 export async function getAllMessagesAdmin() {
   const db = await getDb();
   if (!db) return [];
-  const { contactMessages } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
+  
   return await db.select().from(contactMessages).orderBy(desc(contactMessages.createdAt));
 }
 
 export async function updateMessageStatus(id: number, status: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { contactMessages } = await import("../drizzle/schema");
+  
   await db.update(contactMessages).set({ status }).where(eq(contactMessages.id, id));
   return { success: true };
 }
@@ -415,7 +428,7 @@ export async function updateMessageStatus(id: number, status: any) {
 export async function getCart(userId: number) {
   const db = await getDb();
   if (!db) return null;
-  const { carts, cartItems, products, productImages } = await import("../drizzle/schema");
+  
   
   // Get or create cart
   let cart = await db.select().from(carts).where(eq(carts.userId, userId)).limit(1);
@@ -542,8 +555,8 @@ export async function createOrder(userId: number, data: any) {
 export async function getUserOrders(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const { orders } = await import("../drizzle/schema");
-  const { desc } = await import("drizzle-orm");
+  
+  
   return await db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
 }
 

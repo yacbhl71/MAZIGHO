@@ -1,11 +1,13 @@
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShoppingBag, Users, Package, Star, TrendingUp } from "lucide-react";
+import { ShoppingBag, Users, Package, Star, TrendingUp, Database, CheckCircle, AlertCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function AdminDashboard() {
-  const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
+  const { data: stats, isLoading, refetch } = trpc.admin.getStats.useQuery();
 
   const statCards = [
     { title: "Ventes Totales", value: stats ? `${(Number(stats.revenue || 0) / 100).toFixed(2)} €` : "0.00 €", icon: TrendingUp, color: "text-green-600" },
@@ -60,16 +62,53 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
-          <Card className="col-span-3">
-            <CardHeader>
-              <CardTitle>Activités Récentes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Aucune activité récente à afficher.</p>
-              </div>
-            </CardContent>
-          </Card>
+          
+          <div className="col-span-3 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Activités Récentes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">Aucune activité récente à afficher.</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-orange-200 bg-orange-50/30">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Database className="h-5 w-5 text-orange-500" />
+                  Diagnostic Système
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-2 bg-white rounded border border-orange-100">
+                  <span className="text-xs font-medium uppercase text-gray-500 tracking-wider">Base de données</span>
+                  {stats ? (
+                    <Badge className="bg-green-500 hover:bg-green-600 h-6">
+                      <CheckCircle className="h-3 w-3 mr-1" /> Connecté
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="h-6">
+                      <AlertCircle className="h-3 w-3 mr-1" /> Erreur
+                    </Badge>
+                  )}
+                </div>
+                <div className="p-2 bg-white rounded border border-orange-100">
+                  <p className="text-[10px] uppercase text-gray-500 tracking-wider mb-1">Total produits en base</p>
+                  <p className="text-xl font-bold text-orange-600">{stats?.products || 0}</p>
+                </div>
+                <Button 
+                  onClick={() => refetch()} 
+                  variant="outline"
+                  className="w-full text-xs border-orange-200 hover:bg-orange-100 text-orange-700"
+                >
+                  Actualiser les données
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </DashboardLayout>

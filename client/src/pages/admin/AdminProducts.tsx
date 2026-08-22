@@ -36,7 +36,11 @@ export default function AdminProducts() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("draft");
 
-  const { data: products, isLoading, refetch } = trpc.admin.products.getAll.useQuery();
+  const productsQuery = trpc.admin.products.getAll.useQuery();
+  const products = productsQuery.data;
+  const isLoading = productsQuery.isLoading;
+  const error = productsQuery.error;
+  const refetch = productsQuery.refetch;
   const { data: categories } = trpc.categories.getAll.useQuery();
 
   const createProduct = trpc.admin.products.create.useMutation({
@@ -92,20 +96,34 @@ export default function AdminProducts() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = {
+    
+    const parsedPrice = parseInt(price);
+    const parsedStock = parseInt(stock);
+    const parsedCategoryId = parseInt(categoryId);
+
+    if (!name || !slug || isNaN(parsedPrice) || isNaN(parsedStock) || isNaN(parsedCategoryId)) {
+      toast.error("Veuillez remplir tous les champs obligatoires avec des valeurs valides");
+      return;
+    }
+
+    const payload = {
       name,
       slug,
-      price: parseInt(price),
-      stock: parseInt(stock),
-      categoryId: parseInt(categoryId),
-      description,
-      status,
+      price: parsedPrice,
+      stock: parsedStock,
+      categoryId: parsedCategoryId,
+      description: description || undefined,
+      status: status as any,
+      featured: editingProduct ? undefined : 0,
     };
 
     if (editingProduct) {
-      updateProduct.mutate({ id: editingProduct.id, data });
+      updateProduct.mutate({ 
+        id: editingProduct.id, 
+        ...payload
+      });
     } else {
-      createProduct.mutate(data);
+      createProduct.mutate(payload as any);
     }
   };
 
@@ -235,10 +253,23 @@ export default function AdminProducts() {
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-red-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <p>Erreur lors du chargement des produits</p>
+                      <p className="text-xs font-mono">{error.message}</p>
+                      <Button variant="outline" size="sm" onClick={() => refetch()}>Réessayer</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : products?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    Aucun produit trouvé.
+                    <div className="flex flex-col items-center gap-2">
+                      <p>Aucun produit trouvé.</p>
+                      <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
