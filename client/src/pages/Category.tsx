@@ -27,7 +27,8 @@ export default function Category() {
   const handleAddToCart = (productId: number) => {
     const product = products.find(p => p.id === productId);
     if (product) {
-      addToCart(productId, product.name, product.price, 1);
+      const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
+      addToCart(productId, product.name, product.price, 1, undefined, imageUrl);
       setAddedToCart(productId);
       setTimeout(() => setAddedToCart(null), 2000);
     }

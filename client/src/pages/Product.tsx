@@ -70,7 +70,8 @@ export default function Product() {
   const handleAddToCart = () => {
     if (!product) return;
     setIsAdding(true);
-    addToCart(product.id, product.name, product.price, quantity, selectedOptions);
+    const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
+    addToCart(product.id, product.name, product.price, quantity, selectedOptions, imageUrl);
     
     toast.success(`${product.name} ajouté au panier !`, {
       description: `${quantity} article(s) ajouté(s)`,

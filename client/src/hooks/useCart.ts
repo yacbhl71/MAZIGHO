@@ -5,6 +5,7 @@ export interface CartItem {
   productName: string;
   price: number;
   quantity: number;
+  imageUrl?: string;
   options?: Record<string, string>;
 }
 
@@ -41,7 +42,8 @@ export function useCart() {
     productName: string,
     price: number,
     quantity: number = 1,
-    options?: Record<string, string>
+    options?: Record<string, string>,
+    imageUrl?: string
   ) => {
     setCart((prevCart) => {
       const existingItem = prevCart.find(
@@ -67,6 +69,7 @@ export function useCart() {
           price,
           quantity,
           options,
+          imageUrl,
         },
       ];
     });

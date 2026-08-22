@@ -70,8 +70,12 @@ export default function Cart() {
                     <CardContent className="p-6">
                       <div className="flex gap-6">
                         {/* Product Image */}
-                        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center text-4xl flex-shrink-0">
-                          📦
+                        <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.productName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-4xl">📦</span>
+                          )}
                         </div>
 
                         {/* Product Info */}
