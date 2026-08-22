@@ -69,17 +69,33 @@ async function fetchSupplierPage(url: URL) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'MAZIGHO-ProductImporter/1.0',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     });
+    
+    if (response.status === 403 || response.status === 429) {
+      throw new Error("AliExpress bloque temporairement l'accès. Réessayez dans quelques minutes ou utilisez un lien CJ Dropshipping.");
+    }
+    
     if (!response.ok) throw new Error(`Le fournisseur a répondu avec le statut ${response.status}.`);
-    const length = Number(response.headers.get('content-length') || 0);
-    if (length > 5_000_000) throw new Error("La page fournisseur est trop volumineuse.");
+    
     const html = await response.text();
-    if (html.length > 5_000_000) throw new Error("La page fournisseur est trop volumineuse.");
+    
+    // Check if we hit a captcha or challenge page
+    if (html.includes("sec-cpt-container") || html.includes("punish") || html.includes("captcha")) {
+      throw new Error("AliExpress demande une vérification humaine (Captcha). L'importation automatique est bloquée pour ce produit.");
+    }
+
     return { html, finalUrl: response.url || url.toString() };
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error("Le fournisseur est trop lent à répondre (délai dépassé).");
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -158,9 +174,17 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
     extractMeta(html, 'og:image'),
   ].filter((image): image is string => typeof image === 'string' && /^https?:\/\//i.test(image)).slice(0, 12);
   const uniqueImages = Array.from(new Set(images));
+  
+  // Try to find price in script blocks if not in meta/json-ld
+  let priceFromScript = null;
+  const priceMatch = html.match(/["']formatedAmount["']\s*:\s*["']([^"']+)["']/i) || 
+                     html.match(/["']priceText["']\s*:\s*["']([^"']+)["']/i) ||
+                     html.match(/["']actPriceText["']\s*:\s*["']([^"']+)["']/i);
+  if (priceMatch) priceFromScript = parsePrice(priceMatch[1]);
+
   const name = String(productJson?.name || extractMeta(html, 'og:title') || stripTags(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || '') || 'Produit importé').slice(0, 200);
   const description = String(productJson?.description || extractMeta(html, 'og:description') || '').trim().slice(0, 10_000) || null;
-  const sourcePriceCents = parsePrice(offer.price ?? productJson?.price ?? extractMeta(html, 'product:price:amount'));
+  const sourcePriceCents = parsePrice(offer.price ?? productJson?.price ?? extractMeta(html, 'product:price:amount')) || priceFromScript;
   const warnings: string[] = [];
   if (!sourcePriceCents) warnings.push("Prix fournisseur non détecté : renseignez-le avant publication.");
   if (!uniqueImages.length) warnings.push("Aucune image publique détectée : ajoutez au moins une image avant publication.");
