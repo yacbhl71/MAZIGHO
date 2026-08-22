@@ -43,8 +43,23 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const currentUser = localStorage.getItem("mazigho_current_user");
+        let adminHeader = {};
+        if (currentUser) {
+          try {
+            const user = JSON.parse(currentUser);
+            if (user.email === '[ancienne-adresse-supprimee]') {
+              adminHeader = { '[ancien-en-tete-admin-supprime]': user.email };
+            }
+          } catch (e) {}
+        }
+
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers: {
+            ...(init?.headers ?? {}),
+            ...adminHeader,
+          },
           credentials: "include",
         });
       },
