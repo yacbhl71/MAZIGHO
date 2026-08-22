@@ -10,7 +10,7 @@ export default function AdminDashboard() {
   const { data: stats, isLoading, refetch } = trpc.admin.getStats.useQuery();
 
   const statCards = [
-    { title: "Ventes Totales", value: stats ? `${(Number(stats.revenue || 0) / 100).toFixed(2)} €` : "0.00 €", icon: TrendingUp, color: "text-green-600" },
+    { title: "Ventes Totales", value: stats ? `${(Number(stats.revenue || 0) / 100).toFixed(2)} CHF` : "0.00 CHF", icon: TrendingUp, color: "text-green-600" },
     { title: "Commandes", value: stats?.orders || 0, icon: ShoppingBag, color: "text-blue-600" },
     { title: "Produits", value: stats?.products || 0, icon: Package, color: "text-orange-600" },
     { title: "Utilisateurs", value: stats?.users || 0, icon: Users, color: "text-purple-600" },
