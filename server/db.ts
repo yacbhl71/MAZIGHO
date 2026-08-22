@@ -14,26 +14,14 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       const connectionString = process.env.DATABASE_URL;
-      console.log("[Database] Connecting with strict SSL configuration...");
+      console.log("[Database] Connecting with universal SSL fallback...");
       
-      // Parse the connection string to ensure no parameters are lost
-      const url = new URL(connectionString);
-      const host = url.hostname;
-      const port = parseInt(url.port || "3306");
-      const user = url.username;
-      const password = decodeURIComponent(url.password);
-      const database = url.pathname.substring(1) || "test";
-
-      // Use a connection pool with explicit components for TiDB Cloud Serverless
+      // Use a connection pool with forced SSL but tolerant certificate check
+      // This is the most compatible way for TiDB Cloud on Vercel
       const pool = mysql.createPool({
-        host,
-        port,
-        user,
-        password,
-        database,
+        uri: connectionString,
         ssl: {
-          minVersion: 'TLSv1.2',
-          rejectUnauthorized: true,
+          rejectUnauthorized: false, // Force SSL but bypass certificate chain validation
         },
         waitForConnections: true,
         connectionLimit: 1,
@@ -41,7 +29,6 @@ export async function getDb() {
         idleTimeout: 60000,
         queueLimit: 0,
         enableKeepAlive: true,
-        keepAliveInitialDelay: 0,
       });
       
       _db = drizzle(pool, { schema, mode: 'default' });
