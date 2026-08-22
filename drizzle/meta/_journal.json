@@ -22,6 +22,13 @@
       "when": 1762867138903,
       "tag": "0002_unique_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787356564984,
+      "tag": "0003_fluffy_sentinels",
+      "breakpoints": true
     }
   ]
 }

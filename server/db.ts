@@ -225,6 +225,10 @@ export async function getAllProductsAdmin() {
     price: products.price,
     stock: products.stock,
     status: products.status,
+    supplier: products.supplier,
+    supplierUrl: products.supplierUrl,
+    supplierPrice: products.supplierPrice,
+    lastSyncedAt: products.lastSyncedAt,
     categoryName: categories.name,
   }).from(products).leftJoin(categories, eq(products.categoryId, categories.id));
 }

@@ -44,6 +44,11 @@ export const products = mysqlTable("products", {
   stock: int("stock").default(0).notNull(),
   featured: int("featured").default(0).notNull(), // 0 or 1 for boolean
   status: mysqlEnum("status", ["active", "draft", "archived"]).default("active").notNull(),
+  supplier: varchar("supplier", { length: 32 }),
+  supplierProductId: varchar("supplierProductId", { length: 128 }),
+  supplierUrl: varchar("supplierUrl", { length: 1000 }),
+  supplierPrice: int("supplierPrice"), // Supplier price in cents
+  lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

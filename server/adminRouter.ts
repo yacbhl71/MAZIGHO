@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import {
+  importedProductInputSchema,
+  normalizeImportedProduct,
+  previewSupplierProduct,
+} from "./dropshipping";
 
 export const adminRouter = router({
   // Dashboard Stats
@@ -43,6 +48,14 @@ export const adminRouter = router({
     }),
     delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteProduct(input);
+    }),
+    previewImport: adminProcedure.input(z.object({
+      url: z.string().url().max(1000),
+    })).mutation(async ({ input }) => {
+      return await previewSupplierProduct(input.url);
+    }),
+    importFromUrl: adminProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {
+      return await db.createProduct(normalizeImportedProduct(input));
     }),
   }),
 

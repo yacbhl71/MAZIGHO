@@ -2,7 +2,8 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import } from "lucide-react";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -26,9 +27,14 @@ export default function AdminProducts() {
             <h1 className="text-3xl font-bold tracking-tight">Gestion des Produits</h1>
             <p className="text-muted-foreground">Gérez votre inventaire, les prix et le statut de vos produits.</p>
           </div>
-          <Button className="bg-orange-500 hover:bg-orange-600">
-            <Plus className="mr-2 h-4 w-4" /> Nouveau Produit
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/importation">
+              <Button variant="outline"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Button>
+            </Link>
+            <Button className="bg-orange-500 hover:bg-orange-600">
+              <Plus className="mr-2 h-4 w-4" /> Nouveau Produit
+            </Button>
+          </div>
         </div>
 
         <div className="border rounded-lg bg-white">

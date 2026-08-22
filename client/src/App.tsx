@@ -17,6 +17,7 @@ import Promos from "./pages/Promos";
 import Account from "./pages/Account";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
+import AdminDropshipping from "./pages/admin/AdminDropshipping";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminCategories from "./pages/admin/AdminCategories";
@@ -59,6 +60,7 @@ function Router() {
       <Route path="/faq" component={FAQ} />
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/admin/produits"} component={AdminProducts} />
+      <Route path={"/admin/importation"} component={AdminDropshipping} />
       <Route path={"/admin/categories"} component={AdminCategories} />
       <Route path={"/admin/commandes"} component={AdminOrders} />
       <Route path={"/admin/utilisateurs"} component={AdminUsers} />
