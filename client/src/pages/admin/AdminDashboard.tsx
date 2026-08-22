@@ -12,7 +12,7 @@ export default function AdminDashboard() {
   const statCards = [
     { title: "Ventes Totales", value: stats ? `${(Number(stats.revenue || 0) / 100).toFixed(2)} CHF` : "0.00 CHF", icon: TrendingUp, color: "text-green-600" },
     { title: "Commandes", value: stats?.orders || 0, icon: ShoppingBag, color: "text-blue-600" },
-    { title: "Produits", value: stats?.products || 0, icon: Package, color: "text-orange-600" },
+    { title: "Produits", value: stats && stats.products > 0 ? stats.products : "—", icon: Package, color: "text-orange-600" },
     { title: "Utilisateurs", value: stats?.users || 0, icon: Users, color: "text-purple-600" },
     { title: "Avis en attente", value: stats?.pendingReviews || 0, icon: Star, color: "text-yellow-600" },
   ];
@@ -97,7 +97,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="p-2 bg-white rounded border border-orange-100">
                   <p className="text-[10px] uppercase text-gray-500 tracking-wider mb-1">Total produits en base</p>
-                  <p className="text-xl font-bold text-orange-600">{stats?.products || 0}</p>
+                  <p className="text-xl font-bold text-orange-600">{stats ? stats.products : "..."}</p>
                 </div>
                 <Button 
                   onClick={() => refetch()} 
