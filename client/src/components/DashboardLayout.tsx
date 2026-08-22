@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE, getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -36,6 +36,7 @@ const menuItems = [
   { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
   { icon: Star, label: "Avis Clients", path: "/admin/avis" },
   { icon: Layout, label: "Contenu", path: "/admin/contenu" },
+  { icon: Percent, label: "Promotions", path: "/admin/promotions" },
   { icon: MessageSquare, label: "Messages", path: "/admin/messages" },
   { icon: Settings, label: "Paramètres", path: "/admin/parametres" },
   { icon: Home, label: "Retour au Site", path: "/" },

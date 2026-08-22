@@ -25,6 +25,7 @@ import AdminReviews from "./pages/admin/AdminReviews";
 import AdminMessages from "./pages/admin/AdminMessages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminContent from "./pages/admin/AdminContent";
+import AdminPromotions from "./pages/admin/AdminPromotions";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import Favorites from "./pages/Favorites";
@@ -66,6 +67,7 @@ function Router() {
       <Route path={"/admin/utilisateurs"} component={AdminUsers} />
       <Route path={"/admin/avis"} component={AdminReviews} />
       <Route path={"/admin/contenu"} component={AdminContent} />
+      <Route path={"/admin/promotions"} component={AdminPromotions} />
       <Route path={"/admin/messages"} component={AdminMessages} />
       <Route path={"/admin/parametres"} component={AdminSettings} />
       <Route path={"/404"} component={NotFound} />

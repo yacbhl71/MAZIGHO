@@ -25,12 +25,28 @@ export const shopRouter = router({
     }),
   }),
 
+  // Promotions
+  promotions: router({
+    validate: protectedProcedure.input(z.object({
+      code: z.string().min(2),
+      orderAmount: z.number().int().nonnegative(),
+    })).mutation(async ({ input }) => {
+      const result = await db.validatePromotion(input.code, input.orderAmount);
+      return {
+        code: result.promotion.code,
+        discountAmount: result.discountAmount,
+        totalAmount: result.totalAmount,
+      };
+    }),
+  }),
+
   // Orders Management
   orders: router({
     create: protectedProcedure.input(z.object({
       shippingAddress: z.string(),
       billingAddress: z.string().optional(),
       paymentMethod: z.string(),
+      promoCode: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       return await db.createOrder(ctx.user.id, input);
     }),

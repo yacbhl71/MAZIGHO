@@ -1,18 +1,51 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getBanners } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
+
+type HeroSlide = {
+  id: number;
+  title: string;
+  subtitle: string;
+  imageUrl?: string | null;
+  buttonLink: string;
+  buttonText: string;
+};
 
 export default function HeroBanner() {
-  const banners = getBanners();
+  const remoteBanners = trpc.content.getActiveBanners.useQuery();
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  const banners = useMemo<HeroSlide[]>(() => {
+    if (remoteBanners.data && remoteBanners.data.length > 0) {
+      return remoteBanners.data.map((banner) => ({
+        id: banner.id,
+        title: banner.title,
+        subtitle: banner.subtitle || "Découvrez nos nouveautés MAZIGHO",
+        imageUrl: banner.imageUrl,
+        buttonLink: banner.linkUrl || "/boutique",
+        buttonText: "Découvrir",
+      }));
+    }
+
+    return getBanners().map((banner) => ({
+      ...banner,
+      imageUrl: null,
+    }));
+  }, [remoteBanners.data]);
+
   useEffect(() => {
-    const timer = setInterval(() => {
+    if (currentSlide >= banners.length) setCurrentSlide(0);
+  }, [banners.length, currentSlide]);
+
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const timer = window.setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % banners.length);
     }, 5000);
-    return () => clearInterval(timer);
+    return () => window.clearInterval(timer);
   }, [banners.length]);
 
   const goToPrevious = () => {
@@ -24,85 +57,52 @@ export default function HeroBanner() {
   };
 
   const currentBanner = banners[currentSlide];
+  if (!currentBanner) return null;
 
   return (
-    <div className="relative w-full h-96 md:h-[500px] lg:h-[600px] overflow-hidden">
-      {/* Slides */}
-      {banners.map((banner, index: number) => (
+    <div className="relative h-96 w-full overflow-hidden md:h-[500px] lg:h-[600px]">
+      {banners.map((banner, index) => (
         <div
           key={banner.id}
-          className={`absolute inset-0 transition-opacity duration-1000 ${
-            index === currentSlide ? "opacity-100" : "opacity-0"
-          }`}
+          className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? "opacity-100" : "pointer-events-none opacity-0"}`}
+          aria-hidden={index !== currentSlide}
         >
-          {/* Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-teal-600 via-teal-500 to-yellow-400">
-            {/* Decorative elements */}
-            <div className="absolute top-0 left-0 w-96 h-96 bg-teal-400/20 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
-            <div className="absolute bottom-0 right-0 w-96 h-96 bg-yellow-300/20 rounded-full translate-x-1/2 translate-y-1/2"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-teal-700 via-teal-600 to-yellow-400">
+            {banner.imageUrl && (
+              <img src={banner.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+            )}
+            <div className="absolute left-0 top-0 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-teal-400/20" />
+            <div className="absolute bottom-0 right-0 h-96 w-96 translate-x-1/2 translate-y-1/2 rounded-full bg-yellow-300/20" />
           </div>
 
-          {/* Content */}
-          <div className="relative h-full flex items-center justify-center px-4">
-            <div className="text-center text-white max-w-3xl z-10">
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-4 leading-tight">
-                {banner.title}
-              </h1>
-              <p className="text-lg md:text-2xl mb-8 text-white/90">
-                {banner.subtitle}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="relative flex h-full items-center justify-center px-4">
+            <div className="z-10 max-w-3xl text-center text-white">
+              <h1 className="mb-4 text-4xl font-bold leading-tight md:text-6xl lg:text-7xl">{banner.title}</h1>
+              <p className="mb-8 text-lg text-white/90 md:text-2xl">{banner.subtitle}</p>
+              <div className="flex flex-col justify-center gap-4 sm:flex-row">
                 <Link href={banner.buttonLink}>
-                  <Button className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 text-lg font-semibold">
-                    {banner.buttonText}
-                  </Button>
+                  <Button className="bg-orange-500 px-8 py-3 text-lg font-semibold text-white hover:bg-orange-600">{banner.buttonText}</Button>
                 </Link>
-                <Button variant="outline" className="border-white text-white hover:bg-white/20 px-8 py-3 text-lg font-semibold">
-                  Voir les Best-sellers
-                </Button>
+                <Link href="/meilleures-ventes">
+                  <Button variant="outline" className="border-white px-8 py-3 text-lg font-semibold text-white hover:bg-white/20">Voir les best-sellers</Button>
+                </Link>
               </div>
-            </div>
-
-            {/* Decorative Image Area */}
-            <div className="absolute right-0 bottom-0 w-1/3 h-full hidden lg:flex items-center justify-center opacity-30">
-              <div className="text-9xl">💡</div>
             </div>
           </div>
         </div>
       ))}
 
-      {/* Navigation Buttons */}
-      <button
-        onClick={goToPrevious}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/50 text-white p-3 rounded-full transition-all"
-        aria-label="Previous slide"
-      >
-        <ChevronLeft className="h-6 w-6" />
-      </button>
-
-      <button
-        onClick={goToNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-white/30 hover:bg-white/50 text-white p-3 rounded-full transition-all"
-        aria-label="Next slide"
-      >
-        <ChevronRight className="h-6 w-6" />
-      </button>
-
-      {/* Dots Navigation */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-        {banners.map((_: typeof banners[0], index: number) => (
-          <button
-            key={index}
-            onClick={() => setCurrentSlide(index)}
-            className={`h-3 rounded-full transition-all ${
-              index === currentSlide
-                ? "bg-white w-8"
-                : "bg-white/50 w-3 hover:bg-white/75"
-            }`}
-            aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
-      </div>
+      {banners.length > 1 && (
+        <>
+          <button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/30 p-3 text-white hover:bg-white/50" aria-label="Bannière précédente"><ChevronLeft className="h-6 w-6" /></button>
+          <button onClick={goToNext} className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/30 p-3 text-white hover:bg-white/50" aria-label="Bannière suivante"><ChevronRight className="h-6 w-6" /></button>
+          <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+            {banners.map((banner, index) => (
+              <button key={banner.id} onClick={() => setCurrentSlide(index)} className={`h-3 rounded-full ${index === currentSlide ? "w-8 bg-white" : "w-3 bg-white/50"}`} aria-label={`Afficher la bannière ${index + 1}`} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

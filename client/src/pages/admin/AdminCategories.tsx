@@ -81,7 +81,9 @@ export default function AdminCategories() {
     if (editingCategory) {
       updateCategory.mutate({
         id: editingCategory.id,
-        data: { name, slug, description },
+        name,
+        slug,
+        description,
       });
     } else {
       createCategory.mutate({ name, slug, description });

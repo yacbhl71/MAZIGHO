@@ -233,7 +233,7 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
     const descMatch = html.match(/["']description["']\s*:\s*["']([^"']{100,})["']/i);
     if (descMatch) description = descMatch[1];
   }
-  description = description.slice(0, 10_000) || null;
+  description = description.slice(0, 10_000);
   const sourcePriceCents = parsePrice(offer.price ?? productJson?.price ?? extractMeta(html, 'product:price:amount')) || priceFromScript;
   const warnings: string[] = [];
   if (!sourcePriceCents) warnings.push("Prix fournisseur non détecté : renseignez-le avant publication.");

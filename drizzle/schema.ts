@@ -178,3 +178,22 @@ export const settings = mysqlTable("settings", {
 
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = typeof settings.$inferInsert;
+
+// Discount codes table
+export const promotions = mysqlTable("promotions", {
+  id: int("id").autoincrement().primaryKey(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  type: mysqlEnum("type", ["percent", "fixed"]).default("percent").notNull(),
+  value: int("value").notNull(), // percent points or cents, depending on type
+  minOrderAmount: int("minOrderAmount"),
+  maxUses: int("maxUses"),
+  usedCount: int("usedCount").default(0).notNull(),
+  active: int("active").default(1).notNull(),
+  startsAt: timestamp("startsAt"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Promotion = typeof promotions.$inferSelect;
+export type InsertPromotion = typeof promotions.$inferInsert;

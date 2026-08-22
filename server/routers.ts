@@ -21,6 +21,14 @@ export const appRouter = router({
     }),
   }),
 
+  // Homepage content
+  content: router({
+    getActiveBanners: publicProcedure.query(async () => {
+      const { getActiveBanners } = await import("./db");
+      return await getActiveBanners();
+    }),
+  }),
+
   // Categories
   categories: router({
     getAll: publicProcedure.query(async () => {

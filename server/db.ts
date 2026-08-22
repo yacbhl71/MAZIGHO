@@ -1,9 +1,10 @@
-import { eq, desc, asc, count, sum, avg } from "drizzle-orm";
+import { eq, desc, asc, count, sum, avg, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
+import type { InsertUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems } = schema;
+const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -198,9 +199,6 @@ export async function createContactMessage(data: { name: string; email: string; 
 export async function getAdminStats() {
   const db = await getDb();
   if (!db) return null;
-  const { produ
-  
-
   const [productCount, orderCount, userCount, totalRevenue, pendingReviews] = await Promise.all([
     db.select({ value: count() }).from(products),
     db.select({ value: count() }).from(orders),
@@ -523,7 +521,9 @@ export async function createOrder(userId: number, data: any) {
   const cart = await getCart(userId);
   if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
-  const totalAmount = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+  const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+  const promotionResult = data.promoCode ? await validatePromotion(data.promoCode, subtotal) : null;
+  const totalAmount = subtotal - (promotionResult?.discountAmount ?? 0);
 
   const result = await db.insert(orders).values({
     userId,
@@ -545,6 +545,11 @@ export async function createOrder(userId: number, data: any) {
   }));
 
   await db.insert(orderItems).values(orderItemValues);
+  if (promotionResult) {
+    await db.update(promotions)
+      .set({ usedCount: sql`${promotions.usedCount} + 1` })
+      .where(eq(promotions.id, promotionResult.promotion.id));
+  }
   
   // Clear cart after order
   await clearCart(userId);
@@ -587,4 +592,169 @@ export async function getOrderDetail(userId: number, orderId: number) {
     ...order[0],
     items,
   };
+}
+
+// Content management: banners
+export async function getAllBanners() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(banners).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+}
+
+export async function getAllSettings() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(settings).orderBy(asc(settings.key));
+}
+
+export async function upsertSetting(data: { key: string; value: string; description?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(settings).values({
+    key: data.key,
+    value: data.value,
+    description: data.description || null,
+  }).onDuplicateKeyUpdate({
+    set: { value: data.value, description: data.description || null },
+  });
+  return { success: true };
+}
+
+export async function getAllPromotions() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(promotions).orderBy(desc(promotions.createdAt));
+}
+
+export async function createPromotion(data: {
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  minOrderAmount?: number;
+  maxUses?: number;
+  active?: number;
+  startsAt?: Date;
+  expiresAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(promotions).values({
+    code: data.code.trim().toUpperCase(),
+    type: data.type,
+    value: data.value,
+    minOrderAmount: data.minOrderAmount ?? null,
+    maxUses: data.maxUses ?? null,
+    active: data.active ?? 1,
+    startsAt: data.startsAt ?? null,
+    expiresAt: data.expiresAt ?? null,
+  });
+  return { success: true, id: Number((result as any)[0].insertId) };
+}
+
+export async function updatePromotion(id: number, data: {
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  minOrderAmount?: number;
+  maxUses?: number;
+  active: number;
+  startsAt?: Date;
+  expiresAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(promotions).set({
+    code: data.code.trim().toUpperCase(),
+    type: data.type,
+    value: data.value,
+    minOrderAmount: data.minOrderAmount ?? null,
+    maxUses: data.maxUses ?? null,
+    active: data.active,
+    startsAt: data.startsAt ?? null,
+    expiresAt: data.expiresAt ?? null,
+  }).where(eq(promotions.id, id));
+  return { success: true };
+}
+
+export async function deletePromotion(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(promotions).where(eq(promotions.id, id));
+  return { success: true };
+}
+
+export async function getPromotionByCode(code: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(promotions).where(eq(promotions.code, code.trim().toUpperCase())).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function validatePromotion(code: string, orderAmount: number) {
+  const promotion = await getPromotionByCode(code);
+  if (!promotion || !promotion.active) throw new Error("Code promo invalide ou désactivé");
+  const now = Date.now();
+  if (promotion.startsAt && new Date(promotion.startsAt).getTime() > now) throw new Error("Ce code promo n'est pas encore actif");
+  if (promotion.expiresAt && new Date(promotion.expiresAt).getTime() < now) throw new Error("Ce code promo a expiré");
+  if (promotion.maxUses !== null && promotion.usedCount >= promotion.maxUses) throw new Error("La limite d'utilisation de ce code est atteinte");
+  if (promotion.minOrderAmount !== null && orderAmount < promotion.minOrderAmount) throw new Error(`Montant minimum requis : ${(promotion.minOrderAmount / 100).toFixed(2)} CHF`);
+  const discountAmount = promotion.type === "percent"
+    ? Math.min(orderAmount, Math.floor(orderAmount * promotion.value / 100))
+    : Math.min(orderAmount, promotion.value);
+  return { promotion, discountAmount, totalAmount: orderAmount - discountAmount };
+}
+
+export async function getActiveBanners() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(banners).where(eq(banners.active, 1)).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+}
+
+export async function getBannerById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(banners).where(eq(banners.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function createBanner(data: {
+  title: string;
+  subtitle?: string;
+  imageUrl: string;
+  linkUrl?: string;
+  active?: number;
+  displayOrder?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(banners).values({
+    title: data.title,
+    subtitle: data.subtitle || null,
+    imageUrl: data.imageUrl,
+    linkUrl: data.linkUrl || null,
+    active: data.active ?? 1,
+    displayOrder: data.displayOrder ?? 0,
+  });
+  return { success: true, id: Number((result as any)[0].insertId) };
+}
+
+export async function updateBanner(id: number, data: {
+  title: string;
+  subtitle?: string;
+  imageUrl: string;
+  linkUrl?: string;
+  active: number;
+  displayOrder: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(banners).set({ ...data, subtitle: data.subtitle || null, linkUrl: data.linkUrl || null }).where(eq(banners.id, id));
+  return { success: true };
+}
+
+export async function deleteBanner(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(banners).where(eq(banners.id, id));
+  return { success: true };
 }

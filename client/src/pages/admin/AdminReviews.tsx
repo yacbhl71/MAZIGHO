@@ -10,10 +10,11 @@ import { toast } from "sonner";
 export default function AdminReviews() {
   const { data: reviews, isLoading, refetch } = trpc.admin.reviews.getAll.useQuery();
   const updateStatus = trpc.admin.reviews.updateStatus.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Statut de l'avis mis à jour");
-      refetch();
+      await refetch();
     },
+    onError: (error) => toast.error(`Erreur : ${error.message}`),
   });
 
   const handleStatusUpdate = (id: number, status: "approved" | "rejected") => {
@@ -88,6 +89,7 @@ export default function AdminReviews() {
                               variant="outline" 
                               size="icon" 
                               className="text-green-600 hover:text-green-700"
+                              disabled={updateStatus.isPending}
                               onClick={() => handleStatusUpdate(review.id, "approved")}
                             >
                               <Check className="h-4 w-4" />
@@ -96,6 +98,7 @@ export default function AdminReviews() {
                               variant="outline" 
                               size="icon" 
                               className="text-red-600 hover:text-red-700"
+                              disabled={updateStatus.isPending}
                               onClick={() => handleStatusUpdate(review.id, "rejected")}
                             >
                               <X className="h-4 w-4" />

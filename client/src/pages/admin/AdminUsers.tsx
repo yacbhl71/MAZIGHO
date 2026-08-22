@@ -4,12 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { User, Shield, UserCog } from "lucide-react";
+import { User, Shield, UserCog, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AdminUsers() {
   const { data: users, isLoading, refetch } = trpc.admin.users.getAll.useQuery();
   const updateRole = trpc.admin.users.updateRole.useMutation({
-    onSuccess: () => refetch(),
+    onSuccess: async () => { toast.success("Rôle mis à jour"); await refetch(); },
+    onError: (error) => toast.error(`Erreur : ${error.message}`),
   });
 
   const handleToggleRole = (id: number, currentRole: string) => {
@@ -78,7 +80,7 @@ export default function AdminUsers() {
                     </TableCell>
                     <TableCell>{new Date(user.lastSignedIn).toLocaleDateString()}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleToggleRole(user.id, user.role)}>
+                      <Button variant="outline" size="sm" disabled={updateRole.isPending} onClick={() => handleToggleRole(user.id, user.role)}>{updateRole.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         <UserCog className="mr-2 h-4 w-4" /> Changer Rôle
                       </Button>
                     </TableCell>
