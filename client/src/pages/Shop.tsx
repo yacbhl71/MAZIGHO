@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { ArrowRight, ArrowUpRight, Check, Sparkles, Store } from "lucide-react";
+import { formatPrice } from "@/lib/currency";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
@@ -16,7 +17,9 @@ const categoryAccents = [
 
 export default function Shop() {
   const categoriesQuery = trpc.categories.getAll.useQuery();
+  const productsQuery = trpc.products.getAll.useQuery();
   const categories = categoriesQuery.data || [];
+  const products = productsQuery.data || [];
 
   return (
     <div className="min-h-screen bg-[#fbf7f2] text-slate-900">
@@ -89,6 +92,20 @@ export default function Shop() {
             ) : (
               <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">Aucune catégorie disponible pour le moment.</div>
             )}
+          </div>
+        </section>
+
+        <section id="catalogue" className="bg-white py-16 md:py-24">
+          <div className="container">
+            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Prêt à découvrir</p>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Nos produits du moment</h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Parcourez directement les articles disponibles et trouvez votre prochaine bonne idée.</p>
+              </div>
+              <span className="text-sm text-slate-500">{products.length} article(s) disponible(s)</span>
+            </div>
+            {productsQuery.isLoading ? <div className="flex justify-center py-16"><Loader2 className="h-9 w-9 animate-spin text-orange-500" /></div> : products.length > 0 ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{products.slice(0, 8).map((product) => { const imageUrl = product.images?.[0]?.imageUrl; const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price); return <Link key={product.id} href={`/produit/${product.slug}`}><article className="group overflow-hidden border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"><div className="relative aspect-[4/3] overflow-hidden bg-[#f2eee9]">{imageUrl ? <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-5xl text-slate-300">✦</div>}{hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Offre</span>}</div><div className="p-5"><h3 className="line-clamp-2 min-h-[3rem] text-sm font-semibold leading-6 text-slate-900 group-hover:text-orange-600">{product.name}</h3><div className="mt-3 flex items-baseline gap-2"><span className="font-bold text-orange-600">{formatPrice(product.price)}</span>{hasDiscount && <span className="text-xs text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>}</div></div></article></Link>; })}</div> : <div className="border border-dashed border-[#d9cbbc] bg-[#fbf7f2] px-6 py-12 text-center text-sm text-slate-500">Aucun produit actif n'est encore disponible.</div>}
           </div>
         </section>
 
