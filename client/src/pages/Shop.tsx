@@ -1,19 +1,11 @@
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Check, Sparkles, Store } from "lucide-react";
-import { formatPrice } from "@/lib/currency";
+import { ArrowRight, ArrowUpRight, Check, Sparkles, Store, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
-import { Loader2 } from "lucide-react";
+import { formatPrice } from "@/lib/currency";
 
-const categoryAccents = [
-  "bg-orange-50 text-orange-700",
-  "bg-sky-50 text-sky-700",
-  "bg-rose-50 text-rose-700",
-  "bg-emerald-50 text-emerald-700",
-  "bg-violet-50 text-violet-700",
-  "bg-amber-50 text-amber-700",
-];
+const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700", "bg-rose-50 text-rose-700", "bg-emerald-50 text-emerald-700", "bg-violet-50 text-violet-700", "bg-amber-50 text-amber-700"];
 
 export default function Shop() {
   const categoriesQuery = trpc.categories.getAll.useQuery();
@@ -21,106 +13,11 @@ export default function Shop() {
   const categories = categoriesQuery.data || [];
   const products = productsQuery.data || [];
 
-  return (
-    <div className="min-h-screen bg-[#fbf7f2] text-slate-900">
-      <Header />
-
-      <main>
-        <section className="relative min-h-[430px] overflow-hidden bg-slate-950 md:min-h-[500px]">
-          <img src="/assets/shop-editorial-hero.jpg" alt="Sélection lifestyle de la boutique MAZIGHO" className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10" />
-          <div className="relative flex min-h-[430px] items-center px-6 py-16 md:min-h-[500px] md:px-12 lg:px-20">
-            <div className="max-w-2xl text-white">
-              <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em] text-orange-300">La sélection MAZIGHO</p>
-              <h1 className="text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl">Notre Boutique</h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-white/85 md:text-xl">Des univers choisis avec soin pour trouver plus vite les objets qui rendent le quotidien plus simple et plus beau.</p>
-              <div className="mt-8 flex flex-wrap gap-3 text-sm font-semibold">
-                <a href="#categories" className="inline-flex items-center gap-2 bg-orange-500 px-6 py-3 text-white hover:bg-orange-600">Explorer les catégories <ArrowRight className="h-4 w-4" /></a>
-                <Link href="/best-sellers" className="inline-flex items-center gap-2 border border-white/60 bg-white/10 px-6 py-3 text-white hover:bg-white/20">Voir les best-sellers <ArrowUpRight className="h-4 w-4" /></Link>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="border-b border-[#eadfd2] bg-white/80">
-          <div className="container grid gap-0 md:grid-cols-3">
-            <div className="flex items-center gap-3 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:pr-8">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600"><Sparkles className="h-4 w-4" /></div>
-              <p className="text-sm font-semibold">Sélection éditoriale</p>
-            </div>
-            <div className="flex items-center gap-3 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:px-8">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700"><Check className="h-4 w-4" /></div>
-              <p className="text-sm font-semibold">Prix affichés en CHF</p>
-            </div>
-            <div className="flex items-center gap-3 py-5 md:pl-8">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Store className="h-4 w-4" /></div>
-              <p className="text-sm font-semibold">Livraison Suisse & Europe</p>
-            </div>
-          </div>
-        </section>
-
-        <section id="categories" className="py-16 md:py-24">
-          <div className="container">
-            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Explorer par univers</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Trouvez ce qui vous ressemble</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Des catégories claires, des sélections utiles et une expérience pensée pour passer simplement de l'inspiration à la découverte.</p>
-              </div>
-              <Link href="/nouveautes" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">Voir les nouveautés <ArrowUpRight className="h-4 w-4" /></Link>
-            </div>
-
-            {categoriesQuery.isLoading ? (
-              <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 animate-spin text-orange-500" /></div>
-            ) : categories.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {categories.map((category, index) => (
-                  <Link key={category.id} href={`/categorie/${category.slug}`}>
-                    <article className="group flex min-h-[142px] items-center gap-5 border border-[#eadfd2] bg-white p-5 transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl md:p-6">
-                      <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl ${categoryAccents[index % categoryAccents.length]}`}>
-                        <span className="text-3xl leading-none" aria-hidden="true">{category.icon || "✦"}</span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{category.name}</h2>
-                        {category.description && <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{category.description}</p>}
-                        <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-orange-600">Découvrir <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1" /></span>
-                      </div>
-                    </article>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">Aucune catégorie disponible pour le moment.</div>
-            )}
-          </div>
-        </section>
-
-        <section id="catalogue" className="bg-white py-16 md:py-24">
-          <div className="container">
-            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Prêt à découvrir</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Nos produits du moment</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Parcourez directement les articles disponibles et trouvez votre prochaine bonne idée.</p>
-              </div>
-              <span className="text-sm text-slate-500">{products.length} article(s) disponible(s)</span>
-            </div>
-            {productsQuery.isLoading ? <div className="flex justify-center py-16"><Loader2 className="h-9 w-9 animate-spin text-orange-500" /></div> : products.length > 0 ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{products.slice(0, 8).map((product) => { const imageUrl = product.images?.[0]?.imageUrl; const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price); return <Link key={product.id} href={`/produit/${product.slug}`}><article className="group overflow-hidden border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"><div className="relative aspect-[4/3] overflow-hidden bg-[#f2eee9]">{imageUrl ? <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-5xl text-slate-300">✦</div>}{hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Offre</span>}</div><div className="p-5"><h3 className="line-clamp-2 min-h-[3rem] text-sm font-semibold leading-6 text-slate-900 group-hover:text-orange-600">{product.name}</h3><div className="mt-3 flex items-baseline gap-2"><span className="font-bold text-orange-600">{formatPrice(product.price)}</span>{hasDiscount && <span className="text-xs text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>}</div></div></article></Link>; })}</div> : <div className="border border-dashed border-[#d9cbbc] bg-[#fbf7f2] px-6 py-12 text-center text-sm text-slate-500">Aucun produit actif n'est encore disponible.</div>}
-          </div>
-        </section>
-
-        <section className="border-y border-[#eadfd2] bg-[#f1ebe4] py-12 md:py-16">
-          <div className="container flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Besoin d'inspiration ?</p>
-              <h2 className="text-2xl font-semibold text-slate-950 md:text-3xl">Commencez par les produits les plus appréciés.</h2>
-            </div>
-            <Link href="/best-sellers" className="inline-flex shrink-0 items-center justify-center gap-2 bg-slate-950 px-6 py-3 text-sm font-semibold text-white hover:bg-orange-600">Découvrir les best-sellers <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-        </section>
-      </main>
-
-      <Footer />
-    </div>
-  );
+  return <div className="min-h-screen bg-[#fbf7f2] text-slate-900"><Header /><main>
+    <section className="border-b border-[#eadfd2] bg-white px-4 py-10 md:py-14"><div className="container"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">La sélection MAZIGHO</p><div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"><div><h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Notre Boutique</h1><p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">Parcourez directement nos produits disponibles et trouvez vos prochaines bonnes idées.</p></div><Link href="/best-sellers" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">Voir les best-sellers <ArrowUpRight className="h-4 w-4" /></Link></div></div></section>
+    <section className="bg-white py-10 md:py-14"><div className="container"><div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-orange-600">Prêt à découvrir</p><h2 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">Nos produits du moment</h2></div><span className="text-sm text-slate-500">{products.length} article(s) disponible(s)</span></div>{productsQuery.isLoading ? <div className="flex justify-center py-16"><Loader2 className="h-9 w-9 animate-spin text-orange-500" /></div> : products.length > 0 ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">{products.slice(0, 8).map((product) => { const imageUrl = product.images?.[0]?.imageUrl; const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price); return <Link key={product.id} href={`/produit/${product.slug}`}><article className="group overflow-hidden border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"><div className="relative aspect-[4/3] overflow-hidden bg-[#f2eee9]">{imageUrl ? <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-5xl text-slate-300">✦</div>}{hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Offre</span>}</div><div className="p-5"><h3 className="line-clamp-2 min-h-[3rem] text-sm font-semibold leading-6 text-slate-900 group-hover:text-orange-600">{product.name}</h3><div className="mt-3 flex items-baseline gap-2"><span className="font-bold text-orange-600">{formatPrice(product.price)}</span>{hasDiscount && <span className="text-xs text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>}</div></div></article></Link>; })}</div> : <div className="border border-dashed border-[#d9cbbc] bg-[#fbf7f2] px-6 py-12 text-center text-sm text-slate-500">Aucun produit actif n'est encore disponible.</div>}</div></section>
+    <section className="border-y border-[#eadfd2] bg-[#f1ebe4] py-12 md:py-16"><div className="container"><div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.25em] text-orange-600">Explorer par univers</p><h2 className="text-2xl font-semibold tracking-tight text-slate-950 md:text-3xl">Trouvez ce qui vous ressemble</h2></div><Link href="/nouveautes" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">Voir les nouveautés <ArrowUpRight className="h-4 w-4" /></Link></div>{categoriesQuery.isLoading ? <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category, index) => <Link key={category.id} href={`/categorie/${category.slug}`}><article className="group flex min-h-[132px] items-center gap-4 border border-[#eadfd2] bg-white p-5 transition-all hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg"><div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${categoryAccents[index % categoryAccents.length]}`}><span className="text-2xl" aria-hidden="true">{category.icon || "✦"}</span></div><div className="min-w-0 flex-1"><h3 className="text-base font-semibold text-slate-900 group-hover:text-orange-600">{category.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{category.description}</p><span className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-orange-600">Découvrir <ArrowRight className="h-3 w-3" /></span></div></article></Link>)}</div>}</div></section>
+    <section className="container py-10 md:py-14"><div className="relative min-h-[210px] overflow-hidden rounded-[1.75rem] bg-slate-950"><img src="/assets/shop-editorial-hero.jpg" alt="Ambiance éditoriale MAZIGHO" className="absolute inset-0 h-full w-full object-cover opacity-75" /><div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/40 to-transparent" /><div className="relative flex min-h-[210px] items-center px-7 py-8 text-white md:px-12"><div><p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">L'expérience MAZIGHO</p><h2 className="mt-3 max-w-lg text-2xl font-semibold md:text-3xl">Des trouvailles utiles, sélectionnées avec soin.</h2></div></div></div></section>
+    <section className="border-y border-[#eadfd2] bg-white"><div className="container grid gap-0 md:grid-cols-3"><div className="flex items-center gap-3 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:pr-8"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600"><Sparkles className="h-4 w-4" /></div><p className="text-sm font-semibold">Sélection éditoriale</p></div><div className="flex items-center gap-3 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:px-8"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700"><Check className="h-4 w-4" /></div><p className="text-sm font-semibold">Prix affichés en CHF</p></div><div className="flex items-center gap-3 py-5 md:pl-8"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Store className="h-4 w-4" /></div><p className="text-sm font-semibold">Livraison Suisse & Europe</p></div></div></section>
+  </main><Footer /></div>;
 }

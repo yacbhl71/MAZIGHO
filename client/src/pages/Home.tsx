@@ -194,7 +194,7 @@ export default function Home() {
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">Des trouvailles utiles, avec une expérience plus humaine.</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">Nous mettons en avant des produits qui simplifient le quotidien, dans une boutique claire, chaleureuse et pensée pour accompagner chaque décision.</p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/boutique#catalogue"><Button className="bg-orange-500 text-white hover:bg-orange-600">Découvrir la boutique <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+                  <Link href="/boutique"><Button className="bg-orange-500 text-white hover:bg-orange-600">Découvrir la boutique <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
                   <Link href="/contact"><Button variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white">Nous contacter</Button></Link>
                 </div>
               </div>
