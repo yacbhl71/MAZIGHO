@@ -282,6 +282,59 @@ export async function recoverExistingOwnerAccount(input: {
   return openId ? getUserByOpenId(openId) : undefined;
 }
 
+export async function repairOwnerAccount(input: {
+  email: string;
+  passwordHash: string;
+}) {
+  await ensurePasswordHashColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const email = input.email.trim().toLowerCase();
+  let openId: string | null = null;
+
+  await db.transaction(async tx => {
+    const repair = await tx
+      .select({ key: settings.key })
+      .from(settings)
+      .where(eq(settings.key, "security.owner_repair_v2_used"))
+      .limit(1);
+
+    if (repair.length > 0) {
+      throw new Error("OWNER_REPAIR_ALREADY_USED");
+    }
+
+    const matched = await tx
+      .select({ openId: users.openId })
+      .from(users)
+      .where(sql`LOWER(${users.email}) = ${email}`)
+      .limit(1);
+
+    if (matched.length === 0) {
+      throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+    }
+
+    openId = matched[0].openId;
+    await tx
+      .update(users)
+      .set({
+        passwordHash: input.passwordHash,
+        loginMethod: "password",
+        role: "admin",
+        lastSignedIn: new Date(),
+      })
+      .where(eq(users.openId, openId));
+
+    await tx.insert(settings).values({
+      key: "security.owner_repair_v2_used",
+      value: new Date().toISOString(),
+      description: "Reprise sécurisée unique du compte propriétaire",
+    });
+  });
+
+  return openId ? getUserByOpenId(openId) : undefined;
+}
+
 // Categories queries
 export async function getAllCategories() {
   const db = await getDb();

@@ -11,6 +11,7 @@ import {
   getUserByEmail,
   markUserSignedIn,
   recoverExistingOwnerAccount,
+  repairOwnerAccount,
 } from "./db";
 import { hashPassword, verifyPassword } from "./localAuth";
 
@@ -25,11 +26,26 @@ const passwordSchema = z
 // the database, so this path can only succeed once.
 const ADMIN_BOOTSTRAP_CODE_HASH =
   "7431b250cf743d757d87eca3269e140e3d70121bade81f9266bd37196f578d2f";
+const OWNER_REPAIR_CODE_HASH =
+  "0da4f28ae1f7a135dffd44a9b4183094d900d11726685451ce1750c7d26aecd4";
+const OWNER_EMAIL_HASH =
+  "335b8efb523a69daf73f84ec6d965ce54f1850e5b221f44155b951f8bacdfaba";
+
+function matchesHash(value: string, expectedHash: string) {
+  const expected = Buffer.from(expectedHash, "hex");
+  const actual = createHash("sha256").update(value).digest();
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 function matchesBootstrapCode(code: string) {
-  const expected = Buffer.from(ADMIN_BOOTSTRAP_CODE_HASH, "hex");
-  const actual = createHash("sha256").update(code).digest();
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  return matchesHash(code, ADMIN_BOOTSTRAP_CODE_HASH);
+}
+
+function matchesOwnerRepair(input: { email: string; code: string }) {
+  return (
+    matchesHash(input.code, OWNER_REPAIR_CODE_HASH) &&
+    matchesHash(input.email.trim().toLowerCase(), OWNER_EMAIL_HASH)
+  );
 }
 
 function safeUser<T extends { passwordHash?: string | null }>(user: T) {
@@ -54,6 +70,47 @@ async function createSession(
 
 export const authRouter = router({
   me: publicProcedure.query(opts => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
+
+  repairOwner: publicProcedure
+    .input(
+      z.object({
+        email: emailSchema,
+        password: passwordSchema,
+        code: z.string().trim().length(48),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!matchesOwnerRepair(input)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code ou adresse de récupération invalide.",
+        });
+      }
+
+      try {
+        const user = await repairOwnerAccount({
+          email: input.email,
+          passwordHash: await hashPassword(input.password),
+        });
+        if (!user) throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+        await createSession(ctx, user);
+        return { user: safeUser(user) };
+      } catch (error) {
+        if (String(error).includes("OWNER_REPAIR_ALREADY_USED")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Cette reprise de sécurité a déjà été utilisée.",
+          });
+        }
+        if (String(error).includes("OWNER_ACCOUNT_NOT_FOUND")) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Le compte propriétaire est introuvable.",
+          });
+        }
+        throw error;
+      }
+    }),
 
   recoverOwner: publicProcedure
     .input(
@@ -81,6 +138,21 @@ export const authRouter = router({
         return { user: safeUser(user) };
       } catch (error) {
         if (String(error).includes("ADMIN_BOOTSTRAP_ALREADY_CLAIMED")) {
+          // A duplicate request can arrive after the first one has already
+          // completed. Treat the operation as idempotent only when the same
+          // account is now an admin and the freshly supplied password proves
+          // possession of that recovered account.
+          const existing = await getUserByEmail(input.email);
+          const passwordMatches = await verifyPassword(
+            input.password,
+            existing?.passwordHash
+          );
+
+          if (existing?.role === "admin" && passwordMatches) {
+            await createSession(ctx, existing);
+            return { user: safeUser(existing) };
+          }
+
           throw new TRPCError({
             code: "CONFLICT",
             message: "La récupération propriétaire a déjà été utilisée.",

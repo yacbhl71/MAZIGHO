@@ -19,7 +19,7 @@ export default function RecoverOwner() {
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const recover = trpc.auth.recoverOwner.useMutation({
+  const recover = trpc.auth.repairOwner.useMutation({
     onSuccess: async () => {
       await utils.auth.me.invalidate();
       toast.success("Votre compte propriétaire est sécurisé et activé.");
