@@ -1,10 +1,10 @@
 import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Heart, ShoppingCart, ArrowLeft } from "lucide-react";
+import { Star, Heart, ShoppingCart, ArrowLeft, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getAllProducts, getAllCategories } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
@@ -13,10 +13,13 @@ export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
   
-  const categories = getAllCategories();
-  const category = categories.find(c => c.slug === slug);
-  const allProducts = getAllProducts();
-  const products = category ? allProducts.filter(p => p.categoryId === category.id) : [];
+  const categoryQuery = trpc.categories.getBySlug.useQuery(slug);
+  const category = categoryQuery.data;
+  
+  const productsQuery = trpc.products.getByCategory.useQuery(category?.id || 0, {
+    enabled: !!category?.id
+  });
+  const products = productsQuery.data || [];
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -29,6 +32,20 @@ export default function Category() {
       setTimeout(() => setAddedToCart(null), 2000);
     }
   };
+
+  if (categoryQuery.isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-orange-500 mx-auto" />
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!category) {
     return (
@@ -65,7 +82,7 @@ export default function Category() {
               </div>
             </Link>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-5xl">{category.icon}</span>
+              <span className="text-5xl">{(category as any).icon || "📦"}</span>
               <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
                 {category.name}
               </h1>
@@ -109,7 +126,7 @@ export default function Category() {
                               <Star
                                 key={i}
                                 className={`h-4 w-4 ${
-                                  i < Math.round(product.averageRating)
+                                  i < Math.round((product as any).averageRating || 0)
                                     ? "fill-yellow-400 text-yellow-400"
                                     : "text-gray-300"
                                 }`}
@@ -117,7 +134,7 @@ export default function Category() {
                             ))}
                           </div>
                           <span className="text-xs text-gray-600">
-                            ({product.reviews.length})
+                            ({(product as any).reviews?.length || 0})
                           </span>
                         </div>
 

@@ -47,19 +47,37 @@ export const appRouter = router({
   // Products
   products: router({
     getAll: publicProcedure.query(async () => {
-      const { getAllProducts } = await import("./db");
-      return await getAllProducts();
+      const { getAllProducts, getProductImages, getProductReviews, getAverageRating } = await import("./db");
+      const prods = await getAllProducts();
+      return await Promise.all(prods.map(async (p) => ({
+        ...p,
+        images: await getProductImages(p.id),
+        reviews: await getProductReviews(p.id),
+        averageRating: await getAverageRating(p.id),
+      })));
     }),
     getFeatured: publicProcedure.query(async () => {
-      const { getFeaturedProducts } = await import("./db");
-      return await getFeaturedProducts(8);
+      const { getFeaturedProducts, getProductImages, getProductReviews, getAverageRating } = await import("./db");
+      const prods = await getFeaturedProducts(8);
+      return await Promise.all(prods.map(async (p) => ({
+        ...p,
+        images: await getProductImages(p.id),
+        reviews: await getProductReviews(p.id),
+        averageRating: await getAverageRating(p.id),
+      })));
     }),
     getByCategory: publicProcedure.input((val: unknown) => {
       if (typeof val === "number") return val;
       throw new Error("Invalid category ID");
     }).query(async ({ input }) => {
-      const { getProductsByCategory } = await import("./db");
-      return await getProductsByCategory(input);
+      const { getProductsByCategory, getProductImages, getProductReviews, getAverageRating } = await import("./db");
+      const prods = await getProductsByCategory(input);
+      return await Promise.all(prods.map(async (p) => ({
+        ...p,
+        images: await getProductImages(p.id),
+        reviews: await getProductReviews(p.id),
+        averageRating: await getAverageRating(p.id),
+      })));
     }),
     getBySlug: publicProcedure.input((val: unknown) => {
       if (typeof val === "string") return val;

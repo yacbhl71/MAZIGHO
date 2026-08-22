@@ -4,13 +4,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Star, Heart, ShoppingCart, ArrowLeft } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getAllProducts } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function Nouveautes() {
-  const products = getAllProducts();
+  const productsQuery = trpc.products.getAll.useQuery();
+  const products = productsQuery.data || [];
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
@@ -49,6 +51,11 @@ export default function Nouveautes() {
         {/* Products Grid */}
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
+            {productsQuery.isLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {products.map((product) => (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
@@ -78,16 +85,16 @@ export default function Nouveautes() {
                             <Star
                               key={i}
                               className={`h-4 w-4 ${
-                                i < Math.round(product.averageRating)
-                                  ? "fill-yellow-400 text-yellow-400"
-                                  : "text-gray-300"
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <span className="text-xs text-gray-600">
-                          ({product.reviews.length})
-                        </span>
+                                  i < Math.round((product as any).averageRating || 0)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-gray-600">
+                            ({(product as any).reviews?.length || 0})
+                          </span>
                       </div>
 
                       {/* Price */}
@@ -142,6 +149,7 @@ export default function Nouveautes() {
                 </Card>
               ))}
             </div>
+            )}
           </div>
         </section>
       </main>

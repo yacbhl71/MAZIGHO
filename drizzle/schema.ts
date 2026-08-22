@@ -25,6 +25,7 @@ export const categories = mysqlTable("categories", {
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   description: text("description"),
   imageUrl: varchar("imageUrl", { length: 500 }),
+  icon: varchar("icon", { length: 20 }),
   displayOrder: int("displayOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -39,6 +40,7 @@ export const products = mysqlTable("products", {
   name: varchar("name", { length: 200 }).notNull(),
   slug: varchar("slug", { length: 200 }).notNull().unique(),
   description: text("description"),
+  longDescription: text("longDescription"),
   price: int("price").notNull(), // Price in cents
   originalPrice: int("originalPrice"), // Original price for discounts
   stock: int("stock").default(0).notNull(),
@@ -48,6 +50,7 @@ export const products = mysqlTable("products", {
   supplierProductId: varchar("supplierProductId", { length: 128 }),
   supplierUrl: varchar("supplierUrl", { length: 1000 }),
   supplierPrice: int("supplierPrice"), // Supplier price in cents
+  options: text("options"), // JSON string for product options
   lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

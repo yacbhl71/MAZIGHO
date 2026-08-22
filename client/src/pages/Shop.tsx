@@ -3,10 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getAllCategories } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
+import { Loader2 } from "lucide-react";
 
 export default function Shop() {
-  const categories = getAllCategories();
+  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categories = categoriesQuery.data || [];
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -58,7 +60,11 @@ export default function Shop() {
               ))}
             </div>
 
-            {categories.length === 0 && (
+            {categoriesQuery.isLoading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+              </div>
+            ) : categories.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">
                   Aucune catégorie disponible pour le moment.

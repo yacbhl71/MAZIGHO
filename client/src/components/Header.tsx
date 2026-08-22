@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Menu, X, Heart, ShoppingCart, User } from "lucide-react";
 import { useState } from "react";
-import { getAllCategories } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 import SearchBar from "./SearchBar";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -11,7 +11,9 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<number | null>(null);
   const [location] = useLocation();
-  const categories = getAllCategories();
+  
+  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categories = categoriesQuery.data || [];
   const { getItemCount } = useCart();
   const { favorites } = useFavorites();
   const cartCount = getItemCount();
@@ -84,7 +86,7 @@ export default function Header() {
                     <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div className="cursor-pointer group/item py-2">
                         <div className="flex items-start gap-2 mb-2">
-                          <span className="text-xl">{cat.icon}</span>
+                          <span className="text-xl">{(cat as any).icon || "📦"}</span>
                           <div>
                             <h3 className="font-semibold text-sm text-gray-800 group-hover/item:text-orange-500 transition-colors">
                               {cat.name}
@@ -92,9 +94,9 @@ export default function Header() {
                             <p className="text-xs text-gray-500 mt-0.5">{cat.description}</p>
                           </div>
                         </div>
-                        {cat.subcategories && (
+                        {(cat as any).subcategories && (
                           <ul className="text-xs text-gray-600 space-y-0.5 ml-7">
-                            {cat.subcategories.slice(0, 3).map((sub, idx) => (
+                            {(cat as any).subcategories.slice(0, 3).map((sub: string, idx: number) => (
                               <li key={idx} className="hover:text-orange-500 transition-colors">
                                 • {sub}
                               </li>
@@ -224,7 +226,7 @@ export default function Header() {
                   {categories.map((cat) => (
                     <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div className="px-4 py-2 hover:bg-white rounded cursor-pointer text-xs">
-                        {cat.icon} {cat.name}
+                        {(cat as any).icon || "📦"} {cat.name}
                       </div>
                     </Link>
                   ))}

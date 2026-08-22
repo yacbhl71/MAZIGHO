@@ -6,11 +6,14 @@ import { formatPrice } from "@/lib/currency";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
-import { getAllCategories, getFeaturedProducts } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 
 export default function Home() {
-  const categories = getAllCategories();
-  const featuredProducts = getFeaturedProducts();
+  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const featuredProductsQuery = trpc.products.getFeatured.useQuery();
+  
+  const categories = categoriesQuery.data || [];
+  const featuredProducts = featuredProductsQuery.data || [];
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -38,7 +41,7 @@ export default function Home() {
                   <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border-2 border-gray-200 hover:border-orange-500 h-full">
                     <CardContent className="p-0">
                       <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                        <span className="text-6xl mb-4">{category.icon}</span>
+                        <span className="text-6xl mb-4">{(category as any).icon || "📦"}</span>
                       </div>
                       <div className="p-4 text-center">
                         <h3 className="font-semibold text-gray-800 group-hover:text-orange-500 transition-colors mb-2">
@@ -84,7 +87,7 @@ export default function Home() {
                         </h3>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
                           <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
-                          <span>{product.averageRating || 4.5}</span>
+                          <span>{(product as any).averageRating || 4.5}</span>
                         </div>
                         <div className="flex items-baseline gap-2">
                           <span className="text-lg font-bold text-orange-500">

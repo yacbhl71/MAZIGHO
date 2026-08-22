@@ -8,15 +8,37 @@ import Footer from "@/components/Footer";
 import ImageGallery from "@/components/ImageGallery";
 import ProductOptions from "@/components/ProductOptions";
 import ReviewForm from "@/components/ReviewForm";
-import { getProductBySlug, getAllProducts } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
+import { Loader2 } from "lucide-react";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
   const [, setLocation] = useLocation();
-  const product = slug ? getProductBySlug(slug) : null;
+  
+  const productQuery = trpc.products.getBySlug.useQuery(slug || "", {
+    enabled: !!slug
+  });
+  const product = productQuery.data;
+  
+  const relatedProductsQuery = trpc.products.getByCategory.useQuery(product?.categoryId || 0, {
+    enabled: !!product?.categoryId
+  });
+  
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
+
+  if (productQuery.isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center py-20">
+          <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -37,8 +59,8 @@ export default function Product() {
     );
   }
 
-  const relatedProducts = getAllProducts()
-    .filter(p => p.categoryId === product.categoryId && p.id !== product.id)
+  const relatedProducts = (relatedProductsQuery.data || [])
+    .filter(p => p.id !== product.id)
     .slice(0, 4);
 
   const handleAddToCart = () => {
@@ -123,7 +145,7 @@ export default function Product() {
 
               {/* Description */}
               <p className="text-gray-700 text-lg leading-relaxed">
-                {product.longDescription || product.description}
+                {(product as any).longDescription || product.description}
               </p>
 
               {/* Stock Status */}
@@ -136,9 +158,9 @@ export default function Product() {
               </div>
 
               {/* Options */}
-              {product.options && product.options.length > 0 && (
+              {(product as any).options && (
                 <ProductOptions
-                  options={product.options}
+                  options={typeof (product as any).options === 'string' ? JSON.parse((product as any).options) : (product as any).options}
                   onSelectOptions={setSelectedOptions}
                 />
               )}
@@ -258,7 +280,7 @@ export default function Product() {
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-semibold text-gray-800">{review.userName}</p>
-                            <p className="text-sm text-gray-600">{review.createdAt}</p>
+                            <p className="text-sm text-gray-600">{new Date(review.createdAt).toLocaleDateString()}</p>
                           </div>
                           <div className="flex gap-1">
                             {Array.from({ length: 5 }).map((_, i) => (
@@ -320,7 +342,7 @@ export default function Product() {
                           </h3>
                           <div className="flex items-center gap-1 text-sm text-gray-600">
                             <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
-                            <span>{relatedProduct.averageRating}</span>
+                            <span>{(relatedProduct as any).averageRating || 0}</span>
                           </div>
                           <div className="flex items-baseline gap-2">
                             <span className="text-lg font-bold text-orange-500">

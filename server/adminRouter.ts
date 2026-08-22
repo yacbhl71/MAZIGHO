@@ -25,12 +25,14 @@ export const adminRouter = router({
       name: z.string(),
       slug: z.string(),
       description: z.string().optional(),
+      longDescription: z.string().optional(),
       price: z.number(),
       originalPrice: z.number().optional(),
       stock: z.number(),
       featured: z.number(),
       status: z.enum(["active", "draft", "archived"]),
       images: z.array(z.string()).optional(),
+      options: z.string().optional(),
     })).mutation(async ({ input }) => {
       return await db.createProduct(input);
     }),
@@ -39,12 +41,14 @@ export const adminRouter = router({
       categoryId: z.number().optional(),
       name: z.string().optional(),
       description: z.string().optional(),
+      longDescription: z.string().optional(),
       price: z.number().optional(),
       originalPrice: z.number().optional(),
       stock: z.number().optional(),
       featured: z.number().optional(),
       status: z.enum(["active", "draft", "archived"]).optional(),
       images: z.array(z.string()).optional(),
+      options: z.string().optional(),
     })).mutation(async ({ input }) => {
       return await db.updateProduct(input.id, input);
     }),
@@ -72,6 +76,7 @@ export const adminRouter = router({
       slug: z.string(),
       description: z.string().optional(),
       imageUrl: z.string().optional(),
+      icon: z.string().optional(),
       displayOrder: z.number().optional(),
     })).mutation(async ({ input }) => {
       return await db.createCategory(input);
@@ -82,6 +87,7 @@ export const adminRouter = router({
       slug: z.string().optional(),
       description: z.string().optional(),
       imageUrl: z.string().optional(),
+      icon: z.string().optional(),
       displayOrder: z.number().optional(),
     })).mutation(async ({ input }) => {
       return await db.updateCategory(input.id, input);
