@@ -40,7 +40,7 @@ const OWNER_REPAIR_V3_CODE_HASH =
 // Temporary maintenance proof. Its plaintext is held only locally, is never
 // committed, and this route is removed immediately after successful use.
 const OWNER_TEMPORARY_PASSWORD_PROVISION_HASH =
-  "211d3b603ebaff40d0eddb1300280c06114a36ea4b1ffb335417e40f2b211abf";
+  "fec88f7fd632ebcbac43cbd797488fe1c848df2d2a346bb94cb10f275c55423e";
 
 function matchesHash(value: string, expectedHash: string) {
   const expected = Buffer.from(expectedHash, "hex");
