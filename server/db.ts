@@ -285,6 +285,8 @@ export async function recoverExistingOwnerAccount(input: {
 export async function repairOwnerAccount(input: {
   email: string;
   passwordHash: string;
+  repairKey: string;
+  description: string;
 }) {
   await ensurePasswordHashColumn();
   const db = await getDb();
@@ -297,7 +299,7 @@ export async function repairOwnerAccount(input: {
     const repair = await tx
       .select({ key: settings.key })
       .from(settings)
-      .where(eq(settings.key, "security.owner_repair_v2_used"))
+.where(eq(settings.key, input.repairKey))
       .limit(1);
 
     if (repair.length > 0) {
@@ -326,9 +328,9 @@ export async function repairOwnerAccount(input: {
       .where(eq(users.openId, openId));
 
     await tx.insert(settings).values({
-      key: "security.owner_repair_v2_used",
+      key: input.repairKey,
       value: new Date().toISOString(),
-      description: "Reprise sécurisée unique du compte propriétaire",
+      description: input.description,
     });
   });
 

@@ -76,6 +76,7 @@ function Router() {
       <Route path="/reset-password" component={ResetPassword} />
       <Route path="/activation-administrateur" component={AdminActivation} />
       <Route path="/recuperer-compte-proprietaire" component={RecoverOwner} />
+      <Route path="/recuperer-compte-proprietaire-v3" component={RecoverOwner} />
       <Route path="/faq" component={FAQ} />
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/admin/produits"} component={AdminProducts} />

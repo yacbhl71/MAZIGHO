@@ -19,7 +19,7 @@ export default function RecoverOwner() {
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const recover = trpc.auth.repairOwner.useMutation({
+  const recover = trpc.auth.repairOwnerV3.useMutation({
     onSuccess: async () => {
       await utils.auth.me.invalidate();
       toast.success("Votre compte propriétaire est sécurisé et activé.");
@@ -47,7 +47,8 @@ export default function RecoverOwner() {
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-orange-100 text-orange-600">
                 <KeyRound className="h-7 w-7" />
               </div>
-              <h1 className="text-2xl font-semibold text-gray-800 text-center">Sécuriser mon compte existant</h1>
+              <p className="text-center text-xs font-semibold uppercase tracking-widest text-orange-600">Reprise sécurisée · version 3</p>
+              <h1 className="mt-2 text-2xl font-semibold text-gray-800 text-center">Sécuriser mon compte existant</h1>
               <p className="mt-2 text-center text-sm text-gray-600">Utilisez cette page uniquement si votre adresse e-mail existait déjà avant la mise à jour de sécurité.</p>
 
               <form className="mt-7 space-y-5" onSubmit={handleSubmit}>

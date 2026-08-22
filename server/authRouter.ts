@@ -30,6 +30,8 @@ const OWNER_REPAIR_CODE_HASH =
   "0da4f28ae1f7a135dffd44a9b4183094d900d11726685451ce1750c7d26aecd4";
 const OWNER_EMAIL_HASH =
   "9c9e5e992d6011c6daf2f4ec1a0fe82845cb41725c767766a3986787e443e723";
+const OWNER_REPAIR_V3_CODE_HASH =
+  "3db0a76e4d7fa6eeabd238a8b3779893a5728ce8f24bcf7971a9d270e6824d9c";
 
 function matchesHash(value: string, expectedHash: string) {
   const expected = Buffer.from(expectedHash, "hex");
@@ -44,6 +46,13 @@ function matchesBootstrapCode(code: string) {
 function matchesOwnerRepair(input: { email: string; code: string }) {
   return (
     matchesHash(input.code, OWNER_REPAIR_CODE_HASH) &&
+    matchesHash(input.email.trim().toLowerCase(), OWNER_EMAIL_HASH)
+  );
+}
+
+function matchesOwnerRepairV3(input: { email: string; code: string }) {
+  return (
+    matchesHash(input.code, OWNER_REPAIR_V3_CODE_HASH) &&
     matchesHash(input.email.trim().toLowerCase(), OWNER_EMAIL_HASH)
   );
 }
@@ -71,6 +80,49 @@ async function createSession(
 export const authRouter = router({
   me: publicProcedure.query(opts => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
 
+  repairOwnerV3: publicProcedure
+    .input(
+      z.object({
+        email: emailSchema,
+        password: passwordSchema,
+        code: z.string().trim().length(48),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!matchesOwnerRepairV3(input)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code ou adresse de récupération invalide.",
+        });
+      }
+
+      try {
+        const user = await repairOwnerAccount({
+          email: input.email,
+          passwordHash: await hashPassword(input.password),
+          repairKey: "security.owner_repair_v3_used",
+          description: "Reprise sécurisée version 3 du compte propriétaire",
+        });
+        if (!user) throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+        await createSession(ctx, user);
+        return { user: safeUser(user) };
+      } catch (error) {
+        if (String(error).includes("OWNER_REPAIR_ALREADY_USED")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Cette reprise de sécurité a déjà été utilisée.",
+          });
+        }
+        if (String(error).includes("OWNER_ACCOUNT_NOT_FOUND")) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Le compte propriétaire est introuvable.",
+          });
+        }
+        throw error;
+      }
+    }),
+
   repairOwner: publicProcedure
     .input(
       z.object({
@@ -91,6 +143,8 @@ export const authRouter = router({
         const user = await repairOwnerAccount({
           email: input.email,
           passwordHash: await hashPassword(input.password),
+          repairKey: "security.owner_repair_v2_used",
+          description: "Reprise sécurisée version 2 du compte propriétaire",
         });
         if (!user) throw new Error("OWNER_ACCOUNT_NOT_FOUND");
         await createSession(ctx, user);
