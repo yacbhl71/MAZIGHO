@@ -43,6 +43,13 @@
       "when": 1787402200412,
       "tag": "0005_demonic_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787431901714,
+      "tag": "0006_red_siren",
+      "breakpoints": true
     }
   ]
 }

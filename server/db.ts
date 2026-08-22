@@ -9,6 +9,29 @@ import type { Pool } from "mysql2/promise";
 const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
+let _passwordHashColumnReady: Promise<void> | null = null;
+
+async function ensurePasswordHashColumn() {
+  if (_passwordHashColumnReady) return _passwordHashColumnReady;
+
+  _passwordHashColumnReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    try {
+      await db.execute(
+        sql.raw("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `passwordHash` varchar(255)")
+      );
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) {
+        throw error;
+      }
+    }
+  })();
+
+  return _passwordHashColumnReady;
+}
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
@@ -42,6 +65,7 @@ export async function getDb() {
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
+  await ensurePasswordHashColumn();
   if (!user.openId) {
     throw new Error("User openId is required for upsert");
   }
@@ -101,15 +125,82 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 }
 
 export async function getUserByOpenId(openId: string) {
+  await ensurePasswordHashColumn();
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
-
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByEmail(email: string) {
+  await ensurePasswordHashColumn();
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const normalisedEmail = email.trim().toLowerCase();
+  const result = await db
+    .select()
+    .from(users)
+    .where(sql`LOWER(${users.email}) = ${normalisedEmail}`)
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createPasswordUser(input: {
+  openId: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+}) {
+  await ensurePasswordHashColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  await db.insert(users).values({
+    openId: input.openId,
+    email: input.email.trim().toLowerCase(),
+    name: input.name.trim(),
+    passwordHash: input.passwordHash,
+    loginMethod: "password",
+    role: "user",
+    lastSignedIn: new Date(),
+  });
+
+  return getUserByOpenId(input.openId);
+}
+
+export async function updatePasswordUser(input: {
+  openId: string;
+  passwordHash: string;
+}) {
+  await ensurePasswordHashColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  await db
+    .update(users)
+    .set({
+      passwordHash: input.passwordHash,
+      loginMethod: "password",
+      lastSignedIn: new Date(),
+    })
+    .where(eq(users.openId, input.openId));
+
+  return getUserByOpenId(input.openId);
+}
+
+export async function markUserSignedIn(openId: string) {
+  const db = await getDb();
+  if (!db) return;
+
+  await db
+    .update(users)
+    .set({ lastSignedIn: new Date() })
+    .where(eq(users.openId, openId));
 }
 
 // Categories queries
@@ -458,8 +549,20 @@ export async function updateOrderStatus(id: number, status: any, trackingNumber?
 export async function getAllUsersAdmin() {
   const db = await getDb();
   if (!db) return [];
-  const { users } = await import("../drizzle/schema");
-  return await db.select().from(users);
+
+  return await db
+    .select({
+      id: users.id,
+      openId: users.openId,
+      name: users.name,
+      email: users.email,
+      loginMethod: users.loginMethod,
+      role: users.role,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users);
 }
 
 export async function updateUserRole(id: number, role: any) {
