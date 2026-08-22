@@ -110,6 +110,13 @@ export const adminRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllUsersAdmin();
     }),
+    create: adminProcedure.input(z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+      role: z.enum(["user", "admin"]),
+    })).mutation(async ({ input }) => {
+      return await db.createAdminUser(input);
+    }),
     updateRole: adminProcedure.input(z.object({
       id: z.number(),
       role: z.enum(["user", "admin"]),

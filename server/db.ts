@@ -758,3 +758,28 @@ export async function deleteBanner(id: number) {
   await db.delete(banners).where(eq(banners.id, id));
   return { success: true };
 }
+
+export async function createAdminUser(data: { name: string; email: string; role: "user" | "admin" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // For admin-created users, we use email as a temporary openId if they don't have one
+  const openId = `local-${data.email}`;
+  
+  await db.insert(users).values({
+    openId,
+    name: data.name,
+    email: data.email,
+    role: data.role,
+    loginMethod: "admin-created",
+    lastSignedIn: new Date(),
+  }).onDuplicateKeyUpdate({
+    set: { 
+      name: data.name,
+      role: data.role,
+      lastSignedIn: new Date()
+    }
+  });
+  
+  return { success: true };
+}
