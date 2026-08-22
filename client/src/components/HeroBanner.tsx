@@ -95,7 +95,7 @@ export default function HeroBanner() {
                 <Link href={banner.buttonLink}>
                   <Button className="bg-orange-500 px-8 py-3 text-lg font-semibold text-white hover:bg-orange-600">{banner.buttonText}</Button>
                 </Link>
-                <Link href="/meilleures-ventes">
+                <Link href="/best-sellers">
                   <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">Voir les best-sellers</Button>
                 </Link>
               </div>

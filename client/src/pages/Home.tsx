@@ -34,6 +34,20 @@ export default function Home() {
       <main>
         <HeroBanner />
 
+        <section className="container py-8 md:py-12">
+          <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">
+            <img src="/assets/home-lifestyle-top.jpg" alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
+            <div className="relative flex min-h-[230px] items-center px-7 py-8 text-white md:min-h-[300px] md:px-12">
+              <div className="max-w-md">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">L'inspiration MAZIGHO</p>
+                <h2 className="text-2xl font-semibold leading-tight md:text-4xl">Des trouvailles qui embellissent le quotidien.</h2>
+                <p className="mt-3 text-sm leading-6 text-white/80 md:text-base">Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="border-y border-[#eadfd2] bg-white/80">
           <div className="container grid gap-0 md:grid-cols-3">
             <div className="flex items-center gap-4 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:pr-8">
@@ -84,9 +98,9 @@ export default function Home() {
                 {categories.map((category, index) => (
                   <Link key={category.id} href={`/categorie/${category.slug}`}>
                     <Card className={`group h-full overflow-hidden border border-[#eadfd2] bg-gradient-to-br ${categoryAccents[index % categoryAccents.length]} shadow-none transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg`}>
-                      <CardContent className="flex h-full min-h-[190px] flex-col justify-between p-5">
+                      <CardContent className="flex h-full min-h-[165px] flex-col justify-between p-4">
                         <div className="flex items-start justify-between gap-3">
-                          <span className="text-4xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
+                          <span className="text-2xl leading-none md:text-3xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition-colors group-hover:bg-orange-500 group-hover:text-white">
                             <ChevronRight className="h-4 w-4" />
                           </span>
@@ -103,6 +117,19 @@ export default function Home() {
             ) : (
               <div className="border border-dashed border-[#d9cbbc] bg-white/60 px-6 py-12 text-center text-sm text-slate-500">Les catégories seront visibles ici dès qu'elles seront publiées dans votre administration.</div>
             )}
+          </div>
+        </section>
+
+        <section className="container py-4 md:py-8">
+          <div className="relative min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[#c9b8a8]">
+            <img src="/assets/home-editorial-divider.jpg" alt="Ambiance bien-être et accessoires MAZIGHO" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
+            <div className="relative flex min-h-[180px] items-center px-7 py-8 text-white md:px-12">
+              <div className="max-w-sm">
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-200">Sélection éditoriale</p>
+                <p className="mt-3 text-xl font-semibold md:text-3xl">Le détail qui fait la différence.</p>
+              </div>
+            </div>
           </div>
         </section>
 
