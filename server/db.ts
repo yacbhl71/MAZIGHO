@@ -309,7 +309,7 @@ export async function getAllProductsAdmin() {
   const { products, categories } = await import("../drizzle/schema");
   
   
-  return await db.select({
+  const rows = await db.select({
     id: products.id,
     name: products.name,
     slug: products.slug,
@@ -329,6 +329,11 @@ export async function getAllProductsAdmin() {
   }).from(products)
     .leftJoin(categories, eq(products.categoryId, categories.id))
     .orderBy(desc(products.createdAt));
+
+  return await Promise.all(rows.map(async (product) => ({
+    ...product,
+    images: await getProductImages(product.id),
+  })));
 }
 
 export async function createProduct(data: any) {

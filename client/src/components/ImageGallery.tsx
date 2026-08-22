@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface ImageGalleryProps {
   images: Array<{ id: number; imageUrl: string; displayOrder: number }>;
@@ -8,95 +9,83 @@ interface ImageGalleryProps {
 
 export default function ImageGallery({ images, productName }: ImageGalleryProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
 
-  const displayImages = images.length > 0 
-    ? images.sort((a, b) => a.displayOrder - b.displayOrder)
+  const displayImages = images.length > 0
+    ? [...images].sort((a, b) => a.displayOrder - b.displayOrder)
     : [{ id: 0, imageUrl: "", displayOrder: 0 }];
 
-  const currentImage = displayImages[selectedImageIndex];
+  const currentImage = displayImages[selectedImageIndex] ?? displayImages[0];
 
   const goToPrevious = () => {
-    setSelectedImageIndex((prev) => 
-      prev === 0 ? displayImages.length - 1 : prev - 1
-    );
+    setSelectedImageIndex((prev) => prev === 0 ? displayImages.length - 1 : prev - 1);
   };
 
   const goToNext = () => {
-    setSelectedImageIndex((prev) => 
-      (prev + 1) % displayImages.length
-    );
+    setSelectedImageIndex((prev) => (prev + 1) % displayImages.length);
   };
 
   return (
-    <div className="space-y-4">
-      {/* Main Image */}
-      <div className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square flex items-center justify-center group">
-        {currentImage.imageUrl ? (
-          <img
-            src={currentImage.imageUrl}
-            alt={productName}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="text-6xl">📦</div>
-        )}
-
-        {/* Navigation Buttons */}
-        {displayImages.length > 1 && (
-          <>
+    <>
+      <div className="space-y-4">
+        <div className="group relative flex aspect-square max-h-[560px] items-center justify-center overflow-hidden rounded-2xl bg-[#f4f0eb]">
+          {currentImage.imageUrl ? (
             <button
-              onClick={goToPrevious}
-              className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-              aria-label="Previous image"
+              type="button"
+              onClick={() => setIsZoomOpen(true)}
+              className="flex h-full w-full cursor-zoom-in items-center justify-center p-5 md:p-8"
+              aria-label={`Agrandir l'image de ${productName}`}
             >
-              <ChevronLeft className="h-6 w-6" />
+              <img src={currentImage.imageUrl} alt={productName} className="max-h-full max-w-full object-contain" />
+              <span className="pointer-events-none absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-semibold text-slate-700 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+                <Maximize2 className="h-3.5 w-3.5" /> Agrandir
+              </span>
             </button>
-            <button
-              onClick={goToNext}
-              className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-              aria-label="Next image"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          </>
-        )}
+          ) : (
+            <div className="text-6xl">📦</div>
+          )}
 
-        {/* Image Counter */}
+          {displayImages.length > 1 && (
+            <>
+              <button type="button" onClick={goToPrevious} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 text-gray-800 shadow-sm hover:bg-white" aria-label="Image précédente">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button type="button" onClick={goToNext} className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-white/90 p-2 text-gray-800 shadow-sm hover:bg-white" aria-label="Image suivante">
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              <div className="absolute bottom-4 left-4 rounded-full bg-black/55 px-3 py-1 text-xs text-white">
+                {selectedImageIndex + 1} / {displayImages.length}
+              </div>
+            </>
+          )}
+        </div>
+
         {displayImages.length > 1 && (
-          <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-            {selectedImageIndex + 1} / {displayImages.length}
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {displayImages.map((image, index) => (
+              <button
+                key={image.id}
+                type="button"
+                onClick={() => setSelectedImageIndex(index)}
+                className={`h-20 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-[#f4f0eb] p-1 ${index === selectedImageIndex ? "border-orange-500 ring-2 ring-orange-200" : "border-transparent hover:border-gray-300"}`}
+                aria-label={`Afficher l'image ${index + 1}`}
+              >
+                {image.imageUrl ? <img src={image.imageUrl} alt={`${productName} ${index + 1}`} className="h-full w-full object-contain" /> : <span className="text-2xl">📦</span>}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Thumbnail Strip */}
-      {displayImages.length > 1 && (
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {displayImages.map((image, index) => (
-            <button
-              key={image.id}
-              onClick={() => setSelectedImageIndex(index)}
-              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                index === selectedImageIndex
-                  ? "border-orange-500 ring-2 ring-orange-300"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              {image.imageUrl ? (
-                <img
-                  src={image.imageUrl}
-                  alt={`${productName} ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center text-2xl">
-                  📦
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+        <DialogContent className="max-w-5xl border-0 bg-white/95 p-3 sm:p-5">
+          <DialogTitle className="sr-only">Image agrandie : {productName}</DialogTitle>
+          <div className="flex min-h-[60vh] items-center justify-center bg-[#f4f0eb] p-4 sm:p-8">
+            {currentImage.imageUrl && <img src={currentImage.imageUrl} alt={productName} className="max-h-[78vh] max-w-full object-contain" />}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+

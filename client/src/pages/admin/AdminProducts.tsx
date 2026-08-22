@@ -162,6 +162,12 @@ export default function AdminProducts() {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const setMainImage = (index: number) => {
+    if (index === 0) return;
+    setImages([images[index], ...images.filter((_, i) => i !== index)]);
+    toast.success("Image principale définie");
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -499,17 +505,18 @@ export default function AdminProducts() {
                 
                 <div className="grid grid-cols-4 gap-4 mt-4">
                   {images.map((url, index) => (
-                    <div key={index} className="relative group border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50 aspect-square flex items-center justify-center">
-                      <img src={url} alt="" className="max-h-full max-w-full object-contain" />
-                      <button 
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                      <div className={`absolute bottom-0 left-0 right-0 text-white text-[10px] py-1 text-center ${index === 0 ? "bg-orange-500 font-bold" : "bg-black/50"}`}>
+                    <div key={`${url}-${index}`} className="relative border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50 aspect-square flex flex-col items-center justify-center p-1">
+                      <img src={url} alt={`Aperçu ${index + 1}`} className="h-full w-full object-contain" />
+                      <div className={`absolute bottom-0 left-0 right-0 text-white text-[10px] py-1 text-center ${index === 0 ? "bg-orange-500 font-bold" : "bg-black/60"}`}>
                         {index === 0 ? "Image principale" : `Image ${index + 1}`}
+                      </div>
+                      <div className="absolute right-1 top-1 flex gap-1">
+                        {index !== 0 && (
+                          <button type="button" onClick={() => setMainImage(index)} title="Définir comme image principale" aria-label="Définir comme image principale" className="rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-orange-700 shadow hover:bg-orange-50">Principale</button>
+                        )}
+                        <button type="button" onClick={() => removeImage(index)} title="Supprimer cette image" aria-label="Supprimer cette image" className="rounded-full bg-red-600 p-1.5 text-white shadow hover:bg-red-700">
+                          <X className="h-3 w-3" />
+                        </button>
                       </div>
                     </div>
                   ))}
