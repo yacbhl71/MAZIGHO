@@ -297,7 +297,12 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4">
+          <div className="mb-4 p-2 bg-orange-600 text-white text-center text-xs font-bold rounded animate-pulse">
+            SYSTÈME MAZIGHO V2.0 - DEVISE CHF ACTIVÉE
+          </div>
+          {children}
+        </main>
       </SidebarInset>
     </>
   );
