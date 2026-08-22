@@ -539,20 +539,62 @@ export async function createContactMessage(data: { name: string; email: string; 
 export async function getAdminStats() {
   const db = await getDb();
   if (!db) return null;
-  const [productCount, orderCount, userCount, totalRevenue, pendingReviews] = await Promise.all([
+
+  const [
+    productCount,
+    activeProductCount,
+    draftProductCount,
+    orderCount,
+    pendingOrderCount,
+    userCount,
+    totalRevenue,
+    pendingReviews,
+    unreadMessages,
+    lowStockProducts,
+    recentOrders,
+  ] = await Promise.all([
     db.select({ value: count() }).from(products),
+    db.select({ value: count() }).from(products).where(eq(products.status, "active")),
+    db.select({ value: count() }).from(products).where(eq(products.status, "draft")),
     db.select({ value: count() }).from(orders),
+    db.select({ value: count() }).from(orders).where(eq(orders.status, "pending")),
     db.select({ value: count() }).from(users),
     db.select({ value: sum(orders.totalAmount) }).from(orders).where(eq(orders.paymentStatus, "paid")),
     db.select({ value: count() }).from(reviews).where(eq(reviews.status, "pending")),
+    db.select({ value: count() }).from(contactMessages).where(eq(contactMessages.status, "unread")),
+    db
+      .select({ id: products.id, name: products.name, stock: products.stock })
+      .from(products)
+      .where(sql`${products.status} = 'active' AND ${products.stock} <= 5`)
+      .orderBy(asc(products.stock), desc(products.updatedAt))
+      .limit(5),
+    db
+      .select({
+        id: orders.id,
+        status: orders.status,
+        totalAmount: orders.totalAmount,
+        createdAt: orders.createdAt,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(orders)
+      .leftJoin(users, eq(orders.userId, users.id))
+      .orderBy(desc(orders.createdAt))
+      .limit(5),
   ]);
 
   return {
     products: productCount[0]?.value || 0,
+    activeProducts: activeProductCount[0]?.value || 0,
+    draftProducts: draftProductCount[0]?.value || 0,
     orders: orderCount[0]?.value || 0,
+    pendingOrders: pendingOrderCount[0]?.value || 0,
     users: userCount[0]?.value || 0,
     revenue: totalRevenue[0]?.value || 0,
     pendingReviews: pendingReviews[0]?.value || 0,
+    unreadMessages: unreadMessages[0]?.value || 0,
+    lowStockProducts,
+    recentOrders,
   };
 }
 
