@@ -6,6 +6,15 @@ import { getBanners } from "@/data/mockData";
 import { trpc } from "@/lib/trpc";
 
 const DEFAULT_HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/JZmuCtGTfIYUcFRd.jpg";
+const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.jpg";
+const HERO_BEAUTE_IMAGE = "/assets/hero-beaute-bien-etre.jpg";
+
+function imageForBanner(title: string, imageUrl?: string | null) {
+  const normalizedTitle = title.toLocaleLowerCase("fr");
+  if (normalizedTitle.includes("mode")) return HERO_MODE_IMAGE;
+  if (normalizedTitle.includes("beauté") || normalizedTitle.includes("beaute")) return HERO_BEAUTE_IMAGE;
+  return imageUrl && !imageUrl.includes("placehold.co") ? imageUrl : DEFAULT_HERO_IMAGE;
+}
 
 type HeroSlide = {
   id: number;
@@ -26,7 +35,7 @@ export default function HeroBanner() {
         id: banner.id,
         title: banner.title,
         subtitle: banner.subtitle || "Découvrez nos nouveautés MAZIGHO",
-        imageUrl: banner.imageUrl && !banner.imageUrl.includes("placehold.co") ? banner.imageUrl : DEFAULT_HERO_IMAGE,
+        imageUrl: imageForBanner(banner.title, banner.imageUrl),
         buttonLink: banner.linkUrl || "/boutique",
         buttonText: "Découvrir",
       }));
@@ -34,7 +43,7 @@ export default function HeroBanner() {
 
     return getBanners().map((banner) => ({
       ...banner,
-      imageUrl: DEFAULT_HERO_IMAGE,
+      imageUrl: imageForBanner(banner.title),
     }));
   }, [remoteBanners.data]);
 
