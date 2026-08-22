@@ -203,6 +203,32 @@ export async function markUserSignedIn(openId: string) {
     .where(eq(users.openId, openId));
 }
 
+export async function claimInitialAdmin(openId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  await db.transaction(async tx => {
+    const claim = await tx
+      .select({ key: settings.key })
+      .from(settings)
+      .where(eq(settings.key, "security.admin_bootstrap_claimed"))
+      .limit(1);
+
+    if (claim.length > 0) {
+      throw new Error("ADMIN_BOOTSTRAP_ALREADY_CLAIMED");
+    }
+
+    await tx.update(users).set({ role: "admin" }).where(eq(users.openId, openId));
+    await tx.insert(settings).values({
+      key: "security.admin_bootstrap_claimed",
+      value: new Date().toISOString(),
+      description: "Activation initiale unique du rôle administrateur",
+    });
+  });
+
+  return getUserByOpenId(openId);
+}
+
 // Categories queries
 export async function getAllCategories() {
   const db = await getDb();

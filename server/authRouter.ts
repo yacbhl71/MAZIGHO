@@ -1,11 +1,12 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import {
+  claimInitialAdmin,
   createPasswordUser,
   getUserByEmail,
   markUserSignedIn,
@@ -17,6 +18,18 @@ const passwordSchema = z
   .string()
   .min(10, "Le mot de passe doit comporter au moins 10 caractères")
   .max(128, "Le mot de passe est trop long");
+
+// The value below is a SHA-256 digest of a high-entropy, one-time bootstrap
+// code. The plaintext code is never committed and the claim is persisted in
+// the database, so this path can only succeed once.
+const ADMIN_BOOTSTRAP_CODE_HASH =
+  "7431b250cf743d757d87eca3269e140e3d70121bade81f9266bd37196f578d2f";
+
+function matchesBootstrapCode(code: string) {
+  const expected = Buffer.from(ADMIN_BOOTSTRAP_CODE_HASH, "hex");
+  const actual = createHash("sha256").update(code).digest();
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 function safeUser<T extends { passwordHash?: string | null }>(user: T) {
   const { passwordHash: _passwordHash, ...publicUser } = user;
@@ -105,6 +118,31 @@ export const authRouter = router({
       await markUserSignedIn(user.openId);
       await createSession(ctx, user);
       return { user: safeUser(user) };
+    }),
+
+  claimInitialAdmin: protectedProcedure
+    .input(z.object({ code: z.string().trim().length(48) }))
+    .mutation(async ({ ctx, input }) => {
+      if (!matchesBootstrapCode(input.code)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code d’activation invalide.",
+        });
+      }
+
+      try {
+        const user = await claimInitialAdmin(ctx.user.openId);
+        if (!user) throw new Error("USER_NOT_FOUND");
+        return { user: safeUser(user) };
+      } catch (error) {
+        if (String(error).includes("ADMIN_BOOTSTRAP_ALREADY_CLAIMED")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "L’activation administrateur a déjà été utilisée.",
+          });
+        }
+        throw error;
+      }
     }),
 
   logout: publicProcedure.mutation(({ ctx }) => {

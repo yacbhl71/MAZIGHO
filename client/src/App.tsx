@@ -35,6 +35,7 @@ import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
+import AdminActivation from "./pages/AdminActivation";
 import FAQ from "./pages/FAQ";
 
 function ScrollToTop() {
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/activation-administrateur" component={AdminActivation} />
       <Route path="/faq" component={FAQ} />
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/admin/produits"} component={AdminProducts} />
