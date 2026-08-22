@@ -280,7 +280,7 @@ export default function AdminProducts() {
                 <TableHead>Prix</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -358,12 +358,22 @@ export default function AdminProducts() {
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="icon" onClick={() => handleEdit(product)}>
+                    <TableCell className="w-[100px]">
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                          onClick={() => handleEdit(product)}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" className="text-red-600 hover:text-red-700" onClick={() => handleDelete(product.id)}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" 
+                          onClick={() => handleDelete(product.id)}
+                        >
                           <Trash className="h-4 w-4" />
                         </Button>
                       </div>
