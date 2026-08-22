@@ -154,9 +154,10 @@ export default function Product() {
               </div>
 
               {/* Description */}
-              <p className="text-gray-700 text-lg leading-relaxed">
-                {(product as any).longDescription || product.description}
-              </p>
+              <div
+                className="prose prose-slate max-w-none text-gray-700 text-lg leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: (product as any).longDescription || product.description || "" }}
+              />
 
               {/* Stock Status */}
               <div className={`p-4 rounded-lg ${product.stock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
