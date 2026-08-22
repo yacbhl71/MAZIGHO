@@ -53,10 +53,18 @@ export default function AdminDropshipping() {
       setSourcePriceCents(data.sourcePriceCents == null ? "" : String(data.sourcePriceCents));
       setPriceCents(data.suggestedPriceCents == null ? "" : String(data.suggestedPriceCents));
       setStock(String(data.stock));
-      setImagesText(data.images.join("\\n"));
+      setImagesText(data.images.join("\n"));
+      if (!url.trim() && data.supplierUrl) {
+        setUrl(data.supplierUrl);
+      }
       toast.success("Aperçu récupéré. Vérifiez les informations avant importation.");
     },
-    onError: (error) => toast.error(error.message || "Impossible de lire cette fiche fournisseur."),
+    onError: (error) => {
+      const msg = typeof error.message === 'string' && error.message.startsWith('{') 
+        ? "Erreur de validation des données" 
+        : (error.message || "Impossible de lire cette fiche fournisseur.");
+      toast.error(msg);
+    },
   });
   const importProduct = trpc.admin.products.importFromUrl.useMutation({
     onSuccess: () => {
@@ -71,7 +79,20 @@ export default function AdminDropshipping() {
       setImagesText("");
       setStock("0");
     },
-    onError: (error) => toast.error(error.message || "L'importation a échoué."),
+    onError: (error) => {
+      let msg = error.message || "L'importation a échoué.";
+      if (typeof msg === 'string' && msg.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(msg);
+          if (Array.isArray(parsed)) {
+            msg = parsed.map(e => e.message).join(", ");
+          } else if (parsed.message) {
+            msg = parsed.message;
+          }
+        } catch (e) {}
+      }
+      toast.error(msg);
+    },
   });
 
   const selectedCategoryName = useMemo(

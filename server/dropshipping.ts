@@ -17,7 +17,15 @@ const allowedSupplierHosts = [
 const blockedHostPattern = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/i;
 
 export const importProductInput = z.object({
-  url: z.string().url().max(1000),
+  url: z.string().max(1000).refine(val => {
+    try {
+      if (!val || val.trim() === "") return true;
+      new URL(val.startsWith('http') ? val : `https://${val}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }, { message: "URL invalide" }),
   categoryId: z.number().int().positive(),
   marginPercent: z.number().min(0).max(1000).default(50),
 });
@@ -294,7 +302,13 @@ export function importedProductInputSchema() {
 export type ImportedProductInput = z.infer<ReturnType<typeof importedProductInputSchema>>;
 
 export function normalizeImportedProduct(input: ImportedProductInput) {
-  const safeUrl = validateSupplierUrl(input.url);
+  let urlToUse = input.url;
+  if (!urlToUse || urlToUse.trim() === "") {
+    urlToUse = "https://www.aliexpress.com/item/imported-product.html";
+  } else if (!urlToUse.startsWith('http')) {
+    urlToUse = `https://${urlToUse}`;
+  }
+  const safeUrl = validateSupplierUrl(urlToUse);
   const supplier = supplierFromHost(new URL(safeUrl).hostname);
   return {
     categoryId: input.categoryId,
