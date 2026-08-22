@@ -4,6 +4,14 @@ const allowedSupplierHosts = [
   "aliexpress.com",
   "cjdropshipping.com",
   "cjdrop.com",
+  "temu.com",
+  "banggood.com",
+  "zendrop.com",
+  "spocket.co",
+  "printful.com",
+  "printify.com",
+  "shein.com",
+  "lightinthebox.com",
 ];
 
 const blockedHostPattern = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|::1|10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/i;
@@ -22,7 +30,7 @@ export const previewProductInput = z.object({
 export type ImportProductInput = z.infer<typeof importProductInput>;
 
 export type SupplierPreview = {
-  supplier: "aliexpress" | "cj-dropshipping" | "unknown";
+  supplier: "aliexpress" | "cj-dropshipping" | "temu" | "banggood" | "zendrop" | "spocket" | "printful" | "printify" | "shein" | "lightinthebox" | "unknown";
   supplierProductId: string | null;
   supplierUrl: string;
   name: string;
@@ -53,6 +61,14 @@ function supplierFromHost(hostname: string): SupplierPreview['supplier'] {
   const host = hostname.toLowerCase();
   if (host === 'aliexpress.com' || host.endsWith('.aliexpress.com')) return 'aliexpress';
   if (host === 'cjdropshipping.com' || host.endsWith('.cjdropshipping.com') || host === 'cjdrop.com' || host.endsWith('.cjdrop.com')) return 'cj-dropshipping';
+  if (host === 'temu.com' || host.endsWith('.temu.com')) return 'temu';
+  if (host === 'banggood.com' || host.endsWith('.banggood.com')) return 'banggood';
+  if (host === 'zendrop.com' || host.endsWith('.zendrop.com')) return 'zendrop';
+  if (host === 'spocket.co' || host.endsWith('.spocket.co')) return 'spocket';
+  if (host === 'printful.com' || host.endsWith('.printful.com')) return 'printful';
+  if (host === 'printify.com' || host.endsWith('.printify.com')) return 'printify';
+  if (host === 'shein.com' || host.endsWith('.shein.com')) return 'shein';
+  if (host === 'lightinthebox.com' || host.endsWith('.lightinthebox.com')) return 'lightinthebox';
   return 'unknown';
 }
 
@@ -63,7 +79,7 @@ function isAllowedSupplierHost(hostname: string) {
 
 async function fetchSupplierPage(url: URL) {
   if (!isAllowedSupplierHost(url.hostname)) {
-    throw new Error("Pour votre sécurité, l'importation est limitée à AliExpress et CJ Dropshipping pour le moment.");
+    throw new Error("Pour votre sécurité, l'importation est limitée aux fournisseurs de dropshipping autorisés (AliExpress, CJ, Temu, etc.).");
   }
 
   const controller = new AbortController();
@@ -83,7 +99,7 @@ async function fetchSupplierPage(url: URL) {
     });
     
     if (response.status === 403 || response.status === 429) {
-      throw new Error("AliExpress bloque temporairement l'accès. Réessayez dans quelques minutes ou utilisez un lien CJ Dropshipping.");
+      throw new Error("Le fournisseur bloque temporairement l'accès. Réessayez dans quelques minutes ou utilisez un autre lien.");
     }
     
     if (!response.ok) throw new Error(`Le fournisseur a répondu avec le statut ${response.status}.`);

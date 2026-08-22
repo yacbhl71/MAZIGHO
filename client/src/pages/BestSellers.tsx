@@ -5,6 +5,7 @@ import { Star, Heart, ShoppingCart, ArrowLeft, TrendingUp } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getAllProducts } from "@/data/mockData";
+import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 
@@ -100,11 +101,11 @@ export default function BestSellers() {
                       {/* Price */}
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-bold text-gray-800">
-                          {(product.price / 100).toFixed(2)}€
+                          {formatPrice(product.price)}
                         </span>
                         {product.originalPrice && (
                           <span className="text-sm text-gray-500 line-through">
-                            {(product.originalPrice / 100).toFixed(2)}€
+                            {formatPrice(product.originalPrice)}
                           </span>
                         )}
                       </div>

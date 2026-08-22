@@ -5,6 +5,7 @@ import { Star, Heart, ShoppingCart, ArrowLeft, Zap } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { getAllProducts } from "@/data/mockData";
+import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 
@@ -108,17 +109,17 @@ export default function Promos() {
                           <div className="bg-red-50 p-3 rounded-lg">
                             <div className="flex items-baseline gap-2">
                               <span className="text-2xl font-bold text-red-600">
-                                {(product.price / 100).toFixed(2)}€
+                                {formatPrice(product.price)}
                               </span>
                               {product.originalPrice && (
                                 <span className="text-sm text-gray-500 line-through">
-                                  {(product.originalPrice / 100).toFixed(2)}€
+                                  {formatPrice(product.originalPrice)}
                                 </span>
                               )}
                             </div>
                             {product.originalPrice && (
                               <p className="text-xs text-red-600 font-semibold mt-1">
-                                Vous économisez {((product.originalPrice - product.price) / 100).toFixed(2)}€
+                                Vous économisez {formatPrice(product.originalPrice - product.price)}
                               </p>
                             )}
                           </div>
