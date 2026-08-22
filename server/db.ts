@@ -132,7 +132,22 @@ export async function getAllProducts() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select().from(products).where(eq(products.status, "active"));
+  return await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products).where(eq(products.status, "active"));
 }
 
 export async function getFeaturedProducts(limit: number = 8) {
@@ -140,7 +155,22 @@ export async function getFeaturedProducts(limit: number = 8) {
   if (!db) return [];
   
   const { and } = await import("drizzle-orm");
-  return await db.select().from(products)
+  return await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
     .where(and(eq(products.featured, 1), eq(products.status, "active")))
     .orderBy(desc(products.createdAt))
     .limit(limit);
@@ -151,7 +181,22 @@ export async function getProductsByCategory(categoryId: number) {
   if (!db) return [];
   
   const { and } = await import("drizzle-orm");
-  return await db.select().from(products)
+  return await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
     .where(and(eq(products.categoryId, categoryId), eq(products.status, "active")));
 }
 
@@ -160,7 +205,22 @@ export async function getProductBySlug(slug: string) {
   if (!db) return undefined;
   
   const { and } = await import("drizzle-orm");
-  const result = await db.select().from(products)
+  const result = await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
     .where(and(eq(products.slug, slug), eq(products.status, "active")))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;

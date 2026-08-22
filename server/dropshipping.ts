@@ -44,6 +44,7 @@ export type SupplierPreview = {
   name: string;
   description: string | null;
   sourcePriceCents: number | null;
+  originalPriceCents: number | null;
   suggestedPriceCents: number | null;
   stock: number;
   images: string[];
@@ -243,6 +244,24 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
   }
   description = description.slice(0, 10_000);
   const sourcePriceCents = parsePrice(offer.price ?? productJson?.price ?? extractMeta(html, 'product:price:amount')) || priceFromScript;
+  
+  let originalPriceCents = null;
+  const originalPricePatterns = [
+    /["']originalPriceText["']\s*:\s*["']([^"']+)["']/i,
+    /["']oldPriceText["']\s*:\s*["']([^"']+)["']/i,
+    /["']originalPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+  ];
+  for (const pattern of originalPricePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      const parsed = parsePrice(match[1]);
+      if (parsed && parsed > (sourcePriceCents || 0)) {
+        originalPriceCents = parsed;
+        break;
+      }
+    }
+  }
+
   const warnings: string[] = [];
   if (!sourcePriceCents) warnings.push("Prix fournisseur non détecté : renseignez-le avant publication.");
   if (!uniqueImages.length) warnings.push("Aucune image publique détectée : ajoutez au moins une image avant publication.");
@@ -256,6 +275,7 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
     name,
     description,
     sourcePriceCents,
+    originalPriceCents,
     suggestedPriceCents: sourcePriceCents ? Math.round(sourcePriceCents * 1.5) : null,
     stock: 0,
     images: uniqueImages,
@@ -294,6 +314,7 @@ export function importedProductInputSchema() {
     description: z.string().max(10_000).nullable().optional(),
     priceCents: z.number().int().positive(),
     sourcePriceCents: z.number().int().nonnegative().nullable().optional(),
+    originalPriceCents: z.number().int().nonnegative().nullable().optional(),
     stock: z.number().int().min(0).max(1_000_000).default(0),
     images: z.array(z.string().url()).max(12).default([]),
   });
@@ -316,7 +337,7 @@ export function normalizeImportedProduct(input: ImportedProductInput) {
     slug: input.slug.trim(),
     description: input.description?.trim() || null,
     price: input.priceCents,
-    originalPrice: input.sourcePriceCents && input.sourcePriceCents < input.priceCents ? input.priceCents : null,
+    originalPrice: input.originalPriceCents || (input.sourcePriceCents && input.sourcePriceCents < input.priceCents ? input.priceCents : null),
     stock: input.stock,
     featured: 0,
     status: 'draft' as const,

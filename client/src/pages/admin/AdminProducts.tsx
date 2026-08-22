@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -32,6 +32,7 @@ export default function AdminProducts() {
   const [slug, setSlug] = useState("");
   const [price, setPrice] = useState("");
   const [originalPrice, setOriginalPrice] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
   const [stock, setStock] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
@@ -88,6 +89,7 @@ export default function AdminProducts() {
     setSlug("");
     setPrice("");
     setOriginalPrice("");
+    setDiscountPercent("");
     setStock("");
     setCategoryId("");
     setDescription("");
@@ -108,6 +110,15 @@ export default function AdminProducts() {
     setSlug(product.slug);
     setPrice(String(product.price));
     setOriginalPrice(product.originalPrice ? String(product.originalPrice) : "");
+    
+    // Calculate initial discount percent if prices exist
+    if (product.originalPrice && product.price && product.originalPrice > product.price) {
+      const percent = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+      setDiscountPercent(String(percent));
+    } else {
+      setDiscountPercent("");
+    }
+
     setStock(String(product.stock));
     setCategoryId(String(product.categoryId));
     setDescription(product.description || "");
@@ -128,6 +139,18 @@ export default function AdminProducts() {
     setIsOpen(true);
   };
 
+  // Automatic discount calculation
+  useEffect(() => {
+    if (originalPrice && discountPercent) {
+      const orig = parseInt(originalPrice);
+      const perc = parseInt(discountPercent);
+      if (!isNaN(orig) && !isNaN(perc)) {
+        const calculated = Math.round(orig * (1 - perc / 100));
+        setPrice(String(calculated));
+      }
+    }
+  }, [originalPrice, discountPercent]);
+
   const addImage = () => {
     if (newImageUrl.trim()) {
       setImages([...images, newImageUrl.trim()]);
@@ -143,16 +166,20 @@ export default function AdminProducts() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Simulate file upload - In a real app, this would upload to S3/Cloudinary
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Le fichier est trop volumineux (max 2MB)");
+      return;
+    }
+
     toast.info("Téléversement de l'image...");
     
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
-      // Using base64 as a placeholder for the URL
       setImages([...images, base64]);
-      toast.success("Image ajoutée !");
+      toast.success("Image ajoutée avec succès !");
     };
+    reader.onerror = () => toast.error("Erreur lors de la lecture du fichier");
     reader.readAsDataURL(file);
   };
 
@@ -162,6 +189,7 @@ export default function AdminProducts() {
       setOptions([...options, { name: newOptionName.trim(), values }]);
       setNewOptionName("");
       setNewOptionValues("");
+      toast.success("Option ajoutée");
     }
   };
 
@@ -379,19 +407,23 @@ export default function AdminProducts() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <div className="grid gap-2">
-                    <Label htmlFor="price">Prix de vente (centimes) *</Label>
-                    <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} required />
-                    <p className="text-[10px] text-muted-foreground">Ex: 5990 pour 59.90 CHF</p>
+                    <Label htmlFor="originalPrice" className="text-gray-500">Prix barré (centimes)</Label>
+                    <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="7990" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="originalPrice">Prix barré (centimes)</Label>
-                    <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground">Laissez vide si pas de rabais</p>
+                    <Label htmlFor="discountPercent" className="text-red-500 flex items-center gap-1">
+                      <Percent className="h-3 w-3" /> Rabais (%)
+                    </Label>
+                    <Input id="discountPercent" type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} placeholder="20" className="border-red-200 focus:border-red-500" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="stock">Stock disponible *</Label>
+                    <Label htmlFor="price" className="font-bold">Prix de vente *</Label>
+                    <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} required placeholder="5990" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="stock">Stock *</Label>
                     <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} required />
                   </div>
                 </div>
