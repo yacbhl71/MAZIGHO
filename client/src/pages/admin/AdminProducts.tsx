@@ -307,7 +307,14 @@ export default function AdminProducts() {
                     <TableCell>{product.categoryName || "Sans catégorie"}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-bold text-orange-600">{formatPrice(product.price)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-orange-600">{formatPrice(product.price)}</span>
+                          {product.originalPrice && (
+                            <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] h-4 px-1">
+                              PROMO
+                            </Badge>
+                          )}
+                        </div>
                         {product.originalPrice && (
                           <span className="text-xs text-gray-400 line-through">{formatPrice(product.originalPrice)}</span>
                         )}
