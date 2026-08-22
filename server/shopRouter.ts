@@ -27,7 +27,7 @@ export const shopRouter = router({
 
   // Promotions
   promotions: router({
-    validate: protectedProcedure.input(z.object({
+    validate: publicProcedure.input(z.object({
       code: z.string().min(2),
       orderAmount: z.number().int().nonnegative(),
     })).mutation(async ({ input }) => {

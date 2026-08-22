@@ -26,7 +26,7 @@ export default function HeroBanner() {
         id: banner.id,
         title: banner.title,
         subtitle: banner.subtitle || "Découvrez nos nouveautés MAZIGHO",
-        imageUrl: banner.imageUrl || DEFAULT_HERO_IMAGE,
+        imageUrl: banner.imageUrl && !banner.imageUrl.includes("placehold.co") ? banner.imageUrl : DEFAULT_HERO_IMAGE,
         buttonLink: banner.linkUrl || "/boutique",
         buttonText: "Découvrir",
       }));

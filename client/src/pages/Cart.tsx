@@ -42,7 +42,7 @@ export default function Cart() {
   }
 
   const total = getTotal();
-  const shippingCost = total > 10000 ? 0 : 1000; // Livraison gratuite à partir de 100 CHF
+  const shippingCost = total >= 10000 ? 0 : 1000; // Livraison gratuite à partir de 100 CHF
   const finalTotal = total + shippingCost;
 
   return (
