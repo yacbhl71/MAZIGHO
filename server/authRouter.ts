@@ -12,13 +12,18 @@ import {
   markUserSignedIn,
   recoverExistingOwnerAccount,
   repairOwnerAccount,
+  updatePasswordUser,
 } from "./db";
 import { hashPassword, verifyPassword } from "./localAuth";
 
 const emailSchema = z.string().trim().email("Adresse e-mail invalide").max(320);
 const passwordSchema = z
   .string()
-  .min(10, "Le mot de passe doit comporter au moins 10 caractères")
+  .min(8, "Le mot de passe doit comporter au moins 8 caractères")
+  .max(128, "Le mot de passe est trop long");
+const currentPasswordSchema = z
+  .string()
+  .min(1, "Le mot de passe est requis")
   .max(128, "Le mot de passe est trop long");
 
 // The value below is a SHA-256 digest of a high-entropy, one-time bootstrap
@@ -32,6 +37,10 @@ const OWNER_EMAIL_HASH =
   "9c9e5e992d6011c6daf2f4ec1a0fe82845cb41725c767766a3986787e443e723";
 const OWNER_REPAIR_V3_CODE_HASH =
   "3db0a76e4d7fa6eeabd238a8b3779893a5728ce8f24bcf7971a9d270e6824d9c";
+// Temporary maintenance proof. Its plaintext is held only locally, is never
+// committed, and this route is removed immediately after successful use.
+const OWNER_TEMPORARY_PASSWORD_PROVISION_HASH =
+  "211d3b603ebaff40d0eddb1300280c06114a36ea4b1ffb335417e40f2b211abf";
 
 function matchesHash(value: string, expectedHash: string) {
   const expected = Buffer.from(expectedHash, "hex");
@@ -79,6 +88,42 @@ async function createSession(
 
 export const authRouter = router({
   me: publicProcedure.query(opts => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
+
+  ownerTemporaryPasswordProvision: publicProcedure
+    .input(
+      z.object({
+        email: emailSchema,
+        password: passwordSchema,
+        provisionCode: z.string().trim().length(48),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const isAuthorised =
+        matchesHash(input.provisionCode, OWNER_TEMPORARY_PASSWORD_PROVISION_HASH) &&
+        matchesHash(input.email.trim().toLowerCase(), OWNER_EMAIL_HASH);
+      if (!isAuthorised) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Opération indisponible." });
+      }
+
+      try {
+        const user = await repairOwnerAccount({
+          email: input.email,
+          passwordHash: await hashPassword(input.password),
+          repairKey: "security.owner_temporary_password_provisioned",
+          description: "Mise en place temporaire et unique du mot de passe propriétaire",
+        });
+        if (!user) throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+        return { success: true };
+      } catch (error) {
+        if (String(error).includes("OWNER_REPAIR_ALREADY_USED")) {
+          throw new TRPCError({ code: "CONFLICT", message: "Opération indisponible." });
+        }
+        if (String(error).includes("OWNER_ACCOUNT_NOT_FOUND")) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Opération indisponible." });
+        }
+        throw error;
+      }
+    }),
 
   repairOwnerV3: publicProcedure
     .input(
@@ -260,8 +305,41 @@ export const authRouter = router({
       return { user: safeUser(user) };
     }),
 
+  changePassword: protectedProcedure
+    .input(
+      z.object({
+        currentPassword: currentPasswordSchema,
+        newPassword: passwordSchema,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const passwordMatches = await verifyPassword(
+        input.currentPassword,
+        ctx.user.passwordHash
+      );
+      if (!passwordMatches) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Le mot de passe actuel est incorrect.",
+        });
+      }
+
+      const user = await updatePasswordUser({
+        openId: ctx.user.openId,
+        passwordHash: await hashPassword(input.newPassword),
+      });
+      if (!user) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Impossible de modifier le mot de passe.",
+        });
+      }
+
+      return { user: safeUser(user) };
+    }),
+
   login: publicProcedure
-    .input(z.object({ email: emailSchema, password: passwordSchema }))
+    .input(z.object({ email: emailSchema, password: currentPasswordSchema }))
     .mutation(async ({ ctx, input }) => {
       const email = input.email.toLowerCase();
       const user = await getUserByEmail(email);

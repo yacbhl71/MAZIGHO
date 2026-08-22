@@ -8,6 +8,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useState } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function SettingsPage() {
   const [formData, setFormData] = useState({
@@ -20,6 +22,29 @@ export default function SettingsPage() {
     postalCode: "",
     country: "",
   });
+
+  const { isAuthenticated } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const changePassword = trpc.auth.changePassword.useMutation({
+    onSuccess: () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Mot de passe modifié avec succès.");
+    },
+    onError: error => toast.error(error.message || "Modification impossible."),
+  });
+
+  const handleChangePassword = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error("Les deux nouveaux mots de passe ne correspondent pas.");
+      return;
+    }
+    changePassword.mutate({ currentPassword, newPassword });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -191,16 +216,31 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
 
-            {/* Info Section */}
             <Card className="mt-8 bg-green-50 border-green-200">
               <CardContent className="p-6">
-                <h3 className="font-semibold text-gray-800 mb-2">🔒 Sécurité</h3>
-                <p className="text-gray-700 mb-4">
-                  Vos données personnelles sont sécurisées et chiffrées. Nous ne partagerons jamais vos informations avec des tiers.
-                </p>
-                <Button variant="outline" className="w-full">
-                  Changer le mot de passe
-                </Button>
+                <h3 className="font-semibold text-gray-800 mb-2">Sécurité du compte</h3>
+                <p className="text-gray-700 mb-5">Modifiez votre mot de passe à tout moment. Il doit comporter au moins 8 caractères.</p>
+                {isAuthenticated ? (
+                  <form onSubmit={handleChangePassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="currentPassword">Mot de passe actuel</Label>
+                      <Input id="currentPassword" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" minLength={8} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newPassword">Nouveau mot de passe</Label>
+                      <Input id="newPassword" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirmer le nouveau mot de passe</Label>
+                      <Input id="confirmPassword" type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
+                    </div>
+                    <Button type="submit" disabled={changePassword.isPending} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
+                      {changePassword.isPending ? "Modification…" : "Mettre à jour le mot de passe"}
+                    </Button>
+                  </form>
+                ) : (
+                  <Link href="/login"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">Se connecter pour modifier le mot de passe</Button></Link>
+                )}
               </CardContent>
             </Card>
           </div>

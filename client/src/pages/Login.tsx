@@ -89,7 +89,7 @@ export default function Login() {
                         autoComplete="current-password"
                         value={password}
                         onChange={event => setPassword(event.target.value)}
-                        minLength={10}
+                        minLength={1}
                         required
                         className="pr-11"
                       />

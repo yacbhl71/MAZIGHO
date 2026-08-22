@@ -74,13 +74,13 @@ export default function RecoverOwner() {
                 <div className="space-y-2">
                   <Label htmlFor="recover-password">Nouveau mot de passe</Label>
                   <div className="relative">
-                    <Input id="recover-password" type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={10} required className="pr-11" />
+                    <Input id="recover-password" type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required className="pr-11" />
                     <button type="button" onClick={() => setShowPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-800" aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="recover-confirmation">Confirmer le mot de passe</Label>
-                  <Input id="recover-confirmation" type={showPassword ? "text" : "password"} value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" minLength={10} required />
+                  <Input id="recover-confirmation" type={showPassword ? "text" : "password"} value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" minLength={8} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="recover-code">Code unique de récupération</Label>
