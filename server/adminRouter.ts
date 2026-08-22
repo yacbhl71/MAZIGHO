@@ -33,6 +33,9 @@ export const adminRouter = router({
       status: z.enum(["active", "draft", "archived"]),
       images: z.array(z.string()).optional(),
       options: z.string().optional(),
+      supplier: z.string().optional(),
+      supplierUrl: z.string().optional(),
+      supplierPrice: z.number().optional(),
     })).mutation(async ({ input }) => {
       return await db.createProduct(input);
     }),
@@ -49,6 +52,9 @@ export const adminRouter = router({
       status: z.enum(["active", "draft", "archived"]).optional(),
       images: z.array(z.string()).optional(),
       options: z.string().optional(),
+      supplier: z.string().optional(),
+      supplierUrl: z.string().optional(),
+      supplierPrice: z.number().optional(),
     })).mutation(async ({ input }) => {
       return await db.updateProduct(input.id, input);
     }),

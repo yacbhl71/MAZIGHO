@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -42,6 +42,11 @@ export default function AdminProducts() {
   const [options, setOptions] = useState<{name: string, values: string[]}[]>([]);
   const [newOptionName, setNewOptionName] = useState("");
   const [newOptionValues, setNewOptionValues] = useState("");
+  
+  // Supplier info (Internal only)
+  const [supplier, setSupplier] = useState("");
+  const [supplierUrl, setSupplierUrl] = useState("");
+  const [supplierPrice, setSupplierPrice] = useState("");
 
   const productsQuery = trpc.admin.products.getAll.useQuery();
   const products = productsQuery.data;
@@ -91,6 +96,9 @@ export default function AdminProducts() {
     setImages([]);
     setNewImageUrl("");
     setOptions([]);
+    setSupplier("");
+    setSupplierUrl("");
+    setSupplierPrice("");
     setEditingProduct(null);
   };
 
@@ -106,6 +114,9 @@ export default function AdminProducts() {
     setLongDescription(product.longDescription || "");
     setStatus(product.status);
     setImages(product.images?.map((img: any) => img.imageUrl) || []);
+    setSupplier(product.supplier || "");
+    setSupplierUrl(product.supplierUrl || "");
+    setSupplierPrice(product.supplierPrice ? String(product.supplierPrice) : "");
     
     try {
       const parsedOptions = typeof product.options === 'string' ? JSON.parse(product.options) : (product.options || []);
@@ -128,6 +139,23 @@ export default function AdminProducts() {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Simulate file upload - In a real app, this would upload to S3/Cloudinary
+    toast.info("Téléversement de l'image...");
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      // Using base64 as a placeholder for the URL
+      setImages([...images, base64]);
+      toast.success("Image ajoutée !");
+    };
+    reader.readAsDataURL(file);
+  };
+
   const addOption = () => {
     if (newOptionName.trim() && newOptionValues.trim()) {
       const values = newOptionValues.split(",").map(v => v.trim()).filter(Boolean);
@@ -148,6 +176,7 @@ export default function AdminProducts() {
     const parsedOriginalPrice = originalPrice ? parseInt(originalPrice) : undefined;
     const parsedStock = parseInt(stock);
     const parsedCategoryId = parseInt(categoryId);
+    const parsedSupplierPrice = supplierPrice ? parseInt(supplierPrice) : undefined;
 
     if (!name || !slug || isNaN(parsedPrice) || isNaN(parsedStock) || isNaN(parsedCategoryId)) {
       toast.error("Veuillez remplir tous les champs obligatoires avec des valeurs valides");
@@ -167,6 +196,9 @@ export default function AdminProducts() {
       images: images.length > 0 ? images : undefined,
       options: options.length > 0 ? JSON.stringify(options) : undefined,
       featured: editingProduct ? undefined : 0,
+      supplier: supplier || undefined,
+      supplierUrl: supplierUrl || undefined,
+      supplierPrice: parsedSupplierPrice,
     };
 
     if (editingProduct) {
@@ -310,7 +342,7 @@ export default function AdminProducts() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{editingProduct ? "Modifier le produit" : "Nouveau produit"}</DialogTitle>
@@ -320,11 +352,12 @@ export default function AdminProducts() {
             </DialogHeader>
             
             <Tabs defaultValue="general" className="mt-6">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="general">Général</TabsTrigger>
                 <TabsTrigger value="images">Images</TabsTrigger>
                 <TabsTrigger value="variants">Variantes</TabsTrigger>
                 <TabsTrigger value="details">Détails</TabsTrigger>
+                <TabsTrigger value="internal" className="bg-orange-50 text-orange-700">Fournisseur</TabsTrigger>
               </TabsList>
               
               <TabsContent value="general" className="space-y-4 py-4">
@@ -392,22 +425,36 @@ export default function AdminProducts() {
               </TabsContent>
               
               <TabsContent value="images" className="space-y-4 py-4">
-                <div className="grid gap-2">
-                  <Label>Ajouter une image (URL)</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="https://..." 
-                      value={newImageUrl} 
-                      onChange={(e) => setNewImageUrl(e.target.value)} 
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImage())}
-                    />
-                    <Button type="button" variant="outline" onClick={addImage}>Ajouter</Button>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>Ajouter par URL</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="https://..." 
+                        value={newImageUrl} 
+                        onChange={(e) => setNewImageUrl(e.target.value)} 
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImage())}
+                      />
+                      <Button type="button" variant="outline" onClick={addImage}>Ajouter</Button>
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Téléverser un fichier</Label>
+                    <div className="relative">
+                      <Input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileUpload}
+                        className="cursor-pointer"
+                      />
+                      <Upload className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-4 gap-4 mt-4">
                   {images.map((url, index) => (
-                    <div key={index} className="relative group border rounded-lg overflow-hidden bg-gray-50 aspect-square flex items-center justify-center">
+                    <div key={index} className="relative group border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50 aspect-square flex items-center justify-center">
                       <img src={url} alt="" className="max-h-full max-w-full object-contain" />
                       <button 
                         type="button"
@@ -416,13 +463,13 @@ export default function AdminProducts() {
                       >
                         <X className="h-3 w-3" />
                       </button>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] py-1 text-center">
+                      <div className={`absolute bottom-0 left-0 right-0 text-white text-[10px] py-1 text-center ${index === 0 ? "bg-orange-500 font-bold" : "bg-black/50"}`}>
                         {index === 0 ? "Image principale" : `Image ${index + 1}`}
                       </div>
                     </div>
                   ))}
                   {images.length === 0 && (
-                    <div className="col-span-3 py-10 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+                    <div className="col-span-4 py-10 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground">
                       <ImageIcon className="h-10 w-10 mb-2 opacity-20" />
                       <p>Aucune image ajoutée</p>
                     </div>
@@ -450,7 +497,7 @@ export default function AdminProducts() {
                 
                 <div className="space-y-3 mt-4">
                   {options.map((opt, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm">
                       <div>
                         <span className="font-bold text-sm">{opt.name} :</span>
                         <div className="flex gap-1 mt-1 flex-wrap">
@@ -481,6 +528,37 @@ export default function AdminProducts() {
                     placeholder="Décrivez les caractéristiques techniques, les dimensions, les matériaux..."
                   />
                   <p className="text-xs text-muted-foreground">Cette description apparaîtra en bas de la fiche produit pour donner plus d'informations aux clients.</p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="internal" className="space-y-4 py-4 border-2 border-orange-100 rounded-lg p-4 bg-orange-50/30">
+                <div className="flex items-center gap-2 text-orange-700 mb-2">
+                  <ShieldCheck className="h-5 w-5" />
+                  <h3 className="font-bold">Informations Fournisseur (INTERNE UNIQUEMENT)</h3>
+                </div>
+                <p className="text-xs text-orange-600 mb-4">Ces informations ne seront jamais affichées aux clients. Elles servent uniquement à votre gestion et au suivi dropshipping.</p>
+                
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="supplier">Nom du fournisseur (ex: AliExpress, Temu)</Label>
+                    <Input id="supplier" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="AliExpress" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="supplierUrl">Lien direct vers le produit (Source)</Label>
+                    <div className="flex gap-2">
+                      <Input id="supplierUrl" value={supplierUrl} onChange={(e) => setSupplierUrl(e.target.value)} placeholder="https://aliexpress.com/item/..." />
+                      {supplierUrl && (
+                        <Button type="button" variant="outline" size="icon" asChild>
+                          <a href={supplierUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid gap-2 w-1/2">
+                    <Label htmlFor="supplierPrice">Prix d'achat fournisseur (centimes)</Label>
+                    <Input id="supplierPrice" type="number" value={supplierPrice} onChange={(e) => setSupplierPrice(e.target.value)} placeholder="3400" />
+                    <p className="text-[10px] text-muted-foreground">Utile pour calculer votre marge réelle.</p>
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>
