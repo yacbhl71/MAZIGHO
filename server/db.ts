@@ -229,6 +229,59 @@ export async function claimInitialAdmin(openId: string) {
   return getUserByOpenId(openId);
 }
 
+export async function recoverExistingOwnerAccount(input: {
+  email: string;
+  passwordHash: string;
+}) {
+  await ensurePasswordHashColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const email = input.email.trim().toLowerCase();
+  let openId: string | null = null;
+
+  await db.transaction(async tx => {
+    const claim = await tx
+      .select({ key: settings.key })
+      .from(settings)
+      .where(eq(settings.key, "security.admin_bootstrap_claimed"))
+      .limit(1);
+
+    if (claim.length > 0) {
+      throw new Error("ADMIN_BOOTSTRAP_ALREADY_CLAIMED");
+    }
+
+    const matched = await tx
+      .select({ openId: users.openId })
+      .from(users)
+      .where(sql`LOWER(${users.email}) = ${email}`)
+      .limit(1);
+
+    if (matched.length === 0) {
+      throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+    }
+
+    openId = matched[0].openId;
+    await tx
+      .update(users)
+      .set({
+        passwordHash: input.passwordHash,
+        loginMethod: "password",
+        role: "admin",
+        lastSignedIn: new Date(),
+      })
+      .where(eq(users.openId, openId));
+
+    await tx.insert(settings).values({
+      key: "security.admin_bootstrap_claimed",
+      value: new Date().toISOString(),
+      description: "Récupération initiale unique du compte propriétaire",
+    });
+  });
+
+  return openId ? getUserByOpenId(openId) : undefined;
+}
+
 // Categories queries
 export async function getAllCategories() {
   const db = await getDb();

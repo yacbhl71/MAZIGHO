@@ -10,6 +10,7 @@ import {
   createPasswordUser,
   getUserByEmail,
   markUserSignedIn,
+  recoverExistingOwnerAccount,
 } from "./db";
 import { hashPassword, verifyPassword } from "./localAuth";
 
@@ -53,6 +54,47 @@ async function createSession(
 
 export const authRouter = router({
   me: publicProcedure.query(opts => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
+
+  recoverOwner: publicProcedure
+    .input(
+      z.object({
+        email: emailSchema,
+        password: passwordSchema,
+        code: z.string().trim().length(48),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!matchesBootstrapCode(input.code)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Code de récupération invalide.",
+        });
+      }
+
+      try {
+        const user = await recoverExistingOwnerAccount({
+          email: input.email,
+          passwordHash: await hashPassword(input.password),
+        });
+        if (!user) throw new Error("OWNER_ACCOUNT_NOT_FOUND");
+        await createSession(ctx, user);
+        return { user: safeUser(user) };
+      } catch (error) {
+        if (String(error).includes("ADMIN_BOOTSTRAP_ALREADY_CLAIMED")) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "La récupération propriétaire a déjà été utilisée.",
+          });
+        }
+        if (String(error).includes("OWNER_ACCOUNT_NOT_FOUND")) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Aucun ancien compte ne correspond à cette adresse e-mail.",
+          });
+        }
+        throw error;
+      }
+    }),
 
   register: publicProcedure
     .input(
