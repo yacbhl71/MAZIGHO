@@ -50,6 +50,7 @@ function Router() {
       <Route path={"/commande-confirmation/:id"} component={OrderConfirmation} />
       <Route path={"/nouveautes"} component={Nouveautes} />
       <Route path={"/best-sellers"} component={BestSellers} />
+      <Route path={"/meilleures-ventes"} component={BestSellers} />
       <Route path={"/promos"} component={Promos} />
       <Route path={"/mon-compte"} component={Account} />
       <Route path={"/favoris"} component={Favorites} />
