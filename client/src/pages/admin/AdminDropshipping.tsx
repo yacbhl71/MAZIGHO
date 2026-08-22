@@ -32,6 +32,15 @@ export default function AdminDropshipping() {
   const [description, setDescription] = useState("");
   const [priceCents, setPriceCents] = useState("");
   const [sourcePriceCents, setSourcePriceCents] = useState("");
+  const handleSourcePriceChange = (val: string) => {
+    setSourcePriceCents(val);
+    const numericSource = Number(val);
+    if (!isNaN(numericSource) && numericSource > 0) {
+      const margin = Number(marginPercent) || 0;
+      const calculated = Math.round(numericSource * (1 + margin / 100));
+      setPriceCents(String(calculated));
+    }
+  };
   const [stock, setStock] = useState("0");
   const [imagesText, setImagesText] = useState("");
   const [hasPreview, setHasPreview] = useState(false);
@@ -228,7 +237,7 @@ export default function AdminDropshipping() {
                 </label>
                 <label className="block space-y-2">
                   <span className="text-sm font-medium">Prix fournisseur (centimes)</span>
-                  <input value={sourcePriceCents} onChange={event => setSourcePriceCents(event.target.value)} type="number" min="0" className="h-10 w-full rounded-md border px-3 text-sm" />
+                  <input value={sourcePriceCents} onChange={event => handleSourcePriceChange(event.target.value)} type="number" min="0" className="h-10 w-full rounded-md border px-3 text-sm" />
                 </label>
                 <label className="block space-y-2">
                   <span className="text-sm font-medium">Prix de vente (centimes)</span>
