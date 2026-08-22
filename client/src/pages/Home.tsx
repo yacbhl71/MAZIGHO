@@ -77,9 +77,17 @@ export default function Home() {
                   <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer h-full bg-white">
                     <CardContent className="p-0">
                       <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-                        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
-                          📦
-                        </div>
+                        {product.images && product.images.length > 0 ? (
+                          <img 
+                            src={product.images[0].imageUrl} 
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
+                            📦
+                          </div>
+                        )}
                       </div>
                       <div className="p-4 space-y-2">
                         <h3 className="font-semibold text-gray-800 group-hover:text-orange-500 transition-colors line-clamp-2">

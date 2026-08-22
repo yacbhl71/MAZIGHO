@@ -75,10 +75,18 @@ export default function Promos() {
                   return (
                     <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow border-2 border-red-200">
                       <CardContent className="p-0">
-                        {/* Product Image */}
-                        <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden group">
-                          <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
-                          <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-2 rounded-full text-center">
+	                        {/* Product Image */}
+	                        <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden group">
+	                          {product.images && product.images.length > 0 ? (
+	                            <img 
+	                              src={product.images[0].imageUrl} 
+	                              alt={product.name}
+	                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+	                            />
+	                          ) : (
+	                            <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
+	                          )}
+	                          <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-2 rounded-full text-center">
                             <div className="text-lg font-bold">-{discount}%</div>
                             <div className="text-xs">PROMO</div>
                           </div>

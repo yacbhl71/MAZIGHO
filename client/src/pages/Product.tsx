@@ -332,10 +332,18 @@ export default function Product() {
                     className="text-left"
                   >
                     <Card className="group hover:shadow-xl transition-all duration-300 h-full bg-white">
-                      <CardContent className="p-0">
-                        <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
-                          📦
-                        </div>
+	                      <CardContent className="p-0">
+	                        <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
+	                          {relatedProduct.images && relatedProduct.images.length > 0 ? (
+	                            <img 
+	                              src={relatedProduct.images[0].imageUrl} 
+	                              alt={relatedProduct.name}
+	                              className="w-full h-full object-cover"
+	                            />
+	                          ) : (
+	                            "📦"
+	                          )}
+	                        </div>
                         <div className="p-4 space-y-2">
                           <h3 className="font-semibold text-gray-800 group-hover:text-orange-500 transition-colors line-clamp-2">
                             {relatedProduct.name}
