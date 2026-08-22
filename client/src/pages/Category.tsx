@@ -9,6 +9,15 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 
+const categoryHeroImages: Record<string, string> = {
+  "high-tech-gadgets": "/assets/category-high-tech.jpg",
+  "maison-organisation": "/assets/category-maison.jpg",
+  "beaute-bien-etre": "/assets/category-beaute.jpg",
+  "sport-fitness": "/assets/category-sport.jpg",
+  "auto-accessoires": "/assets/category-auto.jpg",
+  mode: "/assets/category-mode.jpg",
+};
+
 export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
@@ -73,26 +82,28 @@ export default function Category() {
       <Header />
 
       <main className="flex-1">
-        {/* Header Section */}
-        <section className="bg-gradient-to-r from-orange-50 to-teal-50 py-12 md:py-16">
-          <div className="container mx-auto px-4">
-            <Link href="/boutique">
-              <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
-                <ArrowLeft className="h-5 w-5" />
-                <span className="font-medium">Retour à la boutique</span>
+        {/* Editorial Category Header */}
+        <section className="relative min-h-[330px] overflow-hidden bg-slate-950 md:min-h-[390px]">
+          <img src={categoryHeroImages[slug] || "/assets/shop-editorial-hero.jpg"} alt={`Sélection ${category.name}`} className="absolute inset-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10" />
+          <div className="relative flex min-h-[330px] items-end px-6 py-10 md:min-h-[390px] md:px-12 lg:px-20">
+            <div className="max-w-2xl text-white">
+              <Link href="/boutique">
+                <div className="mb-7 flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-white/85 hover:text-white">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Retour à la boutique</span>
+                </div>
+              </Link>
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Univers MAZIGHO</p>
               </div>
-            </Link>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-5xl">{(category as any).icon || "📦"}</span>
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                {category.name}
-              </h1>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">{category.name}</h1>
+              <p className="mt-3 max-w-xl text-base leading-7 text-white/85">{category.description || "Une sélection pensée pour votre quotidien."}</p>
             </div>
-            <p className="text-lg text-gray-600 max-w-2xl">
-              {category.description}
-            </p>
           </div>
         </section>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">Découvrez notre sélection {category.name.toLowerCase()}, choisie avec soin et disponible en CHF.</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">

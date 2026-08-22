@@ -76,37 +76,34 @@ export default function Header() {
 
             {/* Categories Dropdown */}
             <div className="relative group">
-              <button className="font-medium text-sm text-gray-700 hover:text-orange-500 transition-colors flex items-center gap-1 bg-orange-100 px-3 py-2 rounded hover:bg-orange-200">
+              <button
+                type="button"
+                aria-expanded={openDropdown === 1}
+                onClick={() => setOpenDropdown(openDropdown === 1 ? null : 1)}
+                className="flex items-center gap-1 rounded bg-orange-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-orange-200 hover:text-orange-600"
+              >
                 Catégories
-                <span className="text-xs">▼</span>
+                <span className={`text-xs transition-transform ${openDropdown === 1 ? "rotate-180" : ""}`}>▼</span>
               </button>
-              <div className="absolute left-0 mt-0 w-full min-w-max bg-white rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 py-4 z-50">
-                <div className="grid grid-cols-2 gap-4 px-6">
+              <div className={`absolute left-0 top-full mt-2 w-[420px] rounded-2xl border border-orange-100 bg-white p-4 shadow-2xl transition-all duration-200 z-50 ${openDropdown === 1 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
+                <div className="mb-3 border-b border-gray-100 pb-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Explorer par univers</p>
+                  <p className="mt-1 text-xs text-gray-500">Choisissez une catégorie pour découvrir sa sélection.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   {categories.map((cat) => (
                     <Link key={cat.id} href={`/categorie/${cat.slug}`}>
-                      <div className="cursor-pointer group/item py-2">
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className="text-xl">{(cat as any).icon || "📦"}</span>
-                          <div>
-                            <h3 className="font-semibold text-sm text-gray-800 group-hover/item:text-orange-500 transition-colors">
-                              {cat.name}
-                            </h3>
-                            <p className="text-xs text-gray-500 mt-0.5">{cat.description}</p>
-                          </div>
+                      <div onClick={() => setOpenDropdown(null)} className="flex min-h-[58px] cursor-pointer items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-orange-50">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-lg">{(cat as any).icon || "✦"}</span>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-sm font-semibold text-gray-800">{cat.name}</h3>
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500">{cat.description}</p>
                         </div>
-                        {(cat as any).subcategories && (
-                          <ul className="text-xs text-gray-600 space-y-0.5 ml-7">
-                            {(cat as any).subcategories.slice(0, 3).map((sub: string, idx: number) => (
-                              <li key={idx} className="hover:text-orange-500 transition-colors">
-                                • {sub}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
                       </div>
                     </Link>
                   ))}
                 </div>
+                <Link href="/boutique"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-600">Voir toutes les catégories <span>→</span></div></Link>
               </div>
             </div>
 
