@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -16,12 +16,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AdminProducts() {
   const [isOpen, setIsOpen] = useState(false);
@@ -31,10 +31,17 @@ export default function AdminProducts() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [price, setPrice] = useState("");
+  const [originalPrice, setOriginalPrice] = useState("");
   const [stock, setStock] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
+  const [longDescription, setLongDescription] = useState("");
   const [status, setStatus] = useState("draft");
+  const [images, setImages] = useState<string[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState("");
+  const [options, setOptions] = useState<{name: string, values: string[]}[]>([]);
+  const [newOptionName, setNewOptionName] = useState("");
+  const [newOptionValues, setNewOptionValues] = useState("");
 
   const productsQuery = trpc.admin.products.getAll.useQuery();
   const products = productsQuery.data;
@@ -75,10 +82,15 @@ export default function AdminProducts() {
     setName("");
     setSlug("");
     setPrice("");
+    setOriginalPrice("");
     setStock("");
     setCategoryId("");
     setDescription("");
+    setLongDescription("");
     setStatus("draft");
+    setImages([]);
+    setNewImageUrl("");
+    setOptions([]);
     setEditingProduct(null);
   };
 
@@ -87,17 +99,53 @@ export default function AdminProducts() {
     setName(product.name);
     setSlug(product.slug);
     setPrice(String(product.price));
+    setOriginalPrice(product.originalPrice ? String(product.originalPrice) : "");
     setStock(String(product.stock));
     setCategoryId(String(product.categoryId));
     setDescription(product.description || "");
+    setLongDescription(product.longDescription || "");
     setStatus(product.status);
+    setImages(product.images?.map((img: any) => img.imageUrl) || []);
+    
+    try {
+      const parsedOptions = typeof product.options === 'string' ? JSON.parse(product.options) : (product.options || []);
+      setOptions(parsedOptions);
+    } catch (e) {
+      setOptions([]);
+    }
+    
     setIsOpen(true);
+  };
+
+  const addImage = () => {
+    if (newImageUrl.trim()) {
+      setImages([...images, newImageUrl.trim()]);
+      setNewImageUrl("");
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+  const addOption = () => {
+    if (newOptionName.trim() && newOptionValues.trim()) {
+      const values = newOptionValues.split(",").map(v => v.trim()).filter(Boolean);
+      setOptions([...options, { name: newOptionName.trim(), values }]);
+      setNewOptionName("");
+      setNewOptionValues("");
+    }
+  };
+
+  const removeOption = (index: number) => {
+    setOptions(options.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     const parsedPrice = parseInt(price);
+    const parsedOriginalPrice = originalPrice ? parseInt(originalPrice) : undefined;
     const parsedStock = parseInt(stock);
     const parsedCategoryId = parseInt(categoryId);
 
@@ -110,10 +158,14 @@ export default function AdminProducts() {
       name,
       slug,
       price: parsedPrice,
+      originalPrice: parsedOriginalPrice,
       stock: parsedStock,
       categoryId: parsedCategoryId,
       description: description || undefined,
+      longDescription: longDescription || undefined,
       status: status as any,
+      images: images.length > 0 ? images : undefined,
+      options: options.length > 0 ? JSON.stringify(options) : undefined,
       featured: editingProduct ? undefined : 0,
     };
 
@@ -135,7 +187,9 @@ export default function AdminProducts() {
 
   const generateSlug = (val: string) => {
     setName(val);
-    setSlug(val.toLowerCase().replace(/ /g, "-").replace(/[^\w-]+/g, ""));
+    if (!editingProduct) {
+      setSlug(val.toLowerCase().replace(/ /g, "-").replace(/[^\w-]+/g, ""));
+    }
   };
 
   return (
@@ -151,81 +205,9 @@ export default function AdminProducts() {
               <Button variant="outline"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Button>
             </Link>
             
-            <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button className="bg-orange-500 hover:bg-orange-600">
-                  <Plus className="mr-2 h-4 w-4" /> Nouveau Produit
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[525px] max-h-[90vh] overflow-y-auto">
-                <form onSubmit={handleSubmit}>
-                  <DialogHeader>
-                    <DialogTitle>{editingProduct ? "Modifier le produit" : "Nouveau produit"}</DialogTitle>
-                    <DialogDescription>
-                      Remplissez les informations pour {editingProduct ? "mettre à jour" : "créer"} votre fiche produit.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="name">Nom</Label>
-                        <Input id="name" value={name} onChange={(e) => generateSlug(e.target.value)} required />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="slug">Slug</Label>
-                        <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="price">Prix (en centimes)</Label>
-                        <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} required />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="stock">Stock</Label>
-                        <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} required />
-                      </div>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="category">Catégorie</Label>
-                      <Select value={categoryId} onValueChange={setCategoryId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choisir une catégorie" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories?.map((cat) => (
-                            <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="status">Statut</Label>
-                      <Select value={status} onValueChange={setStatus}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="draft">Brouillon</SelectItem>
-                          <SelectItem value="active">Actif</SelectItem>
-                          <SelectItem value="archived">Archivé</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending}>
-                      {(createProduct.isPending || updateProduct.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {editingProduct ? "Enregistrer" : "Créer"}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => { resetForm(); setIsOpen(true); }}>
+              <Plus className="mr-2 h-4 w-4" /> Nouveau Produit
+            </Button>
           </div>
         </div>
 
@@ -277,15 +259,33 @@ export default function AdminProducts() {
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
-                        <div className="bg-gray-100 p-2 rounded">
-                          <Package className="h-4 w-4 text-gray-500" />
+                        <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+                          {product.images && product.images.length > 0 ? (
+                            <img src={product.images[0].imageUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <Package className="h-4 w-4 text-gray-500" />
+                          )}
                         </div>
-                        {product.name}
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{product.name}</span>
+                          <span className="text-xs text-gray-500">{product.slug}</span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>{product.categoryName || "Sans catégorie"}</TableCell>
-                    <TableCell>{formatPrice(product.price)}</TableCell>
-                    <TableCell>{product.stock}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-orange-600">{formatPrice(product.price)}</span>
+                        {product.originalPrice && (
+                          <span className="text-xs text-gray-400 line-through">{formatPrice(product.originalPrice)}</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={product.stock > 0 ? "outline" : "destructive"}>
+                        {product.stock}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={product.status === "active" ? "default" : "secondary"}>
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
@@ -308,6 +308,193 @@ export default function AdminProducts() {
           </Table>
         </div>
       </div>
+
+      <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <form onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>{editingProduct ? "Modifier le produit" : "Nouveau produit"}</DialogTitle>
+              <DialogDescription>
+                Remplissez les informations détaillées pour votre fiche produit professionnelle.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <Tabs defaultValue="general" className="mt-6">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="general">Général</TabsTrigger>
+                <TabsTrigger value="images">Images</TabsTrigger>
+                <TabsTrigger value="variants">Variantes</TabsTrigger>
+                <TabsTrigger value="details">Détails</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="general" className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Nom du produit *</Label>
+                    <Input id="name" value={name} onChange={(e) => generateSlug(e.target.value)} required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="slug">Slug (URL) *</Label>
+                    <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="price">Prix de vente (centimes) *</Label>
+                    <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} required />
+                    <p className="text-[10px] text-muted-foreground">Ex: 5990 pour 59.90 CHF</p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="originalPrice">Prix barré (centimes)</Label>
+                    <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground">Laissez vide si pas de rabais</p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="stock">Stock disponible *</Label>
+                    <Input id="stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} required />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="category">Catégorie *</Label>
+                    <Select value={categoryId} onValueChange={setCategoryId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choisir une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="status">Statut de publication</Label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Brouillon (invisible)</SelectItem>
+                        <SelectItem value="active">Actif (en ligne)</SelectItem>
+                        <SelectItem value="archived">Archivé</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="description">Accroche courte (description simple)</Label>
+                  <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="images" className="space-y-4 py-4">
+                <div className="grid gap-2">
+                  <Label>Ajouter une image (URL)</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="https://..." 
+                      value={newImageUrl} 
+                      onChange={(e) => setNewImageUrl(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addImage())}
+                    />
+                    <Button type="button" variant="outline" onClick={addImage}>Ajouter</Button>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  {images.map((url, index) => (
+                    <div key={index} className="relative group border rounded-lg overflow-hidden bg-gray-50 aspect-square flex items-center justify-center">
+                      <img src={url} alt="" className="max-h-full max-w-full object-contain" />
+                      <button 
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] py-1 text-center">
+                        {index === 0 ? "Image principale" : `Image ${index + 1}`}
+                      </div>
+                    </div>
+                  ))}
+                  {images.length === 0 && (
+                    <div className="col-span-3 py-10 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-10 w-10 mb-2 opacity-20" />
+                      <p>Aucune image ajoutée</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="variants" className="space-y-4 py-4">
+                <div className="rounded-lg border p-4 bg-gray-50">
+                  <h3 className="text-sm font-semibold mb-3">Ajouter une option (ex: Taille, Couleur)</h3>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="opt-name" className="text-xs">Nom de l'option</Label>
+                      <Input id="opt-name" placeholder="Couleur" value={newOptionName} onChange={(e) => setNewOptionName(e.target.value)} />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="opt-values" className="text-xs">Valeurs (séparées par des virgules)</Label>
+                      <Input id="opt-values" placeholder="Bleu, Rouge, Vert" value={newOptionValues} onChange={(e) => setNewOptionValues(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" className="w-full" onClick={addOption}>
+                    Ajouter cette option
+                  </Button>
+                </div>
+                
+                <div className="space-y-3 mt-4">
+                  {options.map((opt, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                      <div>
+                        <span className="font-bold text-sm">{opt.name} :</span>
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {opt.values.map((v, i) => (
+                            <Badge key={i} variant="secondary" className="text-[10px]">{v}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeOption(index)}>
+                        <Trash className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                  {options.length === 0 && (
+                    <p className="text-center py-4 text-sm text-muted-foreground italic">Aucune variante configurée.</p>
+                  )}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="details" className="space-y-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="longDescription">Description détaillée (HTML supporté)</Label>
+                  <Textarea 
+                    id="longDescription" 
+                    value={longDescription} 
+                    onChange={(e) => setLongDescription(e.target.value)} 
+                    rows={12} 
+                    placeholder="Décrivez les caractéristiques techniques, les dimensions, les matériaux..."
+                  />
+                  <p className="text-xs text-muted-foreground">Cette description apparaîtra en bas de la fiche produit pour donner plus d'informations aux clients.</p>
+                </div>
+              </TabsContent>
+            </Tabs>
+            
+            <DialogFooter className="mt-6 border-t pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Annuler</Button>
+              <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending} className="bg-orange-500 hover:bg-orange-600">
+                {(createProduct.isPending || updateProduct.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingProduct ? "Enregistrer les modifications" : "Créer le produit"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
