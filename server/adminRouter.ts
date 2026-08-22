@@ -222,6 +222,9 @@ export const adminRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllOrdersAdmin();
     }),
+    getItems: adminProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
+      return await db.getOrderItemsAdmin(input.orderId);
+    }),
     updateStatus: adminProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),

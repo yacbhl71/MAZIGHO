@@ -6,7 +6,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems, banners, settings, promotions } = schema;
+const { users, categories, products, productImages, reviews, contactMessages, orders, orderItems, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -725,17 +725,38 @@ export async function deleteCategory(id: number) {
 export async function getAllOrdersAdmin() {
   const db = await getDb();
   if (!db) return [];
-  const { orders, users } = await import("../drizzle/schema");
-  
-  
+
   return await db.select({
     id: orders.id,
     status: orders.status,
     totalAmount: orders.totalAmount,
+    paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
+    shippingAddress: orders.shippingAddress,
+    billingAddress: orders.billingAddress,
+    trackingNumber: orders.trackingNumber,
+    notes: orders.notes,
     createdAt: orders.createdAt,
+    updatedAt: orders.updatedAt,
     userName: users.name,
     userEmail: users.email,
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt));
+}
+
+export async function getOrderItemsAdmin(orderId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select({
+      id: orderItems.id,
+      quantity: orderItems.quantity,
+      priceAtPurchase: orderItems.priceAtPurchase,
+      productName: products.name,
+    })
+    .from(orderItems)
+    .leftJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, orderId));
 }
 
 export async function updateOrderStatus(id: number, status: any, trackingNumber?: string) {
