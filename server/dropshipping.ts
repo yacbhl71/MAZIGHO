@@ -193,6 +193,11 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
     /["']skuAmount["']\s*:\s*["']?([^"'}]+)["']?/i,
     /["']activityPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
     /["']originalPrice["']\s*:\s*["']?([^"'}]+)["']?/i,
+    /content=["']([0-9]+[.,][0-9]{2})["'][^>]+property=["']og:price:amount["']/i,
+    /property=["']og:price:amount["'][^>]+content=["']([0-9]+[.,][0-9]{2})["']/i,
+    /["']price["']\s*:\s*([0-9]+[.,][0-9]{2})/i,
+    /([0-9]+[.,][0-9]{2})\s*€/i,
+    /€\s*([0-9]+[.,][0-9]{2})/i,
   ];
 
   for (const pattern of pricePatterns) {
@@ -207,7 +212,12 @@ export function extractSupplierPreview(html: string, rawUrl: string): SupplierPr
   }
 
   const name = String(productJson?.name || extractMeta(html, 'og:title') || stripTags(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] || '') || 'Produit importé').slice(0, 200);
-  const description = String(productJson?.description || extractMeta(html, 'og:description') || '').trim().slice(0, 10_000) || null;
+  let description = String(productJson?.description || extractMeta(html, 'og:description') || '').trim();
+  if (description.includes("Aliexpress.com") || description.length < 50) {
+    const descMatch = html.match(/["']description["']\s*:\s*["']([^"']{100,})["']/i);
+    if (descMatch) description = descMatch[1];
+  }
+  description = description.slice(0, 10_000) || null;
   const sourcePriceCents = parsePrice(offer.price ?? productJson?.price ?? extractMeta(html, 'product:price:amount')) || priceFromScript;
   const warnings: string[] = [];
   if (!sourcePriceCents) warnings.push("Prix fournisseur non détecté : renseignez-le avant publication.");
