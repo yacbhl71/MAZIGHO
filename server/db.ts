@@ -13,18 +13,29 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      console.log("[Database] Connecting to:", process.env.DATABASE_URL.split("@")[1]); // Log host only for security
+      const connectionString = process.env.DATABASE_URL;
+      console.log("[Database] Connecting with SSL enabled...");
       
-      const connection = await mysql.createConnection({
-        uri: process.env.DATABASE_URL,
+      // Use a connection pool for better stability on Vercel
+      const pool = mysql.createPool({
+        uri: connectionString,
         ssl: {
           rejectUnauthorized: true,
+          // TiDB Cloud often requires a minimum TLS version
+          minVersion: 'TLSv1.2'
         },
+        waitForConnections: true,
+        connectionLimit: 1,
+        maxIdle: 1,
+        idleTimeout: 60000,
+        queueLimit: 0,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0,
       });
       
-      _db = drizzle(connection, { schema, mode: 'default' });
+      _db = drizzle(pool, { schema, mode: 'default' });
     } catch (error) {
-      console.error("[Database] Failed to connect:", error);
+      console.error("[Database] Failed to initialize pool:", error);
       _db = null;
     }
   }
