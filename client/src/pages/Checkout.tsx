@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { toast } from "sonner";
+import { formatPrice } from "@/lib/currency";
 
 export default function Checkout() {
   const [, setLocation] = useLocation();
@@ -45,7 +46,7 @@ export default function Checkout() {
   }
 
   const subtotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = subtotal > 5000 ? 0 : 500;
+  const shipping = subtotal > 10000 ? 0 : 1000;
   const total = subtotal + shipping;
 
   return (
@@ -99,21 +100,21 @@ export default function Checkout() {
                 {cart.items.map((item) => (
                   <div key={item.productId} className="flex justify-between text-sm">
                     <span>{item.name} x {item.quantity}</span>
-                    <span>{((item.price * item.quantity) / 100).toFixed(2)} €</span>
+                    <span>{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span>Sous-total</span>
-                    <span>{(subtotal / 100).toFixed(2)} €</span>
+                    <span>{formatPrice(subtotal)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Livraison</span>
-                    <span>{shipping === 0 ? "Gratuite" : `${(shipping / 100).toFixed(2)} €`}</span>
+                    <span>{shipping === 0 ? "Gratuite" : formatPrice(shipping)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-lg pt-2">
                     <span>Total</span>
-                    <span className="text-orange-500">{(total / 100).toFixed(2)} €</span>
+                    <span className="text-orange-500">{formatPrice(total)}</span>
                   </div>
                 </div>
                 <Button 

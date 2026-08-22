@@ -17,9 +17,7 @@ function slugify(value: string) {
     .slice(0, 170);
 }
 
-function formatPrice(cents: number | null | undefined) {
-  return cents == null ? "—" : `${(cents / 100).toFixed(2)} €`;
-}
+import { formatPrice } from "@/lib/currency";
 
 export default function AdminDropshipping() {
   const [url, setUrl] = useState("");

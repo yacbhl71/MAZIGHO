@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash, Package, Import, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
+import { formatPrice } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import {
@@ -252,7 +253,7 @@ export default function AdminProducts() {
                       </div>
                     </TableCell>
                     <TableCell>{product.categoryName || "Sans catégorie"}</TableCell>
-                    <TableCell>{(product.price / 100).toFixed(2)} €</TableCell>
+                    <TableCell>{formatPrice(product.price)}</TableCell>
                     <TableCell>{product.stock}</TableCell>
                     <TableCell>
                       <Badge variant={product.status === "active" ? "default" : "secondary"}>

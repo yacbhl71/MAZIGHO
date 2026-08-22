@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowRight, Star } from "lucide-react";
+import { formatPrice } from "@/lib/currency";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
@@ -87,11 +88,11 @@ export default function Home() {
                         </div>
                         <div className="flex items-baseline gap-2">
                           <span className="text-lg font-bold text-orange-500">
-                            {(product.price / 100).toFixed(2)} €
+                            {formatPrice(product.price)}
                           </span>
                           {product.originalPrice && (
                             <span className="text-sm text-gray-500 line-through">
-                              {(product.originalPrice / 100).toFixed(2)} €
+                              {formatPrice(product.originalPrice)}
                             </span>
                           )}
                         </div>

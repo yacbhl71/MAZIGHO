@@ -1,5 +1,6 @@
 import { useLocation, useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { formatPrice } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "@/components/Header";
@@ -41,12 +42,12 @@ export default function OrderConfirmation() {
               {order.items.map((item: any) => (
                 <div key={item.id} className="flex justify-between text-sm">
                   <span>{item.name} x {item.quantity}</span>
-                  <span>{((item.priceAtPurchase * item.quantity) / 100).toFixed(2)} €</span>
+                  <span>{formatPrice(item.priceAtPurchase * item.quantity)}</span>
                 </div>
               ))}
               <div className="border-t pt-4 flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span className="text-orange-500">{(order.totalAmount / 100).toFixed(2)} €</span>
+                <span className="text-orange-500">{formatPrice(order.totalAmount)}</span>
               </div>
             </CardContent>
           </Card>

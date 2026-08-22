@@ -19,7 +19,7 @@ const faqItems: FAQItem[] = [
     category: "Livraison",
     question: "Quels sont les délais de livraison ?",
     answer:
-      "Nous proposons plusieurs options de livraison : Livraison standard (5-7 jours ouvrables), Livraison express (2-3 jours ouvrables), et Livraison gratuite à partir de 50€ d'achat. Les délais commencent à partir de la date de confirmation de votre commande.",
+      "Nous proposons plusieurs options de livraison : Livraison standard (5-7 jours ouvrables), Livraison express (2-3 jours ouvrables), et Livraison gratuite à partir de 100 CHF d'achat. Les délais commencent à partir de la date de confirmation de votre commande.",
   },
   {
     id: "2",

@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { formatPrice } from "@/lib/currency";
 import { toast } from "sonner";
 
 export default function AdminOrders() {
@@ -119,7 +120,7 @@ export default function AdminOrders() {
                       </div>
                     </TableCell>
                     <TableCell>{new Date(order.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{(order.totalAmount / 100).toFixed(2)} €</TableCell>
+                    <TableCell>{formatPrice(order.totalAmount)}</TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => handleOpenDetails(order)}>
@@ -153,7 +154,7 @@ export default function AdminOrders() {
                     </div>
                     <div className="space-y-1 text-right">
                       <p className="text-muted-foreground">Montant Total</p>
-                      <p className="font-bold text-lg">{(selectedOrder.totalAmount / 100).toFixed(2)} €</p>
+                      <p className="font-bold text-lg">{formatPrice(selectedOrder.totalAmount)}</p>
                     </div>
                   </div>
 

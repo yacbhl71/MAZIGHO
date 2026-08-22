@@ -30,7 +30,7 @@ export default function Header() {
           </div>
           <div className="flex items-center gap-1.5">
             <span>🚚</span>
-            <span>Livraison Suisse & Europe</span>
+            <span>Livraison Suisse & Europe (Gratuite dès 100 CHF)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span>📦</span>

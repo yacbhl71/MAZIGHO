@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/hooks/useCart";
 import { getProductBySlug, getAllProducts } from "@/data/mockData";
+import { formatPrice } from "@/lib/currency";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
@@ -41,7 +42,7 @@ export default function Cart() {
   }
 
   const total = getTotal();
-  const shippingCost = total > 5000 ? 0 : 500; // Livraison gratuite à partir de 50€
+  const shippingCost = total > 10000 ? 0 : 1000; // Livraison gratuite à partir de 100 CHF
   const finalTotal = total + shippingCost;
 
   return (
@@ -92,9 +93,9 @@ export default function Cart() {
 
                           {/* Price */}
                           <p className="text-lg font-bold text-orange-500 mb-4">
-                            {(item.price / 100).toFixed(2)} € x {item.quantity} =
+                            {formatPrice(item.price)} x {item.quantity} =
                             <span className="ml-2">
-                              {((item.price * item.quantity) / 100).toFixed(2)} €
+                              {formatPrice(item.price * item.quantity)}
                             </span>
                           </p>
 
@@ -159,7 +160,7 @@ export default function Cart() {
                   <div className="space-y-3 border-b border-gray-200 pb-4">
                     <div className="flex justify-between text-gray-600">
                       <span>Sous-total</span>
-                      <span>{(total / 100).toFixed(2)} €</span>
+                      <span>{formatPrice(total)}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Livraison</span>
@@ -167,7 +168,7 @@ export default function Cart() {
                         {shippingCost === 0 ? (
                           <span className="text-green-600 font-semibold">Gratuite</span>
                         ) : (
-                          `${(shippingCost / 100).toFixed(2)} €`
+                          formatPrice(shippingCost)
                         )}
                       </span>
                     </div>
@@ -176,7 +177,7 @@ export default function Cart() {
                   {/* Free Shipping Info */}
                   {shippingCost > 0 && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                      Livraison gratuite à partir de 50€
+                      Livraison gratuite à partir de 100 CHF
                     </div>
                   )}
 
@@ -184,7 +185,7 @@ export default function Cart() {
                   <div className="flex justify-between text-xl font-bold text-gray-800 pt-4">
                     <span>Total</span>
                     <span className="text-orange-500">
-                      {(finalTotal / 100).toFixed(2)} €
+                      {formatPrice(finalTotal)}
                     </span>
                   </div>
 

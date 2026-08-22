@@ -9,6 +9,7 @@ import ImageGallery from "@/components/ImageGallery";
 import ProductOptions from "@/components/ProductOptions";
 import ReviewForm from "@/components/ReviewForm";
 import { getProductBySlug, getAllProducts } from "@/data/mockData";
+import { formatPrice } from "@/lib/currency";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
@@ -105,11 +106,11 @@ export default function Product() {
               <div className="space-y-2">
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl font-bold text-orange-500">
-                    {(product.price / 100).toFixed(2)} €
+                    {formatPrice(product.price)}
                   </span>
                   {product.originalPrice && (
                     <span className="text-xl text-gray-500 line-through">
-                      {(product.originalPrice / 100).toFixed(2)} €
+                      {formatPrice(product.originalPrice)}
                     </span>
                   )}
                 </div>
@@ -197,7 +198,7 @@ export default function Product() {
                 <div className="text-center">
                   <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium text-gray-800">Livraison gratuite</p>
-                  <p className="text-xs text-gray-600">Dès 50€</p>
+                  <p className="text-xs text-gray-600">Dès 100 CHF</p>
                 </div>
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
@@ -323,11 +324,11 @@ export default function Product() {
                           </div>
                           <div className="flex items-baseline gap-2">
                             <span className="text-lg font-bold text-orange-500">
-                              {(relatedProduct.price / 100).toFixed(2)} €
+                              {formatPrice(relatedProduct.price)}
                             </span>
                             {relatedProduct.originalPrice && (
                               <span className="text-sm text-gray-500 line-through">
-                                {(relatedProduct.originalPrice / 100).toFixed(2)} €
+                                {formatPrice(relatedProduct.originalPrice)}
                               </span>
                             )}
                           </div>
