@@ -29,7 +29,7 @@ const ADMIN_BOOTSTRAP_CODE_HASH =
 const OWNER_REPAIR_CODE_HASH =
   "0da4f28ae1f7a135dffd44a9b4183094d900d11726685451ce1750c7d26aecd4";
 const OWNER_EMAIL_HASH =
-  "335b8efb523a69daf73f84ec6d965ce54f1850e5b221f44155b951f8bacdfaba";
+  "9c9e5e992d6011c6daf2f4ec1a0fe82845cb41725c767766a3986787e443e723";
 
 function matchesHash(value: string, expectedHash: string) {
   const expected = Buffer.from(expectedHash, "hex");
