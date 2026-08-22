@@ -23,6 +23,8 @@ function formatPrice(cents: number | null | undefined) {
 
 export default function AdminDropshipping() {
   const [url, setUrl] = useState("");
+  const [rawHtml, setRawHtml] = useState("");
+  const [showHtmlInput, setShowHtmlInput] = useState(false);
   const [categoryId, setCategoryId] = useState("");
   const [marginPercent, setMarginPercent] = useState("50");
   const [name, setName] = useState("");
@@ -76,11 +78,14 @@ export default function AdminDropshipping() {
       toast.error("Choisissez une catégorie avant d'analyser le produit.");
       return;
     }
-    if (!url.trim()) {
-      toast.error("Collez l'URL d'une fiche AliExpress ou CJ Dropshipping.");
+    if (!url.trim() && !rawHtml.trim()) {
+      toast.error("Fournissez l'URL ou collez le code source HTML de la page.");
       return;
     }
-    previewImport.mutate({ url: url.trim() });
+    previewImport.mutate({ 
+      url: url.trim() || undefined, 
+      rawHtml: rawHtml.trim() || undefined 
+    });
   };
 
   const handleImport = (event: React.FormEvent) => {
@@ -128,7 +133,7 @@ export default function AdminDropshipping() {
           </Badge>
         </div>
 
-        <form onSubmit={handlePreview} className="rounded-xl border bg-white p-5 shadow-sm">
+        <form onSubmit={handlePreview} className="rounded-xl border bg-white p-5 shadow-sm space-y-4">
           <div className="grid gap-5 lg:grid-cols-[1fr_220px_180px_auto] lg:items-end">
             <label className="block space-y-2">
               <span className="text-sm font-medium">URL de la fiche fournisseur</span>
@@ -167,7 +172,33 @@ export default function AdminDropshipping() {
               Analyser
             </Button>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
+
+          <div className="pt-2 border-t">
+            <button
+              type="button"
+              onClick={() => setShowHtmlInput(!showHtmlInput)}
+              className="text-sm text-orange-600 hover:underline font-medium flex items-center gap-1"
+            >
+              {showHtmlInput ? "▼ Masquer le mode contournement Captcha (Code Source HTML)" : "▶ Contourner le Captcha AliExpress (Coller le Code Source HTML)"}
+            </button>
+
+            {showHtmlInput && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Si AliExpress affiche un Captcha : faites un clic droit sur la page du produit &gt; "Afficher le code source" (Ctrl+U), copiez tout le code et collez-le ci-dessous.
+                </p>
+                <textarea
+                  value={rawHtml}
+                  onChange={event => setRawHtml(event.target.value)}
+                  placeholder="Collez le code HTML brut de la page AliExpress ici..."
+                  rows={6}
+                  className="w-full rounded-md border bg-background p-3 text-xs font-mono outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
             Les données récupérées restent à vérifier : prix, variantes, stock, conformité et délais de livraison doivent être contrôlés avant publication.
           </p>
         </form>

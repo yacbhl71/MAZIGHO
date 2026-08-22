@@ -5,6 +5,8 @@ import {
   importedProductInputSchema,
   normalizeImportedProduct,
   previewSupplierProduct,
+  previewSupplierProductFromHtml,
+  previewProductInput,
 } from "./dropshipping";
 
 export const adminRouter = router({
@@ -49,9 +51,13 @@ export const adminRouter = router({
     delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteProduct(input);
     }),
-    previewImport: adminProcedure.input(z.object({
-      url: z.string().url().max(1000),
-    })).mutation(async ({ input }) => {
+    previewImport: adminProcedure.input(previewProductInput).mutation(async ({ input }) => {
+      if (input.rawHtml && input.rawHtml.trim().length > 0) {
+        return await previewSupplierProductFromHtml(input.rawHtml, input.url);
+      }
+      if (!input.url) {
+        throw new Error("Veuillez fournir une URL ou coller le code source HTML.");
+      }
       return await previewSupplierProduct(input.url);
     }),
     importFromUrl: adminProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {

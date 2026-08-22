@@ -14,6 +14,11 @@ export const importProductInput = z.object({
   marginPercent: z.number().min(0).max(1000).default(50),
 });
 
+export const previewProductInput = z.object({
+  url: z.string().url().max(1000).optional().or(z.literal("")),
+  rawHtml: z.string().max(5_000_000).optional(),
+});
+
 export type ImportProductInput = z.infer<typeof importProductInput>;
 
 export type SupplierPreview = {
@@ -209,6 +214,12 @@ export async function previewSupplierProduct(rawUrl: string) {
   const safeUrl = assertSafeSupplierUrl(rawUrl);
   const { html, finalUrl } = await fetchSupplierPage(safeUrl);
   return extractSupplierPreview(html, finalUrl);
+}
+
+export async function previewSupplierProductFromHtml(rawHtml: string, fallbackUrl?: string) {
+  const defaultUrl = fallbackUrl && fallbackUrl.trim() ? fallbackUrl : "https://www.aliexpress.com/item/imported-product.html";
+  const safeUrl = assertSafeSupplierUrl(defaultUrl);
+  return extractSupplierPreview(rawHtml, safeUrl.toString());
 }
 
 export function slugifyImportedProduct(name: string, productId: string | null) {
