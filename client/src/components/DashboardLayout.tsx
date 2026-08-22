@@ -174,11 +174,11 @@ function DashboardLayoutContent({
   return (
     <>
       <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
-          disableTransition={isResizing}
-        >
+          <Sidebar
+            collapsible="icon"
+            className="border-r-0 bg-slate-900 text-white"
+            disableTransition={isResizing}
+          >
           <SidebarHeader className="h-16 justify-center">
             <div className="flex items-center gap-3 pl-2 group-data-[collapsible=icon]:px-0 transition-all w-full">
               {isCollapsed ? (
