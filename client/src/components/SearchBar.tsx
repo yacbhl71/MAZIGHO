@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Search, X } from "lucide-react";
-import { getAllProducts, getAllCategories } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
 
 interface SearchResult {
   id: number;
@@ -18,8 +18,11 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const products = getAllProducts();
-  const categories = getAllCategories();
+  const productsQuery = trpc.products.getAll.useQuery();
+  const categoriesQuery = trpc.categories.getAll.useQuery();
+  
+  const products = productsQuery.data || [];
+  const categories = categoriesQuery.data || [];
 
   // Fermer le dropdown quand on clique ailleurs
   useEffect(() => {
