@@ -31,10 +31,11 @@ export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    const adminEmail = ctx.req.headers['[ancien-en-tete-admin-supprime]'];
-    const isOwnerBypass = adminEmail === '[ancienne-adresse-supprimee]';
+    if (!ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    }
 
-    if (!isOwnerBypass && (!ctx.user || ctx.user.role !== 'admin')) {
+    if (ctx.user.role !== "admin") {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 

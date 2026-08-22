@@ -13,7 +13,12 @@ const connection = mysql.createConnection({
   }
 });
 
-const email = "[ancienne-adresse-supprimee]";
+const email = process.env.ADMIN_EMAIL;
+
+if (!email) {
+  console.error("ADMIN_EMAIL is not set");
+  process.exit(1);
+}
 
 connection.query("SELECT id, email, role FROM users WHERE email = ?", [email], (err, results) => {
   if (err) {

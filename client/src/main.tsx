@@ -8,6 +8,13 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+// Nettoyage de compatibilité : ces clés appartenaient à l’ancien prototype local
+// et ne doivent plus jamais être utilisées pour authentifier ou autoriser un utilisateur.
+if (typeof window !== "undefined") {
+  window.localStorage.removeItem("mazigho_current_user");
+  window.localStorage.removeItem("mazigho_users");
+}
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
@@ -43,23 +50,8 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        const currentUser = localStorage.getItem("mazigho_current_user");
-        let adminHeader = {};
-        if (currentUser) {
-          try {
-            const user = JSON.parse(currentUser);
-            if (user.email === '[ancienne-adresse-supprimee]') {
-              adminHeader = { '[ancien-en-tete-admin-supprime]': user.email };
-            }
-          } catch (e) {}
-        }
-
         return globalThis.fetch(input, {
           ...(init ?? {}),
-          headers: {
-            ...(init?.headers ?? {}),
-            ...adminHeader,
-          },
           credentials: "include",
         });
       },

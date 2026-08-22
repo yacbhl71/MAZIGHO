@@ -4,11 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { User, LogOut, Heart, ShoppingBag, Settings, ArrowLeft, LayoutDashboard } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { useLocalAuth } from "@/hooks/useLocalAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function Account() {
   const [, navigate] = useLocation();
-  const { user, isLoading, isAuthenticated, logout } = useLocalAuth();
+  const { user, loading: isLoading, isAuthenticated, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -128,7 +128,7 @@ export default function Account() {
                         <User className="h-10 w-10 text-white" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-800 mb-1">
-                        {user?.firstName} {user?.lastName}
+                        {user?.name || "Client MAZIGHO"}
                       </h2>
                       <p className="text-sm text-gray-600 break-all">
                         {user?.email}

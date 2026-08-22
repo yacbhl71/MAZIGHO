@@ -1,4 +1,4 @@
-import { useLocalAuth as useAuth } from "@/hooks/useLocalAuth";
+import { useAuth } from "../_core/hooks/useAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
