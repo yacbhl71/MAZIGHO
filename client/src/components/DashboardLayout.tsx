@@ -177,8 +177,9 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
           <Sidebar
             collapsible="icon"
-            className="border-r-0 bg-slate-900 text-white"
+            className="border-r-0 bg-slate-950 text-slate-200"
             disableTransition={isResizing}
+            style={{ backgroundColor: '#020617', color: '#e2e8f0' }}
           >
           <SidebarHeader className="h-16 justify-center">
             <div className="flex items-center gap-3 pl-2 group-data-[collapsible=icon]:px-0 transition-all w-full">
@@ -229,12 +230,12 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`h-10 transition-all font-normal ${isActive ? 'bg-orange-500/10 text-orange-500' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        className={`h-4 w-4 ${isActive ? "text-orange-500" : "text-slate-400"}`}
                       />
-                      <span>{item.label}</span>
+                      <span className="font-medium">{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
