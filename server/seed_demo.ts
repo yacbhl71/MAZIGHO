@@ -4,6 +4,8 @@ import { categories, banners } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import mysql from "mysql2/promise";
 
+const DEFAULT_BANNER_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/JZmuCtGTfIYUcFRd.jpg";
+
 async function seed() {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -44,9 +46,9 @@ async function seed() {
 
   // 2. Injection des Bannières
   const demoBanners = [
-    { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", linkUrl: "/boutique", active: 1, displayOrder: 1 },
-    { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
-    { title: "Beauté & Bien-Être", subtitle: "Prenez soin de vous avec nos produits premium", linkUrl: "/categorie/beaute-bien-etre", active: 1, displayOrder: 3 },
+    { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/boutique", active: 1, displayOrder: 1 },
+    { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
+    { title: "Beauté & Bien-Être", subtitle: "Prenez soin de vous avec nos produits premium", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/categorie/beaute-bien-etre", active: 1, displayOrder: 3 },
   ];
 
   for (const banner of demoBanners) {

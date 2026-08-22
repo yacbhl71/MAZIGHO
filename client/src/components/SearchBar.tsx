@@ -53,28 +53,28 @@ export default function SearchBar() {
     const productResults: SearchResult[] = products
       .filter((product) =>
         product.name.toLowerCase().includes(lowerQuery) ||
-        product.description.toLowerCase().includes(lowerQuery)
+        (product.description || "").toLowerCase().includes(lowerQuery)
       )
       .map((product) => ({
         id: product.id,
         type: "product" as const,
         name: product.name,
         slug: product.slug,
-        description: product.description,
+        description: product.description || undefined,
       }));
 
     // Chercher dans les catégories
     const categoryResults: SearchResult[] = categories
       .filter((category) =>
         category.name.toLowerCase().includes(lowerQuery) ||
-        category.description.toLowerCase().includes(lowerQuery)
+        (category.description || "").toLowerCase().includes(lowerQuery)
       )
       .map((category) => ({
         id: category.id,
         type: "category" as const,
         name: category.name,
         slug: category.slug,
-        description: category.description,
+        description: category.description || undefined,
       }));
 
     setResults([...productResults, ...categoryResults]);

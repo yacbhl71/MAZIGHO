@@ -4,10 +4,11 @@ import * as schema from "../drizzle/schema";
 import type { InsertUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 
 const { users, categories, products, productImages, reviews, contactMessages, orders, carts, cartItems, banners, settings, promotions } = schema;
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {

@@ -320,11 +320,7 @@ export default function AdminProducts() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                          {product.images && product.images.length > 0 ? (
-                            <img src={product.images[0].imageUrl} alt="" className="h-full w-full object-cover" />
-                          ) : (
-                            <Package className="h-4 w-4 text-gray-500" />
-                          )}
+                          <Package className="h-4 w-4 text-gray-500" />
                         </div>
                         <div className="flex flex-col">
                           <span className="font-semibold">{product.name}</span>

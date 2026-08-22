@@ -1,172 +1,182 @@
 import { Link } from "wouter";
+import { ArrowRight, ArrowUpRight, Check, ChevronRight, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Star } from "lucide-react";
 import { formatPrice } from "@/lib/currency";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
 import { trpc } from "@/lib/trpc";
 
+const categoryAccents = [
+  "from-orange-100 via-amber-50 to-white",
+  "from-sky-100 via-blue-50 to-white",
+  "from-rose-100 via-pink-50 to-white",
+  "from-emerald-100 via-teal-50 to-white",
+  "from-violet-100 via-purple-50 to-white",
+];
+
 export default function Home() {
   const categoriesQuery = trpc.categories.getAll.useQuery();
   const featuredProductsQuery = trpc.products.getFeatured.useQuery();
-  
+
   const categories = categoriesQuery.data || [];
   const featuredProducts = featuredProductsQuery.data || [];
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="min-h-screen bg-[#fbf7f2] text-slate-900">
       <Header />
-      
-      <main className="flex-1">
-        {/* Hero Banner with Carousel */}
+
+      <main>
         <HeroBanner />
 
-        {/* Categories Section */}
-        <section className="py-16 md:py-24 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
-                Nos Catégories
-              </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Explorez notre sélection soigneusement organisée pour trouver exactement ce que vous recherchez.
-              </p>
+        <section className="border-y border-[#eadfd2] bg-white/80">
+          <div className="container grid gap-0 md:grid-cols-3">
+            <div className="flex items-center gap-4 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:pr-8">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Une sélection qui a du sens</p>
+                <p className="mt-1 text-xs text-slate-500">Des trouvailles utiles pour le quotidien.</p>
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-              {categories.map((category) => (
-                <Link key={category.id} href={`/categorie/${category.slug}`}>
-                  <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer overflow-hidden border-2 border-gray-200 hover:border-orange-500 h-full">
-                    <CardContent className="p-0">
-                      <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col items-center justify-center group-hover:scale-105 transition-transform duration-300">
-                        <span className="text-6xl mb-4">{(category as any).icon || "📦"}</span>
-                      </div>
-                      <div className="p-4 text-center">
-                        <h3 className="font-semibold text-gray-800 group-hover:text-orange-500 transition-colors mb-2">
-                          {category.name}
-                        </h3>
-                        <p className="text-xs text-gray-500 line-clamp-2">
-                          {category.description}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+            <div className="flex items-center gap-4 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:px-8">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                <Check className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Prix affichés en CHF</p>
+                <p className="mt-1 text-xs text-slate-500">Une expérience pensée pour la Suisse.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 py-5 md:pl-8">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                <ArrowRight className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Un parcours simple</p>
+                <p className="mt-1 text-xs text-slate-500">Du produit au panier en quelques clics.</p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Featured Products Section */}
-        <section className="py-16 md:py-24 bg-gray-50">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
-                Produits Phares
-              </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Découvrez notre sélection de produits exceptionnels, choisis avec soin pour leur qualité et leur élégance.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featuredProducts.map((product) => (
-                <Link key={product.id} href={`/produit/${product.slug}`}>
-                  <Card className="group hover:shadow-xl transition-all duration-300 cursor-pointer h-full bg-white">
-                    <CardContent className="p-0">
-                      <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
-                        {product.images && product.images.length > 0 ? (
-                          <img 
-                            src={product.images[0].imageUrl} 
-                            alt={product.name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gray-100 flex items-center justify-center text-6xl group-hover:scale-110 transition-transform duration-300">
-                            📦
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-4 space-y-2">
-                        <h3 className="font-semibold text-gray-800 group-hover:text-orange-500 transition-colors line-clamp-2">
-                          {product.name}
-                        </h3>
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
-                          <span>{(product as any).averageRating || 4.5}</span>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-bold text-orange-500">
-                            {formatPrice(product.price)}
-                          </span>
-                          {product.originalPrice && (
-                            <span className="text-sm text-gray-500 line-through">
-                              {formatPrice(product.originalPrice)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-
-            <div className="text-center mt-12">
-              <Link href="/boutique">
-                <Button size="lg" className="bg-orange-500 hover:bg-orange-600 text-white gap-2">
-                  Voir tous les produits
-                  <ArrowRight className="h-5 w-5" />
-                </Button>
+        <section className="py-16 md:py-24">
+          <div className="container">
+            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Explorer MAZIGHO</p>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Trouvez votre univers</h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Des catégories organisées pour passer plus vite de l'inspiration à la bonne trouvaille.</p>
+              </div>
+              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
+                Voir toute la boutique <ArrowUpRight className="h-4 w-4" />
               </Link>
             </div>
+
+            {categories.length > 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                {categories.map((category, index) => (
+                  <Link key={category.id} href={`/categorie/${category.slug}`}>
+                    <Card className={`group h-full overflow-hidden border border-[#eadfd2] bg-gradient-to-br ${categoryAccents[index % categoryAccents.length]} shadow-none transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg`}>
+                      <CardContent className="flex h-full min-h-[190px] flex-col justify-between p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-4xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition-colors group-hover:bg-orange-500 group-hover:text-white">
+                            <ChevronRight className="h-4 w-4" />
+                          </span>
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-slate-900">{category.name}</h3>
+                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{category.description || "Une sélection MAZIGHO à découvrir."}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#d9cbbc] bg-white/60 px-6 py-12 text-center text-sm text-slate-500">Les catégories seront visibles ici dès qu'elles seront publiées dans votre administration.</div>
+            )}
           </div>
         </section>
 
-        {/* Testimonials Section */}
-        <section className="py-16 md:py-24 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-800 mb-4">
-                Avis Clients
-              </h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Découvrez ce que nos clients pensent de nos produits et services.
-              </p>
+        <section className="bg-[#f1ebe4] py-16 md:py-24">
+          <div className="container">
+            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">La sélection du moment</p>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Produits phares</h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Les articles actuellement mis en avant dans votre catalogue MAZIGHO.</p>
+              </div>
+              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
+                Tout le catalogue <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                {
-                  name: "Sophie Martin",
-                  comment: "Des produits d'une qualité exceptionnelle ! Je suis ravie de mes achats et le service client est impeccable.",
-                  rating: 5,
-                },
-                {
-                  name: "Thomas Dubois",
-                  comment: "Livraison rapide et produits conformes à la description. Je recommande vivement cette boutique !",
-                  rating: 5,
-                },
-                {
-                  name: "Marie Leroy",
-                  comment: "Une sélection raffinée et un service personnalisé. C'est ma boutique préférée pour les cadeaux.",
-                  rating: 5,
-                },
-              ].map((testimonial, index) => (
-                <Card key={index} className="bg-white border-2 border-gray-200">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex gap-1">
-                      {Array.from({ length: testimonial.rating }).map((_, i) => (
-                        <Star key={i} className="h-5 w-5 fill-orange-500 text-orange-500" />
-                      ))}
-                    </div>
-                    <p className="text-gray-600 italic">"{testimonial.comment}"</p>
-                    <p className="font-semibold text-gray-800">— {testimonial.name}</p>
-                  </CardContent>
-                </Card>
-              ))}
+            {featuredProducts.length > 0 ? (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {featuredProducts.map((product) => {
+                  const imageUrl = product.images?.[0]?.imageUrl;
+                  const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price);
+                  return (
+                    <Link key={product.id} href={`/produit/${product.slug}`}>
+                      <Card className="group h-full overflow-hidden border border-[#e5d8cb] bg-white shadow-none transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                        <CardContent className="p-0">
+                          <div className="relative aspect-[4/3] overflow-hidden bg-[#f5f0ea]">
+                            {imageUrl ? (
+                              <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-5xl text-slate-300" aria-label="Image indisponible">✦</div>
+                            )}
+                            {hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Offre</span>}
+                          </div>
+                          <div className="space-y-3 p-5">
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+                              <span>{(product as any).averageRating || "Nouveau"}</span>
+                            </div>
+                            <h3 className="line-clamp-2 min-h-[3.5rem] text-base font-semibold leading-6 text-slate-900 group-hover:text-orange-600">{product.name}</h3>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-lg font-bold text-orange-600">{formatPrice(product.price)}</span>
+                              {hasDiscount && <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">Aucun produit phare n'est encore publié. Activez un article depuis l'administration pour le présenter ici.</div>
+            )}
+          </div>
+        </section>
+
+        <section className="py-16 md:py-24">
+          <div className="container">
+            <div className="grid gap-8 overflow-hidden rounded-[2rem] bg-slate-950 px-7 py-10 text-white md:grid-cols-[1.15fr_0.85fr] md:px-12 md:py-14">
+              <div className="flex flex-col justify-center">
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">L'esprit MAZIGHO</p>
+                <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">Des trouvailles utiles, avec une expérience plus humaine.</h2>
+                <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">Nous mettons en avant des produits qui simplifient le quotidien, dans une boutique claire, chaleureuse et pensée pour accompagner chaque décision.</p>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link href="/boutique"><Button className="bg-orange-500 text-white hover:bg-orange-600">Découvrir la boutique <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+                  <Link href="/contact"><Button variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white">Nous contacter</Button></Link>
+                </div>
+              </div>
+              <div className="relative min-h-[250px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-orange-500/80 via-amber-300/30 to-sky-500/50">
+                <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full border-[28px] border-white/15" />
+                <div className="absolute -bottom-20 -left-10 h-64 w-64 rounded-full border-[36px] border-orange-200/20" />
+                <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
+                  <div>
+                    <p className="text-6xl font-semibold tracking-tight text-white/95">CHF</p>
+                    <p className="mt-3 text-sm text-white/75">Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -176,3 +186,4 @@ export default function Home() {
     </div>
   );
 }
+
