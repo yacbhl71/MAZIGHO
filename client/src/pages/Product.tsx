@@ -10,7 +10,9 @@ import ProductOptions from "@/components/ProductOptions";
 import ReviewForm from "@/components/ReviewForm";
 import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
+import { toast } from "sonner";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
@@ -27,6 +29,8 @@ export default function Product() {
   
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
+  const { addToCart } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
 
   if (productQuery.isLoading) {
     return (
@@ -64,12 +68,17 @@ export default function Product() {
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    console.log("Ajouté au panier:", {
-      product: product.name,
-      quantity,
-      options: selectedOptions,
+    if (!product) return;
+    setIsAdding(true);
+    addToCart(product.id, product.name, product.price, quantity, selectedOptions);
+    
+    toast.success(`${product.name} ajouté au panier !`, {
+      description: `${quantity} article(s) ajouté(s)`,
     });
-    // TODO: Implémenter la logique du panier
+
+    setTimeout(() => {
+      setIsAdding(false);
+    }, 1500);
   };
 
   return (
@@ -194,10 +203,21 @@ export default function Product() {
               <div className="flex gap-4">
                 <Button
                   onClick={handleAddToCart}
-                  disabled={product.stock === 0}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 text-lg font-semibold"
+                  disabled={product.stock === 0 || isAdding}
+                  className={`flex-1 py-3 text-lg font-semibold transition-all ${
+                    isAdding 
+                      ? "bg-green-600 hover:bg-green-700 text-white scale-95" 
+                      : "bg-orange-500 hover:bg-orange-600 text-white"
+                  }`}
                 >
-                  Ajouter au panier
+                  {isAdding ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-5 w-5" />
+                      Ajouté !
+                    </>
+                  ) : (
+                    "Ajouter au panier"
+                  )}
                 </Button>
                 <Button
                   variant="outline"
