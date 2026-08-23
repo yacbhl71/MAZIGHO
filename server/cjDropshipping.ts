@@ -112,12 +112,15 @@ export type CjImportPreparation = {
   supplierName: string | null;
   reportedStock: number | null;
   variantsLabel: string | null;
+  logisticsProperties: string[];
   variants: Array<{
     id: string;
     label: string;
     sku: string | null;
     supplierPriceUsd: number | null;
     originCountries: string[];
+    weightG: number | null;
+    volumeM3: number | null;
   }>;
 };
 
@@ -453,6 +456,8 @@ export async function prepareCjProductImport(input: { productId: string; country
       label: variant.variantKeyEn || variant.variantKey || variant.variantSku || `Variante ${variant.vid.slice(-6)}`,
       sku: variant.variantSku || null,
       supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
+      weightG: asFiniteNumber(variant.variantWeight) ?? asFiniteNumber(product.packingWeight),
+      volumeM3: asFiniteNumber(variant.variantVolume) == null ? null : (asFiniteNumber(variant.variantVolume)! / 1_000_000_000),
       originCountries: Array.from(new Set((variant.inventories || [])
         .filter(inventory => typeof inventory.totalInventory !== "number" || inventory.totalInventory > 0)
         .map(inventory => inventory.countryCode)
@@ -470,6 +475,7 @@ export async function prepareCjProductImport(input: { productId: string; country
     supplierName: product.supplierName || null,
     reportedStock,
     variantsLabel,
+    logisticsProperties: (product.productProEnSet || []).filter(Boolean),
     variants: preparedVariants,
   };
 }
@@ -561,7 +567,60 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
     const templateOptions = supplierTemplateOptions
       .filter(item => !item.destinationCode || item.destinationCode === target.countryCode)
       .map(item => ({ name: item.name, costUsd: item.costUsd, delay: null }));
-    const options = [...standardOptions, ...templateOptions]
+    let detailedOptions: Array<{ name: string; costUsd: number; delay: string | null }> = [];
+    const variantSku = variant.sku;
+    const variantWeightG = variant.weightG;
+    const variantVolumeM3 = variant.volumeM3;
+    if (standardOptions.length === 0 && templateOptions.length === 0 && variantSku && variantWeightG != null && variantWeightG > 0 && variantVolumeM3 != null && variantVolumeM3 > 0 && prepared.logisticsProperties.length) {
+      const detailedResponses = await Promise.allSettled(originCountries.map(async originCountry => {
+        let response: Response;
+        try {
+          response = await fetch(`${CJ_API_BASE}/logistic/freightCalculateTip`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "CJ-Access-Token": access.token },
+            body: JSON.stringify({
+              reqDTOS: [{
+                srcAreaCode: originCountry,
+                destAreaCode: target.countryCode,
+                wrapWeight: 0,
+                weight: Math.round(variantWeightG),
+                volume: variantVolumeM3,
+                totalGoodsAmount: variant.supplierPriceUsd ?? prepared.supplierPriceUsd ?? 0,
+                productProp: prepared.logisticsProperties,
+                freightTrialSkuList: [{
+                  sku: variantSku,
+                  vid: variant.id,
+                  skuQuantity: 1,
+                  skuWeight: variantWeightG,
+                  skuVolume: variantVolumeM3,
+                }],
+                skuList: [variantSku],
+              }],
+            }),
+            signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+          });
+        } catch {
+          throw new Error("CJ_UNREACHABLE");
+        }
+        let payload: CjFreightTipResponse | null = null;
+        try {
+          payload = await response.json() as CjFreightTipResponse;
+        } catch {
+          throw new Error("CJ_INVALID_RESPONSE");
+        }
+        if (!response.ok || !payload?.success) return [];
+        return (payload.data || []).map(item => {
+          const total = asFiniteNumber(item.totalPostageFee) ?? asFiniteNumber(item.wrapPostage) ?? asFiniteNumber(item.postage);
+          return total == null ? null : {
+            name: `${item.option?.enName || "Transport CJ détaillé"} · depuis ${originCountry}`,
+            costUsd: total,
+            delay: item.arrivalTime || null,
+          };
+        }).filter((item): item is { name: string; costUsd: number; delay: string | null } => Boolean(item));
+      }));
+      detailedOptions = detailedResponses.flatMap(result => result.status === "fulfilled" ? result.value : []);
+    }
+    const options = [...standardOptions, ...templateOptions, ...detailedOptions]
       .sort((first, second) => first.costUsd - second.costUsd)
       .slice(0, 6);
     return {
@@ -569,7 +628,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
       countryName: target.countryName,
       originCountries,
       options,
-      message: options.length ? null : "CJ n’a pas confirmé de tarif par API pour cette destination et cette variante. Vérifiez aussi le calculateur CJ avant de l’exclure.",
+      message: options.length ? null : "CJ n’a pas confirmé de tarif par ses calculateurs API pour cette destination et cette variante. Vérifiez le calculateur CJ avant de l’exclure.",
     };
   }));
 
