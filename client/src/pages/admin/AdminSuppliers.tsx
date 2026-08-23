@@ -225,6 +225,11 @@ export default function AdminSuppliers() {
                 <option value="CH">Suisse (CH)</option>
                 <option value="FR">France (FR)</option>
                 <option value="DE">Allemagne (DE)</option>
+                <option value="IT">Italie (IT)</option>
+                <option value="AT">Autriche (AT)</option>
+                <option value="BE">Belgique (BE)</option>
+                <option value="NL">Pays-Bas (NL)</option>
+                <option value="ES">Espagne (ES)</option>
                 <option value="">Tous entrepôts</option>
               </select>
             </label>
