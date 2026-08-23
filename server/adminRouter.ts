@@ -4,7 +4,7 @@ import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { getCjConnectionStatus, prepareCjProductImport, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
+import { getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -553,6 +553,21 @@ export const adminRouter = router({
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "BAD_GATEWAY", message: "CJdropshipping est momentanément inaccessible. Réessayez plus tard." });
         if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de préparer cette fiche CJ pour le moment." });
+      }
+    }),
+    quoteCjDelivery: adminProcedure.input(z.object({
+      productId: z.string().trim().min(1).max(128),
+      variantId: z.string().trim().min(1).max(128),
+      countryCodes: z.array(z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"])).min(1).max(8).optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        return await quoteCjDelivery(input);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_VARIANT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Cette variante CJ n’est plus disponible. Actualisez la fiche produit." });
+        if (code === "CJ_DELIVERY_DESTINATION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez au moins une destination prise en charge." });
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le devis de livraison. Réessayez plus tard." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de calculer les frais de livraison CJ pour le moment." });
       }
     }),
     searchCjByImage: adminProcedure.input(z.object({

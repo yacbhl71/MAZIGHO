@@ -66,6 +66,7 @@ type CjProductDetailResponse = {
     supplierName?: string;
     productKeyEn?: string;
     variants?: Array<{
+      vid?: string;
       variantKey?: string;
       variantKeyEn?: string;
       variantSku?: string;
@@ -104,6 +105,29 @@ export type CjImportPreparation = {
   supplierName: string | null;
   reportedStock: number | null;
   variantsLabel: string | null;
+  variants: Array<{
+    id: string;
+    label: string;
+    sku: string | null;
+    supplierPriceUsd: number | null;
+    originCountries: string[];
+  }>;
+};
+
+export type CjDeliveryQuote = {
+  variantId: string;
+  variantLabel: string;
+  countries: Array<{
+    countryCode: string;
+    countryName: string;
+    originCountries: string[];
+    options: Array<{
+      name: string;
+      costUsd: number;
+      delay: string | null;
+    }>;
+    message: string | null;
+  }>;
 };
 
 export type CjImageSearchResult = {
@@ -127,6 +151,19 @@ export type CjCatalogProduct = {
   isFreeShipping: boolean;
   hasCeCertification: boolean;
   isPersonalized: boolean;
+};
+
+type CjFreightResponse = {
+  success?: boolean;
+  message?: string;
+  data?: Array<{
+    logisticName?: string;
+    logisticAging?: string;
+    logisticPrice?: string | number;
+    totalPostageFee?: string | number;
+    taxesFee?: string | number;
+    clearanceOperationFee?: string | number;
+  }> | null;
 };
 
 type CjCatalogSearch = {
@@ -376,6 +413,18 @@ export async function prepareCjProductImport(input: { productId: string; country
     }, 0);
   }, 0);
   const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantKey).filter(Boolean))).slice(0, 8).join(" · ") || null;
+  const preparedVariants = variants
+    .filter((variant): variant is typeof variant & { vid: string } => Boolean(variant.vid))
+    .map(variant => ({
+      id: variant.vid,
+      label: variant.variantKeyEn || variant.variantKey || variant.variantSku || `Variante ${variant.vid.slice(-6)}`,
+      sku: variant.variantSku || null,
+      supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
+      originCountries: Array.from(new Set((variant.inventories || [])
+        .filter(inventory => typeof inventory.totalInventory !== "number" || inventory.totalInventory > 0)
+        .map(inventory => inventory.countryCode)
+        .filter((countryCode): countryCode is string => Boolean(countryCode)))),
+    }));
 
   return {
     productId: product.pid,
@@ -388,7 +437,82 @@ export async function prepareCjProductImport(input: { productId: string; country
     supplierName: product.supplierName || null,
     reportedStock,
     variantsLabel,
+    variants: preparedVariants,
   };
+}
+
+const cjDeliveryMarkets = [
+  { countryCode: "CH", countryName: "Suisse" },
+  { countryCode: "FR", countryName: "France" },
+  { countryCode: "DE", countryName: "Allemagne" },
+  { countryCode: "IT", countryName: "Italie" },
+  { countryCode: "AT", countryName: "Autriche" },
+  { countryCode: "BE", countryName: "Belgique" },
+  { countryCode: "NL", countryName: "Pays-Bas" },
+  { countryCode: "ES", countryName: "Espagne" },
+] as const;
+
+/**
+ * Calcule uniquement des options de livraison officielles CJ par pays. Aucun brouillon,
+ * destinataire, paiement ou ordre fournisseur n’est créé par cet appel.
+ */
+export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[] }): Promise<CjDeliveryQuote> {
+  const prepared = await prepareCjProductImport({ productId: input.productId });
+  const variant = prepared.variants.find(item => item.id === input.variantId);
+  if (!variant) throw new Error("CJ_VARIANT_NOT_FOUND");
+
+  const requestedCodes = input.countryCodes?.length ? input.countryCodes : cjDeliveryMarkets.map(item => item.countryCode);
+  const targets = requestedCodes.map(code => cjDeliveryMarkets.find(item => item.countryCode === code)).filter((item): item is typeof cjDeliveryMarkets[number] => Boolean(item));
+  if (targets.length === 0) throw new Error("CJ_DELIVERY_DESTINATION_INVALID");
+
+  const originCountries = (variant.originCountries.length ? variant.originCountries : ["CN"]).slice(0, 3);
+  const access = await getCjAccessToken();
+  const countries = await Promise.all(targets.map(async target => {
+    const responses = await Promise.allSettled(originCountries.map(async originCountry => {
+      let response: Response;
+      try {
+        response = await fetch(`${CJ_API_BASE}/logistic/freightCalculate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "CJ-Access-Token": access.token },
+          body: JSON.stringify({
+            startCountryCode: originCountry,
+            endCountryCode: target.countryCode,
+            products: [{ quantity: 1, vid: variant.id }],
+          }),
+          signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+        });
+      } catch {
+        throw new Error("CJ_UNREACHABLE");
+      }
+      let payload: CjFreightResponse | null = null;
+      try {
+        payload = await response.json() as CjFreightResponse;
+      } catch {
+        throw new Error("CJ_INVALID_RESPONSE");
+      }
+      if (!response.ok || !payload?.success) return [];
+      return (payload.data || []).map(item => {
+        const total = asFiniteNumber(item.totalPostageFee) ?? asFiniteNumber(item.logisticPrice);
+        return total == null ? null : {
+          name: `${item.logisticName || "Transport CJ"} · depuis ${originCountry}`,
+          costUsd: total,
+          delay: item.logisticAging || null,
+        };
+      }).filter((item): item is { name: string; costUsd: number; delay: string | null } => Boolean(item));
+    }));
+    const options = responses.flatMap(result => result.status === "fulfilled" ? result.value : [])
+      .sort((first, second) => first.costUsd - second.costUsd)
+      .slice(0, 6);
+    return {
+      countryCode: target.countryCode,
+      countryName: target.countryName,
+      originCountries,
+      options,
+      message: options.length ? null : "Aucune option CJ n’a été retournée pour cette destination et cette variante.",
+    };
+  }));
+
+  return { variantId: variant.id, variantLabel: variant.label, countries };
 }
 
 export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string; freeShippingOnly?: boolean }): Promise<CjCatalogSearch> {
