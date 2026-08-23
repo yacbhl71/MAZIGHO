@@ -1,4 +1,4 @@
-import { ShoppingBag, Mail, Facebook, Instagram, Twitter } from "lucide-react";
+import { ShoppingBag, Mail } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Footer() {
@@ -17,17 +17,6 @@ export default function Footer() {
             <p className="text-amber-100 text-sm">
               Votre destination pour des produits premium de qualité exceptionnelle.
             </p>
-            <div className="flex gap-4 pt-4">
-              <a href="#" className="text-amber-100 hover:text-orange-500 transition-colors">
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-amber-100 hover:text-orange-500 transition-colors">
-                <Instagram className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-amber-100 hover:text-orange-500 transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
-            </div>
           </div>
 
           {/* Navigation */}
