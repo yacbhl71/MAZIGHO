@@ -65,12 +65,19 @@ type CjProductDetailResponse = {
     categoryName?: string;
     supplierName?: string;
     productKeyEn?: string;
+    productProEnSet?: string[];
+    packingWeight?: string | number;
     variants?: Array<{
       vid?: string;
       variantKey?: string;
       variantKeyEn?: string;
       variantSku?: string;
       variantSellPrice?: string | number;
+      variantLength?: string | number;
+      variantWidth?: string | number;
+      variantHeight?: string | number;
+      variantVolume?: string | number;
+      variantWeight?: string | number;
       inventories?: Array<{
         countryCode?: string;
         totalInventory?: number;
@@ -151,6 +158,32 @@ export type CjCatalogProduct = {
   isFreeShipping: boolean;
   hasCeCertification: boolean;
   isPersonalized: boolean;
+};
+
+type CjFreightTipResponse = {
+  success?: boolean;
+  message?: string;
+  data?: Array<{
+    postage?: string | number;
+    wrapPostage?: string | number;
+    totalPostageFee?: string | number;
+    arrivalTime?: string;
+    option?: { enName?: string };
+    errorEn?: string;
+  }> | null;
+};
+
+type CjSupplierLogisticsResponse = {
+  success?: boolean;
+  message?: string;
+  data?: Array<{
+    logisticsInfoList?: Array<{
+      logisticsName?: string;
+      postage?: string | number;
+      startCountryCode?: string;
+      destCountryCode?: string;
+    }>;
+  }> | null;
 };
 
 type CjFreightResponse = {
@@ -467,6 +500,30 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
 
   const originCountries = (variant.originCountries.length ? variant.originCountries : ["CN"]).slice(0, 3);
   const access = await getCjAccessToken();
+  let supplierTemplateOptions: Array<{ destinationCode: string | null; name: string; costUsd: number }> = [];
+  if (prepared.sku) {
+    try {
+      const response = await fetch(`${CJ_API_BASE}/logistic/getSupplierLogisticsTemplate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CJ-Access-Token": access.token },
+        body: JSON.stringify({ skuList: [prepared.sku] }),
+        signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+      });
+      const payload = await response.json() as CjSupplierLogisticsResponse;
+      if (response.ok && payload.success) {
+        supplierTemplateOptions = (payload.data || []).flatMap(item => item.logisticsInfoList || []).map(item => {
+          const costUsd = asFiniteNumber(item.postage);
+          return costUsd == null ? null : {
+            destinationCode: item.destCountryCode || null,
+            name: `${item.logisticsName || "Transport fournisseur CJ"}${item.startCountryCode ? ` · depuis ${item.startCountryCode}` : ""}`,
+            costUsd,
+          };
+        }).filter((item): item is { destinationCode: string | null; name: string; costUsd: number } => Boolean(item));
+      }
+    } catch {
+      // Le devis standard reste disponible si le modèle fournisseur ne répond pas.
+    }
+  }
   const countries = await Promise.all(targets.map(async target => {
     const responses = await Promise.allSettled(originCountries.map(async originCountry => {
       let response: Response;
@@ -500,7 +557,11 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
         };
       }).filter((item): item is { name: string; costUsd: number; delay: string | null } => Boolean(item));
     }));
-    const options = responses.flatMap(result => result.status === "fulfilled" ? result.value : [])
+    const standardOptions = responses.flatMap(result => result.status === "fulfilled" ? result.value : []);
+    const templateOptions = supplierTemplateOptions
+      .filter(item => !item.destinationCode || item.destinationCode === target.countryCode)
+      .map(item => ({ name: item.name, costUsd: item.costUsd, delay: null }));
+    const options = [...standardOptions, ...templateOptions]
       .sort((first, second) => first.costUsd - second.costUsd)
       .slice(0, 6);
     return {
@@ -508,7 +569,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
       countryName: target.countryName,
       originCountries,
       options,
-      message: options.length ? null : "Aucune option CJ n’a été retournée pour cette destination et cette variante.",
+      message: options.length ? null : "CJ n’a pas confirmé de tarif par API pour cette destination et cette variante. Vérifiez aussi le calculateur CJ avant de l’exclure.",
     };
   }));
 
