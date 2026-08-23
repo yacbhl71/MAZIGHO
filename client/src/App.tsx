@@ -62,6 +62,7 @@ function BrowserTitle() {
   const [location] = useLocation();
 
   useEffect(() => {
+    const pathname = location.split("?")[0];
     const adminTitles: Record<string, string> = {
       "/admin": "MAZIGHO Admin | Tableau de bord",
       "/admin/produits": "MAZIGHO Admin | Produits",
@@ -105,7 +106,7 @@ function BrowserTitle() {
       "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
-    document.title = adminTitles[location] || publicTitles[location] || "MAZIGHO | Boutique en ligne";
+    document.title = adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
   }, [location]);
 
   return null;
