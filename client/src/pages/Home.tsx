@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
 import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
@@ -36,11 +37,11 @@ export default function Home() {
   const { profile, palette } = useDesignProfile();
   const featuredProductsQuery = trpc.products.getFeatured.useQuery();
   const catalogProductsQuery = trpc.products.getAll.useQuery();
+  const { countryCode, countryLabel } = useDeliveryCountry();
 
-  const catalogProducts = catalogProductsQuery.data || [];
-  const featuredProducts = featuredProductsQuery.data?.length
-    ? featuredProductsQuery.data
-    : catalogProducts.slice(0, 4);
+  const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const highlightedProducts = (featuredProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
 
   return (
     <div className="min-h-screen text-slate-900" style={{ backgroundColor: palette.soft }}>
@@ -178,7 +179,7 @@ export default function Home() {
               <div>
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">La sélection du moment</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Produits phares</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Les articles actifs actuellement disponibles dans votre catalogue MAZIGHO.</p>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Les articles dont la livraison est confirmée pour {countryLabel}.</p>
               </div>
               <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
                 Tout le catalogue <ArrowRight className="h-4 w-4" />
@@ -212,6 +213,7 @@ export default function Home() {
                               <span className="text-lg font-bold text-orange-600">{formatPrice(product.price)}</span>
                               {hasDiscount && <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!)}</span>}
                             </div>
+                            {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
                           </div>
                         </CardContent>
                       </Card>
@@ -220,7 +222,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">Aucun produit actif n'est encore publié. Activez un article depuis l'administration pour le présenter ici.</div>
+              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">Aucun produit n’est encore confirmé pour la livraison vers {countryLabel}. La sélection sera affichée dès qu’un devis fournisseur aura été validé.</div>
             )}
           </div>
         </section>

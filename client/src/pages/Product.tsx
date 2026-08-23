@@ -13,6 +13,7 @@ import { formatPrice } from "@/lib/currency";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
@@ -22,6 +23,8 @@ export default function Product() {
     enabled: !!slug
   });
   const product = productQuery.data;
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery(product?.categoryId || 0, {
     enabled: !!product?.categoryId
@@ -64,11 +67,14 @@ export default function Product() {
   }
 
   const relatedProducts = (relatedProductsQuery.data || [])
-    .filter(p => p.id !== product.id)
+    .filter(p => p.id !== product.id && getDeliveryProfileForCountry(p.deliveryProfiles, countryCode))
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product || !deliveryProfile) {
+      toast.error(`Ce produit n’est pas encore livrable vers ${countryLabel}.`);
+      return;
+    }
     setIsAdding(true);
     const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
     addToCart(product.id, product.name, product.price, quantity, selectedOptions, imageUrl);
@@ -153,6 +159,10 @@ export default function Product() {
                 )}
               </div>
 
+              <div className={`rounded-lg border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                {deliveryProfile ? <><p className="font-semibold text-emerald-900">Livrable vers {countryLabel}</p><p className="mt-1 text-sm text-emerald-800">{deliveryProfile.customerShippingCost === 0 ? "Livraison offerte pour ce produit" : `Livraison : ${formatPrice(deliveryProfile.customerShippingCost)}`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}</p><p className="mt-1 text-xs text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi.</p></>}
+              </div>
+
               {/* Description */}
               <div
                 className="prose prose-slate max-w-none text-gray-700 text-lg leading-relaxed"
@@ -205,7 +215,7 @@ export default function Product() {
               <div className="flex gap-4">
                 <Button
                   onClick={handleAddToCart}
-                  disabled={product.stock === 0 || isAdding}
+                  disabled={product.stock === 0 || !deliveryProfile || isAdding}
                   className={`flex-1 py-3 text-lg font-semibold transition-all ${
                     isAdding 
                       ? "bg-green-600 hover:bg-green-700 text-white scale-95" 
@@ -217,6 +227,8 @@ export default function Product() {
                       <CheckCircle2 className="mr-2 h-5 w-5" />
                       Ajouté !
                     </>
+                  ) : !deliveryProfile ? (
+                    `Indisponible vers ${countryLabel}`
                   ) : (
                     "Ajouter au panier"
                   )}
@@ -241,8 +253,8 @@ export default function Product() {
               <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200">
                 <div className="text-center">
                   <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Selon destination</p>
-                  <p className="text-xs text-gray-600">Coût et délai confirmés avant commande</p>
+                  <p className="text-sm font-medium text-gray-800">{deliveryProfile ? `Vers ${countryLabel}` : "Destination non confirmée"}</p>
+                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? "Livraison offerte confirmée" : `Livraison ${formatPrice(deliveryProfile.customerShippingCost)}`) : "Choisissez un autre pays"}</p>
                 </div>
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />

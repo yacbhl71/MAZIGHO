@@ -9,10 +9,12 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 export default function Nouveautes() {
   const productsQuery = trpc.products.getAll.useQuery();
-  const products = productsQuery.data || [];
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
@@ -43,7 +45,7 @@ export default function Nouveautes() {
               🆕 Nouveautés
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl">
-              Découvrez nos derniers produits fraîchement arrivés. Des sélections exclusives pour vous !
+              Découvrez les nouveautés dont la livraison est confirmée vers {countryLabel}.
             </p>
           </div>
         </section>
@@ -56,7 +58,7 @@ export default function Nouveautes() {
                 <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
               </div>
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            products.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {products.map((product) => (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                   <CardContent className="p-0">
@@ -116,6 +118,7 @@ export default function Nouveautes() {
                           </span>
                         )}
                       </div>
+                      {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
 
                       {/* Stock Status */}
                       <div className="text-xs font-semibold">
@@ -156,7 +159,7 @@ export default function Nouveautes() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
+            </div> : <div className="py-16 text-center text-sm text-gray-600">Aucune nouveauté n’est encore confirmée pour la livraison vers {countryLabel}.</div>
             )}
           </div>
         </section>

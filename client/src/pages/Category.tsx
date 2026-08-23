@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 const categoryHeroImages: Record<string, string> = {
   "high-tech-gadgets": "/assets/category-high-tech.jpg",
@@ -28,7 +29,8 @@ export default function Category() {
   const productsQuery = trpc.products.getByCategory.useQuery(category?.id || 0, {
     enabled: !!category?.id
   });
-  const products = productsQuery.data || [];
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -103,7 +105,7 @@ export default function Category() {
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">Découvrez notre sélection {category.name.toLowerCase()}, choisie avec soin et disponible en CHF.</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">Découvrez notre sélection {category.name.toLowerCase()}, dont la livraison est confirmée vers {countryLabel}.</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
@@ -169,6 +171,7 @@ export default function Category() {
                             </span>
                           )}
                         </div>
+                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
 
                         {/* Stock Status */}
                         <div className="text-xs font-semibold">
@@ -212,10 +215,10 @@ export default function Category() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Aucun produit dans cette catégorie pour le moment.</p>
+                <p className="text-gray-600 text-lg">Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers {countryLabel}.</p>
                 <Link href="/boutique">
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
-                    Voir tous les produits
+                    Choisir un autre pays ou voir la boutique
                   </Button>
                 </Link>
               </div>

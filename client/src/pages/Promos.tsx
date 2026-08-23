@@ -9,10 +9,12 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 export default function Promos() {
   const productsQuery = trpc.products.getAll.useQuery();
-  const products = (productsQuery.data || []).filter(p => p.originalPrice);
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const products = (productsQuery.data || []).filter(product => product.originalPrice && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
@@ -46,7 +48,7 @@ export default function Promos() {
               </h1>
             </div>
             <p className="text-lg text-gray-600 max-w-2xl">
-              Découvrez nos réductions exceptionnelles ! Des remises jusqu'à -50% sur une sélection de produits premium.
+              Découvrez les réductions applicables aux produits dont la livraison est confirmée vers {countryLabel}.
             </p>
           </div>
         </section>
@@ -137,6 +139,7 @@ export default function Promos() {
                               </p>
                             )}
                           </div>
+                          {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
 
                           {/* Stock Status */}
                           <div className="text-xs font-semibold">
@@ -181,7 +184,7 @@ export default function Promos() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Aucun produit en promotion pour le moment.</p>
+                <p className="text-gray-600 text-lg">Aucune promotion n’est encore confirmée pour la livraison vers {countryLabel}.</p>
                 <Link href="/boutique">
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
                     Voir tous les produits

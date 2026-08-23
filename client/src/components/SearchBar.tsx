@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Search, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 interface SearchResult {
   id: number;
@@ -20,8 +21,9 @@ export default function SearchBar() {
 
   const productsQuery = trpc.products.getAll.useQuery();
   const categoriesQuery = trpc.categories.getAll.useQuery();
+  const { countryCode } = useDeliveryCountry();
   
-  const products = productsQuery.data || [];
+  const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const categories = categoriesQuery.data || [];
 
   // Fermer le dropdown quand on clique ailleurs

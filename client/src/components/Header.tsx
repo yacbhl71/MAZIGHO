@@ -1,12 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard } from "lucide-react";
+import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard, MapPin } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import SearchBar from "./SearchBar";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { deliveryCountries, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -21,6 +22,7 @@ export default function Header() {
   const favoritesCount = favorites.length;
   const { user, isAuthenticated } = useAuth();
   const isAdmin = isAuthenticated && user?.role === "admin";
+  const { countryCode, setCountryCode } = useDeliveryCountry();
 
   const isActive = (path: string) => location === path;
 
@@ -35,11 +37,11 @@ export default function Header() {
           </div>
           <div className="flex items-center gap-1.5">
             <span>🚚</span>
-            <span>Livraison Suisse & Europe</span>
+            <span>Livraison selon pays disponible</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span>📦</span>
-            <span>Conditions précisées avant validation</span>
+            <span>Coût et délai affichés par produit</span>
           </div>
         </div>
       </div>
@@ -148,6 +150,8 @@ export default function Header() {
             <SearchBar />
           </div>
 
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-orange-100 bg-orange-50 px-2 py-1.5 text-xs text-slate-700" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-600" /><label className="sr-only" htmlFor="delivery-country">Pays de livraison</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></div>
+
           {/* Right Icons */}
           <div className="flex items-center gap-2">
             <Link href="/favoris">
@@ -200,6 +204,7 @@ export default function Header() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-2">
+            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">Livrer vers</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
             <Link href="/">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
                 Accueil

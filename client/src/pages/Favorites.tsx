@@ -4,19 +4,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Star, Heart, ShoppingCart, ArrowLeft, Trash2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getAllProducts } from "@/data/mockData";
+import { trpc } from "@/lib/trpc";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useState } from "react";
 
 export default function Favorites() {
-  const allProducts = getAllProducts();
+  const productsQuery = trpc.products.getAll.useQuery();
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const allProducts = productsQuery.data || [];
   const { favorites, removeFavorite } = useFavorites();
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
-  const favoriteProducts = allProducts.filter(p => favorites.includes(p.id));
+  const favoriteProducts = allProducts.filter(product => favorites.includes(product.id) && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
 
   const handleAddToCart = (productId: number) => {
     const product = favoriteProducts.find(p => p.id === productId);
@@ -48,7 +51,7 @@ export default function Favorites() {
               </h1>
             </div>
             <p className="text-lg text-gray-600 max-w-2xl">
-              {favoriteProducts.length} produit{favoriteProducts.length !== 1 ? 's' : ''} en attente
+              {favoriteProducts.length} produit{favoriteProducts.length !== 1 ? 's' : ''} disponible{favoriteProducts.length !== 1 ? 's' : ''} pour {countryLabel}
             </p>
           </div>
         </section>
@@ -109,6 +112,7 @@ export default function Favorites() {
                             </span>
                           )}
                         </div>
+                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
 
                         {/* Stock Status */}
                         <div className="text-xs font-semibold">
@@ -157,9 +161,9 @@ export default function Favorites() {
             ) : (
               <div className="text-center py-20">
                 <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aucun favori pour le moment</h2>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Aucun favori disponible pour le moment</h2>
                 <p className="text-gray-600 mb-6">
-                  Commencez à ajouter vos produits préférés à votre liste de souhaits !
+                  Aucun de vos favoris n’est encore confirmé pour la livraison vers {countryLabel}.
                 </p>
                 <Link href="/boutique">
                   <Button className="bg-orange-500 hover:bg-orange-600 text-white">

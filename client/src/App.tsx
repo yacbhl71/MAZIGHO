@@ -5,6 +5,7 @@ import { Route, Switch, useLocation } from "wouter";
 import { useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Category from "./pages/Category";
@@ -181,10 +182,12 @@ function App() {
         defaultTheme="light"
         // switchable
       >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <DeliveryCountryProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </DeliveryCountryProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

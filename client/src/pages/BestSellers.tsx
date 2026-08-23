@@ -9,10 +9,12 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 
 export default function BestSellers() {
   const productsQuery = trpc.products.getAll.useQuery();
-  const products = (productsQuery.data || []).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));
+  const { countryCode, countryLabel } = useDeliveryCountry();
+  const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
@@ -46,7 +48,7 @@ export default function BestSellers() {
               </h1>
             </div>
             <p className="text-lg text-gray-600 max-w-2xl">
-              Les produits les plus aimés et les plus vendus par nos clients. Rejoignez des milliers de clients satisfaits !
+              Une sélection affichée uniquement lorsque la livraison est confirmée vers {countryLabel}.
             </p>
           </div>
         </section>
@@ -59,7 +61,7 @@ export default function BestSellers() {
                 <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
               </div>
             ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            products.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {products.slice(0, 12).map((product, index) => (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                   <CardContent className="p-0">
@@ -124,6 +126,7 @@ export default function BestSellers() {
                           </span>
                         )}
                       </div>
+                      {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
 
                       {/* Stock Status */}
                       <div className="text-xs font-semibold">
@@ -164,7 +167,7 @@ export default function BestSellers() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
+            </div> : <div className="py-16 text-center text-sm text-gray-600">Aucun best-seller n’est encore confirmé pour la livraison vers {countryLabel}.</div>
             )}
           </div>
         </section>
