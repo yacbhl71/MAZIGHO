@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Check, ChevronRight, Sparkles, Star } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, ChevronRight, Quote, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatPrice } from "@/lib/currency";
@@ -14,6 +14,21 @@ const categoryAccents = [
   "from-rose-100 via-pink-50 to-white",
   "from-emerald-100 via-teal-50 to-white",
   "from-violet-100 via-purple-50 to-white",
+];
+
+const discoveryTiles = [
+  { title: "Mode & accessoires", description: "Les détails qui accompagnent votre style au quotidien.", image: "/assets/category-mode.jpg" },
+  { title: "Beauté & bien-être", description: "Des instants de soin et de confort à s’offrir.", image: "/assets/category-beaute.jpg" },
+  { title: "Maison & cuisine", description: "Des objets simples qui facilitent les petits moments.", image: "/assets/category-maison.jpg" },
+  { title: "Sport & plein air", description: "Pour bouger, respirer et profiter davantage.", image: "/assets/category-sport.jpg" },
+  { title: "High-tech utile", description: "Des accessoires pensés pour rester connecté sans effort.", image: "/assets/category-high-tech.jpg" },
+  { title: "Mobilité & auto", description: "Les indispensables pour vos trajets et vos escapades.", image: "/assets/category-auto.jpg" },
+];
+
+const testimonialPlaceholders = [
+  { title: "Votre expérience compte", text: "Les premiers avis authentiques de nos clients seront mis en avant ici après validation.", image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/tAsMVzoYcQaYPlZx.jpg" },
+  { title: "Des retours en toute confiance", text: "Chaque témoignage publié aide les autres visiteurs à faire leur choix sereinement.", image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/beKRpGNWQVYLtodg.jpg" },
+  { title: "Une boutique qui grandit avec vous", text: "Vos découvertes et vos retours inspirent les prochaines sélections MAZIGHO.", image: "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/EaGZFquHaQggRJfK.jpg" },
 ];
 
 export default function Home() {
@@ -117,6 +132,49 @@ export default function Home() {
             ) : (
               <div className="border border-dashed border-[#d9cbbc] bg-white/60 px-6 py-12 text-center text-sm text-slate-500">Les catégories seront visibles ici dès qu'elles seront publiées dans votre administration.</div>
             )}
+          </div>
+        </section>
+
+        <section className="bg-white py-16 md:py-24">
+          <div className="container">
+            <div className="mx-auto mb-10 max-w-2xl text-center">
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">À explorer</p>
+              <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Découvrez nos produits uniques</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">Une sélection d’univers pour trouver l’idée pratique, le détail inspirant ou le cadeau qui fait plaisir.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {discoveryTiles.map((tile) => (
+                <Link key={tile.title} href="/boutique" className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
+                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
+                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-8 text-center"><Link href="/boutique"><Button variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600">Parcourir toute la boutique <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
+          </div>
+        </section>
+
+        <section className="bg-[#f4eee7] py-16 md:py-24">
+          <div className="container grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16">
+            <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] bg-slate-900"><img src="/assets/home-lifestyle-top.jpg" alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" /><p className="absolute bottom-6 left-6 right-6 text-sm font-medium text-white/90">Des trouvailles pour accompagner les moments qui comptent.</p></div>
+            <div>
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Notre inspiration</p>
+              <h2 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight text-slate-950 md:text-5xl">L’esprit MAZIGHO, au quotidien.</h2>
+              <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.</p>
+              <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">Notre sélection évolue avec les envies de la saison, entre mode, bien-être, maison et accessoires, afin de vous laisser explorer librement ce qui vous ressemble.</p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-3"><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Choisir avec attention</div><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Simplifier la recherche</div><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Inspirer le quotidien</div></div>
+              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white hover:bg-orange-600">Découvrir l’univers MAZIGHO <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-slate-950 py-16 text-white md:py-24">
+          <div className="container">
+            <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">La parole à nos clients</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Vos retours font grandir MAZIGHO.</h2><p className="mt-3 text-sm leading-6 text-slate-300 md:text-base">Les avis approuvés seront présentés ici pour partager les expériences réelles de notre communauté.</p></div>
+            <div className="grid gap-5 md:grid-cols-3">
+              {testimonialPlaceholders.map((testimonial) => <article key={testimonial.title} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5"><div className="relative aspect-[16/8] overflow-hidden"><img src={testimonial.image} alt="Illustration de la communauté MAZIGHO" className="h-full w-full object-cover opacity-80" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><Quote className="absolute bottom-4 left-4 h-7 w-7 text-orange-300" /></div><div className="p-6"><h3 className="text-lg font-semibold text-white">{testimonial.title}</h3><p className="mt-3 text-sm leading-6 text-slate-300">{testimonial.text}</p></div></article>)}
+            </div>
+            <div className="mt-8 text-center"><Link href="/boutique"><Button variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white">Découvrir la sélection <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
           </div>
         </section>
 
