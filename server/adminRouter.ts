@@ -313,6 +313,35 @@ export const adminRouter = router({
     getItems: adminProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderItemsAdmin(input.orderId);
     }),
+    getDecisions: adminProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
+      return await db.getOrderDecisionsAdmin(input.orderId);
+    }),
+    decide: adminProcedure.input(z.object({
+      orderId: z.number(),
+      action: z.enum(["accepted", "rejected", "refund_requested"]),
+      reason: z.string().trim().max(500).optional(),
+      confirmation: z.string().trim().max(80).optional(),
+    })).mutation(async ({ input, ctx }) => {
+      const expectedConfirmation = input.action === "rejected" ? `REFUSER #${input.orderId}` : input.action === "refund_requested" ? `REMBOURSER #${input.orderId}` : null;
+      if (expectedConfirmation && input.confirmation !== expectedConfirmation) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Pour confirmer cette action, saisissez exactement : ${expectedConfirmation}` });
+      }
+      try {
+        return await db.recordOrderDecision({
+          orderId: input.orderId,
+          action: input.action,
+          reason: input.reason,
+          actorUserId: ctx.user.id,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
+        if (code === "ORDER_NOT_PAID") throw new TRPCError({ code: "BAD_REQUEST", message: "Seule une commande réellement payée peut être acceptée pour traitement." });
+        if (code === "ORDER_NOT_PENDING") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande n’est plus en attente de validation." });
+        if (code === "ORDER_ALREADY_FULFILLED") throw new TRPCError({ code: "BAD_REQUEST", message: "Une commande expédiée ou livrée ne peut pas être refusée ici." });
+        throw error;
+      }
+    }),
     updateStatus: adminProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),

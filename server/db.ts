@@ -7,13 +7,14 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
 let _accountStatusColumnReady: Promise<void> | null = null;
 let _invitationSchemaReady: Promise<void> | null = null;
 let _accountingSchemaReady: Promise<void> | null = null;
+let _orderDecisionSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -64,6 +65,18 @@ async function ensureAccountingSchema() {
   })();
 
   return _accountingSchemaReady;
+}
+
+async function ensureOrderDecisionSchema() {
+  if (_orderDecisionSchemaReady) return _orderDecisionSchemaReady;
+
+  _orderDecisionSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderDecisions` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `action` enum('accepted','rejected','refund_requested') NOT NULL, `reason` varchar(500), `actorUserId` int, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `orderDecisions_order_idx` (`orderId`))"));
+  })();
+
+  return _orderDecisionSchemaReady;
 }
 
 async function ensurePasswordHashColumn() {
@@ -960,6 +973,49 @@ export async function getAllOrdersAdmin() {
     userName: users.name,
     userEmail: users.email,
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt));
+}
+
+export async function getOrderDecisionsAdmin(orderId: number) {
+  await ensureOrderDecisionSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select({
+    id: orderDecisions.id,
+    action: orderDecisions.action,
+    reason: orderDecisions.reason,
+    actorUserId: orderDecisions.actorUserId,
+    createdAt: orderDecisions.createdAt,
+  }).from(orderDecisions).where(eq(orderDecisions.orderId, orderId)).orderBy(desc(orderDecisions.createdAt));
+}
+
+export async function recordOrderDecision(input: { orderId: number; action: "accepted" | "rejected" | "refund_requested"; reason?: string; actorUserId: number }) {
+  await ensureOrderDecisionSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const order = await db.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order[0]) throw new Error("ORDER_NOT_FOUND");
+
+  if (input.action === "accepted") {
+    if (order[0].paymentStatus !== "paid") throw new Error("ORDER_NOT_PAID");
+    if (order[0].status !== "pending") throw new Error("ORDER_NOT_PENDING");
+    await db.update(orders).set({ status: "processing" }).where(eq(orders.id, input.orderId));
+  }
+
+  if (input.action === "rejected") {
+    if (order[0].status === "shipped" || order[0].status === "delivered") throw new Error("ORDER_ALREADY_FULFILLED");
+    await db.update(orders).set({ status: "cancelled" }).where(eq(orders.id, input.orderId));
+  }
+
+  await db.insert(orderDecisions).values({
+    orderId: input.orderId,
+    action: input.action,
+    reason: input.reason?.trim() || null,
+    actorUserId: input.actorUserId,
+  });
+
+  return { success: true, supplierOrderCreated: false, paymentRefunded: false };
 }
 
 export async function getOrderItemsAdmin(orderId: number) {

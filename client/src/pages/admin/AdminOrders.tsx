@@ -19,6 +19,8 @@ import {
   ShoppingBag,
   Truck,
   XCircle,
+  ShieldAlert,
+  RotateCcw,
 } from "lucide-react";
 import {
   Dialog,
@@ -36,6 +38,14 @@ import { toast } from "sonner";
 
 const statuses = ["all", "pending", "processing", "shipped", "delivered", "cancelled"] as const;
 type OrderStatus = Exclude<(typeof statuses)[number], "all">;
+
+const decisionMeta = {
+  accepted: { label: "Acceptée pour traitement", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  rejected: { label: "Refusée", className: "border-rose-200 bg-rose-50 text-rose-800" },
+  refund_requested: { label: "Remboursement à traiter", className: "border-amber-200 bg-amber-50 text-amber-800" },
+} as const;
+
+type DecisionAction = keyof typeof decisionMeta;
 
 const statusMeta: Record<OrderStatus, { label: string; className: string }> = {
   pending: { label: "En attente", className: "border-amber-200 bg-amber-50 text-amber-800" },
@@ -65,9 +75,16 @@ export default function AdminOrders() {
   const [trackingNumber, setTrackingNumber] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>("all");
+  const [decisionTarget, setDecisionTarget] = useState<{ action: DecisionAction; orderId: number } | null>(null);
+  const [decisionReason, setDecisionReason] = useState("");
+  const [decisionConfirmation, setDecisionConfirmation] = useState("");
 
   const { data: orders, isLoading, refetch } = trpc.admin.orders.getAll.useQuery();
   const { data: orderItems, isLoading: isLoadingItems } = trpc.admin.orders.getItems.useQuery(
+    { orderId: selectedOrder?.id ?? 0 },
+    { enabled: Boolean(selectedOrder?.id && isDetailsOpen) }
+  );
+  const { data: orderDecisions, isLoading: isLoadingDecisions, refetch: refetchDecisions } = trpc.admin.orders.getDecisions.useQuery(
     { orderId: selectedOrder?.id ?? 0 },
     { enabled: Boolean(selectedOrder?.id && isDetailsOpen) }
   );
@@ -79,6 +96,18 @@ export default function AdminOrders() {
       await refetch();
     },
     onError: error => toast.error(error.message || "Mise à jour impossible."),
+  });
+
+  const decide = trpc.admin.orders.decide.useMutation({
+    onSuccess: async (_, variables) => {
+      toast.success(variables.action === "accepted" ? "Commande acceptée pour traitement manuel." : variables.action === "rejected" ? "Commande refusée. Aucun fournisseur n’a été contacté." : "Demande de remboursement enregistrée. Aucun remboursement n’a été envoyé automatiquement.");
+      setDecisionTarget(null);
+      setDecisionReason("");
+      setDecisionConfirmation("");
+      setIsDetailsOpen(false);
+      await Promise.all([refetch(), refetchDecisions()]);
+    },
+    onError: error => toast.error(error.message || "Décision impossible."),
   });
 
   const filteredOrders = useMemo(() => {
@@ -112,6 +141,23 @@ export default function AdminOrders() {
       id: selectedOrder.id,
       status,
       trackingNumber: trackingNumber.trim() || undefined,
+    });
+  };
+
+  const openDecision = (action: DecisionAction) => {
+    if (!selectedOrder) return;
+    setDecisionReason("");
+    setDecisionConfirmation("");
+    setDecisionTarget({ action, orderId: selectedOrder.id });
+  };
+
+  const submitDecision = () => {
+    if (!decisionTarget) return;
+    decide.mutate({
+      orderId: decisionTarget.orderId,
+      action: decisionTarget.action,
+      reason: decisionReason.trim() || undefined,
+      confirmation: decisionConfirmation.trim() || undefined,
     });
   };
 
@@ -203,6 +249,12 @@ export default function AdminOrders() {
 
                 {selectedOrder.notes && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">Note interne</p><p className="mt-1 whitespace-pre-line">{selectedOrder.notes}</p></div>}
 
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><ShieldAlert className="h-4 w-4 text-blue-700" /> Validation avant fournisseur</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Aucune décision ci-dessous ne crée une commande CJ, ne transmet l’adresse client ou n’effectue un remboursement réel. Ces actions restent manuelles pendant la phase de test.</p></div><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">Sas actif</Badge></div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3"><Button type="button" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={selectedOrder.status !== "pending" || selectedOrder.paymentStatus !== "paid"} onClick={() => openDecision("accepted")}><CheckCircle className="mr-2 h-4 w-4" /> Accepter</Button><Button type="button" variant="outline" className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50" disabled={selectedOrder.status === "shipped" || selectedOrder.status === "delivered"} onClick={() => openDecision("rejected")}><XCircle className="mr-2 h-4 w-4" /> Refuser</Button><Button type="button" variant="outline" className="border-amber-200 bg-white text-amber-900 hover:bg-amber-50" disabled={selectedOrder.paymentStatus !== "paid" || selectedOrder.paymentStatus === "refunded"} onClick={() => openDecision("refund_requested")}><RotateCcw className="mr-2 h-4 w-4" /> Demander remboursement</Button></div>
+                  {selectedOrder.paymentStatus !== "paid" && <p className="mt-3 text-xs text-slate-500">L’acceptation est disponible uniquement après la confirmation d’un paiement réel. Les paiements ne sont pas encore activés sur MAZIGHO.</p>}
+                  <div className="mt-4 border-t border-blue-100 pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Historique des décisions</p>{isLoadingDecisions ? <Skeleton className="h-8 w-full" /> : orderDecisions?.length ? <div className="space-y-2">{orderDecisions.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs"><div className="flex min-w-0 items-center gap-2"><Badge variant="outline" className={decisionMeta[item.action as DecisionAction].className}>{decisionMeta[item.action as DecisionAction].label}</Badge>{item.reason && <span className="truncate text-slate-600">{item.reason}</span>}</div><span className="text-slate-500">{formatDate(item.createdAt)}</span></div>)}</div> : <p className="text-xs text-slate-500">Aucune décision enregistrée.</p>}</div>
+                </div>
+
                 <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
                   <div className="grid gap-2"><Label htmlFor="status">Statut de la commande</Label><Select value={status} onValueChange={value => setStatus(value as OrderStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{statuses.filter(value => value !== "all").map(value => <SelectItem key={value} value={value}>{statusMeta[value as OrderStatus].label}</SelectItem>)}</SelectContent></Select></div>
                   <div className="grid gap-2"><Label htmlFor="tracking">Numéro de suivi</Label><div className="relative"><Truck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="tracking" value={trackingNumber} onChange={event => setTrackingNumber(event.target.value)} placeholder="Ex. CH123456789" className="pl-9" /></div></div>
@@ -212,6 +264,10 @@ export default function AdminOrders() {
               <DialogFooter><Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>Fermer</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={updateStatus.isPending}>{updateStatus.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer le suivi</Button></DialogFooter>
             </form>}
           </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(decisionTarget)} onOpenChange={open => { if (!open) { setDecisionTarget(null); setDecisionReason(""); setDecisionConfirmation(""); } }}>
+          <DialogContent className="sm:max-w-md">{decisionTarget && <><DialogHeader><DialogTitle>{decisionMeta[decisionTarget.action].label} — commande #{decisionTarget.orderId}</DialogTitle><DialogDescription>{decisionTarget.action === "accepted" ? "La commande passera en préparation interne. Aucun fournisseur ne sera contacté et aucun paiement CJ ne sera exécuté." : decisionTarget.action === "rejected" ? "La commande sera annulée dans MAZIGHO. Aucun fournisseur ne sera contacté." : "Une demande interne sera enregistrée. Aucun remboursement réel ne sera exécuté tant que le prestataire de paiement n’est pas connecté."}</DialogDescription></DialogHeader><div className="grid gap-4 py-3"><div className="grid gap-2"><Label htmlFor="decision-reason">Motif interne (facultatif)</Label><Input id="decision-reason" value={decisionReason} maxLength={500} onChange={event => setDecisionReason(event.target.value)} placeholder="Ex. stock non confirmé" /></div>{decisionTarget.action !== "accepted" && <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3"><Label htmlFor="decision-confirmation">Pour confirmer, saisissez exactement :</Label><code className="rounded bg-white px-2 py-1 text-sm text-slate-900">{decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`}</code><Input id="decision-confirmation" value={decisionConfirmation} onChange={event => setDecisionConfirmation(event.target.value)} autoComplete="off" placeholder="Texte de confirmation" /></div>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setDecisionTarget(null)}>Annuler</Button><Button type="button" disabled={decide.isPending || (decisionTarget.action !== "accepted" && decisionConfirmation !== (decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`))} className={decisionTarget.action === "accepted" ? "bg-emerald-600 hover:bg-emerald-700" : decisionTarget.action === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"} onClick={submitDecision}>{decide.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{decisionTarget.action === "accepted" ? "Confirmer l’acceptation" : decisionTarget.action === "rejected" ? "Confirmer le refus" : "Enregistrer la demande"}</Button></DialogFooter></>}</DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>

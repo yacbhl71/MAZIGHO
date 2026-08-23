@@ -107,6 +107,19 @@ export const orders = mysqlTable("orders", {
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
 
+// Administrative decision trail. These decisions never trigger a supplier order or a payment refund by themselves.
+export const orderDecisions = mysqlTable("orderDecisions", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  action: mysqlEnum("action", ["accepted", "rejected", "refund_requested"]).notNull(),
+  reason: varchar("reason", { length: 500 }),
+  actorUserId: int("actorUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type OrderDecision = typeof orderDecisions.$inferSelect;
+export type InsertOrderDecision = typeof orderDecisions.$inferInsert;
+
 // Order items table
 export const orderItems = mysqlTable("orderItems", {
   id: int("id").autoincrement().primaryKey(),
