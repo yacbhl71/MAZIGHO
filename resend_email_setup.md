@@ -21,3 +21,5 @@ Le 23 août 2026, le domaine officiel a été vérifié après publication : la 
 ## Blocage Swizzonic — 23 août 2026
 
 La tentative d’ajout du TXT DKIM `resend._domainkey.notifications.mazigho.ch` dans l’éditeur DNS Swizzonic a retourné l’erreur générique allemande « Ein unbekannter Fehler ist aufgetreten ». Une vérification DNS publique a confirmé que le record n’avait pas été créé. Un ticket Swizzonic a été soumis avec une autorisation strictement limitée à la zone DNS et une demande explicite de ne pas accéder aux boîtes e-mail ni aux autres services. Attendre leur réponse avant de modifier de nouveau les enregistrements Resend.
+
+La dernière vérification DNS publique après l’ouverture du ticket confirme toujours l’absence de `resend._domainkey.notifications.mazigho.ch` (NXDOMAIN). Aucun nouvel enregistrement ne doit être supposé actif avant une confirmation de Swizzonic.
