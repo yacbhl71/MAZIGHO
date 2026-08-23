@@ -1,8 +1,11 @@
 import LegalLayout from "@/components/LegalLayout";
+import { useLegalProfile } from "@/hooks/useLegalProfile";
 
 const updatedAt = "23 août 2026";
 
 export default function PrivacyPolicy() {
+  const { profile } = useLegalProfile();
+
   return (
     <LegalLayout
       eyebrow="Données personnelles"
@@ -13,7 +16,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Responsable du traitement</h2>
         <p className="mt-3">
-          Le responsable du traitement des données personnelles est <strong>Bahloul Yacine</strong>, exploitant de MAZIGHO, Chemin des Lieugex 17, 1860 Aigle, Suisse. Pour toute demande relative aux données personnelles, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href="mailto:yacbhll@gmail.com">yacbhll@gmail.com</a>.
+          Le responsable du traitement des données personnelles est <strong>{profile.operatorName}</strong>, exploitant de MAZIGHO, {profile.addressLine}, {profile.postalCodeCity}, {profile.country}. Pour toute demande relative aux données personnelles, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
 

@@ -1,8 +1,11 @@
 import LegalLayout from "@/components/LegalLayout";
+import { useLegalProfile } from "@/hooks/useLegalProfile";
 
 const updatedAt = "23 août 2026";
 
 export default function TermsAndConditions() {
+  const { profile } = useLegalProfile();
+
   return (
     <LegalLayout
       eyebrow="Cadre de vente"
@@ -13,7 +16,7 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Champ d’application</h2>
         <p className="mt-3">
-          Les présentes conditions générales régissent l’utilisation de la boutique MAZIGHO et les futures ventes conclues entre Bahloul Yacine, exploitant de MAZIGHO, et ses clients consommateurs. Elles s’appliqueront dans leur version affichée au moment de la validation d’une commande.
+          Les présentes conditions générales régissent l’utilisation de la boutique MAZIGHO et les futures ventes conclues entre {profile.operatorName}, exploitant de MAZIGHO, et ses clients consommateurs. Elles s’appliqueront dans leur version affichée au moment de la validation d’une commande.
         </p>
       </section>
 
@@ -55,7 +58,7 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">7. Livraison et retours</h2>
         <p className="mt-3">
-          MAZIGHO envisage de livrer en Suisse et dans certains pays d’Europe, selon la disponibilité des produits et des transporteurs. Les destinations précises, les coûts et les délais réalistes seront confirmés avant l’ouverture des commandes. À ce stade, aucun programme commercial de retour n’est proposé. Les droits légaux impératifs applicables en cas de produit défectueux restent réservés.
+          Zones de livraison envisagées : {profile.deliveryZones}. {profile.deliveryDetails} Politique actuelle de retours : {profile.returnsPolicy} Les droits légaux impératifs applicables en cas de produit défectueux restent réservés.
         </p>
       </section>
 
@@ -69,7 +72,7 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">9. Droit applicable et contact</h2>
         <p className="mt-3">
-          Les présentes conditions sont soumises au droit suisse, sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez MAZIGHO à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href="mailto:yacbhll@gmail.com">yacbhll@gmail.com</a>.
+          Les présentes conditions sont soumises au droit suisse, sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez MAZIGHO à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
     </LegalLayout>

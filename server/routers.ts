@@ -19,6 +19,14 @@ export const appRouter = router({
     }),
   }),
 
+  // Public legal information shown on the storefront
+  legal: router({
+    get: publicProcedure.query(async () => {
+      const { getLegalProfile } = await import("./db");
+      return await getLegalProfile();
+    }),
+  }),
+
   // Categories
   categories: router({
     getAll: publicProcedure.query(async () => {

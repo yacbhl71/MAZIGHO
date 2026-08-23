@@ -1373,6 +1373,72 @@ export async function upsertSetting(data: { key: string; value: string; descript
   return { success: true };
 }
 
+export type LegalProfile = {
+  operatorName: string;
+  addressLine: string;
+  postalCodeCity: string;
+  country: string;
+  contactEmail: string;
+  businessStatus: string;
+  ideVatNumber: string;
+  deliveryZones: string;
+  deliveryDetails: string;
+  returnsPolicy: string;
+};
+
+export const defaultLegalProfile: LegalProfile = {
+  operatorName: "Bahloul Yacine",
+  addressLine: "Chemin des Lieugex 17",
+  postalCodeCity: "1860 Aigle",
+  country: "Suisse",
+  contactEmail: "yacbhll@gmail.com",
+  businessStatus: "Activité individuelle en cours de création",
+  ideVatNumber: "Aucun numéro IDE ou TVA attribué à ce jour",
+  deliveryZones: "Suisse et certains pays d’Europe, selon disponibilité",
+  deliveryDetails: "Les destinations, frais et délais définitifs seront affichés avant l’ouverture des commandes.",
+  returnsPolicy: "Aucun programme commercial de retours ou d’échanges n’est proposé à ce stade.",
+};
+
+function normalizeLegalProfile(value: unknown): LegalProfile {
+  if (!value || typeof value !== "object") return { ...defaultLegalProfile };
+  const source = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(defaultLegalProfile).map(([key, fallback]) => [
+      key,
+      typeof source[key] === "string" && source[key].trim() ? source[key].trim() : fallback,
+    ]),
+  ) as LegalProfile;
+}
+
+export async function getLegalProfile(): Promise<LegalProfile> {
+  const db = await getDb();
+  if (!db) return { ...defaultLegalProfile };
+  const rows = await db.select().from(settings).where(eq(settings.key, "legal_profile")).limit(1);
+  if (!rows[0]) return { ...defaultLegalProfile };
+  try {
+    return normalizeLegalProfile(JSON.parse(rows[0].value));
+  } catch {
+    return { ...defaultLegalProfile };
+  }
+}
+
+export async function updateLegalProfile(data: LegalProfile) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const profile = normalizeLegalProfile(data);
+  await db.insert(settings).values({
+    key: "legal_profile",
+    value: JSON.stringify(profile),
+    description: "Informations légales publiques de MAZIGHO",
+  }).onDuplicateKeyUpdate({
+    set: {
+      value: JSON.stringify(profile),
+      description: "Informations légales publiques de MAZIGHO",
+    },
+  });
+  return profile;
+}
+
 export async function getAllPromotions() {
   const db = await getDb();
   if (!db) return [];

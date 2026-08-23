@@ -1,8 +1,11 @@
 import LegalLayout from "@/components/LegalLayout";
+import { useLegalProfile } from "@/hooks/useLegalProfile";
 
 const updatedAt = "23 août 2026";
 
 export default function LegalNotice() {
+  const { profile } = useLegalProfile();
+
   return (
     <LegalLayout
       eyebrow="Informations légales"
@@ -13,20 +16,18 @@ export default function LegalNotice() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Exploitant du site</h2>
         <p className="mt-3">
-          Le site <strong>mazigho.ch</strong> et la boutique MAZIGHO sont exploités par <strong>Bahloul Yacine</strong>, à titre individuel, dans le cadre d’une activité en cours de création.
+          Le site <strong>mazigho.ch</strong> et la boutique MAZIGHO sont exploités par <strong>{profile.operatorName}</strong>. Statut déclaré : {profile.businessStatus}.
         </p>
         <address className="mt-4 not-italic">
           <strong>Adresse postale :</strong><br />
-          Chemin des Lieugex 17<br />
-          1860 Aigle<br />
-          Suisse
+          {profile.addressLine}<br />
+          {profile.postalCodeCity}<br />
+          {profile.country}
         </address>
         <p className="mt-4">
-          <strong>Adresse e-mail de contact :</strong> <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href="mailto:yacbhll@gmail.com">yacbhll@gmail.com</a>
+          <strong>Adresse e-mail de contact :</strong> <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>
         </p>
-        <p className="mt-4">
-          Aucun numéro IDE ou numéro de TVA n’est attribué à ce jour. Ces mentions seront mises à jour si l’activité est enregistrée ou assujettie ultérieurement.
-        </p>
+        <p className="mt-4">{profile.ideVatNumber}</p>
       </section>
 
       <section>

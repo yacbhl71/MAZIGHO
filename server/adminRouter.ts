@@ -426,6 +426,27 @@ export const adminRouter = router({
     }),
   }),
 
+  // Public legal information managed from the admin panel
+  legal: router({
+    get: adminProcedure.query(async () => {
+      return await db.getLegalProfile();
+    }),
+    update: adminProcedure.input(z.object({
+      operatorName: z.string().trim().min(2).max(160),
+      addressLine: z.string().trim().min(4).max(240),
+      postalCodeCity: z.string().trim().min(3).max(160),
+      country: z.string().trim().min(2).max(80),
+      contactEmail: z.string().trim().email().max(254),
+      businessStatus: z.string().trim().min(2).max(500),
+      ideVatNumber: z.string().trim().min(2).max(500),
+      deliveryZones: z.string().trim().min(2).max(1000),
+      deliveryDetails: z.string().trim().min(2).max(3000),
+      returnsPolicy: z.string().trim().min(2).max(3000),
+    })).mutation(async ({ input }) => {
+      return await db.updateLegalProfile(input);
+    }),
+  }),
+
   // Homepage content / banners
   content: router({
     getAll: adminProcedure.query(async () => {
