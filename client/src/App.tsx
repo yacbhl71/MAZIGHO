@@ -49,10 +49,55 @@ function ScrollToTop() {
   return null;
 }
 
+function BrowserTitle() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    const adminTitles: Record<string, string> = {
+      "/admin": "MAZIGHO Admin | Tableau de bord",
+      "/admin/produits": "MAZIGHO Admin | Produits",
+      "/admin/importation": "MAZIGHO Admin | Import fournisseur",
+      "/admin/categories": "MAZIGHO Admin | Catégories",
+      "/admin/commandes": "MAZIGHO Admin | Commandes",
+      "/admin/utilisateurs": "MAZIGHO Admin | Utilisateurs",
+      "/admin/avis": "MAZIGHO Admin | Avis clients",
+      "/admin/contenu": "MAZIGHO Admin | Contenu",
+      "/admin/promotions": "MAZIGHO Admin | Promotions",
+      "/admin/messages": "MAZIGHO Admin | Messages",
+      "/admin/parametres": "MAZIGHO Admin | Paramètres",
+    };
+    const publicTitles: Record<string, string> = {
+      "/": "MAZIGHO | Boutique en ligne",
+      "/boutique": "Boutique | MAZIGHO",
+      "/nouveautes": "Nouveautés | MAZIGHO",
+      "/best-sellers": "Meilleures ventes | MAZIGHO",
+      "/meilleures-ventes": "Meilleures ventes | MAZIGHO",
+      "/promos": "Promotions | MAZIGHO",
+      "/panier": "Panier | MAZIGHO",
+      "/commander": "Paiement sécurisé | MAZIGHO",
+      "/mon-compte": "Mon compte | MAZIGHO",
+      "/parametres": "Paramètres du compte | MAZIGHO",
+      "/login": "Connexion | MAZIGHO",
+      "/register": "Créer un compte | MAZIGHO",
+      "/mot-de-passe-oublie": "Mot de passe oublié | MAZIGHO",
+      "/reinitialiser-mot-de-passe": "Réinitialiser le mot de passe | MAZIGHO",
+      "/activer-compte": "Activer votre compte | MAZIGHO",
+      "/contact": "Contact | MAZIGHO",
+      "/a-propos": "À propos | MAZIGHO",
+      "/faq": "Aide | MAZIGHO",
+    };
+
+    document.title = adminTitles[location] || publicTitles[location] || "MAZIGHO | Boutique en ligne";
+  }, [location]);
+
+  return null;
+}
+
 function Router() {
   return (
     <>
       <ScrollToTop />
+      <BrowserTitle />
       <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/boutique"} component={Shop} />
