@@ -3,6 +3,7 @@ import { z } from "zod";
 import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
+import { storagePut } from "./storage";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -39,6 +40,22 @@ function rethrowUserManagementError(error: unknown): never {
   }
   throw error;
 }
+
+function decodeDesignImage(dataUrl: string) {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) throw new TRPCError({ code: "BAD_REQUEST", message: "Format d’image non pris en charge. Utilisez JPEG, PNG ou WebP." });
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+    throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "L’image doit peser au maximum 5 Mo." });
+  }
+  const extension = match[1] === "image/jpeg" ? "jpg" : match[1].split("/")[1];
+  return { buffer, contentType: match[1], extension };
+}
+
+const visualUrlSchema = z.string().trim().min(1).max(2000).refine(
+  value => value.startsWith("/") || /^https?:\/\//i.test(value),
+  "Utilisez une URL https:// ou un chemin d’image interne commençant par /."
+);
 
 export const adminRouter = router({
   // Dashboard Stats
@@ -423,6 +440,43 @@ export const adminRouter = router({
       description: z.string().optional(),
     })).mutation(async ({ input }) => {
       return await db.upsertSetting(input);
+    }),
+  }),
+
+  // Visual customisation of the public storefront
+  design: router({
+    get: adminProcedure.query(async () => {
+      return await db.getDesignProfile();
+    }),
+    update: adminProcedure.input(z.object({
+      paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
+      typographyId: z.enum(["editorial", "modern", "classic"]),
+      highlightEyebrow: z.string().trim().min(2).max(120),
+      highlightTitle: z.string().trim().min(2).max(180),
+      highlightText: z.string().trim().min(2).max(600),
+      highlightImageUrl: visualUrlSchema,
+      storyTitle: z.string().trim().min(2).max(180),
+      storyText: z.string().trim().min(2).max(1000),
+      storyImageUrl: visualUrlSchema,
+      editorialEyebrow: z.string().trim().min(2).max(120),
+      editorialTitle: z.string().trim().min(2).max(180),
+      editorialImageUrl: visualUrlSchema,
+      showDiscovery: z.boolean(),
+      showStory: z.boolean(),
+      showTestimonials: z.boolean(),
+      showEditorial: z.boolean(),
+    })).mutation(async ({ input }) => {
+      return await db.updateDesignProfile(input);
+    }),
+    uploadImage: adminProcedure.input(z.object({
+      dataUrl: z.string().max(7_100_000),
+      fileName: z.string().trim().min(1).max(160),
+    })).mutation(async ({ ctx, input }) => {
+      const image = decodeDesignImage(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "illustration";
+      const key = `design/${ctx.user.id}/${Date.now()}-${safeName}.${image.extension}`;
+      const { url } = await storagePut(key, image.buffer, image.contentType);
+      return { url };
     }),
   }),
 

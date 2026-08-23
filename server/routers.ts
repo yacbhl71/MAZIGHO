@@ -19,6 +19,14 @@ export const appRouter = router({
     }),
   }),
 
+  // Public visual customisation applied to the storefront
+  design: router({
+    get: publicProcedure.query(async () => {
+      const { getDesignProfile } = await import("./db");
+      return await getDesignProfile();
+    }),
+  }),
+
   // Public legal information shown on the storefront
   legal: router({
     get: publicProcedure.query(async () => {

@@ -1439,6 +1439,96 @@ export async function updateLegalProfile(data: LegalProfile) {
   return profile;
 }
 
+export type DesignProfile = {
+  paletteId: "terracotta" | "sage" | "midnight" | "rose";
+  typographyId: "editorial" | "modern" | "classic";
+  highlightEyebrow: string;
+  highlightTitle: string;
+  highlightText: string;
+  highlightImageUrl: string;
+  storyTitle: string;
+  storyText: string;
+  storyImageUrl: string;
+  editorialEyebrow: string;
+  editorialTitle: string;
+  editorialImageUrl: string;
+  showDiscovery: boolean;
+  showStory: boolean;
+  showTestimonials: boolean;
+  showEditorial: boolean;
+};
+
+export const defaultDesignProfile: DesignProfile = {
+  paletteId: "terracotta",
+  typographyId: "editorial",
+  highlightEyebrow: "L'inspiration MAZIGHO",
+  highlightTitle: "Des trouvailles qui embellissent le quotidien.",
+  highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",
+  highlightImageUrl: "/assets/home-lifestyle-top.jpg",
+  storyTitle: "L’histoire inspirante de MAZIGHO.",
+  storyText: "MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.",
+  storyImageUrl: "/assets/home-lifestyle-top.jpg",
+  editorialEyebrow: "Sélection éditoriale",
+  editorialTitle: "Le détail qui fait la différence.",
+  editorialImageUrl: "/assets/home-editorial-divider.jpg",
+  showDiscovery: true,
+  showStory: true,
+  showTestimonials: true,
+  showEditorial: true,
+};
+
+function normalizeDesignProfile(value: unknown): DesignProfile {
+  if (!value || typeof value !== "object") return { ...defaultDesignProfile };
+  const source = value as Record<string, unknown>;
+  const paletteId = ["terracotta", "sage", "midnight", "rose"].includes(String(source.paletteId))
+    ? source.paletteId as DesignProfile["paletteId"]
+    : defaultDesignProfile.paletteId;
+  const typographyId = ["editorial", "modern", "classic"].includes(String(source.typographyId))
+    ? source.typographyId as DesignProfile["typographyId"]
+    : defaultDesignProfile.typographyId;
+  const textFields = [
+    "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
+    "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
+  ] as const;
+  const normalized = { ...defaultDesignProfile, paletteId, typographyId };
+  for (const field of textFields) {
+    if (typeof source[field] === "string" && source[field].trim()) normalized[field] = source[field].trim();
+  }
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial"] as const) {
+    if (typeof source[field] === "boolean") normalized[field] = source[field];
+  }
+  return normalized;
+}
+
+export async function getDesignProfile(): Promise<DesignProfile> {
+  const db = await getDb();
+  if (!db) return { ...defaultDesignProfile };
+  const rows = await db.select().from(settings).where(eq(settings.key, "design_profile")).limit(1);
+  if (!rows[0]) return { ...defaultDesignProfile };
+  try {
+    return normalizeDesignProfile(JSON.parse(rows[0].value));
+  } catch {
+    return { ...defaultDesignProfile };
+  }
+}
+
+export async function updateDesignProfile(data: DesignProfile): Promise<DesignProfile> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const profile = normalizeDesignProfile(data);
+  await db.insert(settings).values({
+    key: "design_profile",
+    value: JSON.stringify(profile),
+    description: "Personnalisation visuelle publique de MAZIGHO",
+  }).onDuplicateKeyUpdate({
+    set: {
+      value: JSON.stringify(profile),
+      description: "Personnalisation visuelle publique de MAZIGHO",
+    },
+  });
+  return profile;
+}
+
 export async function getAllPromotions() {
   const db = await getDb();
   if (!db) return [];
