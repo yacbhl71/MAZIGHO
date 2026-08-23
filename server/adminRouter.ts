@@ -526,6 +526,7 @@ export const adminRouter = router({
         return await searchCjCatalogByImage(input);
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_IMAGE_ANALYSIS_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La recherche par photo doit encore être activée côté serveur. La recherche CJ par mot-clé reste disponible." });
         if (code === "CJ_IMAGE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Utilisez une image JPG, PNG ou WebP valide." });
         if (code === "CJ_IMAGE_TOO_LARGE") throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "L’image doit faire au maximum 4 Mo." });
         if (code === "CJ_IMAGE_NOT_PRODUCT") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette image ne permet pas d’identifier clairement un produit. Essayez une photo plus nette." });

@@ -255,9 +255,14 @@ function validateImageDataUrl(imageDataUrl: string) {
 
 async function extractCjSearchKeywordFromImage(imageDataUrl: string) {
   const safeImageDataUrl = validateImageDataUrl(imageDataUrl);
+  if (!process.env.BUILT_IN_FORGE_API_KEY || !process.env.BUILT_IN_FORGE_API_URL) {
+    throw new Error("CJ_IMAGE_ANALYSIS_NOT_CONFIGURED");
+  }
+
   let response;
   try {
     response = await invokeLLM({
+      model: "gemini-3-flash-preview",
       messages: [
         {
           role: "system",
@@ -274,7 +279,8 @@ async function extractCjSearchKeywordFromImage(imageDataUrl: string) {
       outputSchema: cjImageAnalysisSchema,
       maxTokens: 220,
     });
-  } catch {
+  } catch (error) {
+    console.error("[CJ image search] Image analysis failed", error);
     throw new Error("CJ_IMAGE_ANALYSIS_FAILED");
   }
 
