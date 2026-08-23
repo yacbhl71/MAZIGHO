@@ -840,6 +840,16 @@ export async function getAllProductsAdmin() {
   })));
 }
 
+export async function getProductBySupplierReference(supplier: string, supplierProductId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select({ id: products.id, name: products.name, slug: products.slug, status: products.status })
+    .from(products)
+    .where(and(eq(products.supplier, supplier), eq(products.supplierProductId, supplierProductId)))
+    .limit(1);
+  return rows[0];
+}
+
 export async function createProduct(data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -14,6 +14,7 @@ import {
   Search,
   MapPin,
   Workflow,
+  ClipboardPenLine,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -173,6 +174,7 @@ export default function AdminSuppliers() {
                       <div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div>
                       <div className="flex flex-wrap gap-1.5">{product.category && <Badge variant="secondary" className="max-w-full truncate bg-slate-100 text-slate-600">{product.category}</Badge>}{product.hasCeCertification && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">CE indiqué</Badge>}{product.isFreeShipping && <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">Livraison gratuite indiquée</Badge>}</div>
                       <p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p>
+                      <Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link>
                     </div>
                   </article>)}
                 </div>

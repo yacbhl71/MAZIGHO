@@ -4,7 +4,7 @@ import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { getCjConnectionStatus, searchCjCatalog, verifyCjConnection } from "./cjDropshipping";
+import { getCjConnectionStatus, prepareCjProductImport, searchCjCatalog, verifyCjConnection } from "./cjDropshipping";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -145,6 +145,39 @@ export const adminRouter = router({
     }),
     importFromUrl: adminProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {
       return await db.createProduct(normalizeImportedProduct(input));
+    }),
+    importCjDraft: adminProcedure.input(z.object({
+      categoryId: z.number().int().positive(),
+      productId: z.string().trim().min(1).max(128),
+      sku: z.string().trim().max(200).nullable().optional(),
+      name: z.string().trim().min(3).max(200),
+      slug: z.string().trim().min(3).max(200),
+      description: z.string().trim().max(10_000).nullable().optional(),
+      priceCents: z.number().int().positive(),
+      supplierPriceCents: z.number().int().nonnegative().nullable().optional(),
+      stock: z.number().int().min(0).max(1_000_000).default(0),
+      images: z.array(z.string().url()).min(1).max(12),
+    })).mutation(async ({ input }) => {
+      const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: `Ce produit CJ est déjà enregistré dans MAZIGHO sous « ${existing.name} » (${existing.status === "draft" ? "brouillon" : existing.status}).` });
+      }
+      return await db.createProduct({
+        categoryId: input.categoryId,
+        name: input.name,
+        slug: input.slug,
+        description: input.description || null,
+        price: input.priceCents,
+        originalPrice: null,
+        stock: input.stock,
+        featured: 0,
+        status: "draft" as const,
+        images: input.images,
+        supplier: "CJdropshipping",
+        supplierProductId: input.productId,
+        supplierPrice: input.supplierPriceCents ?? null,
+        lastSyncedAt: new Date(),
+      });
     }),
   }),
 
@@ -472,6 +505,19 @@ export const adminRouter = router({
   suppliers: router({
     cjStatus: adminProcedure.query(() => getCjConnectionStatus()),
     verifyCj: adminProcedure.mutation(() => verifyCjConnection()),
+    prepareCjImport: adminProcedure.input(z.object({
+      productId: z.string().trim().min(1).max(128),
+      countryCode: z.string().trim().optional().transform(value => value || undefined).refine(value => value === undefined || /^[A-Z]{2}$/.test(value), "Utilisez un code pays à deux lettres."),
+    })).mutation(async ({ input }) => {
+      try {
+        return await prepareCjProductImport(input);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "BAD_GATEWAY", message: "CJdropshipping est momentanément inaccessible. Réessayez plus tard." });
+        if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de préparer cette fiche CJ pour le moment." });
+      }
+    }),
     searchCj: adminProcedure.input(z.object({
       keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères.").max(120),
       page: z.number().int().min(1).max(1000).default(1),

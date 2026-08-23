@@ -49,6 +49,33 @@ type CjProductListResponse = {
   } | null;
 };
 
+type CjProductDetailResponse = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    pid?: string;
+    productNameEn?: string;
+    productSku?: string;
+    bigImage?: string;
+    productImageSet?: unknown[];
+    sellPrice?: string | number;
+    description?: string;
+    categoryName?: string;
+    supplierName?: string;
+    productKeyEn?: string;
+    variants?: Array<{
+      variantKey?: string;
+      variantKeyEn?: string;
+      variantSku?: string;
+      variantSellPrice?: string | number;
+      inventories?: Array<{
+        countryCode?: string;
+        totalInventory?: number;
+      }>;
+    }>;
+  } | null;
+};
+
 type CjAccessToken = {
   token: string;
   accountReference?: string;
@@ -62,6 +89,19 @@ type CjConnectionStatus = {
   message: string;
   accountReference?: string;
   accessTokenExpiresAt?: string;
+};
+
+export type CjImportPreparation = {
+  productId: string;
+  sku: string | null;
+  name: string;
+  description: string;
+  images: string[];
+  supplierPriceUsd: number | null;
+  category: string | null;
+  supplierName: string | null;
+  reportedStock: number | null;
+  variantsLabel: string | null;
 };
 
 export type CjCatalogProduct = {
@@ -179,6 +219,86 @@ export async function verifyCjConnection(): Promise<CjConnectionStatus> {
  * Recherche lecture-seule dans le catalogue CJ. Le navigateur ne reçoit jamais de token CJ,
  * et aucun endpoint d’import ou de commande fournisseur n’est appelé.
  */
+function stripCjHtml(value: unknown) {
+  return String(value ?? "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 10_000);
+}
+
+function isPublicImageUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Consulte le détail produit officiel uniquement après la sélection explicite d’un administrateur.
+ * Cette fonction ne crée aucun produit MAZIGHO et ne contacte aucun endpoint de commande CJ.
+ */
+export async function prepareCjProductImport(input: { productId: string; countryCode?: string }): Promise<CjImportPreparation> {
+  const access = await getCjAccessToken();
+  const params = new URLSearchParams({ pid: input.productId.trim() });
+  if (input.countryCode) params.set("countryCode", input.countryCode);
+
+  let response: Response;
+  try {
+    response = await fetch(`${CJ_API_BASE}/product/query?${params.toString()}`, {
+      headers: { "CJ-Access-Token": access.token },
+      signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error("CJ_UNREACHABLE");
+  }
+
+  let payload: CjProductDetailResponse | null = null;
+  try {
+    payload = await response.json() as CjProductDetailResponse;
+  } catch {
+    throw new Error("CJ_INVALID_RESPONSE");
+  }
+  const product = payload?.data;
+  if (!response.ok || !payload?.success || !product?.pid || !product.productNameEn) {
+    throw new Error("CJ_PRODUCT_DETAILS_FAILED");
+  }
+
+  const images = Array.from(new Set([product.bigImage, ...(product.productImageSet || [])]
+    .filter(isPublicImageUrl))).slice(0, 12);
+  const variants = product.variants || [];
+  const reportedStock = variants.length === 0 ? null : variants.reduce((total, variant) => {
+    const inventories = variant.inventories || [];
+    return total + inventories.reduce((subtotal, inventory) => {
+      if (input.countryCode && inventory.countryCode !== input.countryCode) return subtotal;
+      return subtotal + (typeof inventory.totalInventory === "number" ? inventory.totalInventory : 0);
+    }, 0);
+  }, 0);
+  const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantKey).filter(Boolean))).slice(0, 8).join(" · ") || null;
+
+  return {
+    productId: product.pid,
+    sku: product.productSku || null,
+    name: product.productNameEn,
+    description: stripCjHtml(product.description),
+    images,
+    supplierPriceUsd: asFiniteNumber(product.sellPrice),
+    category: product.categoryName || null,
+    supplierName: product.supplierName || null,
+    reportedStock,
+    variantsLabel,
+  };
+}
+
 export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string }): Promise<CjCatalogSearch> {
   const access = await getCjAccessToken();
   const params = new URLSearchParams({

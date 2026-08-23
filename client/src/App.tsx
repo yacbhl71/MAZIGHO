@@ -19,6 +19,7 @@ import Account from "./pages/Account";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminDropshipping from "./pages/admin/AdminDropshipping";
+import AdminCjImport from "./pages/admin/AdminCjImport";
 import AdminSuppliers from "./pages/admin/AdminSuppliers";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -65,6 +66,7 @@ function BrowserTitle() {
       "/admin": "MAZIGHO Admin | Tableau de bord",
       "/admin/produits": "MAZIGHO Admin | Produits",
       "/admin/importation": "MAZIGHO Admin | Import fournisseur",
+      "/admin/import-cj": "MAZIGHO Admin | Brouillon CJ",
       "/admin/fournisseurs": "MAZIGHO Admin | Hub fournisseurs",
       "/admin/categories": "MAZIGHO Admin | Catégories",
       "/admin/commandes": "MAZIGHO Admin | Commandes",
@@ -145,6 +147,7 @@ function Router() {
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/admin/produits"} component={AdminProducts} />
       <Route path={"/admin/importation"} component={AdminDropshipping} />
+      <Route path={"/admin/import-cj"} component={AdminCjImport} />
       <Route path={"/admin/fournisseurs"} component={AdminSuppliers} />
       <Route path={"/admin/categories"} component={AdminCategories} />
       <Route path={"/admin/commandes"} component={AdminOrders} />
