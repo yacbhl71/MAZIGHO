@@ -157,6 +157,15 @@ export const adminRouter = router({
       supplierPriceCents: z.number().int().nonnegative().nullable().optional(),
       stock: z.number().int().min(0).max(1_000_000).default(0),
       images: z.array(z.string().url()).min(1).max(12),
+      deliveryProfiles: z.array(z.object({
+        countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
+        supplierVariantId: z.string().trim().min(1).max(128),
+        supplierShippingCost: z.number().int().min(0),
+        customerShippingCost: z.number().int().min(0),
+        deliveryMethod: z.string().trim().max(255).nullable().optional(),
+        minDeliveryDays: z.number().int().min(0).nullable().optional(),
+        maxDeliveryDays: z.number().int().min(0).nullable().optional(),
+      })).min(1).max(8),
     })).mutation(async ({ input }) => {
       const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId);
       if (existing) {
@@ -176,6 +185,12 @@ export const adminRouter = router({
         supplier: "CJdropshipping",
         supplierProductId: input.productId,
         supplierPrice: input.supplierPriceCents ?? null,
+        deliveryProfiles: input.deliveryProfiles.map(profile => ({
+          ...profile,
+          deliveryMethod: profile.deliveryMethod ?? null,
+          minDeliveryDays: profile.minDeliveryDays ?? null,
+          maxDeliveryDays: profile.maxDeliveryDays ?? null,
+        })),
         lastSyncedAt: new Date(),
       });
     }),

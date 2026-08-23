@@ -27,6 +27,11 @@ function formatChfInput(cents: number | null) {
   return cents == null ? "" : (cents / 100).toFixed(2);
 }
 
+function parseDeliveryRange(value: string | null) {
+  const days = (value?.match(/\d+/g) || []).map(Number).filter(Number.isFinite);
+  return { minDeliveryDays: days[0] ?? null, maxDeliveryDays: days[days.length - 1] ?? null };
+}
+
 const deliveryMarkets = [
   { code: "CH", label: "Suisse" }, { code: "FR", label: "France" }, { code: "DE", label: "Allemagne" }, { code: "IT", label: "Italie" },
   { code: "AT", label: "Autriche" }, { code: "BE", label: "Belgique" }, { code: "NL", label: "Pays-Bas" }, { code: "ES", label: "Espagne" },
@@ -73,14 +78,14 @@ export default function AdminCjImport() {
     onError: error => toast.error(error.message || "Impossible de calculer la livraison CJ."),
   });
   const selectedVariant = preparedProduct?.variants.find(variant => variant.id === deliveryVariantId) || null;
-  const deliveryQuoteIsCurrent = quoteCjDelivery.data?.variantId === deliveryVariantId && deliveryCountries.every(code => quoteCjDelivery.data?.countries.some(country => country.countryCode === code && country.options.length > 0));
-  const swissFreightUsd = deliveryQuoteIsCurrent ? quoteCjDelivery.data?.countries.find(country => country.countryCode === "CH")?.options[0]?.costUsd ?? null : null;
+  const deliveryQuoteIsCurrent = quoteCjDelivery.data?.variantId === deliveryVariantId;
+  const confirmedDeliveryCountries = useMemo(() => deliveryQuoteIsCurrent ? (quoteCjDelivery.data?.countries.filter(country => country.options.length > 0) || []) : [], [deliveryQuoteIsCurrent, quoteCjDelivery.data]);
   const suggestedCostCents = useMemo(() => {
     const rate = Number(exchangeRate.replace(",", "."));
     const productUsd = selectedVariant?.supplierPriceUsd ?? preparedProduct?.supplierPriceUsd;
-    if (productUsd == null || swissFreightUsd == null || !Number.isFinite(rate) || rate <= 0) return null;
-    return Math.round((productUsd + swissFreightUsd) * rate * 100);
-  }, [exchangeRate, preparedProduct, selectedVariant, swissFreightUsd]);
+    if (productUsd == null || !Number.isFinite(rate) || rate <= 0) return null;
+    return Math.round(productUsd * rate * 100);
+  }, [exchangeRate, preparedProduct, selectedVariant]);
 
   useEffect(() => {
     if (suggestedCostCents == null) return;
@@ -88,6 +93,29 @@ export default function AdminCjImport() {
   }, [suggestedCostCents]);
 
   const supplierCostCents = parseChfCents(supplierCostChf);
+  const salePriceCents = parseChfCents(salePriceChf);
+  const deliveryProfiles = useMemo(() => {
+    const rate = Number(exchangeRate.replace(",", "."));
+    const targetMargin = Number(marginPercent.replace(",", "."));
+    if (!selectedVariant || !salePriceCents || supplierCostCents == null || !Number.isFinite(rate) || rate <= 0 || !Number.isFinite(targetMargin) || targetMargin < 0) return [];
+    const requiredProfitCents = Math.round(supplierCostCents * targetMargin / 100);
+    return confirmedDeliveryCountries.flatMap(country => {
+      const option = country.options[0];
+      if (!option) return [];
+      const supplierShippingCost = Math.round(option.costUsd * rate * 100);
+      const profitAfterShipping = salePriceCents - supplierCostCents - supplierShippingCost;
+      const customerShippingCost = profitAfterShipping >= requiredProfitCents ? 0 : supplierShippingCost;
+      const range = parseDeliveryRange(option.delay);
+      return [{
+        countryCode: country.countryCode as (typeof deliveryMarkets)[number]["code"],
+        supplierVariantId: selectedVariant.id,
+        supplierShippingCost,
+        customerShippingCost,
+        deliveryMethod: option.name,
+        ...range,
+      }];
+    });
+  }, [confirmedDeliveryCountries, exchangeRate, marginPercent, salePriceCents, selectedVariant, supplierCostCents]);
   const suggestedSaleCents = useMemo(() => {
     const margin = Number(marginPercent.replace(",", "."));
     if (supplierCostCents == null || supplierCostCents <= 0 || !Number.isFinite(margin) || margin < 0) return null;
@@ -109,7 +137,6 @@ export default function AdminCjImport() {
 
   const handleSave = (event: React.FormEvent) => {
     event.preventDefault();
-    const salePriceCents = parseChfCents(salePriceChf);
     const parsedStock = Number(stock);
     const images = imagesText.split("\n").map(value => value.trim()).filter(Boolean);
 
@@ -117,9 +144,8 @@ export default function AdminCjImport() {
       toast.error("Choisissez une catégorie et complétez le titre ainsi que le slug.");
       return;
     }
-    const incompleteCoverage = !deliveryQuoteIsCurrent;
-    if (incompleteCoverage) {
-      toast.error("Vérifiez d’abord la livraison CJ pour la Suisse et les destinations européennes sélectionnées.");
+    if (!deliveryQuoteIsCurrent || confirmedDeliveryCountries.length === 0) {
+      toast.error("Vérifiez au moins une destination CJ réellement desservie avant de créer le brouillon.");
       return;
     }
     if (supplierCostCents == null || supplierCostCents <= 0 || salePriceCents == null || salePriceCents <= 0) {
@@ -146,6 +172,7 @@ export default function AdminCjImport() {
       supplierPriceCents: supplierCostCents,
       stock: parsedStock,
       images,
+      deliveryProfiles,
     });
   };
 
@@ -188,13 +215,14 @@ export default function AdminCjImport() {
             <div className="space-y-4 rounded-xl border border-sky-100 bg-sky-50/60 p-4">
               <div><h3 className="font-semibold text-slate-900">Livraison Suisse et Europe à contrôler</h3><p className="mt-1 text-xs leading-5 text-slate-600">Choisissez une variante puis demandez un devis officiel CJ pour les pays sélectionnés. Aucun client, aucune adresse réelle et aucune commande CJ ne sont transmis.</p></div>
               {preparedProduct.variants.length === 0 ? <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">CJ ne renvoie aucune variante exploitable pour calculer le transport. Choisissez un autre produit.</p> : <><div className="grid gap-4 md:grid-cols-2"><label className="block space-y-2"><span className="text-sm font-medium">Variante pour le devis</span><select value={deliveryVariantId} onChange={event => { setDeliveryVariantId(event.target.value); quoteCjDelivery.reset(); }} className="h-10 w-full rounded-md border bg-white px-3 text-sm"><option value="">Choisir une variante…</option>{preparedProduct.variants.map(variant => <option key={variant.id} value={variant.id}>{variant.label}{variant.supplierPriceUsd == null ? "" : ` · $${variant.supplierPriceUsd.toFixed(2)} USD`}</option>)}</select></label><div className="space-y-2"><span className="block text-sm font-medium">Destinations à confirmer</span><div className="flex flex-wrap gap-x-3 gap-y-2 rounded-md border bg-white p-3">{deliveryMarkets.map(market => <label key={market.code} className="flex items-center gap-1.5 text-xs text-slate-700"><input type="checkbox" checked={deliveryCountries.includes(market.code)} onChange={event => { setDeliveryCountries(current => event.target.checked ? [...current, market.code] : current.filter(code => code !== market.code)); quoteCjDelivery.reset(); }} className="h-3.5 w-3.5 accent-sky-600" />{market.label}</label>)}</div></div></div><Button type="button" onClick={() => selectedVariant && quoteCjDelivery.mutate({ productId: preparedProduct.productId, variantId: selectedVariant.id, countryCodes: deliveryCountries })} disabled={!selectedVariant || deliveryCountries.length === 0 || quoteCjDelivery.isPending} className="bg-sky-700 hover:bg-sky-800">{quoteCjDelivery.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Vérifier la livraison CJ</Button>{quoteCjDelivery.data && <div className="grid gap-2 rounded-lg border border-sky-200 bg-white p-3 md:grid-cols-2">{quoteCjDelivery.data.countries.map(country => <div key={country.countryCode} className="rounded-md border border-slate-100 p-2 text-xs"><div className="flex items-center justify-between gap-2"><strong>{country.countryName}</strong><span className={country.options.length ? "text-emerald-700" : "text-amber-700"}>{country.options.length ? "Desservi" : "À confirmer"}</span></div>{country.options[0] ? <p className="mt-1 text-slate-600">Dès <strong>${country.options[0].costUsd.toFixed(2)} USD</strong> · {country.options[0].delay ? `${country.options[0].delay} jours` : "délai à confirmer"}</p> : <p className="mt-1 text-amber-700">{country.message}</p>}</div>)}</div>}</>}
-              <div className="border-t border-sky-200 pt-4"><h3 className="font-semibold text-slate-900">Prix et conversion à valider</h3><p className="mt-1 text-xs leading-5 text-slate-600">Le taux n’est pas rempli automatiquement : renseignez une valeur et une source que vous avez vérifiée. Le coût peut ensuite être ajusté manuellement.</p></div>
+              <div className="border-t border-sky-200 pt-4"><h3 className="font-semibold text-slate-900">Prix, marge et transport à valider</h3><p className="mt-1 text-xs leading-5 text-slate-600">Le prix produit est séparé du transport. MAZIGHO n’indiquera « livraison offerte » que si le prix de vente couvre réellement le coût produit et le devis CJ du pays concerné.</p></div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block space-y-2"><span className="text-sm font-medium">Taux USD → CHF vérifié</span><input value={exchangeRate} onChange={event => setExchangeRate(event.target.value)} type="number" min="0" step="0.0001" placeholder="Ex. 0.90" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">Aucun taux de change n’est supposé par MAZIGHO.</span></label>
                 <label className="block space-y-2"><span className="text-sm font-medium">Marge cible (%)</span><input value={marginPercent} onChange={event => setMarginPercent(event.target.value)} type="number" min="0" max="1000" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /></label>
-                <label className="block space-y-2"><span className="text-sm font-medium">Coût fournisseur rendu en CHF</span><input value={supplierCostChf} onChange={event => setSupplierCostChf(event.target.value)} type="number" min="0" step="0.01" placeholder="0.00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /></label>
+                <label className="block space-y-2"><span className="text-sm font-medium">Coût produit CJ hors livraison (CHF)</span><input value={supplierCostChf} onChange={event => setSupplierCostChf(event.target.value)} type="number" min="0" step="0.01" placeholder="0.00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /></label>
                 <label className="block space-y-2"><span className="text-sm font-medium">Prix de vente CHF</span><input value={salePriceChf} onChange={event => setSalePriceChf(event.target.value)} type="number" min="0.01" step="0.01" placeholder="0.00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /></label>
               </div>
+              {deliveryProfiles.length > 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-950"><strong>Règle calculée par pays :</strong><div className="mt-2 grid gap-2 md:grid-cols-2">{deliveryProfiles.map(profile => <div key={profile.countryCode} className="rounded-md bg-white/80 px-2 py-1.5"><strong>{deliveryMarkets.find(market => market.code === profile.countryCode)?.label || profile.countryCode}</strong> · {profile.customerShippingCost === 0 ? "livraison offerte par marge validée" : `transport facturé ${formatChfInput(profile.customerShippingCost)} CHF`} {profile.minDeliveryDays != null ? `· ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</div>)}</div></div>}
             </div>
 
             <label className="block space-y-2"><span className="text-sm font-medium">Images (une URL par ligne)</span><textarea value={imagesText} onChange={event => setImagesText(event.target.value)} rows={5} className="w-full rounded-md border px-3 py-2 text-sm" /><span className="block text-xs text-muted-foreground">Vérifiez les droits d’utilisation. Vous pourrez remplacer ces images dans la fiche produit après l’enregistrement.</span></label>

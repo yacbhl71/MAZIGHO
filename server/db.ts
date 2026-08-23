@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -15,6 +15,7 @@ let _accountStatusColumnReady: Promise<void> | null = null;
 let _invitationSchemaReady: Promise<void> | null = null;
 let _accountingSchemaReady: Promise<void> | null = null;
 let _orderDecisionSchemaReady: Promise<void> | null = null;
+let _deliveryProfileSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -53,6 +54,18 @@ async function ensureInvitationSchema() {
   })();
 
   return _invitationSchemaReady;
+}
+
+async function ensureDeliveryProfileSchema() {
+  if (_deliveryProfileSchemaReady) return _deliveryProfileSchemaReady;
+
+  _deliveryProfileSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productDeliveryProfiles` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `countryCode` varchar(2) NOT NULL, `supplierVariantId` varchar(128), `supplierShippingCost` int NOT NULL, `customerShippingCost` int NOT NULL, `deliveryMethod` varchar(255), `minDeliveryDays` int, `maxDeliveryDays` int, `quotedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `delivery_profile_product_country_idx` (`productId`, `countryCode`))"));
+  })();
+
+  return _deliveryProfileSchemaReady;
 }
 
 async function ensureAccountingSchema() {
@@ -604,11 +617,24 @@ export async function getCategoryBySlug(slug: string) {
 }
 
 // Products queries
+export async function getProductDeliveryProfiles(productIds: number[]) {
+  if (productIds.length === 0) return [];
+  await ensureDeliveryProfileSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const { inArray } = await import("drizzle-orm");
+  return await db.select().from(productDeliveryProfiles).where(inArray(productDeliveryProfiles.productId, productIds));
+}
+
+function attachDeliveryProfiles<T extends { id: number }>(rows: T[], profiles: Array<typeof productDeliveryProfiles.$inferSelect>) {
+  return rows.map(row => ({ ...row, deliveryProfiles: profiles.filter(profile => profile.productId === row.id) }));
+}
+
 export async function getAllProducts() {
   const db = await getDb();
   if (!db) return [];
   
-  return await db.select({
+  const rows = await db.select({
     id: products.id,
     categoryId: products.categoryId,
     name: products.name,
@@ -624,6 +650,7 @@ export async function getAllProducts() {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products).where(eq(products.status, "active"));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
 }
 
 export async function getFeaturedProducts(limit: number = 8) {
@@ -631,7 +658,7 @@ export async function getFeaturedProducts(limit: number = 8) {
   if (!db) return [];
   
   const { and } = await import("drizzle-orm");
-  return await db.select({
+  const rows = await db.select({
     id: products.id,
     categoryId: products.categoryId,
     name: products.name,
@@ -650,6 +677,7 @@ export async function getFeaturedProducts(limit: number = 8) {
     .where(and(eq(products.featured, 1), eq(products.status, "active")))
     .orderBy(desc(products.createdAt))
     .limit(limit);
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
 }
 
 export async function getProductsByCategory(categoryId: number) {
@@ -657,7 +685,7 @@ export async function getProductsByCategory(categoryId: number) {
   if (!db) return [];
   
   const { and } = await import("drizzle-orm");
-  return await db.select({
+  const rows = await db.select({
     id: products.id,
     categoryId: products.categoryId,
     name: products.name,
@@ -674,6 +702,7 @@ export async function getProductsByCategory(categoryId: number) {
     updatedAt: products.updatedAt,
   }).from(products)
     .where(and(eq(products.categoryId, categoryId), eq(products.status, "active")));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
 }
 
 export async function getProductBySlug(slug: string) {
@@ -699,7 +728,10 @@ export async function getProductBySlug(slug: string) {
   }).from(products)
     .where(and(eq(products.slug, slug), eq(products.status, "active")))
     .limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  if (result.length === 0) return undefined;
+  const product = result[0];
+  const deliveryProfiles = await getProductDeliveryProfiles([product.id]);
+  return { ...product, deliveryProfiles };
 }
 
 // Product images queries
@@ -868,7 +900,7 @@ export async function createProduct(data: any) {
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
   
-  const { images, ...productData } = data;
+  const { images, deliveryProfiles, ...productData } = data;
   const result = await db.insert(products).values(productData);
   const productId = (result as any)[0].insertId;
 
@@ -879,6 +911,10 @@ export async function createProduct(data: any) {
       displayOrder: index,
     }));
     await db.insert(productImages).values(imageValues);
+  }
+  if (deliveryProfiles && deliveryProfiles.length > 0) {
+    await ensureDeliveryProfileSchema();
+    await db.insert(productDeliveryProfiles).values(deliveryProfiles.map((profile: any) => ({ ...profile, productId })));
   }
 
   return { id: productId };

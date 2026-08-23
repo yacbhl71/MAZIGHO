@@ -88,6 +88,25 @@ export const productImages = mysqlTable("productImages", {
 export type ProductImage = typeof productImages.$inferSelect;
 export type InsertProductImage = typeof productImages.$inferInsert;
 
+// Verified delivery profiles. One profile stores the supplier quote and the customer-facing charge for a product/variant/country.
+export const productDeliveryProfiles = mysqlTable("productDeliveryProfiles", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  countryCode: varchar("countryCode", { length: 2 }).notNull(),
+  supplierVariantId: varchar("supplierVariantId", { length: 128 }),
+  supplierShippingCost: int("supplierShippingCost").notNull(), // CHF cents
+  customerShippingCost: int("customerShippingCost").notNull(), // CHF cents; 0 only when margin covers supplier cost
+  deliveryMethod: varchar("deliveryMethod", { length: 255 }),
+  minDeliveryDays: int("minDeliveryDays"),
+  maxDeliveryDays: int("maxDeliveryDays"),
+  quotedAt: timestamp("quotedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProductDeliveryProfile = typeof productDeliveryProfiles.$inferSelect;
+export type InsertProductDeliveryProfile = typeof productDeliveryProfiles.$inferInsert;
+
 // Orders table
 export const orders = mysqlTable("orders", {
   id: int("id").autoincrement().primaryKey(),
