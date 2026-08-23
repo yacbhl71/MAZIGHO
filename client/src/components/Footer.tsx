@@ -118,16 +118,16 @@ export default function Footer() {
         <div className="border-t border-amber-800 mt-8 pt-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="text-center md:text-left">
-              <h4 className="font-semibold text-white mb-2 text-sm">Livraison Rapide</h4>
-              <p className="text-amber-100 text-xs">Expédition sous 24h</p>
+              <h4 className="font-semibold text-white mb-2 text-sm">Livraison Suisse & Europe</h4>
+              <p className="text-amber-100 text-xs">Les conditions sont précisées avant validation.</p>
             </div>
             <div className="text-center">
-              <h4 className="font-semibold text-white mb-2 text-sm">Paiement Sécurisé</h4>
-              <p className="text-amber-100 text-xs">SSL 256-bit encrypté</p>
+              <h4 className="font-semibold text-white mb-2 text-sm">Connexion sécurisée</h4>
+              <p className="text-amber-100 text-xs">Votre navigation est protégée par HTTPS.</p>
             </div>
             <div className="text-center md:text-right">
-              <h4 className="font-semibold text-white mb-2 text-sm">Satisfait ou Remboursé</h4>
-              <p className="text-amber-100 text-xs">30 jours pour changer d'avis</p>
+              <h4 className="font-semibold text-white mb-2 text-sm">Service client</h4>
+              <p className="text-amber-100 text-xs">Une question ? Utilisez notre formulaire.</p>
             </div>
           </div>
           
