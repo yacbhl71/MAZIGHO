@@ -51,6 +51,16 @@ type CjProductListResponse = {
   } | null;
 };
 
+type CjVariantStockResponse = {
+  success?: boolean;
+  result?: boolean;
+  data?: Array<{
+    countryCode?: string;
+    areaEn?: string;
+    totalInventoryNum?: string | number;
+  }> | null;
+};
+
 type CjProductDetailResponse = {
   success?: boolean;
   message?: string;
@@ -136,6 +146,11 @@ export type CjSwissDeliveryCheck = {
 export type CjDeliveryQuote = {
   variantId: string;
   variantLabel: string;
+  stock: {
+    checked: boolean;
+    totalQuantity: number | null;
+    warehouses: Array<{ countryCode: string; warehouseName: string | null; quantity: number }>;
+  };
   countries: Array<{
     countryCode: string;
     countryName: string;
@@ -450,13 +465,14 @@ export async function prepareCjProductImport(input: { productId: string; country
   const images = Array.from(new Set([product.bigImage, ...(product.productImageSet || [])]
     .filter(isPublicImageUrl))).slice(0, 12);
   const variants = product.variants || [];
-  const reportedStock = variants.length === 0 ? null : variants.reduce((total, variant) => {
-    const inventories = variant.inventories || [];
-    return total + inventories.reduce((subtotal, inventory) => {
-      if (input.countryCode && inventory.countryCode !== input.countryCode) return subtotal;
-      return subtotal + (typeof inventory.totalInventory === "number" ? inventory.totalInventory : 0);
-    }, 0);
-  }, 0);
+  const inlineInventories = variants.flatMap(variant => (variant.inventories || []).filter(inventory =>
+    (!input.countryCode || inventory.countryCode === input.countryCode) && typeof inventory.totalInventory === "number",
+  ));
+  // product/query ne renvoie pas toujours les inventaires des variantes ; dans ce cas,
+  // « 0 » ne doit jamais être présenté comme un stock confirmé.
+  const reportedStock = variants.length === 0 || inlineInventories.length === 0
+    ? null
+    : inlineInventories.reduce((total, inventory) => total + (inventory.totalInventory || 0), 0);
   const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantKey).filter(Boolean))).slice(0, 8).join(" · ") || null;
   const preparedVariants = variants
     .filter((variant): variant is typeof variant & { vid: string } => Boolean(variant.vid))
@@ -504,6 +520,35 @@ const cjDeliveryMarkets = [
  * Calcule uniquement des options de livraison officielles CJ par pays. Aucun brouillon,
  * destinataire, paiement ou ordre fournisseur n’est créé par cet appel.
  */
+async function getCjVariantStock(access: CjAccessToken, variantId: string): Promise<CjDeliveryQuote["stock"]> {
+  let response: Response;
+  try {
+    response = await fetch(`${CJ_API_BASE}/product/stock/queryByVid?vid=${encodeURIComponent(variantId)}`, {
+      headers: { "CJ-Access-Token": access.token },
+      signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    return { checked: false, totalQuantity: null, warehouses: [] };
+  }
+
+  let payload: CjVariantStockResponse | null = null;
+  try {
+    payload = await response.json() as CjVariantStockResponse;
+  } catch {
+    return { checked: false, totalQuantity: null, warehouses: [] };
+  }
+  if (!response.ok || !(payload?.success || payload?.result) || !Array.isArray(payload.data)) {
+    return { checked: false, totalQuantity: null, warehouses: [] };
+  }
+
+  const warehouses = payload.data.flatMap(item => {
+    const quantity = asFiniteNumber(item.totalInventoryNum);
+    if (quantity == null) return [];
+    return [{ countryCode: item.countryCode || "—", warehouseName: item.areaEn || null, quantity }];
+  });
+  return { checked: true, totalQuantity: warehouses.reduce((total, item) => total + item.quantity, 0), warehouses };
+}
+
 export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[] }): Promise<CjDeliveryQuote> {
   const prepared = await prepareCjProductImport({ productId: input.productId });
   const variant = prepared.variants.find(item => item.id === input.variantId);
@@ -515,6 +560,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
 
   const originCountries = (variant.originCountries.length ? variant.originCountries : ["CN"]).slice(0, 3);
   const access = await getCjAccessToken();
+  const stock = await getCjVariantStock(access, variant.id);
   let supplierTemplateOptions: Array<{ destinationCode: string | null; name: string; costUsd: number }> = [];
   if (prepared.sku) {
     try {
@@ -641,7 +687,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
     };
   }));
 
-  return { variantId: variant.id, variantLabel: variant.label, countries };
+  return { variantId: variant.id, variantLabel: variant.label, stock, countries };
 }
 
 /** Vérifie la Suisse sur les premières variantes d’un produit sans créer de brouillon ni de commande. */
