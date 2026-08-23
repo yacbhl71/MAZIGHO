@@ -1,41 +1,147 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { toast } from "sonner";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
-import { trpc } from "@/lib/trpc";
-import { Check, CreditCard, MapPin, ShieldCheck, Tag, Truck } from "lucide-react";
+import { ArrowLeft, CreditCard, LockKeyhole, PackageCheck, Truck } from "lucide-react";
 
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { cart, isLoaded } = useCart();
-  const [promoCode, setPromoCode] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountAmount: number } | null>(null);
-  const [formData, setFormData] = useState({ shippingAddress: "", billingAddress: "", paymentMethod: "card" });
 
-  const validatePromotion = trpc.shop.promotions.validate.useMutation({
-    onSuccess: (data) => { setAppliedPromo({ code: data.code, discountAmount: data.discountAmount }); setPromoCode(data.code); toast.success(`Code ${data.code} appliqué`); },
-    onError: (error) => { setAppliedPromo(null); toast.error(error.message); },
-  });
+  useEffect(() => {
+    if (isLoaded && cart.length === 0) {
+      setLocation("/panier");
+    }
+  }, [cart.length, isLoaded, setLocation]);
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#fbf7f2] text-slate-600">
+        Chargement de votre panier…
+      </div>
+    );
+  }
+
+  if (cart.length === 0) {
+    return null;
+  }
+
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const discountedSubtotal = Math.max(0, subtotal - (appliedPromo?.discountAmount ?? 0));
-  const shipping = discountedSubtotal >= 10000 ? 0 : 1000;
-  const total = discountedSubtotal + shipping;
 
-  useEffect(() => { if (isLoaded && cart.length === 0) setLocation("/panier"); }, [cart.length, isLoaded, setLocation]);
+  return (
+    <div className="flex min-h-screen flex-col bg-[#fbf7f2]">
+      <Header />
+      <main className="container flex-1 px-4 py-10 md:py-14">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-8 max-w-2xl">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">
+              Commande en préparation
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">
+              Le paiement en ligne arrive prochainement
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              MAZIGHO prépare l’ouverture de son parcours de commande. Aucun paiement, aucune commande et aucune adresse de livraison ne sont enregistrés sur cette page pour le moment.
+            </p>
+          </div>
 
-  const handleApplyPromo = () => { if (!promoCode.trim()) { setAppliedPromo(null); toast.error("Saisissez un code promo"); return; } validatePromotion.mutate({ code: promoCode.trim(), orderAmount: subtotal }); };
-  const handleSubmit = (event?: React.FormEvent) => { event?.preventDefault(); if (!formData.shippingAddress.trim()) { toast.error("Veuillez renseigner une adresse de livraison"); return; } toast.info("Votre panier et votre remise sont prêts. Le paiement en ligne sera activé lors de l'intégration Stripe."); };
+          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+            <section className="space-y-5">
+              <Card className="border-[#eadfd2] bg-white shadow-none">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-xl">
+                    <PackageCheck className="h-5 w-5 text-orange-500" />
+                    Avant l’ouverture des commandes
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm leading-6 text-slate-600">
+                  <p>
+                    Les moyens de paiement reconnus en Suisse, les frais de livraison et les délais par destination seront affichés de manière claire avant que la commande puisse être finalisée.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="border border-[#eadfd2] bg-[#fffaf5] p-4 text-center">
+                      <LockKeyhole className="mx-auto mb-2 h-5 w-5 text-emerald-600" />
+                      <strong className="block text-slate-900">Paiement</strong>
+                      Activation sécurisée à venir
+                    </div>
+                    <div className="border border-[#eadfd2] bg-[#fffaf5] p-4 text-center">
+                      <Truck className="mx-auto mb-2 h-5 w-5 text-orange-500" />
+                      <strong className="block text-slate-900">Livraison</strong>
+                      Suisse et Europe, selon disponibilité
+                    </div>
+                    <div className="border border-[#eadfd2] bg-[#fffaf5] p-4 text-center">
+                      <CreditCard className="mx-auto mb-2 h-5 w-5 text-sky-600" />
+                      <strong className="block text-slate-900">Confirmation</strong>
+                      E-mail automatique après activation
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-  if (!isLoaded) return <div className="flex min-h-screen items-center justify-center bg-[#fbf7f2] text-slate-600">Chargement de votre commande…</div>;
-  if (cart.length === 0) return null;
+              <Card className="border-orange-200 bg-orange-50/60 shadow-none">
+                <CardContent className="p-5 text-sm leading-6 text-slate-700">
+                  <strong className="text-slate-950">Aucune donnée de paiement n’est demandée à ce stade.</strong>
+                  <br />
+                  Vous pouvez conserver votre sélection dans le panier et revenir lorsque la commande en ligne sera activée.
+                </CardContent>
+              </Card>
+            </section>
 
-  return <div className="flex min-h-screen flex-col bg-[#fbf7f2]"><Header /><main className="container flex-1 px-4 py-10 md:py-14"><div className="mx-auto max-w-6xl"><div className="mb-8"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Commande sécurisée</p><h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Finaliser votre commande</h1><p className="mt-2 text-sm text-slate-600">Quelques informations suffisent pour préparer votre livraison en Suisse ou en Europe.</p></div><div className="mb-8 grid grid-cols-3 border border-[#eadfd2] bg-white"><div className="flex items-center gap-3 border-r border-[#eadfd2] p-3 text-xs font-semibold text-orange-600 md:p-4"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100">1</span><span className="hidden sm:inline">Livraison</span></div><div className="flex items-center gap-3 border-r border-[#eadfd2] p-3 text-xs font-semibold text-slate-700 md:p-4"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100">2</span><span className="hidden sm:inline">Paiement</span></div><div className="flex items-center gap-3 p-3 text-xs font-semibold text-slate-400 md:p-4"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100">3</span><span className="hidden sm:inline">Confirmation</span></div></div><div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]"><div className="space-y-6"><Card className="border-[#eadfd2] bg-white shadow-none"><CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-orange-500" /> Informations de livraison</CardTitle></CardHeader><CardContent><form id="checkout-form" onSubmit={handleSubmit} className="space-y-5"><div className="space-y-2"><Label htmlFor="address">Adresse complète</Label><Textarea id="address" placeholder="Rue, numéro, code postal, ville, pays" value={formData.shippingAddress} onChange={(event) => setFormData({ ...formData, shippingAddress: event.target.value })} className="min-h-28 border-[#d9cbbc]" required /></div><div className="space-y-2"><Label htmlFor="billing">Adresse de facturation <span className="font-normal text-slate-400">(si différente)</span></Label><Input id="billing" placeholder="Identique à l'adresse de livraison" value={formData.billingAddress} onChange={(event) => setFormData({ ...formData, billingAddress: event.target.value })} className="border-[#d9cbbc]" /></div><div className="space-y-2"><Label htmlFor="payment">Méthode de paiement</Label><div className="relative"><CreditCard className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><select id="payment" className="w-full rounded-md border border-[#d9cbbc] bg-white py-2.5 pl-10 pr-3 text-sm" value={formData.paymentMethod} onChange={(event) => setFormData({ ...formData, paymentMethod: event.target.value })}><option value="card">Carte bancaire</option><option value="paypal">PayPal</option><option value="transfer">Virement bancaire</option></select></div></div></form></CardContent></Card><div className="grid gap-3 sm:grid-cols-3"><div className="border border-[#eadfd2] bg-white p-4 text-center text-xs text-slate-600"><ShieldCheck className="mx-auto mb-2 h-5 w-5 text-emerald-600" /><strong className="block text-slate-900">Sécurisé</strong>Vos données sont protégées</div><div className="border border-[#eadfd2] bg-white p-4 text-center text-xs text-slate-600"><Truck className="mx-auto mb-2 h-5 w-5 text-orange-500" /><strong className="block text-slate-900">Livraison suivie</strong>Suisse & Europe</div><div className="border border-[#eadfd2] bg-white p-4 text-center text-xs text-slate-600"><Check className="mx-auto mb-2 h-5 w-5 text-sky-600" /><strong className="block text-slate-900">Retour facile</strong>30 jours</div></div><div className="border border-dashed border-[#d9cbbc] bg-white/60 p-4 text-sm text-slate-600"><strong className="text-slate-900">À propos du paiement :</strong> la validation de cette étape prépare votre commande. Le paiement en ligne sera activé lors de l'intégration Stripe.</div></div><div className="space-y-6"><Card className="border-[#eadfd2] bg-white shadow-none"><CardHeader><CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5 text-orange-500" /> Code promo</CardTitle></CardHeader><CardContent><div className="flex gap-2"><Input aria-label="Code promo" placeholder="TEST10" value={promoCode} onChange={(event) => setPromoCode(event.target.value.toUpperCase())} className="border-[#d9cbbc]" /><Button type="button" variant="outline" onClick={handleApplyPromo} disabled={validatePromotion.isPending} className="border-[#d9cbbc]">{validatePromotion.isPending ? "…" : "Appliquer"}</Button></div>{appliedPromo && <p className="mt-3 text-sm font-semibold text-emerald-600">{appliedPromo.code} : -{formatPrice(appliedPromo.discountAmount)}</p>}</CardContent></Card><Card className="border-orange-200 bg-white shadow-none lg:sticky lg:top-24"><CardHeader><CardTitle>Résumé de la commande</CardTitle></CardHeader><CardContent className="space-y-4"><div className="space-y-3 border-b border-[#eadfd2] pb-4">{cart.map((item) => <div key={`${item.productId}-${JSON.stringify(item.options)}`} className="flex items-center gap-3 text-sm"><div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#f2eee9]">{item.imageUrl && <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />}</div><span className="min-w-0 flex-1 truncate text-slate-600">{item.productName} × {item.quantity}</span><span className="font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span></div>)}</div><div className="space-y-2 text-sm"><div className="flex justify-between"><span className="text-slate-600">Sous-total</span><span>{formatPrice(subtotal)}</span></div>{appliedPromo && <div className="flex justify-between text-emerald-600"><span>Remise ({appliedPromo.code})</span><span>-{formatPrice(appliedPromo.discountAmount)}</span></div>}<div className="flex justify-between"><span className="text-slate-600">Livraison</span><span className={shipping === 0 ? "font-semibold text-emerald-600" : ""}>{shipping === 0 ? "Gratuite" : formatPrice(shipping)}</span></div></div><div className="flex justify-between border-t border-[#eadfd2] pt-4 text-xl font-bold"><span>Total</span><span className="text-orange-600">{formatPrice(total)}</span></div>{shipping > 0 && <p className="bg-sky-50 px-3 py-2 text-xs text-sky-700">Livraison gratuite à partir de 100 CHF.</p>}<Button type="submit" form="checkout-form" className="mt-2 h-12 w-full bg-orange-500 text-base font-semibold text-white hover:bg-orange-600">Continuer vers le paiement</Button><Button type="button" variant="outline" className="w-full border-[#d9cbbc]" onClick={() => setLocation("/panier")}>Retour au panier</Button></CardContent></Card></div></div></div></main><Footer /></div>;
+            <aside>
+              <Card className="border-orange-200 bg-white shadow-none lg:sticky lg:top-24">
+                <CardHeader>
+                  <CardTitle>Votre sélection</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 border-b border-[#eadfd2] pb-4">
+                    {cart.map((item) => (
+                      <div key={`${item.productId}-${JSON.stringify(item.options)}`} className="flex items-center gap-3 text-sm">
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-[#f2eee9]">
+                          {item.imageUrl && <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />}
+                        </div>
+                        <span className="min-w-0 flex-1 truncate text-slate-600">
+                          {item.productName} × {item.quantity}
+                        </span>
+                        <span className="font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Sous-total articles</span>
+                      <span>{formatPrice(subtotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Livraison</span>
+                      <span className="font-medium text-slate-700">À confirmer avant commande</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-[#eadfd2] pt-4">
+                    <p className="text-xs leading-5 text-slate-600">
+                      Le montant ci-dessus couvre les articles sélectionnés. Les frais éventuels et le paiement seront confirmés uniquement lorsque le parcours de commande sera ouvert.
+                    </p>
+                  </div>
+
+                  <Button disabled className="h-12 w-full bg-slate-400 text-base font-semibold text-white hover:bg-slate-400">
+                    Paiement en ligne bientôt disponible
+                  </Button>
+                  <Button type="button" variant="outline" className="w-full border-[#d9cbbc]" onClick={() => setLocation("/panier")}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Retour au panier
+                  </Button>
+                </CardContent>
+              </Card>
+            </aside>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
 }
