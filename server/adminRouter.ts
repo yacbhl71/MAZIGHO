@@ -4,6 +4,7 @@ import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { storagePut } from "./storage";
+import { getCjConnectionStatus, verifyCjConnection } from "./cjDropshipping";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -465,6 +466,12 @@ export const adminRouter = router({
     })).mutation(async ({ input }) => {
       return await db.upsertSetting(input);
     }),
+  }),
+
+  // Supplier connections: credentials stay server-side in Vercel environment variables.
+  suppliers: router({
+    cjStatus: adminProcedure.query(() => getCjConnectionStatus()),
+    verifyCj: adminProcedure.mutation(() => verifyCjConnection()),
   }),
 
   // Visual customisation of the public storefront

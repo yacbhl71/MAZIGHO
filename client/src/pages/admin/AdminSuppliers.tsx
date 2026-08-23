@@ -6,12 +6,15 @@ import {
   ExternalLink,
   Globe2,
   LockKeyhole,
+  Loader2,
   PackageSearch,
   ShieldCheck,
   Store,
   Workflow,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +79,17 @@ function ProviderCard({ provider }: { provider: typeof providerCards[number] }) 
 }
 
 export default function AdminSuppliers() {
+  const utils = trpc.useUtils();
+  const cjStatusQuery = trpc.admin.suppliers.cjStatus.useQuery();
+  const verifyCj = trpc.admin.suppliers.verifyCj.useMutation({
+    onSuccess: async (result) => {
+      await utils.admin.suppliers.cjStatus.invalidate();
+      result.verified ? toast.success("Connexion CJdropshipping vérifiée.") : toast.error(result.message);
+    },
+    onError: () => toast.error("La vérification CJdropshipping a échoué. Réessayez plus tard."),
+  });
+  const cjStatus = cjStatusQuery.data;
+
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-6xl space-y-6 pb-8">
@@ -89,6 +103,19 @@ export default function AdminSuppliers() {
             <div className="mx-auto grid h-28 w-28 place-items-center rounded-[2rem] bg-sky-600 text-white shadow-lg shadow-sky-200 md:mx-0"><Globe2 className="h-12 w-12" /></div>
           </div>
           <div className="flex items-start gap-3 border-t border-sky-100 bg-white/70 px-6 py-4 text-sm text-slate-700 md:px-8"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><span><strong>Protection active :</strong> aucun produit n’est publié et aucune commande fournisseur n’est envoyée sans votre validation explicite.</span></div>
+        </section>
+
+        <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-4">
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${cjStatus?.verified ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}><ShieldCheck className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Connexion CJdropshipping</h2><Badge className={cjStatus?.verified ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"}>{cjStatus?.verified ? "Vérifiée" : cjStatus?.configured ? "À vérifier" : "En attente de clé"}</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{cjStatusQuery.isLoading ? "Lecture de l’état de connexion…" : (cjStatus?.message || "État de connexion indisponible.")}</p>
+              </div>
+            </div>
+            {cjStatus?.configured ? <Button onClick={() => verifyCj.mutate()} disabled={verifyCj.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la connexion</Button> : <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">La clé sera ajoutée plus tard dans les variables sécurisées Vercel, jamais dans ce formulaire.</div>}
+          </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-3">
