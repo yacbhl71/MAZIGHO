@@ -28,15 +28,15 @@ export default function Header() {
         <div className="container mx-auto flex items-center justify-center gap-6 text-xs md:text-sm flex-wrap">
           <div className="flex items-center gap-1.5">
             <span>⚡</span>
-            <span>-10% avec code BIENVENUE</span>
+            <span>Une sélection pensée pour le quotidien</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span>🚚</span>
-            <span>Livraison Suisse & Europe (Gratuite dès 100 CHF)</span>
+            <span>Livraison Suisse & Europe</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span>📦</span>
-            <span>Retours gratuits 30 jours</span>
+            <span>Conditions précisées avant validation</span>
           </div>
         </div>
       </div>
