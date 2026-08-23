@@ -19,14 +19,14 @@ const faqItems: FAQItem[] = [
     category: "Livraison",
     question: "Quels sont les délais de livraison ?",
     answer:
-      "Nous proposons plusieurs options de livraison : Livraison standard (5-7 jours ouvrables), Livraison express (2-3 jours ouvrables), et Livraison gratuite à partir de 100 CHF d'achat. Les délais commencent à partir de la date de confirmation de votre commande.",
+      "Le coût et le délai de livraison dépendent du produit et du pays de destination. Ils seront affichés clairement avant toute commande, uniquement lorsque la disponibilité aura été confirmée.",
   },
   {
     id: "2",
     category: "Livraison",
     question: "Livrez-vous à l'étranger ?",
     answer:
-      "Oui, nous livrons en Suisse et en Europe. Les frais de livraison varient selon le pays de destination. Vous pouvez consulter les tarifs exacts lors de la validation de votre panier en sélectionnant votre pays de livraison.",
+      "MAZIGHO prépare la livraison en Suisse et dans les pays européens réellement desservis par chaque produit. La disponibilité, le coût et le délai seront indiqués pour le pays choisi avant la commande.",
   },
   {
     id: "3",

@@ -241,18 +241,18 @@ export default function Product() {
               <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200">
                 <div className="text-center">
                   <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Livraison gratuite</p>
-                  <p className="text-xs text-gray-600">Dès 100 CHF</p>
+                  <p className="text-sm font-medium text-gray-800">Selon destination</p>
+                  <p className="text-xs text-gray-600">Coût et délai confirmés avant commande</p>
                 </div>
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Paiement sécurisé</p>
-                  <p className="text-xs text-gray-600">100% protégé</p>
+                  <p className="text-sm font-medium text-gray-800">Paiement à venir</p>
+                  <p className="text-xs text-gray-600">Activation sécurisée prochainement</p>
                 </div>
                 <div className="text-center">
                   <RotateCcw className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Retours gratuits</p>
-                  <p className="text-xs text-gray-600">30 jours</p>
+                  <p className="text-sm font-medium text-gray-800">Service client</p>
+                  <p className="text-xs text-gray-600">Conditions affichées avant commande</p>
                 </div>
               </div>
             </div>
