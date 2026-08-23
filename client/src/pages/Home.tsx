@@ -32,11 +32,9 @@ const testimonialPlaceholders = [
 ];
 
 export default function Home() {
-  const categoriesQuery = trpc.categories.getAll.useQuery();
   const featuredProductsQuery = trpc.products.getFeatured.useQuery();
   const catalogProductsQuery = trpc.products.getAll.useQuery();
 
-  const categories = categoriesQuery.data || [];
   const catalogProducts = catalogProductsQuery.data || [];
   const featuredProducts = featuredProductsQuery.data?.length
     ? featuredProductsQuery.data
@@ -95,52 +93,15 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-16 md:py-24">
-          <div className="container">
-            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Explorer MAZIGHO</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Trouvez votre univers</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Des catégories organisées pour passer plus vite de l'inspiration à la bonne trouvaille.</p>
-              </div>
-              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
-                Voir toute la boutique <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            {categories.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                {categories.map((category, index) => (
-                  <Link key={category.id} href={`/categorie/${category.slug}`}>
-                    <Card className={`group h-full overflow-hidden border border-[#eadfd2] bg-gradient-to-br ${categoryAccents[index % categoryAccents.length]} shadow-none transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-lg`}>
-                      <CardContent className="flex h-full min-h-[165px] flex-col justify-between p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-2xl leading-none md:text-3xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-500 transition-colors group-hover:bg-orange-500 group-hover:text-white">
-                            <ChevronRight className="h-4 w-4" />
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-slate-900">{category.name}</h3>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">{category.description || "Une sélection MAZIGHO à découvrir."}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="border border-dashed border-[#d9cbbc] bg-white/60 px-6 py-12 text-center text-sm text-slate-500">Les catégories seront visibles ici dès qu'elles seront publiées dans votre administration.</div>
-            )}
-          </div>
-        </section>
-
         <section className="bg-white py-16 md:py-24">
           <div className="container">
-            <div className="mx-auto mb-10 max-w-2xl text-center">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">À explorer</p>
-              <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Découvrez nos produits uniques</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">Une sélection d’univers pour trouver l’idée pratique, le détail inspirant ou le cadeau qui fait plaisir.</p>
+            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Explorer MAZIGHO</p>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">Découvrez nos univers</h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">Six catégories visuelles pour passer directement de l’inspiration à la sélection qui vous ressemble.</p>
+              </div>
+              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">Voir toute la boutique <ArrowUpRight className="h-4 w-4" /></Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {discoveryTiles.map((tile) => (
