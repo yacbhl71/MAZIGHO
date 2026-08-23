@@ -115,35 +115,38 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-amber-800 mt-8 pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="mt-10 border-t border-amber-800 pt-8">
+          <div className="grid gap-6 border-b border-amber-800 pb-8 md:grid-cols-[0.9fr_1.1fr] md:items-center">
             <div className="text-center md:text-left">
-              <h4 className="font-semibold text-white mb-2 text-sm">Livraison Suisse & Europe</h4>
-              <p className="text-amber-100 text-xs">Les conditions sont précisées avant validation.</p>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">Informations légales</p>
+              <h3 className="mt-2 text-lg font-semibold text-white">Consultez nos informations essentielles</h3>
+              <p className="mt-2 text-sm leading-relaxed text-amber-100">Les conditions de vente, la confidentialité et les informations de livraison sont accessibles à tout moment.</p>
+            </div>
+            <nav aria-label="Informations légales" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <Link href="/conditions-generales"><span className="block cursor-pointer rounded-md border border-amber-700 bg-amber-900/40 px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:border-orange-400 hover:bg-amber-900">Conditions générales</span></Link>
+              <Link href="/livraison-retours"><span className="block cursor-pointer rounded-md border border-amber-700 bg-amber-900/40 px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:border-orange-400 hover:bg-amber-900">Livraison et retours</span></Link>
+              <Link href="/confidentialite"><span className="block cursor-pointer rounded-md border border-amber-700 bg-amber-900/40 px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:border-orange-400 hover:bg-amber-900">Politique de confidentialité</span></Link>
+              <Link href="/mentions-legales"><span className="block cursor-pointer rounded-md border border-amber-700 bg-amber-900/40 px-4 py-3 text-center text-sm font-medium text-white transition-colors hover:border-orange-400 hover:bg-amber-900">Mentions légales</span></Link>
+            </nav>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 py-7 md:grid-cols-3">
+            <div className="text-center md:text-left">
+              <h4 className="mb-2 text-sm font-semibold text-white">Livraison Suisse & Europe</h4>
+              <p className="text-xs text-amber-100">Les conditions sont précisées avant validation.</p>
             </div>
             <div className="text-center">
-              <h4 className="font-semibold text-white mb-2 text-sm">Connexion sécurisée</h4>
-              <p className="text-amber-100 text-xs">Votre navigation est protégée par HTTPS.</p>
+              <h4 className="mb-2 text-sm font-semibold text-white">Connexion sécurisée</h4>
+              <p className="text-xs text-amber-100">Votre navigation est protégée par HTTPS.</p>
             </div>
             <div className="text-center md:text-right">
-              <h4 className="font-semibold text-white mb-2 text-sm">Service client</h4>
-              <p className="text-amber-100 text-xs">Une question ? Utilisez notre formulaire.</p>
+              <h4 className="mb-2 text-sm font-semibold text-white">Service client</h4>
+              <p className="text-xs text-amber-100">Une question ? Utilisez notre formulaire.</p>
             </div>
           </div>
-          
-          <div className="text-center border-t border-amber-800 pt-6">
-            <p className="text-amber-100 text-sm mb-2">
-              © {new Date().getFullYear()} MAZIGHO. Tous droits réservés.
-            </p>
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-amber-200">
-              <Link href="/conditions-generales"><span className="cursor-pointer hover:text-orange-400">Conditions générales</span></Link>
-              <span aria-hidden="true">•</span>
-              <Link href="/livraison-retours"><span className="cursor-pointer hover:text-orange-400">Livraison et retours</span></Link>
-              <span aria-hidden="true">•</span>
-              <Link href="/confidentialite"><span className="cursor-pointer hover:text-orange-400">Politique de confidentialité</span></Link>
-              <span aria-hidden="true">•</span>
-              <Link href="/mentions-legales"><span className="cursor-pointer hover:text-orange-400">Mentions légales</span></Link>
-            </div>
+
+          <div className="border-t border-amber-800 pt-6 text-center">
+            <p className="text-sm text-amber-100">© {new Date().getFullYear()} MAZIGHO. Tous droits réservés.</p>
           </div>
         </div>
       </div>
