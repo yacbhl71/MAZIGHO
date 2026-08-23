@@ -47,17 +47,32 @@ const providerCards = [
     href: "https://openservice.aliexpress.com/",
     action: "Voir la plateforme AliExpress",
   },
+  {
+    name: "BigBuy",
+    priority: "Priorité 3",
+    tone: "sky",
+    state: "À évaluer après AliExpress",
+    description: "Candidat européen pour une intégration ultérieure : catalogue, frais et délais seront vérifiés produit par produit, pays par pays.",
+    benefits: ["API catalogue et transport documentée", "Profils de livraison universels", "Aucune commande automatique"],
+    href: "https://www.bigbuy.eu/en/api_bigbuy.html",
+    action: "Voir la documentation BigBuy",
+  },
 ];
 
 function ProviderCard({ provider }: { provider: typeof providerCards[number] }) {
   const isCj = provider.tone === "emerald";
+  const isBigBuy = provider.tone === "sky";
   const palette = isCj
     ? "border-emerald-200 bg-emerald-50/50 text-emerald-700"
-    : "border-orange-200 bg-orange-50/60 text-orange-700";
-  const button = isCj ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-500 hover:bg-orange-600";
+    : isBigBuy
+      ? "border-sky-200 bg-sky-50/60 text-sky-700"
+      : "border-orange-200 bg-orange-50/60 text-orange-700";
+  const button = isCj ? "bg-emerald-600 hover:bg-emerald-700" : isBigBuy ? "bg-sky-600 hover:bg-sky-700" : "bg-orange-500 hover:bg-orange-600";
+  const accent = isCj ? "bg-emerald-100 text-emerald-700" : isBigBuy ? "bg-sky-100 text-sky-700" : "bg-orange-100 text-orange-700";
+  const checkmark = isCj ? "text-emerald-600" : isBigBuy ? "text-sky-600" : "text-orange-600";
 
   return (
-    <Card className={`overflow-hidden border shadow-sm ${isCj ? "border-emerald-100" : "border-orange-100"}`}>
+    <Card className={`overflow-hidden border shadow-sm ${isCj ? "border-emerald-100" : isBigBuy ? "border-sky-100" : "border-orange-100"}`}>
       <CardHeader className="border-b bg-white">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -67,7 +82,7 @@ function ProviderCard({ provider }: { provider: typeof providerCards[number] }) 
             </div>
             <CardTitle className="text-xl text-slate-950">{provider.name}</CardTitle>
           </div>
-          <div className={`grid h-11 w-11 place-items-center rounded-2xl ${isCj ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+          <div className={`grid h-11 w-11 place-items-center rounded-2xl ${accent}`}>
             <Boxes className="h-5 w-5" />
           </div>
         </div>
@@ -75,7 +90,7 @@ function ProviderCard({ provider }: { provider: typeof providerCards[number] }) 
       <CardContent className="space-y-5 pt-5">
         <p className="min-h-[72px] text-sm leading-6 text-slate-600">{provider.description}</p>
         <div className="space-y-2.5">
-          {provider.benefits.map(benefit => <div key={benefit} className="flex items-center gap-2 text-sm text-slate-700"><BadgeCheck className={`h-4 w-4 shrink-0 ${isCj ? "text-emerald-600" : "text-orange-600"}`} /> {benefit}</div>)}
+          {provider.benefits.map(benefit => <div key={benefit} className="flex items-center gap-2 text-sm text-slate-700"><BadgeCheck className={`h-4 w-4 shrink-0 ${checkmark}`} /> {benefit}</div>)}
         </div>
         <a href={provider.href} target="_blank" rel="noreferrer" className="block">
           <Button className={`w-full text-white ${button}`}><ExternalLink className="mr-2 h-4 w-4" /> {provider.action}</Button>
@@ -262,7 +277,7 @@ export default function AdminSuppliers() {
           <Card className="border-slate-200 shadow-sm"><CardContent className="p-5"><div className="mb-3 grid h-9 w-9 place-items-center rounded-xl bg-violet-100 text-violet-700"><LockKeyhole className="h-4 w-4" /></div><h2 className="font-semibold text-slate-900">3. Connecter officiellement</h2><p className="mt-2 text-sm leading-6 text-slate-600">Les API seront reliées seulement par les pages et autorisations officielles des plateformes.</p></CardContent></Card>
         </section>
 
-        <section className="grid gap-5 lg:grid-cols-2">
+        <section className="grid gap-5 xl:grid-cols-3">
           {providerCards.map(provider => <ProviderCard key={provider.name} provider={provider} />)}
         </section>
 
@@ -274,9 +289,9 @@ export default function AdminSuppliers() {
               <a href="https://developer.amazonservices.com/" target="_blank" rel="noreferrer"><Button variant="outline" className="border-amber-200 bg-white text-amber-900 hover:bg-amber-50"><ExternalLink className="mr-2 h-4 w-4" /> Découvrir Amazon SP-API</Button></a>
             </CardContent>
           </Card>
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader><CardTitle>Shein et Temu</CardTitle><CardDescription>En attente d’un cadre autorisé adapté.</CardDescription></CardHeader>
-            <CardContent className="space-y-3 text-sm leading-6 text-slate-600"><p>Ces plateformes restent dans la feuille de route, mais ne seront pas automatisées comme fournisseurs sans un programme officiel correspondant au modèle MAZIGHO.</p><Badge variant="secondary" className="bg-slate-100 text-slate-700">En attente — aucun scraping ni commande automatisée</Badge></CardContent>
+          <Card className="border-sky-200 shadow-sm">
+            <CardHeader><CardTitle>Règle commune de livraison</CardTitle><CardDescription>La même protection s’applique à chaque fournisseur retenu.</CardDescription></CardHeader>
+            <CardContent className="space-y-3 text-sm leading-6 text-slate-600"><p>Un produit reste invisible côté client tant que son coût, son délai et sa disponibilité ne sont pas confirmés pour le pays concerné.</p><Badge variant="secondary" className="bg-sky-50 text-sky-800">Profils par produit, pays et variante · sans commande automatique</Badge></CardContent>
           </Card>
         </section>
 
