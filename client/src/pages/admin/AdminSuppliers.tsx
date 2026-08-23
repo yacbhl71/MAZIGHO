@@ -104,7 +104,7 @@ export default function AdminSuppliers() {
       toast.error("Saisissez au moins 2 caractères pour rechercher un produit.");
       return;
     }
-    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry });
+    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined });
   };
 
   return (

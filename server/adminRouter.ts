@@ -475,7 +475,7 @@ export const adminRouter = router({
     searchCj: adminProcedure.input(z.object({
       keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères.").max(120),
       page: z.number().int().min(1).max(1000).default(1),
-      countryCode: z.string().trim().regex(/^[A-Z]{2}$/, "Utilisez un code pays à deux lettres.").optional(),
+      countryCode: z.string().trim().optional().transform(value => value || undefined).refine(value => value === undefined || /^[A-Z]{2}$/.test(value), "Utilisez un code pays à deux lettres."),
     })).mutation(async ({ input }) => {
       try {
         return await searchCjCatalog(input);
