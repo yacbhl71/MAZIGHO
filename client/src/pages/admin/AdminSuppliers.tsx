@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import {
   ArrowRight,
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Boxes,
   ExternalLink,
   Globe2,
@@ -129,15 +131,24 @@ export default function AdminSuppliers() {
     onError: (error) => toast.error(error.message || "La recherche à partir de l’image a échoué."),
   });
 
-  const submitCjSearch = (event: React.FormEvent) => {
-    event.preventDefault();
+  const runCjSearch = (page = 1) => {
     if (cjKeyword.trim().length < 2) {
       toast.error("Saisissez au moins 2 caractères pour rechercher un produit.");
       return;
     }
     setSwissChecks({});
-    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined, freeShippingOnly: cjFreeShippingOnly });
+    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined, freeShippingOnly: cjFreeShippingOnly, page });
   };
+
+  const submitCjSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    runCjSearch(1);
+  };
+
+  const currentCjPage = searchCj.data?.page || 1;
+  const cjTotalPages = searchCj.data ? Math.max(1, Math.ceil(searchCj.data.total / 12)) : 0;
+  const cjVisiblePages = Array.from(new Set([1, cjTotalPages, ...Array.from({ length: 5 }, (_, index) => currentCjPage - 2 + index)
+    .filter(page => page >= 1 && page <= cjTotalPages)])).sort((first, second) => first - second);
 
   const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -212,7 +223,7 @@ export default function AdminSuppliers() {
               <h2 className="text-xl font-semibold text-slate-950">Rechercher avant de choisir</h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Cette recherche lit uniquement le catalogue officiel CJ. Elle sert à trouver un produit ; la livraison vers un pays client sera calculée séparément, sur une variante précise. Aucun produit n’est importé, publié ou commandé à cette étape.</p>
             </div>
-            <Badge variant="secondary" className="w-fit bg-white text-slate-700">Résultats limités à 12 produits</Badge>
+            <Badge variant="secondary" className="w-fit bg-white text-slate-700">12 produits par page</Badge>
           </div>
           <form onSubmit={submitCjSearch} className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto_auto]">
             <label className="block">
@@ -250,7 +261,7 @@ export default function AdminSuppliers() {
 
           {searchCj.data && (
             <div className="mt-6">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} »</p>{cjFreeShippingOnly && <p className="mt-1 text-xs text-sky-700">Filtre actif : CJ signale une livraison incluse. Vérification Suisse toujours requise avant brouillon.</p>}</div><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} » <span className="text-slate-500">· page {currentCjPage} sur {cjTotalPages}</span></p>{cjFreeShippingOnly && <p className="mt-1 text-xs text-sky-700">Filtre actif : CJ signale une livraison incluse. Vérification Suisse toujours requise avant brouillon.</p>}</div><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
               {searchCj.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-sky-200 bg-white p-6 text-sm text-slate-600">Aucun produit n’a été renvoyé avec ces critères. Essayez un autre mot-clé ou sélectionnez « Tous entrepôts ».</div> : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {searchCj.data.products.map(product => <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -266,6 +277,7 @@ export default function AdminSuppliers() {
                   </article>)}
                 </div>
               )}
+              {cjTotalPages > 1 && <nav aria-label="Pagination des résultats CJ" className="mt-6 flex flex-wrap items-center justify-center gap-1.5"><Button type="button" size="sm" variant="outline" onClick={() => runCjSearch(currentCjPage - 1)} disabled={searchCj.isPending || currentCjPage <= 1}><ChevronLeft className="mr-1 h-4 w-4" /> Précédent</Button>{cjVisiblePages.map((page, index) => <span key={page} className="contents">{index > 0 && page - cjVisiblePages[index - 1] > 1 && <span className="px-1 text-sm text-slate-400">…</span>}<Button type="button" size="sm" variant={page === currentCjPage ? "default" : "outline"} onClick={() => runCjSearch(page)} disabled={searchCj.isPending} className={page === currentCjPage ? "bg-sky-700 hover:bg-sky-800" : ""}>{page}</Button></span>)}<Button type="button" size="sm" variant="outline" onClick={() => runCjSearch(currentCjPage + 1)} disabled={searchCj.isPending || currentCjPage >= cjTotalPages}>Suivant <ChevronRight className="ml-1 h-4 w-4" /></Button></nav>}
               <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><strong>Avant toute importation :</strong> vérifiez le prix rendu, la livraison vers votre pays, les variantes, la qualité, les droits d’image et la conformité. Ce module ne crée aucun produit MAZIGHO et aucune commande CJ.</div>
             </div>
           )}
