@@ -5,9 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -16,23 +17,32 @@ export default function Contact() {
     subject: "",
     message: "",
   });
-  const [isSending, setIsSending] = useState(false);
+  const sendMessage = trpc.contact.send.useMutation({
+    onSuccess: () => {
+      toast.success("Message envoyé avec succès.", {
+        description: "Votre demande a bien été transmise à l’équipe MAZIGHO.",
+      });
+      setFormData({ name: "", email: "", subject: "", message: "" });
+    },
+    onError: () => {
+      toast.error("Impossible d’envoyer votre message pour le moment.", {
+        description: "Veuillez réessayer dans quelques instants.",
+      });
+    },
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.message) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
-    setIsSending(true);
-    // Simuler l'envoi du message
-    setTimeout(() => {
-      toast.success("Message envoyé avec succès !", {
-        description: "Nous vous répondrons dans les plus brefs délais.",
-      });
-      setFormData({ name: "", email: "", subject: "", message: "" });
-      setIsSending(false);
-    }, 1000);
+    sendMessage.mutate({
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      subject: formData.subject.trim() || undefined,
+      message: formData.message.trim(),
+    });
   };
 
   return (
@@ -63,7 +73,7 @@ export default function Contact() {
                     Informations de Contact
                   </h2>
                   <p className="text-muted-foreground mb-8">
-                    N'hésitez pas à nous contacter par le moyen qui vous convient le mieux.
+                    Envoyez-nous votre demande via le formulaire sécurisé ci-dessous.
                   </p>
                 </div>
 
@@ -74,34 +84,18 @@ export default function Contact() {
                         <Mail className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground mb-1">Email</h3>
-                        <p className="text-muted-foreground">contact@mazigho.fr</p>
+                        <h3 className="font-semibold text-foreground mb-1">Formulaire de contact</h3>
+                        <p className="text-muted-foreground">Écrivez-nous directement depuis cette page : votre message est transmis à l’équipe MAZIGHO.</p>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Phone className="h-6 w-6 text-primary" />
+                        <Send className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground mb-1">Téléphone</h3>
-                        <p className="text-muted-foreground">+33 1 23 45 67 89</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Lun - Ven : 9h - 18h
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <MapPin className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground mb-1">Adresse</h3>
-                        <p className="text-muted-foreground">
-                          123 Rue de la Mode<br />
-                          75001 Paris, France
-                        </p>
+                        <h3 className="font-semibold text-foreground mb-1">Suivi de votre demande</h3>
+                        <p className="text-muted-foreground">Indiquez une adresse e-mail valide afin que l’équipe puisse vous répondre au sujet de votre demande.</p>
                       </div>
                     </div>
                   </CardContent>
@@ -166,9 +160,9 @@ export default function Contact() {
                         type="submit"
                         size="lg"
                         className="w-full gap-2"
-                        disabled={isSending}
+                        disabled={sendMessage.isPending}
                       >
-                        {isSending ? (
+                        {sendMessage.isPending ? (
                           <>Envoi en cours...</>
                         ) : (
                           <>

@@ -1,4 +1,4 @@
-import { ShoppingBag, Mail, Phone, MapPin, Facebook, Instagram, Twitter } from "lucide-react";
+import { ShoppingBag, Mail, Facebook, Instagram, Twitter } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Footer() {
@@ -109,19 +109,18 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h3 className="font-semibold text-white mb-4 text-lg">Contact</h3>
+            <h3 className="font-semibold text-white mb-4 text-lg">Besoin d’aide ?</h3>
             <ul className="space-y-3">
-              <li className="flex items-start gap-2 text-amber-100 text-sm">
-                <Mail className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
-                <span>contact@mazigho.fr</span>
+              <li>
+                <Link href="/contact">
+                  <span className="flex items-start gap-2 text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">
+                    <Mail className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
+                    Écrivez-nous via le formulaire de contact
+                  </span>
+                </Link>
               </li>
-              <li className="flex items-start gap-2 text-amber-100 text-sm">
-                <Phone className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
-                <span>+33 1 23 45 67 89</span>
-              </li>
-              <li className="flex items-start gap-2 text-amber-100 text-sm">
-                <MapPin className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />
-                <span>123 Rue de la Mode, 75001 Paris</span>
+              <li className="text-amber-100 text-sm leading-relaxed">
+                Votre message est transmis directement à l’équipe MAZIGHO.
               </li>
             </ul>
           </div>
