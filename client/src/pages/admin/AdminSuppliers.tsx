@@ -99,6 +99,7 @@ export default function AdminSuppliers() {
   const cjStatus = cjStatusQuery.data;
   const [cjKeyword, setCjKeyword] = useState("");
   const [cjCountry, setCjCountry] = useState("CH");
+  const [cjFreeShippingOnly, setCjFreeShippingOnly] = useState(false);
   const searchCj = trpc.admin.suppliers.searchCj.useMutation({
     onError: (error) => toast.error(error.message || "La recherche CJ a échoué."),
   });
@@ -114,7 +115,7 @@ export default function AdminSuppliers() {
       toast.error("Saisissez au moins 2 caractères pour rechercher un produit.");
       return;
     }
-    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined });
+    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined, freeShippingOnly: cjFreeShippingOnly });
   };
 
   const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,7 +193,7 @@ export default function AdminSuppliers() {
             </div>
             <Badge variant="secondary" className="w-fit bg-white text-slate-700">Résultats limités à 12 produits</Badge>
           </div>
-          <form onSubmit={submitCjSearch} className="mt-5 grid gap-3 md:grid-cols-[1fr_150px_auto]">
+          <form onSubmit={submitCjSearch} className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_auto_auto]">
             <label className="block">
               <span className="sr-only">Mot-clé CJ</span>
               <input value={cjKeyword} onChange={event => setCjKeyword(event.target.value)} placeholder="Ex. lampe de bureau, accessoire fitness…" className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-sky-500" />
@@ -206,6 +207,7 @@ export default function AdminSuppliers() {
                 <option value="">Tous entrepôts</option>
               </select>
             </label>
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-medium text-sky-900"><input type="checkbox" checked={cjFreeShippingOnly} onChange={event => setCjFreeShippingOnly(event.target.checked)} className="h-4 w-4 accent-sky-600" /> Livraison gratuite CJ</label>
             <Button type="submit" disabled={!cjStatus?.configured || searchCj.isPending} className="h-11 bg-sky-600 text-white hover:bg-sky-700">{searchCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />} Rechercher</Button>
           </form>
           {!cjStatus?.configured && <p className="mt-3 text-xs text-slate-500">Configurez et vérifiez d’abord la clé CJ dans le bloc situé au-dessus.</p>}
@@ -221,7 +223,7 @@ export default function AdminSuppliers() {
 
           {searchCj.data && (
             <div className="mt-6">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} »</p><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} »</p>{cjFreeShippingOnly && <p className="mt-1 text-xs text-sky-700">Filtre actif : CJ signale une livraison incluse. Vérification Suisse toujours requise avant brouillon.</p>}</div><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
               {searchCj.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-sky-200 bg-white p-6 text-sm text-slate-600">Aucun produit n’a été renvoyé avec ces critères. Essayez un autre mot-clé ou sélectionnez « Tous entrepôts ».</div> : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {searchCj.data.products.map(product => <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

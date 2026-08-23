@@ -391,7 +391,7 @@ export async function prepareCjProductImport(input: { productId: string; country
   };
 }
 
-export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string }): Promise<CjCatalogSearch> {
+export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string; freeShippingOnly?: boolean }): Promise<CjCatalogSearch> {
   const access = await getCjAccessToken();
   const params = new URLSearchParams({
     keyWord: input.keyword.trim(),
@@ -403,6 +403,7 @@ export async function searchCjCatalog(input: { keyword: string; page?: number; c
     sort: "desc",
   });
   if (input.countryCode) params.set("countryCode", input.countryCode);
+  if (input.freeShippingOnly) params.set("addMarkStatus", "1");
 
   let response: Response;
   try {
