@@ -1037,11 +1037,15 @@ export async function getOrderItemsAdmin(orderId: number) {
 export async function updateOrderStatus(id: number, status: any, trackingNumber?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  
+
+  const current = await db.select({ id: orders.id, status: orders.status }).from(orders).where(eq(orders.id, id)).limit(1);
+  if (!current[0]) throw new Error("ORDER_NOT_FOUND");
+  if (current[0].status === "pending" && status !== "pending") throw new Error("ORDER_REQUIRES_APPROVAL");
+  if (status === "cancelled" && current[0].status !== "cancelled") throw new Error("ORDER_REQUIRES_REJECTION");
+
   const updateData: any = { status };
   if (trackingNumber) updateData.trackingNumber = trackingNumber;
-  
+
   await db.update(orders).set(updateData).where(eq(orders.id, id));
   return { success: true };
 }

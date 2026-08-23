@@ -347,7 +347,15 @@ export const adminRouter = router({
       status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),
       trackingNumber: z.string().optional(),
     })).mutation(async ({ input }) => {
-      return await db.updateOrderStatus(input.id, input.status, input.trackingNumber);
+      try {
+        return await db.updateOrderStatus(input.id, input.status, input.trackingNumber);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
+        if (code === "ORDER_REQUIRES_APPROVAL") throw new TRPCError({ code: "BAD_REQUEST", message: "Acceptez d’abord cette commande dans le sas de validation." });
+        if (code === "ORDER_REQUIRES_REJECTION") throw new TRPCError({ code: "BAD_REQUEST", message: "Utilisez le bouton Refuser avec sa double confirmation pour annuler une commande." });
+        throw error;
+      }
     }),
   }),
 

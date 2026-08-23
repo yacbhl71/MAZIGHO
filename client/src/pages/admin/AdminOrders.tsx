@@ -256,12 +256,12 @@ export default function AdminOrders() {
                 </div>
 
                 <div className="grid gap-4 border-t pt-5 sm:grid-cols-2">
-                  <div className="grid gap-2"><Label htmlFor="status">Statut de la commande</Label><Select value={status} onValueChange={value => setStatus(value as OrderStatus)}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{statuses.filter(value => value !== "all").map(value => <SelectItem key={value} value={value}>{statusMeta[value as OrderStatus].label}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="grid gap-2"><Label htmlFor="status">Statut de la commande</Label><Select value={status} onValueChange={value => setStatus(value as OrderStatus)} disabled={selectedOrder.status === "pending"}><SelectTrigger id="status"><SelectValue /></SelectTrigger><SelectContent>{statuses.filter(value => value !== "all").map(value => <SelectItem key={value} value={value}>{statusMeta[value as OrderStatus].label}</SelectItem>)}</SelectContent></Select></div>
                   <div className="grid gap-2"><Label htmlFor="tracking">Numéro de suivi</Label><div className="relative"><Truck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input id="tracking" value={trackingNumber} onChange={event => setTrackingNumber(event.target.value)} placeholder="Ex. CH123456789" className="pl-9" /></div></div>
                 </div>
               </div>
 
-              <DialogFooter><Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>Fermer</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={updateStatus.isPending}>{updateStatus.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer le suivi</Button></DialogFooter>
+              <DialogFooter><Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>Fermer</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={updateStatus.isPending || selectedOrder.status === "pending"}>{updateStatus.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer le suivi</Button></DialogFooter>
             </form>}
           </DialogContent>
         </Dialog>
