@@ -4,7 +4,7 @@ import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { getCjConnectionStatus, verifyCjConnection } from "./cjDropshipping";
+import { getCjConnectionStatus, searchCjCatalog, verifyCjConnection } from "./cjDropshipping";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -472,6 +472,21 @@ export const adminRouter = router({
   suppliers: router({
     cjStatus: adminProcedure.query(() => getCjConnectionStatus()),
     verifyCj: adminProcedure.mutation(() => verifyCjConnection()),
+    searchCj: adminProcedure.input(z.object({
+      keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères.").max(120),
+      page: z.number().int().min(1).max(1000).default(1),
+      countryCode: z.string().trim().regex(/^[A-Z]{2}$/, "Utilisez un code pays à deux lettres.").optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        return await searchCjCatalog(input);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_API_KEY_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La clé CJ doit être configurée dans Vercel avant la recherche." });
+        if (code === "CJ_AUTHENTICATION_FAILED") throw new TRPCError({ code: "UNAUTHORIZED", message: "CJ a refusé l’autorisation. Vérifiez la clé API dans Vercel." });
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJdropshipping ne répond pas pour le moment. Réessayez plus tard." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de lire le catalogue CJ pour le moment." });
+      }
+    }),
   }),
 
   // Visual customisation of the public storefront

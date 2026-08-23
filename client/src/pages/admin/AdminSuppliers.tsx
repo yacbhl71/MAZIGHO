@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -10,6 +11,8 @@ import {
   PackageSearch,
   ShieldCheck,
   Store,
+  Search,
+  MapPin,
   Workflow,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -89,6 +92,20 @@ export default function AdminSuppliers() {
     onError: () => toast.error("La vérification CJdropshipping a échoué. Réessayez plus tard."),
   });
   const cjStatus = cjStatusQuery.data;
+  const [cjKeyword, setCjKeyword] = useState("");
+  const [cjCountry, setCjCountry] = useState("CH");
+  const searchCj = trpc.admin.suppliers.searchCj.useMutation({
+    onError: (error) => toast.error(error.message || "La recherche CJ a échoué."),
+  });
+
+  const submitCjSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (cjKeyword.trim().length < 2) {
+      toast.error("Saisissez au moins 2 caractères pour rechercher un produit.");
+      return;
+    }
+    searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry });
+  };
 
   return (
     <DashboardLayout>
@@ -116,6 +133,53 @@ export default function AdminSuppliers() {
             </div>
             {cjStatus?.configured ? <Button onClick={() => verifyCj.mutate()} disabled={verifyCj.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la connexion</Button> : <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">La clé sera ajoutée plus tard dans les variables sécurisées Vercel, jamais dans ce formulaire.</div>}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-sky-100 bg-sky-50/40 p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-sky-700"><PackageSearch className="h-4 w-4" /> Catalogue CJ — aperçu</div>
+              <h2 className="text-xl font-semibold text-slate-950">Rechercher avant de choisir</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Cette recherche lit uniquement le catalogue officiel CJ. Aucun produit n’est importé, publié ou commandé à cette étape.</p>
+            </div>
+            <Badge variant="secondary" className="w-fit bg-white text-slate-700">Résultats limités à 12 produits</Badge>
+          </div>
+          <form onSubmit={submitCjSearch} className="mt-5 grid gap-3 md:grid-cols-[1fr_150px_auto]">
+            <label className="block">
+              <span className="sr-only">Mot-clé CJ</span>
+              <input value={cjKeyword} onChange={event => setCjKeyword(event.target.value)} placeholder="Ex. lampe de bureau, accessoire fitness…" className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-sky-500" />
+            </label>
+            <label className="block">
+              <span className="sr-only">Pays d’entrepôt</span>
+              <select value={cjCountry} onChange={event => setCjCountry(event.target.value)} className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+                <option value="CH">Suisse (CH)</option>
+                <option value="FR">France (FR)</option>
+                <option value="DE">Allemagne (DE)</option>
+                <option value="">Tous entrepôts</option>
+              </select>
+            </label>
+            <Button type="submit" disabled={!cjStatus?.configured || searchCj.isPending} className="h-11 bg-sky-600 text-white hover:bg-sky-700">{searchCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />} Rechercher</Button>
+          </form>
+          {!cjStatus?.configured && <p className="mt-3 text-xs text-slate-500">Configurez et vérifiez d’abord la clé CJ dans le bloc situé au-dessus.</p>}
+
+          {searchCj.data && (
+            <div className="mt-6">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} »</p><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
+              {searchCj.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-sky-200 bg-white p-6 text-sm text-slate-600">Aucun produit n’a été renvoyé avec ces critères. Essayez un autre mot-clé ou sélectionnez « Tous entrepôts ».</div> : (
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {searchCj.data.products.map(product => <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex h-36 items-center justify-center bg-slate-50">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-contain p-2" /> : <Boxes className="h-8 w-8 text-slate-300" />}</div>
+                    <div className="space-y-3 p-4"><div><h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-slate-900">{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">SKU : {product.sku || "Non communiqué"}</p></div>
+                      <div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div>
+                      <div className="flex flex-wrap gap-1.5">{product.category && <Badge variant="secondary" className="max-w-full truncate bg-slate-100 text-slate-600">{product.category}</Badge>}{product.hasCeCertification && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">CE indiqué</Badge>}{product.isFreeShipping && <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">Livraison gratuite indiquée</Badge>}</div>
+                      <p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p>
+                    </div>
+                  </article>)}
+                </div>
+              )}
+              <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><strong>Avant toute importation :</strong> vérifiez le prix rendu, la livraison vers votre pays, les variantes, la qualité, les droits d’image et la conformité. Ce module ne crée aucun produit MAZIGHO et aucune commande CJ.</div>
+            </div>
+          )}
         </section>
 
         <section className="grid gap-4 md:grid-cols-3">
