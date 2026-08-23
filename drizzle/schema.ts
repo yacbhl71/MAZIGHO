@@ -120,6 +120,26 @@ export const orderItems = mysqlTable("orderItems", {
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
 
+// Administrative records. Customer sales remain the paid orders recorded above;
+// this table contains purchases, operating costs and refunds with their evidence.
+export const accountingEntries = mysqlTable("accountingEntries", {
+  id: int("id").autoincrement().primaryKey(),
+  kind: mysqlEnum("kind", ["inventory_purchase", "shipping", "platform", "advertising", "payment_fee", "other_expense", "refund"]).notNull(),
+  description: varchar("description", { length: 255 }).notNull(),
+  amount: int("amount").notNull(), // Expense/refund amount in cents
+  occurredAt: timestamp("occurredAt").notNull(),
+  supplier: varchar("supplier", { length: 160 }),
+  receiptUrl: varchar("receiptUrl", { length: 500 }),
+  receiptKey: varchar("receiptKey", { length: 500 }),
+  receiptFileName: varchar("receiptFileName", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AccountingEntry = typeof accountingEntries.$inferSelect;
+export type InsertAccountingEntry = typeof accountingEntries.$inferInsert;
+
 // Cart table
 export const carts = mysqlTable("carts", {
   id: int("id").autoincrement().primaryKey(),

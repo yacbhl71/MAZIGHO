@@ -57,6 +57,30 @@ const visualUrlSchema = z.string().trim().min(1).max(2000).refine(
   "Utilisez une URL https:// ou un chemin d’image interne commençant par /."
 );
 
+function decodeAccountingDocument(dataUrl: string) {
+  const match = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) throw new TRPCError({ code: "BAD_REQUEST", message: "Utilisez un PDF, JPEG, PNG ou WebP." });
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length === 0 || buffer.length > 10 * 1024 * 1024) {
+    throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Le justificatif doit peser au maximum 10 Mo." });
+  }
+  const extension = match[1] === "application/pdf" ? "pdf" : match[1] === "image/jpeg" ? "jpg" : match[1].split("/")[1];
+  return { buffer, contentType: match[1], extension };
+}
+
+const accountingKindSchema = z.enum(["inventory_purchase", "shipping", "platform", "advertising", "payment_fee", "other_expense", "refund"]);
+const accountingEntrySchema = z.object({
+  kind: accountingKindSchema,
+  description: z.string().trim().min(2).max(255),
+  amount: z.number().int().positive().max(100_000_000),
+  occurredAt: z.coerce.date(),
+  supplier: z.string().trim().max(160).optional().nullable(),
+  receiptUrl: z.string().trim().max(500).optional().nullable(),
+  receiptKey: z.string().trim().max(500).optional().nullable(),
+  receiptFileName: z.string().trim().max(255).optional().nullable(),
+  notes: z.string().trim().max(3000).optional().nullable(),
+});
+
 export const adminRouter = router({
   // Dashboard Stats
   getStats: adminProcedure.query(async () => {
@@ -477,6 +501,33 @@ export const adminRouter = router({
       const key = `design/${ctx.user.id}/${Date.now()}-${safeName}.${image.extension}`;
       const { url } = await storagePut(key, image.buffer, image.contentType);
       return { url };
+    }),
+  }),
+
+  // Administrative register: customer sales are read from paid orders; purchases, costs and evidence are added here.
+  accounting: router({
+    getOverview: adminProcedure.input(z.object({ year: z.number().int().min(2020).max(2100) })).query(async ({ input }) => {
+      return await db.getAccountingOverview(input.year);
+    }),
+    create: adminProcedure.input(accountingEntrySchema).mutation(async ({ input }) => {
+      return await db.createAccountingEntry(input);
+    }),
+    update: adminProcedure.input(accountingEntrySchema.extend({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      return await db.updateAccountingEntry(id, data);
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+      return await db.deleteAccountingEntry(input.id);
+    }),
+    uploadReceipt: adminProcedure.input(z.object({
+      dataUrl: z.string().max(14_200_000),
+      fileName: z.string().trim().min(1).max(180),
+    })).mutation(async ({ ctx, input }) => {
+      const document = decodeAccountingDocument(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 90) || "justificatif";
+      const key = `accounting/${ctx.user.id}/${Date.now()}-${safeName}.${document.extension}`;
+      const { key: storedKey, url } = await storagePut(key, document.buffer, document.contentType);
+      return { key: storedKey, url, fileName: input.fileName };
     }),
   }),
 

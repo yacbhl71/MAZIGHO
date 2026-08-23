@@ -1,4 +1,4 @@
-import { and, desc, asc, count, eq, gt, isNull, sql, sum, avg } from "drizzle-orm";
+import { and, desc, asc, count, eq, gt, gte, lt, isNull, sql, sum, avg } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
@@ -7,12 +7,13 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderItems, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
 let _accountStatusColumnReady: Promise<void> | null = null;
 let _invitationSchemaReady: Promise<void> | null = null;
+let _accountingSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -51,6 +52,18 @@ async function ensureInvitationSchema() {
   })();
 
   return _invitationSchemaReady;
+}
+
+async function ensureAccountingSchema() {
+  if (_accountingSchemaReady) return _accountingSchemaReady;
+
+  _accountingSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `accountingEntries` (`id` int AUTO_INCREMENT PRIMARY KEY, `kind` enum('inventory_purchase','shipping','platform','advertising','payment_fee','other_expense','refund') NOT NULL, `description` varchar(255) NOT NULL, `amount` int NOT NULL, `occurredAt` timestamp NOT NULL, `supplier` varchar(160), `receiptUrl` varchar(500), `receiptKey` varchar(500), `receiptFileName` varchar(255), `notes` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
+  })();
+
+  return _accountingSchemaReady;
 }
 
 async function ensurePasswordHashColumn() {
@@ -1527,6 +1540,109 @@ export async function updateDesignProfile(data: DesignProfile): Promise<DesignPr
     },
   });
   return profile;
+}
+
+export type AccountingKind = "inventory_purchase" | "shipping" | "platform" | "advertising" | "payment_fee" | "other_expense" | "refund";
+
+export type AccountingEntryInput = {
+  kind: AccountingKind;
+  description: string;
+  amount: number;
+  occurredAt: Date;
+  supplier?: string | null;
+  receiptUrl?: string | null;
+  receiptKey?: string | null;
+  receiptFileName?: string | null;
+  notes?: string | null;
+};
+
+function yearRange(year: number) {
+  return {
+    start: new Date(Date.UTC(year, 0, 1)),
+    end: new Date(Date.UTC(year + 1, 0, 1)),
+  };
+}
+
+export async function getAccountingOverview(year: number) {
+  await ensureAccountingSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { start, end } = yearRange(year);
+
+  const [paidOrders, entries] = await Promise.all([
+    db.select({ id: orders.id, totalAmount: orders.totalAmount, createdAt: orders.createdAt, status: orders.status, paymentMethod: orders.paymentMethod })
+      .from(orders)
+      .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)))
+      .orderBy(desc(orders.createdAt)),
+    db.select().from(accountingEntries)
+      .where(and(gte(accountingEntries.occurredAt, start), lt(accountingEntries.occurredAt, end)))
+      .orderBy(desc(accountingEntries.occurredAt), desc(accountingEntries.createdAt)),
+  ]);
+
+  const sales = paidOrders.reduce((total, order) => total + Number(order.totalAmount), 0);
+  const purchases = entries.filter(entry => entry.kind === "inventory_purchase").reduce((total, entry) => total + Number(entry.amount), 0);
+  const refunds = entries.filter(entry => entry.kind === "refund").reduce((total, entry) => total + Number(entry.amount), 0);
+  const otherExpenses = entries.filter(entry => entry.kind !== "inventory_purchase" && entry.kind !== "refund").reduce((total, entry) => total + Number(entry.amount), 0);
+  const netSales = sales - refunds;
+
+  return {
+    year,
+    summary: {
+      sales,
+      refunds,
+      netSales,
+      purchases,
+      otherExpenses,
+      totalExpenses: purchases + otherExpenses + refunds,
+      estimatedProfit: netSales - purchases - otherExpenses,
+    },
+    sales: paidOrders.map(order => ({ ...order, totalAmount: Number(order.totalAmount) })),
+    entries: entries.map(entry => ({ ...entry, amount: Number(entry.amount) })),
+  };
+}
+
+export async function createAccountingEntry(data: AccountingEntryInput) {
+  await ensureAccountingSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(accountingEntries).values({
+    kind: data.kind,
+    description: data.description.trim(),
+    amount: data.amount,
+    occurredAt: data.occurredAt,
+    supplier: data.supplier?.trim() || null,
+    receiptUrl: data.receiptUrl || null,
+    receiptKey: data.receiptKey || null,
+    receiptFileName: data.receiptFileName || null,
+    notes: data.notes?.trim() || null,
+  });
+  return { id: Number((result as any)[0]?.insertId), success: true };
+}
+
+export async function updateAccountingEntry(id: number, data: AccountingEntryInput) {
+  await ensureAccountingSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(accountingEntries).set({
+    kind: data.kind,
+    description: data.description.trim(),
+    amount: data.amount,
+    occurredAt: data.occurredAt,
+    supplier: data.supplier?.trim() || null,
+    receiptUrl: data.receiptUrl || null,
+    receiptKey: data.receiptKey || null,
+    receiptFileName: data.receiptFileName || null,
+    notes: data.notes?.trim() || null,
+  }).where(eq(accountingEntries.id, id));
+  return { success: true };
+}
+
+export async function deleteAccountingEntry(id: number) {
+  await ensureAccountingSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(accountingEntries).where(eq(accountingEntries.id, id));
+  return { success: true };
 }
 
 export async function getAllPromotions() {

@@ -27,6 +27,7 @@ import AdminMessages from "./pages/admin/AdminMessages";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminLegal from "./pages/admin/AdminLegal";
 import AdminCustomization from "./pages/admin/AdminCustomization";
+import AdminAccounting from "./pages/admin/AdminAccounting";
 import AdminContent from "./pages/admin/AdminContent";
 import AdminPromotions from "./pages/admin/AdminPromotions";
 import Checkout from "./pages/Checkout";
@@ -73,6 +74,7 @@ function BrowserTitle() {
       "/admin/parametres": "MAZIGHO Admin | Paramètres",
       "/admin/legal": "MAZIGHO Admin | Informations légales",
       "/admin/personnalisation": "MAZIGHO Admin | Personnalisation",
+      "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
     };
     const publicTitles: Record<string, string> = {
       "/": "MAZIGHO | Boutique en ligne",
@@ -143,6 +145,7 @@ function Router() {
       <Route path={"/admin/importation"} component={AdminDropshipping} />
       <Route path={"/admin/categories"} component={AdminCategories} />
       <Route path={"/admin/commandes"} component={AdminOrders} />
+      <Route path={"/admin/suivi-administratif"} component={AdminAccounting} />
       <Route path={"/admin/utilisateurs"} component={AdminUsers} />
       <Route path={"/admin/avis"} component={AdminReviews} />
       <Route path={"/admin/contenu"} component={AdminContent} />
