@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -31,6 +31,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: "Tableau de Bord", path: "/admin" },
   { icon: Package, label: "Produits", path: "/admin/produits" },
   { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
+  { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
   { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
   { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
   { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
