@@ -13,3 +13,7 @@ Le code MAZIGHO attend les variables de production suivantes, à ajouter uniquem
 [1]: https://resend.com/docs/dashboard/domains/introduction "Resend — Verified Domains"
 [2]: https://resend.com/docs/add-a-domain "Resend — Add and verify a domain"
 [3]: https://resend.com/docs/send-with-nodejs "Resend — Send emails with Node.js"
+
+## État de publication associé
+
+Le 23 août 2026, le domaine officiel a été vérifié après publication : la route `/admin` affiche le titre de navigateur `MAZIGHO Admin | Tableau de bord` après chargement de l’application. Le titre HTML de repli est `MAZIGHO | Boutique en ligne`.
