@@ -1,4 +1,5 @@
-import { eq, desc, asc, count, sum, avg, sql } from "drizzle-orm";
+import { and, desc, asc, count, eq, gt, isNull, sql, sum, avg } from "drizzle-orm";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import type { InsertUser } from "../drizzle/schema";
@@ -6,11 +7,12 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { users, categories, products, productImages, reviews, contactMessages, orders, orderItems, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, reviews, contactMessages, orders, orderItems, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
 let _accountStatusColumnReady: Promise<void> | null = null;
+let _invitationSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -32,6 +34,23 @@ async function ensureAccountStatusColumn() {
   })();
 
   return _accountStatusColumnReady;
+}
+
+async function ensureInvitationSchema() {
+  if (_invitationSchemaReady) return _invitationSchemaReady;
+
+  _invitationSchemaReady = (async () => {
+    await ensurePasswordHashColumn();
+    await ensureAccountStatusColumn();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    await db.execute(sql.raw("ALTER TABLE `users` MODIFY COLUMN `accountStatus` enum('pending_invitation', 'active', 'blocked') NOT NULL DEFAULT 'active'"));
+    await db.execute(sql.raw("ALTER TABLE `users` MODIFY COLUMN `lastSignedIn` timestamp NULL DEFAULT NULL"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `accountTokens` (`id` int AUTO_INCREMENT PRIMARY KEY, `userId` int NOT NULL, `purpose` enum('account_invitation', 'password_reset') NOT NULL, `tokenHash` varchar(64) NOT NULL UNIQUE, `expiresAt` timestamp NOT NULL, `usedAt` timestamp NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)"));
+  })();
+
+  return _invitationSchemaReady;
 }
 
 async function ensurePasswordHashColumn() {
@@ -174,6 +193,183 @@ export async function getUserByEmail(email: string) {
     .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+type AccountTokenPurpose = "account_invitation" | "password_reset";
+
+function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function hashAccountToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+async function issueAccountToken(userId: number, purpose: AccountTokenPurpose) {
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = hashAccountToken(token);
+
+  await db.transaction(async tx => {
+    await tx
+      .update(accountTokens)
+      .set({ usedAt: now })
+      .where(and(
+        eq(accountTokens.userId, userId),
+        eq(accountTokens.purpose, purpose),
+        isNull(accountTokens.usedAt)
+      ));
+
+    await tx.insert(accountTokens).values({
+      userId,
+      purpose,
+      tokenHash,
+      expiresAt,
+    });
+  });
+
+  const created = await db
+    .select({ id: accountTokens.id })
+    .from(accountTokens)
+    .where(eq(accountTokens.tokenHash, tokenHash))
+    .limit(1);
+
+  if (!created[0]) throw new Error("TOKEN_CREATION_FAILED");
+  return { id: created[0].id, token, expiresAt };
+}
+
+async function consumeAccountToken(token: string, purpose: AccountTokenPurpose): Promise<number> {
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const tokenHash = hashAccountToken(token);
+  const now = new Date();
+
+  return await db.transaction(async tx => {
+    const candidates = await tx
+      .select({ id: accountTokens.id, userId: accountTokens.userId })
+      .from(accountTokens)
+      .where(and(
+        eq(accountTokens.tokenHash, tokenHash),
+        eq(accountTokens.purpose, purpose),
+        isNull(accountTokens.usedAt),
+        gt(accountTokens.expiresAt, now)
+      ))
+      .limit(1);
+
+    if (!candidates[0]) throw new Error("TOKEN_INVALID_OR_EXPIRED");
+
+    const updateResult = await tx
+      .update(accountTokens)
+      .set({ usedAt: now })
+      .where(and(eq(accountTokens.id, candidates[0].id), isNull(accountTokens.usedAt)));
+    const affectedRows = Number((updateResult as any)?.[0]?.affectedRows ?? (updateResult as any)?.affectedRows ?? 0);
+    if (affectedRows !== 1) throw new Error("TOKEN_INVALID_OR_EXPIRED");
+
+    return candidates[0].userId;
+  });
+}
+
+export async function createPendingInvitation(input: {
+  name: string;
+  email: string;
+  role: "user" | "admin";
+}) {
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const email = normaliseEmail(input.email);
+  const existing = await getUserByEmail(email);
+  if (existing) throw new Error("EMAIL_ALREADY_EXISTS");
+
+  const openId = `local_${randomUUID()}`;
+  const result = await db.insert(users).values({
+    openId,
+    name: input.name.trim(),
+    email,
+    role: input.role,
+    passwordHash: null,
+    loginMethod: "invitation_pending",
+    accountStatus: "pending_invitation",
+    lastSignedIn: null,
+  });
+
+  const userId = Number((result as any)[0]?.insertId);
+  if (!Number.isInteger(userId) || userId <= 0) throw new Error("INVITATION_USER_CREATION_FAILED");
+
+  const invitation = await issueAccountToken(userId, "account_invitation");
+  return { userId, name: input.name.trim(), email, role: input.role, invitation };
+}
+
+export async function reissuePendingInvitation(userId: number) {
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const result = await db
+    .select({ id: users.id, name: users.name, email: users.email, accountStatus: users.accountStatus })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const user = result[0];
+
+  if (!user) throw new Error("USER_NOT_FOUND");
+  if (user.accountStatus !== "pending_invitation" || !user.email) throw new Error("INVITATION_NOT_PENDING");
+
+  const invitation = await issueAccountToken(user.id, "account_invitation");
+  return { userId: user.id, name: user.name ?? "", email: user.email, invitation };
+}
+
+export async function requestPasswordResetToken(emailInput: string) {
+  await ensureInvitationSchema();
+  const user = await getUserByEmail(normaliseEmail(emailInput));
+  if (!user || !user.email || user.accountStatus !== "active" || !user.passwordHash) return null;
+
+  const reset = await issueAccountToken(user.id, "password_reset");
+  return { userId: user.id, name: user.name, email: user.email, reset };
+}
+
+export async function activateAccountFromInvitation(input: { token: string; passwordHash: string }) {
+  const userId = await consumeAccountToken(input.token, "account_invitation");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  await db
+    .update(users)
+    .set({
+      passwordHash: input.passwordHash,
+      loginMethod: "password",
+      accountStatus: "active",
+      lastSignedIn: new Date(),
+    })
+    .where(and(eq(users.id, userId), eq(users.accountStatus, "pending_invitation")));
+
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!result[0] || result[0].accountStatus !== "active") throw new Error("INVITATION_ACTIVATION_FAILED");
+  return result[0];
+}
+
+export async function resetPasswordFromToken(input: { token: string; passwordHash: string }) {
+  const userId = await consumeAccountToken(input.token, "password_reset");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const current = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  if (!current[0] || current[0].accountStatus !== "active") throw new Error("TOKEN_INVALID_OR_EXPIRED");
+
+  await db
+    .update(users)
+    .set({ passwordHash: input.passwordHash, loginMethod: "password" })
+    .where(eq(users.id, userId));
+
+  return current[0];
 }
 
 export async function createPasswordUser(input: {
@@ -792,30 +988,84 @@ export async function getAllUsersAdmin() {
     .from(users);
 }
 
-async function getManageableUser(tx: any, targetId: number, actorId: number) {
+type AdminConfirmationAction = "BLOQUER" | "RETROGRADER" | "SUPPRIMER";
+
+async function getManageableUser(
+  tx: any,
+  targetId: number,
+  actorId: number,
+  options: {
+    allowAdmin?: boolean;
+    protectLastActiveAdmin?: boolean;
+    confirmationAction?: AdminConfirmationAction;
+    confirmation?: string;
+  } = {}
+) {
   const target = await tx
-    .select({ id: users.id, role: users.role, accountStatus: users.accountStatus })
+    .select({ id: users.id, role: users.role, accountStatus: users.accountStatus, email: users.email })
     .from(users)
     .where(eq(users.id, targetId))
     .limit(1);
 
   if (target.length === 0) throw new Error("USER_NOT_FOUND");
   if (target[0].id === actorId) throw new Error("CANNOT_MANAGE_SELF");
-  if (target[0].role === "admin") throw new Error("ADMIN_ACCOUNT_PROTECTED");
+  if (target[0].role !== "admin") return target[0];
+  if (!options.allowAdmin) throw new Error("ADMIN_ACCOUNT_PROTECTED");
+
+  if (options.confirmationAction) {
+    const targetEmail = target[0].email?.trim().toLowerCase();
+    const expected = targetEmail ? `${options.confirmationAction} ${targetEmail}` : "";
+    if (!expected || options.confirmation?.trim() !== expected) {
+      throw new Error("ADMIN_CONFIRMATION_REQUIRED");
+    }
+  }
+
+  if (options.protectLastActiveAdmin && target[0].accountStatus === "active") {
+    const adminCount = await tx
+      .select({ value: count() })
+      .from(users)
+      .where(and(eq(users.role, "admin"), eq(users.accountStatus, "active")));
+    if ((adminCount[0]?.value ?? 0) <= 1) throw new Error("LAST_ADMIN_PROTECTED");
+  }
+
   return target[0];
+}
+
+export async function updateUserProfileAdmin(input: { id: number; name: string; email: string; actorId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async tx => {
+    await getManageableUser(tx, input.id, input.actorId, { allowAdmin: true });
+    const normalisedEmail = normaliseEmail(input.email);
+    const collision = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(and(sql`LOWER(${users.email}) = ${normalisedEmail}`, sql`${users.id} <> ${input.id}`))
+      .limit(1);
+    if (collision[0]) throw new Error("EMAIL_ALREADY_EXISTS");
+    await tx.update(users).set({ name: input.name.trim(), email: normalisedEmail }).where(eq(users.id, input.id));
+  });
+  return { success: true };
 }
 
 export async function updateUserRoleAdmin(input: {
   id: number;
   role: "user" | "admin";
   actorId: number;
+  confirmation?: string;
 }) {
   await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   await db.transaction(async tx => {
-    await getManageableUser(tx, input.id, input.actorId);
+    await getManageableUser(tx, input.id, input.actorId, {
+      allowAdmin: true,
+      protectLastActiveAdmin: input.role === "user",
+      confirmationAction: input.role === "user" ? "RETROGRADER" : undefined,
+      confirmation: input.confirmation,
+    });
     await tx.update(users).set({ role: input.role }).where(eq(users.id, input.id));
   });
   return { success: true };
@@ -825,28 +1075,36 @@ export async function setUserAccountStatusAdmin(input: {
   id: number;
   accountStatus: "active" | "blocked";
   actorId: number;
+  confirmation?: string;
 }) {
   await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   await db.transaction(async tx => {
-    await getManageableUser(tx, input.id, input.actorId);
-    await tx
-      .update(users)
-      .set({ accountStatus: input.accountStatus })
-      .where(eq(users.id, input.id));
+    await getManageableUser(tx, input.id, input.actorId, {
+      allowAdmin: true,
+      protectLastActiveAdmin: input.accountStatus === "blocked",
+      confirmationAction: input.accountStatus === "blocked" ? "BLOQUER" : undefined,
+      confirmation: input.confirmation,
+    });
+    await tx.update(users).set({ accountStatus: input.accountStatus }).where(eq(users.id, input.id));
   });
   return { success: true };
 }
 
-export async function deleteUserAdmin(input: { id: number; actorId: number }) {
+export async function deleteUserAdmin(input: { id: number; actorId: number; confirmation?: string }) {
   await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   await db.transaction(async tx => {
-    await getManageableUser(tx, input.id, input.actorId);
+    await getManageableUser(tx, input.id, input.actorId, {
+      allowAdmin: true,
+      protectLastActiveAdmin: true,
+      confirmationAction: "SUPPRIMER",
+      confirmation: input.confirmation,
+    });
 
     const orderCount = await tx
       .select({ value: count() })
@@ -867,6 +1125,7 @@ export async function deleteUserAdmin(input: { id: number; actorId: number }) {
     }
 
     await tx.delete(reviews).where(eq(reviews.userId, input.id));
+    await tx.delete(accountTokens).where(eq(accountTokens.userId, input.id));
     await tx.delete(users).where(eq(users.id, input.id));
   });
   return { success: true };
@@ -1253,27 +1512,8 @@ export async function deleteBanner(id: number) {
   return { success: true };
 }
 
+// Kept as a compatibility wrapper for older callers. New callers should use
+// createPendingInvitation and deliver the returned one-time token by e-mail.
 export async function createAdminUser(data: { name: string; email: string; role: "user" | "admin" }) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  // For admin-created users, we use email as a temporary openId if they don't have one
-  const openId = `local-${data.email}`;
-  
-  await db.insert(users).values({
-    openId,
-    name: data.name,
-    email: data.email,
-    role: data.role,
-    loginMethod: "admin-created",
-    lastSignedIn: new Date(),
-  }).onDuplicateKeyUpdate({
-    set: { 
-      name: data.name,
-      role: data.role,
-      lastSignedIn: new Date()
-    }
-  });
-  
-  return { success: true };
+  return createPendingInvitation(data);
 }

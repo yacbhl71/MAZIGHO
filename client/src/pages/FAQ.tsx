@@ -82,14 +82,14 @@ const faqItems: FAQItem[] = [
     category: "Compte",
     question: "Comment créer un compte ?",
     answer:
-      "Cliquez sur 'Mon compte' dans le menu principal, puis sur 'Créer un compte'. Remplissez le formulaire avec vos informations (prénom, nom, email, mot de passe) et cliquez sur 'Créer mon compte'. Vous recevrez une confirmation par email.",
+      "Cliquez sur 'Mon compte' dans le menu principal, puis sur 'Créer un compte'. Remplissez le formulaire avec vos informations (prénom, nom, e-mail et mot de passe), puis cliquez sur 'Créer mon compte'. Votre compte est alors prêt à être utilisé.",
   },
   {
     id: "11",
     category: "Compte",
     question: "J'ai oublié mon mot de passe, comment le réinitialiser ?",
     answer:
-      "Sur la page de connexion, cliquez sur 'Mot de passe oublié'. Entrez votre email et vous recevrez un lien pour réinitialiser votre mot de passe. Cliquez sur le lien et créez un nouveau mot de passe.",
+      "Sur la page de connexion, cliquez sur 'Mot de passe oublié'. Lorsque l’envoi d’e-mails transactionnels est activé, saisissez votre e-mail pour recevoir un lien personnel de réinitialisation. Si le service est momentanément indisponible, la page vous l’indique clairement sans prétendre qu’un e-mail a été envoyé.",
   },
   {
     id: "12",

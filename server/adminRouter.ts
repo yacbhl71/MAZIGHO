@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -18,11 +19,23 @@ function rethrowUserManagementError(error: unknown): never {
   if (code.includes("ADMIN_ACCOUNT_PROTECTED")) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Un compte administrateur est protégé contre cette action." });
   }
+  if (code.includes("LAST_ADMIN_PROTECTED")) {
+    throw new TRPCError({ code: "CONFLICT", message: "Impossible : MAZIGHO doit toujours conserver au moins un administrateur actif." });
+  }
+  if (code.includes("ADMIN_CONFIRMATION_REQUIRED")) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "La confirmation écrite de cette action sensible est requise." });
+  }
   if (code.includes("USER_HAS_ORDERS")) {
     throw new TRPCError({ code: "CONFLICT", message: "Ce client a des commandes : bloquez son compte au lieu de le supprimer." });
   }
   if (code.includes("USER_NOT_FOUND")) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Utilisateur introuvable." });
+  }
+  if (code.includes("EMAIL_ALREADY_EXISTS")) {
+    throw new TRPCError({ code: "CONFLICT", message: "Un compte existe déjà avec cette adresse e-mail." });
+  }
+  if (code.includes("INVITATION_NOT_PENDING")) {
+    throw new TRPCError({ code: "CONFLICT", message: "Ce compte n’est pas en attente d’invitation." });
   }
   throw error;
 }
@@ -240,15 +253,70 @@ export const adminRouter = router({
       return await db.getAllUsersAdmin();
     }),
     create: adminProcedure.input(z.object({
-      name: z.string().min(1),
-      email: z.string().email(),
+      name: z.string().trim().min(1).max(200),
+      email: z.string().trim().email().max(320),
       role: z.enum(["user", "admin"]),
     })).mutation(async ({ input }) => {
-      return await db.createAdminUser(input);
+      try {
+        const invitation = await db.createPendingInvitation(input);
+        if (!isTransactionalEmailConfigured()) {
+          return { success: true, invitationEmailStatus: "pending_configuration" as const };
+        }
+
+        try {
+          await sendAccountInvitationEmail({
+            email: invitation.email,
+            name: invitation.name,
+            token: invitation.invitation.token,
+            tokenId: invitation.invitation.id,
+          });
+          return { success: true, invitationEmailStatus: "sent" as const };
+        } catch (error) {
+          console.error("[Admin] Invitation e-mail delivery failed", String(error));
+          return { success: true, invitationEmailStatus: "delivery_failed" as const };
+        }
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
+    }),
+    resendInvitation: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      try {
+        const invitation = await db.reissuePendingInvitation(input.id);
+        if (!isTransactionalEmailConfigured()) {
+          return { success: true, invitationEmailStatus: "pending_configuration" as const };
+        }
+
+        try {
+          await sendAccountInvitationEmail({
+            email: invitation.email,
+            name: invitation.name,
+            token: invitation.invitation.token,
+            tokenId: invitation.invitation.id,
+          });
+          return { success: true, invitationEmailStatus: "sent" as const };
+        } catch (error) {
+          console.error("[Admin] Invitation resend failed", String(error));
+          return { success: true, invitationEmailStatus: "delivery_failed" as const };
+        }
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
+    }),
+    updateProfile: adminProcedure.input(z.object({
+      id: z.number(),
+      name: z.string().trim().min(1).max(200),
+      email: z.string().trim().email(),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        return await db.updateUserProfileAdmin({ ...input, actorId: ctx.user.id });
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
     }),
     updateRole: adminProcedure.input(z.object({
       id: z.number(),
       role: z.enum(["user", "admin"]),
+      confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
         return await db.updateUserRoleAdmin({ ...input, actorId: ctx.user.id });
@@ -259,6 +327,7 @@ export const adminRouter = router({
     setAccountStatus: adminProcedure.input(z.object({
       id: z.number(),
       accountStatus: z.enum(["active", "blocked"]),
+      confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
         return await db.setUserAccountStatusAdmin({ ...input, actorId: ctx.user.id });
@@ -266,7 +335,10 @@ export const adminRouter = router({
         return rethrowUserManagementError(error);
       }
     }),
-    delete: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ ctx, input }) => {
+    delete: adminProcedure.input(z.object({
+      id: z.number(),
+      confirmation: z.string().trim().max(400).optional(),
+    })).mutation(async ({ ctx, input }) => {
       try {
         return await db.deleteUserAdmin({ ...input, actorId: ctx.user.id });
       } catch (error) {

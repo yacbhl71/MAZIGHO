@@ -35,6 +35,9 @@ import SettingsPage from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import FAQ from "./pages/FAQ";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import ActivateAccount from "./pages/ActivateAccount";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -69,6 +72,9 @@ function Router() {
       <Route path={"/commandes"} component={Orders} />
       <Route path={"/parametres"} component={SettingsPage} />
       <Route path="/login" component={Login} />
+      <Route path="/mot-de-passe-oublie" component={ForgotPassword} />
+      <Route path="/reinitialiser-mot-de-passe" component={ResetPassword} />
+      <Route path="/activer-compte" component={ActivateAccount} />
       <Route path="/register" component={Register} />
       <Route path="/faq" component={FAQ} />
       <Route path={"/admin"} component={AdminDashboard} />

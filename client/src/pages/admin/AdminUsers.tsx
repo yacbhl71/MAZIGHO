@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { User, Shield, UserCog, Loader2, UserPlus, Mail, ShieldCheck, ShieldBan, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, Pencil, Shield, ShieldBan, ShieldCheck, Trash2, User, UserCog, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -18,65 +18,166 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+type Role = "user" | "admin";
+type AccountStatus = "pending_invitation" | "active" | "blocked";
+type UserRow = {
+  id: number;
+  name: string | null;
+  email: string | null;
+  role: Role;
+  accountStatus: AccountStatus;
+  lastSignedIn: Date | string | null;
+};
+type SensitiveAction = "block" | "unblock" | "demote" | "promote" | "delete";
+
+function getActionLabel(action: SensitiveAction) {
+  switch (action) {
+    case "block": return "Bloquer";
+    case "unblock": return "Débloquer";
+    case "demote": return "Rétrograder";
+    case "promote": return "Promouvoir";
+    case "delete": return "Supprimer";
+  }
+}
+
+function getConfirmationKeyword(action: SensitiveAction) {
+  switch (action) {
+    case "block": return "BLOQUER";
+    case "demote": return "RETROGRADER";
+    case "delete": return "SUPPRIMER";
+    default: return "";
+  }
+}
+
 export default function AdminUsers() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", role: "user" as "user" | "admin" });
-  
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", role: "user" as Role });
+  const [editTarget, setEditTarget] = useState<UserRow | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "" });
+  const [sensitive, setSensitive] = useState<{ target: UserRow; action: SensitiveAction } | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+
+  const utils = trpc.useUtils();
+  const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: users, isLoading, refetch } = trpc.admin.users.getAll.useQuery();
-  
+
   const createUser = trpc.admin.users.create.useMutation({
-    onSuccess: async () => {
-      toast.success("Utilisateur ajouté avec succès");
-      setIsOpen(false);
-      setForm({ name: "", email: "", role: "user" });
+    onSuccess: async result => {
+      if (result.invitationEmailStatus === "sent") {
+        toast.success("Invitation créée et e-mail envoyé.");
+      } else if (result.invitationEmailStatus === "delivery_failed") {
+        toast.warning("Invitation créée, mais l’e-mail n’a pas pu être délivré. Vous pourrez la renvoyer après vérification de la messagerie.");
+      } else {
+        toast.info("Invitation créée. Aucun e-mail n’a été envoyé : la messagerie transactionnelle n’est pas encore configurée.");
+      }
+      setIsCreateOpen(false);
+      setCreateForm({ name: "", email: "", role: "user" });
       await refetch();
     },
-    onError: (error) => toast.error(`Erreur : ${error.message}`),
+    onError: error => toast.error(error.message || "Création impossible."),
+  });
+
+  const resendInvitation = trpc.admin.users.resendInvitation.useMutation({
+    onSuccess: async result => {
+      if (result.invitationEmailStatus === "sent") {
+        toast.success("Nouvelle invitation envoyée.");
+      } else if (result.invitationEmailStatus === "delivery_failed") {
+        toast.warning("Nouvelle invitation créée, mais l’e-mail n’a pas pu être délivré.");
+      } else {
+        toast.info("Invitation renouvelée. Aucun e-mail n’a été envoyé : la messagerie transactionnelle n’est pas encore configurée.");
+      }
+      await refetch();
+    },
+    onError: error => toast.error(error.message || "Renvoi impossible."),
+  });
+
+  const updateProfile = trpc.admin.users.updateProfile.useMutation({
+    onSuccess: async () => {
+      toast.success("Profil utilisateur mis à jour.");
+      setEditTarget(null);
+      await refetch();
+    },
+    onError: error => toast.error(error.message || "Modification impossible."),
   });
 
   const updateRole = trpc.admin.users.updateRole.useMutation({
-    onSuccess: async () => { toast.success("Rôle mis à jour"); await refetch(); },
-    onError: (error) => toast.error(`Erreur : ${error.message}`),
+    onSuccess: async () => {
+      toast.success("Rôle mis à jour.");
+      setSensitive(null);
+      setConfirmation("");
+      await refetch();
+    },
+    onError: error => toast.error(error.message || "Modification impossible."),
   });
 
   const setAccountStatus = trpc.admin.users.setAccountStatus.useMutation({
-    onSuccess: async () => { toast.success("Statut du compte mis à jour"); await refetch(); },
+    onSuccess: async () => {
+      toast.success("Statut du compte mis à jour.");
+      setSensitive(null);
+      setConfirmation("");
+      await refetch();
+    },
     onError: error => toast.error(error.message || "Modification impossible."),
   });
 
   const deleteUser = trpc.admin.users.delete.useMutation({
-    onSuccess: async () => { toast.success("Utilisateur supprimé"); await refetch(); },
+    onSuccess: async () => {
+      toast.success("Utilisateur supprimé.");
+      setSensitive(null);
+      setConfirmation("");
+      await refetch();
+    },
     onError: error => toast.error(error.message || "Suppression impossible."),
   });
 
-  const handleToggleRole = (id: number, currentRole: string) => {
-    const newRole = currentRole === "admin" ? "user" : "admin";
-    if (confirm(`Voulez-vous changer le rôle de cet utilisateur en ${newRole} ?`)) {
-      updateRole.mutate({ id, role: newRole as "user" | "admin" });
-    }
+  const mutationPending = createUser.isPending || resendInvitation.isPending || updateProfile.isPending || updateRole.isPending || setAccountStatus.isPending || deleteUser.isPending;
+  const expectedPhrase = useMemo(() => {
+    if (!sensitive || sensitive.target.role !== "admin") return "";
+    const keyword = getConfirmationKeyword(sensitive.action);
+    return keyword && sensitive.target.email ? `${keyword} ${sensitive.target.email.toLowerCase()}` : "";
+  }, [sensitive]);
+
+  const openEdit = (user: UserRow) => {
+    setEditTarget(user);
+    setEditForm({ name: user.name || "", email: user.email || "" });
   };
 
-  const handleToggleBlock = (id: number, currentStatus: "active" | "blocked") => {
-    const accountStatus = currentStatus === "active" ? "blocked" : "active";
-    const action = accountStatus === "blocked" ? "bloquer" : "débloquer";
-    if (confirm(`Voulez-vous ${action} ce compte ?`)) {
-      setAccountStatus.mutate({ id, accountStatus });
-    }
+  const submitCreate = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    createUser.mutate(createForm);
   };
 
-  const handleDelete = (id: number, email: string | null) => {
-    if (confirm(`Supprimer définitivement le compte ${email || "sélectionné"} ? Cette action est irréversible. Les comptes ayant des commandes ne peuvent pas être supprimés.`)) {
-      deleteUser.mutate({ id });
-    }
+  const submitEdit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editTarget) return;
+    updateProfile.mutate({ id: editTarget.id, ...editForm });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name || !form.email) {
-      toast.error("Veuillez remplir tous les champs obligatoires");
+  const runSensitiveAction = () => {
+    if (!sensitive) return;
+    const { target, action } = sensitive;
+    const confirmationValue = expectedPhrase ? confirmation : undefined;
+
+    if (expectedPhrase && confirmation !== expectedPhrase) {
+      toast.error("La phrase de confirmation ne correspond pas exactement.");
       return;
     }
-    createUser.mutate(form);
+
+    if (action === "block" || action === "unblock") {
+      setAccountStatus.mutate({ id: target.id, accountStatus: action === "block" ? "blocked" : "active", confirmation: confirmationValue });
+      return;
+    }
+    if (action === "demote" || action === "promote") {
+      updateRole.mutate({ id: target.id, role: action === "demote" ? "user" : "admin", confirmation: confirmationValue });
+      return;
+    }
+    deleteUser.mutate({ id: target.id, confirmation: confirmationValue });
+  };
+
+  const statusLabel = (status: AccountStatus) => {
+    if (status === "pending_invitation") return "Invitation en attente";
+    if (status === "blocked") return "Bloqué";
+    return "Actif";
   };
 
   return (
@@ -84,20 +185,27 @@ export default function AdminUsers() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Gestion des Utilisateurs</h1>
-            <p className="text-muted-foreground">Gérez les comptes et les permissions de vos utilisateurs.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Gestion des utilisateurs</h1>
+            <p className="text-muted-foreground">Créez des invitations, modifiez les profils et gérez les autorisations sans retirer la sécurité du compte administrateur.</p>
           </div>
-          <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => setIsOpen(true)}>
-            <UserPlus className="mr-2 h-4 w-4" /> Ajouter un utilisateur
+          <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => setIsCreateOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" /> Inviter un utilisateur
           </Button>
         </div>
 
-        <div className="border rounded-lg bg-white overflow-hidden">
+        <div className="rounded-lg border bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <p><strong>Protection administrateur :</strong> vous ne pouvez pas gérer votre propre ligne ici. Pour bloquer, rétrograder ou supprimer un autre administrateur, une double confirmation avec une phrase écrite est obligatoire. MAZIGHO conservera toujours au moins un administrateur actif.</p>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border bg-white">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Utilisateur</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>E-mail</TableHead>
                 <TableHead>Rôle</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Dernière connexion</TableHead>
@@ -106,146 +214,70 @@ export default function AdminUsers() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-44 ml-auto" /></TableCell>
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-48" /></TableCell><TableCell><Skeleton className="h-4 w-20" /></TableCell><TableCell><Skeleton className="h-4 w-28" /></TableCell><TableCell><Skeleton className="h-4 w-24" /></TableCell><TableCell><Skeleton className="ml-auto h-8 w-36" /></TableCell>
                   </TableRow>
                 ))
               ) : users?.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    Aucun utilisateur trouvé.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users?.map((user) => (
+                <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground">Aucun utilisateur trouvé.</TableCell></TableRow>
+              ) : users?.map(rawUser => {
+                const user = rawUser as UserRow;
+                const isSelf = currentUser?.id === user.id;
+                return (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-purple-50 p-2 rounded">
-                          <User className="h-4 w-4 text-purple-500" />
-                        </div>
-                        {user.name || "Utilisateur sans nom"}
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                        {user.role === "admin" ? (
-                          <div className="flex items-center gap-1">
-                            <Shield className="h-3 w-3" /> Administrateur
-                          </div>
-                        ) : "Client"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={user.accountStatus === "blocked" ? "destructive" : "outline"}>
-                        {user.accountStatus === "blocked" ? "Bloqué" : "Actif"}
-                      </Badge>
-                    </TableCell>
+                    <TableCell className="font-medium"><div className="flex items-center gap-3"><div className="rounded bg-purple-50 p-2"><User className="h-4 w-4 text-purple-500" /></div>{user.name || "Utilisateur sans nom"}</div></TableCell>
+                    <TableCell>{user.email || "—"}</TableCell>
+                    <TableCell><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Administrateur</span> : "Client"}</Badge></TableCell>
+                    <TableCell><Badge variant={user.accountStatus === "blocked" ? "destructive" : user.accountStatus === "pending_invitation" ? "secondary" : "outline"}>{statusLabel(user.accountStatus)}</Badge></TableCell>
                     <TableCell>{user.lastSignedIn ? new Date(user.lastSignedIn).toLocaleDateString() : "Jamais"}</TableCell>
                     <TableCell className="text-right">
-                      {user.role === "admin" ? (
-                        <span className="text-xs text-muted-foreground">Compte protégé</span>
-                      ) : (
+                      {isSelf ? <span className="text-xs text-muted-foreground">Votre compte</span> : (
                         <div className="flex flex-wrap justify-end gap-2">
-                          <Button variant="outline" size="sm" disabled={updateRole.isPending} onClick={() => handleToggleRole(user.id, user.role)}>
-                            {updateRole.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <UserCog className="mr-1 h-4 w-4" />}
-                            Rôle
-                          </Button>
-                          <Button variant="outline" size="sm" disabled={setAccountStatus.isPending} onClick={() => handleToggleBlock(user.id, user.accountStatus)}>
-                            {setAccountStatus.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <ShieldBan className="mr-1 h-4 w-4" />}
-                            {user.accountStatus === "blocked" ? "Débloquer" : "Bloquer"}
-                          </Button>
-                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={deleteUser.isPending} onClick={() => handleDelete(user.id, user.email)}>
-                            {deleteUser.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
-                            Supprimer
-                          </Button>
+                          <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => openEdit(user)}><Pencil className="mr-1 h-4 w-4" /> Modifier</Button>
+                          {user.accountStatus === "pending_invitation" && <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => resendInvitation.mutate({ id: user.id })}><Mail className="mr-1 h-4 w-4" /> Renvoyer l’invitation</Button>}
+                          <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.role === "admin" ? "demote" : "promote" })}><UserCog className="mr-1 h-4 w-4" /> {user.role === "admin" ? "Rétrograder" : "Promouvoir"}</Button>
+                          <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.accountStatus === "blocked" ? "unblock" : "block" })}><ShieldBan className="mr-1 h-4 w-4" /> {user.accountStatus === "blocked" ? "Débloquer" : "Bloquer"}</Button>
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: "delete" })}><Trash2 className="mr-1 h-4 w-4" /> Supprimer</Button>
                         </div>
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       </div>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Ajouter un nouvel utilisateur</DialogTitle>
-            <DialogDescription>
-              Créez un nouveau compte utilisateur et assignez-lui un rôle.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nom complet</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="name" 
-                  placeholder="Jean Dupont" 
-                  className="pl-10" 
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Adresse Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="jean.dupont@exemple.com" 
-                  className="pl-10"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Rôle assigné</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  type="button" 
-                  variant={form.role === "user" ? "default" : "outline"}
-                  className={form.role === "user" ? "bg-orange-500 hover:bg-orange-600" : ""}
-                  onClick={() => setForm({ ...form, role: "user" })}
-                >
-                  <User className="mr-2 h-4 w-4" /> Client
-                </Button>
-                <Button 
-                  type="button" 
-                  variant={form.role === "admin" ? "default" : "outline"}
-                  className={form.role === "admin" ? "bg-orange-500 hover:bg-orange-600" : ""}
-                  onClick={() => setForm({ ...form, role: "admin" })}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" /> Admin
-                </Button>
-              </div>
-            </div>
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsOpen(false)}>Annuler</Button>
-              <Button 
-                type="submit" 
-                className="bg-orange-500 hover:bg-orange-600"
-                disabled={createUser.isPending}
-              >
-                {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Créer l'utilisateur
-              </Button>
-            </DialogFooter>
+          <DialogHeader><DialogTitle>Inviter un utilisateur</DialogTitle><DialogDescription>Le compte restera en attente jusqu’au choix de son mot de passe depuis un lien personnel.</DialogDescription></DialogHeader>
+          <form onSubmit={submitCreate} className="space-y-4 py-4">
+            <div className="space-y-2"><Label htmlFor="invite-name">Nom complet</Label><Input id="invite-name" value={createForm.name} onChange={event => setCreateForm({ ...createForm, name: event.target.value })} placeholder="Jean Dupont" required /></div>
+            <div className="space-y-2"><Label htmlFor="invite-email">Adresse e-mail</Label><div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><Input id="invite-email" type="email" className="pl-10" value={createForm.email} onChange={event => setCreateForm({ ...createForm, email: event.target.value })} placeholder="jean.dupont@exemple.ch" required /></div></div>
+            <div className="space-y-2"><Label>Rôle à attribuer</Label><div className="grid grid-cols-2 gap-2"><Button type="button" variant={createForm.role === "user" ? "default" : "outline"} className={createForm.role === "user" ? "bg-orange-500 hover:bg-orange-600" : ""} onClick={() => setCreateForm({ ...createForm, role: "user" })}><User className="mr-2 h-4 w-4" /> Client</Button><Button type="button" variant={createForm.role === "admin" ? "default" : "outline"} className={createForm.role === "admin" ? "bg-orange-500 hover:bg-orange-600" : ""} onClick={() => setCreateForm({ ...createForm, role: "admin" })}><ShieldCheck className="mr-2 h-4 w-4" /> Admin</Button></div></div>
+            <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={createUser.isPending}>{createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Créer l’invitation</Button></DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(editTarget)} onOpenChange={open => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Modifier le profil</DialogTitle><DialogDescription>Le rôle, le blocage et la suppression se font séparément avec leurs garde-fous.</DialogDescription></DialogHeader>
+          <form onSubmit={submitEdit} className="space-y-4 py-4">
+            <div className="space-y-2"><Label htmlFor="edit-name">Nom complet</Label><Input id="edit-name" value={editForm.name} onChange={event => setEditForm({ ...editForm, name: event.target.value })} required /></div>
+            <div className="space-y-2"><Label htmlFor="edit-email">Adresse e-mail</Label><Input id="edit-email" type="email" value={editForm.email} onChange={event => setEditForm({ ...editForm, email: event.target.value })} required /></div>
+            <DialogFooter><Button type="button" variant="ghost" onClick={() => setEditTarget(null)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={updateProfile.isPending}>{updateProfile.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(sensitive)} onOpenChange={open => { if (!open) { setSensitive(null); setConfirmation(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" /> {sensitive ? `${getActionLabel(sensitive.action)} un compte` : "Action sensible"}</DialogTitle><DialogDescription>{sensitive?.action === "delete" ? "Cette action est irréversible. Un compte ayant des commandes ne pourra pas être supprimé." : "Cette action modifie immédiatement les accès au compte."}</DialogDescription></DialogHeader>
+          {sensitive && <div className="space-y-4 py-4"><div className="rounded-lg bg-muted p-3 text-sm"><p><strong>Compte ciblé :</strong> {sensitive.target.email || "sans e-mail"}</p><p><strong>Rôle :</strong> {sensitive.target.role === "admin" ? "Administrateur" : "Client"}</p></div>{expectedPhrase && <div className="space-y-2"><Label htmlFor="admin-confirmation">Pour confirmer, saisissez exactement :</Label><code className="block break-all rounded bg-slate-950 p-3 text-xs text-white">{expectedPhrase}</code><Input id="admin-confirmation" value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" placeholder={expectedPhrase} /></div>}<p className="text-sm text-muted-foreground">{expectedPhrase ? "Cette seconde confirmation écrite est également vérifiée par le serveur." : "Confirmez l’action ci-dessous."}</p></div>}
+          <DialogFooter><Button type="button" variant="ghost" onClick={() => { setSensitive(null); setConfirmation(""); }}>Annuler</Button><Button type="button" variant={sensitive?.action === "delete" ? "destructive" : "default"} className={sensitive?.action !== "delete" ? "bg-orange-500 hover:bg-orange-600" : ""} disabled={mutationPending || Boolean(expectedPhrase && confirmation !== expectedPhrase)} onClick={runSensitiveAction}>{mutationPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{sensitive ? getActionLabel(sensitive.action) : "Confirmer"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

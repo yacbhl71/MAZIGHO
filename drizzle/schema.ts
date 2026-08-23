@@ -11,14 +11,29 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("passwordHash", { length: 255 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  accountStatus: mysqlEnum("accountStatus", ["active", "blocked"]).default("active").notNull(),
+  accountStatus: mysqlEnum("accountStatus", ["pending_invitation", "active", "blocked"]).default("active").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  lastSignedIn: timestamp("lastSignedIn"),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+// One-time tokens are stored only as SHA-256 hashes. The original token appears
+// only in the e-mail link and is invalidated as soon as it is used.
+export const accountTokens = mysqlTable("accountTokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  purpose: mysqlEnum("purpose", ["account_invitation", "password_reset"]).notNull(),
+  tokenHash: varchar("tokenHash", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AccountToken = typeof accountTokens.$inferSelect;
+export type InsertAccountToken = typeof accountTokens.$inferInsert;
 
 // Categories table
 export const categories = mysqlTable("categories", {
