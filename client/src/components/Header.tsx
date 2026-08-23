@@ -1,11 +1,12 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Heart, ShoppingCart, User } from "lucide-react";
+import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import SearchBar from "./SearchBar";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -18,6 +19,8 @@ export default function Header() {
   const { favorites } = useFavorites();
   const cartCount = getItemCount();
   const favoritesCount = favorites.length;
+  const { user, isAuthenticated } = useAuth();
+  const isAdmin = isAuthenticated && user?.role === "admin";
 
   const isActive = (path: string) => location === path;
 
@@ -173,6 +176,7 @@ export default function Header() {
                 <span>Mon compte</span>
               </Button>
             </Link>
+            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>Gestion MAZIGHO</span></Button></Link>}
 
             {/* Mobile Menu Button */}
             <button
@@ -255,10 +259,8 @@ export default function Header() {
               </div>
             </Link>
 
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm">
-              <User className="h-4 w-4" />
-              Mon compte
-            </Button>
+            <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> Mon compte</Button></Link>
+            {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> Gestion MAZIGHO</Button></Link>}
           </div>
         )}
       </nav>
