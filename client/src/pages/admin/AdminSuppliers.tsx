@@ -15,6 +15,8 @@ import {
   MapPin,
   Workflow,
   ClipboardPenLine,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -98,6 +100,11 @@ export default function AdminSuppliers() {
   const searchCj = trpc.admin.suppliers.searchCj.useMutation({
     onError: (error) => toast.error(error.message || "La recherche CJ a échoué."),
   });
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [photoName, setPhotoName] = useState("");
+  const searchCjByImage = trpc.admin.suppliers.searchCjByImage.useMutation({
+    onError: (error) => toast.error(error.message || "La recherche à partir de l’image a échoué."),
+  });
 
   const submitCjSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -106,6 +113,38 @@ export default function AdminSuppliers() {
       return;
     }
     searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined });
+  };
+
+  const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!/image\/(jpeg|png|webp)/.test(file.type)) {
+      toast.error("Choisissez une image JPG, PNG ou WebP.");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("L’image doit faire au maximum 4 Mo.");
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setPhotoDataUrl(reader.result);
+        setPhotoName(file.name);
+      }
+    };
+    reader.onerror = () => toast.error("Impossible de lire cette image.");
+    reader.readAsDataURL(file);
+  };
+
+  const submitImageSearch = () => {
+    if (!photoDataUrl) {
+      toast.error("Ajoutez d’abord une photo de référence.");
+      return;
+    }
+    searchCjByImage.mutate({ imageDataUrl: photoDataUrl, countryCode: cjCountry || undefined });
   };
 
   return (
@@ -163,6 +202,15 @@ export default function AdminSuppliers() {
           </form>
           {!cjStatus?.configured && <p className="mt-3 text-xs text-slate-500">Configurez et vérifiez d’abord la clé CJ dans le bloc situé au-dessus.</p>}
 
+          <div className="mt-5 rounded-xl border border-dashed border-violet-200 bg-violet-50/50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-sm font-semibold text-violet-800"><ImagePlus className="h-4 w-4" /> Rechercher à partir d’une photo</div><p className="mt-1 max-w-2xl text-xs leading-5 text-violet-900/80">Ajoutez une photo de référence : MAZIGHO en déduit un mot-clé générique, puis interroge le catalogue CJ officiel. Elle est transmise une seule fois au service d’analyse, mais n’est ni enregistrée dans le catalogue ni publiée. N’ajoutez pas de photo personnelle.</p></div><Badge variant="secondary" className="bg-white text-violet-800">JPG, PNG ou WebP · 4 Mo max.</Badge></div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-medium text-violet-900 hover:bg-violet-100"><ImagePlus className="h-4 w-4" /> {photoName || "Choisir une photo"}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectPhoto} className="sr-only" /></label>
+              <Button type="button" onClick={submitImageSearch} disabled={!cjStatus?.configured || !photoDataUrl || searchCjByImage.isPending} className="h-11 bg-violet-600 text-white hover:bg-violet-700">{searchCjByImage.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />} Trouver des produits similaires</Button>
+            </div>
+            {photoDataUrl && <div className="mt-4 flex items-center gap-3 rounded-lg border border-violet-100 bg-white p-2"><img src={photoDataUrl} alt="Photo de référence" className="h-16 w-16 rounded-md border bg-slate-50 object-contain p-1" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-slate-800">{photoName}</p><p className="text-xs text-slate-500">Photo prête pour une seule analyse à votre demande.</p></div><Button type="button" variant="ghost" size="icon" aria-label="Retirer la photo" onClick={() => { setPhotoDataUrl(null); setPhotoName(""); searchCjByImage.reset(); }}><X className="h-4 w-4" /></Button></div>}
+          </div>
+
           {searchCj.data && (
             <div className="mt-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-slate-600"><strong className="text-slate-900">{searchCj.data.total.toLocaleString("fr-CH")}</strong> résultats possibles pour « {searchCj.data.keyword} »</p><p className="text-xs text-slate-500">Prix fournisseur indicatif en USD — expédition à confirmer.</p></div>
@@ -182,6 +230,12 @@ export default function AdminSuppliers() {
               <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><strong>Avant toute importation :</strong> vérifiez le prix rendu, la livraison vers votre pays, les variantes, la qualité, les droits d’image et la conformité. Ce module ne crée aucun produit MAZIGHO et aucune commande CJ.</div>
             </div>
           )}
+
+          {searchCjByImage.data && <div className="mt-6 border-t border-violet-100 pt-6">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm text-slate-700"><strong className="text-violet-900">{searchCjByImage.data.total.toLocaleString("fr-CH")}</strong> résultats possibles à partir du mot-clé « {searchCjByImage.data.keyword} »</p><p className="mt-1 text-xs text-slate-500">Interprétation : {searchCjByImage.data.interpretation || "produit de référence"} · confiance {searchCjByImage.data.confidence === "high" ? "élevée" : searchCjByImage.data.confidence === "low" ? "faible" : "moyenne"}.</p></div><Badge variant="secondary" className="bg-violet-50 text-violet-800">Suggestion à vérifier</Badge></div>
+            {searchCjByImage.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-violet-200 bg-white p-6 text-sm text-slate-600">Aucun produit CJ n’a été renvoyé pour cette suggestion. Essayez une photo plus nette ou utilisez un mot-clé.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{searchCjByImage.data.products.map(product => <article key={`image-${product.id}`} className="overflow-hidden rounded-xl border border-violet-100 bg-white shadow-sm"><div className="flex h-36 items-center justify-center bg-violet-50/50">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-contain p-2" /> : <Boxes className="h-8 w-8 text-slate-300" />}</div><div className="space-y-3 p-4"><div><h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-slate-900">{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">SKU : {product.sku || "Non communiqué"}</p></div><div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div><p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p><Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link></div></article>)}</div>}
+            <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><strong>Résultats indicatifs :</strong> une photo produit une suggestion de mot-clé, pas une identification certaine. Vérifiez toujours prix, livraison, variantes, conformité et droits d’image avant toute préparation de brouillon.</div>
+          </div>}
         </section>
 
         <section className="grid gap-4 md:grid-cols-3">

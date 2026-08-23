@@ -1,3 +1,5 @@
+import { invokeLLM } from "./_core/llm";
+
 const CJ_API_BASE = "https://developers.cjdropshipping.com/api2.0/v1";
 const CJ_REQUEST_TIMEOUT_MS = 12_000;
 
@@ -104,6 +106,14 @@ export type CjImportPreparation = {
   variantsLabel: string | null;
 };
 
+export type CjImageSearchResult = {
+  keyword: string;
+  interpretation: string;
+  confidence: "low" | "medium" | "high";
+  total: number;
+  products: CjCatalogProduct[];
+};
+
 export type CjCatalogProduct = {
   id: string;
   sku: string | null;
@@ -127,6 +137,22 @@ type CjCatalogSearch = {
 };
 
 let tokenCache: { token: CjAccessToken; cachedAt: number } | null = null;
+
+const cjImageAnalysisSchema = {
+  name: "cj_product_photo_analysis",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      isProduct: { type: "boolean" },
+      searchKeyword: { type: "string" },
+      interpretation: { type: "string" },
+      confidence: { type: "string", enum: ["low", "medium", "high"] },
+    },
+    required: ["isProduct", "searchKeyword", "interpretation", "confidence"],
+    additionalProperties: false,
+  },
+};
 
 function getCjApiKey() {
   return process.env.CJ_API_KEY?.trim() || null;
@@ -219,6 +245,54 @@ export async function verifyCjConnection(): Promise<CjConnectionStatus> {
  * Recherche lecture-seule dans le catalogue CJ. Le navigateur ne reçoit jamais de token CJ,
  * et aucun endpoint d’import ou de commande fournisseur n’est appelé.
  */
+function validateImageDataUrl(imageDataUrl: string) {
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/i.exec(imageDataUrl);
+  if (!match) throw new Error("CJ_IMAGE_INVALID");
+  const payload = match[2].replace(/\s/g, "");
+  if (Buffer.byteLength(payload, "base64") > 4 * 1024 * 1024) throw new Error("CJ_IMAGE_TOO_LARGE");
+  return `data:image/${match[1].toLowerCase()};base64,${payload}`;
+}
+
+async function extractCjSearchKeywordFromImage(imageDataUrl: string) {
+  const safeImageDataUrl = validateImageDataUrl(imageDataUrl);
+  let response;
+  try {
+    response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: "You analyze a product reference photo for an internal dropshipping sourcing tool. Identify only visible generic product attributes. Never infer a brand, trademark, exact model, safety certification, compatibility, or material that is not clearly visible. Return one concise English generic keyword phrase of 2 to 8 words that is suitable for a supplier catalog search. If the photo is not a clear product, set isProduct false and leave searchKeyword empty.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analyze this product reference photo. The result is only a search suggestion; it must not create, publish, or order any product." },
+            { type: "image_url", image_url: { url: safeImageDataUrl, detail: "low" } },
+          ],
+        },
+      ],
+      outputSchema: cjImageAnalysisSchema,
+      maxTokens: 220,
+    });
+  } catch {
+    throw new Error("CJ_IMAGE_ANALYSIS_FAILED");
+  }
+
+  const content = response.choices[0]?.message.content;
+  const raw = typeof content === "string" ? content : "";
+  try {
+    const parsed = JSON.parse(raw) as { isProduct?: boolean; searchKeyword?: unknown; interpretation?: unknown; confidence?: unknown };
+    const keyword = typeof parsed.searchKeyword === "string" ? parsed.searchKeyword.replace(/[^a-zA-Z0-9\s&-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) : "";
+    const interpretation = typeof parsed.interpretation === "string" ? parsed.interpretation.replace(/\s+/g, " ").trim().slice(0, 280) : "";
+    const confidence: CjImageSearchResult["confidence"] = parsed.confidence === "low" || parsed.confidence === "high" ? parsed.confidence : "medium";
+    if (!parsed.isProduct || keyword.length < 2) throw new Error("CJ_IMAGE_NOT_PRODUCT");
+    return { keyword, interpretation, confidence };
+  } catch (error) {
+    if (error instanceof Error && error.message === "CJ_IMAGE_NOT_PRODUCT") throw error;
+    throw new Error("CJ_IMAGE_ANALYSIS_FAILED");
+  }
+}
+
 function stripCjHtml(value: unknown) {
   return String(value ?? "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -247,6 +321,18 @@ function isPublicImageUrl(value: unknown): value is string {
  * Consulte le détail produit officiel uniquement après la sélection explicite d’un administrateur.
  * Cette fonction ne crée aucun produit MAZIGHO et ne contacte aucun endpoint de commande CJ.
  */
+export async function searchCjCatalogByImage(input: { imageDataUrl: string; countryCode?: string }): Promise<CjImageSearchResult> {
+  const analysis = await extractCjSearchKeywordFromImage(input.imageDataUrl);
+  const search = await searchCjCatalog({ keyword: analysis.keyword, countryCode: input.countryCode });
+  return {
+    keyword: analysis.keyword,
+    interpretation: analysis.interpretation,
+    confidence: analysis.confidence,
+    total: search.total,
+    products: search.products,
+  };
+}
+
 export async function prepareCjProductImport(input: { productId: string; countryCode?: string }): Promise<CjImportPreparation> {
   const access = await getCjAccessToken();
   const params = new URLSearchParams({ pid: input.productId.trim() });
