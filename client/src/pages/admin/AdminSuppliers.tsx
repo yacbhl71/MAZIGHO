@@ -113,7 +113,7 @@ export default function AdminSuppliers() {
   });
   const cjStatus = cjStatusQuery.data;
   const [cjKeyword, setCjKeyword] = useState("");
-  const [cjCountry, setCjCountry] = useState("CH");
+  const [cjCountry, setCjCountry] = useState("");
   const [cjFreeShippingOnly, setCjFreeShippingOnly] = useState(false);
   const searchCj = trpc.admin.suppliers.searchCj.useMutation({
     onError: (error) => toast.error(error.message || "La recherche CJ a échoué."),
@@ -210,7 +210,7 @@ export default function AdminSuppliers() {
             <div>
               <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-sky-700"><PackageSearch className="h-4 w-4" /> Catalogue CJ — aperçu</div>
               <h2 className="text-xl font-semibold text-slate-950">Rechercher avant de choisir</h2>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Cette recherche lit uniquement le catalogue officiel CJ. Aucun produit n’est importé, publié ou commandé à cette étape.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Cette recherche lit uniquement le catalogue officiel CJ. Elle sert à trouver un produit ; la livraison vers un pays client sera calculée séparément, sur une variante précise. Aucun produit n’est importé, publié ou commandé à cette étape.</p>
             </div>
             <Badge variant="secondary" className="w-fit bg-white text-slate-700">Résultats limités à 12 produits</Badge>
           </div>
@@ -220,22 +220,23 @@ export default function AdminSuppliers() {
               <input value={cjKeyword} onChange={event => setCjKeyword(event.target.value)} placeholder="Ex. lampe de bureau, accessoire fitness…" className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-sky-500" />
             </label>
             <label className="block">
-              <span className="sr-only">Pays d’entrepôt</span>
-              <select value={cjCountry} onChange={event => setCjCountry(event.target.value)} className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
-                <option value="CH">Suisse (CH)</option>
-                <option value="FR">France (FR)</option>
-                <option value="DE">Allemagne (DE)</option>
-                <option value="IT">Italie (IT)</option>
-                <option value="AT">Autriche (AT)</option>
-                <option value="BE">Belgique (BE)</option>
-                <option value="NL">Pays-Bas (NL)</option>
-                <option value="ES">Espagne (ES)</option>
-                <option value="">Tous entrepôts</option>
+              <span className="sr-only">Filtre d’entrepôt CJ</span>
+              <select value={cjCountry} onChange={event => setCjCountry(event.target.value)} aria-label="Filtre d’entrepôt CJ" className="h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
+                <option value="">Tous entrepôts CJ</option>
+                <option value="CH">Stock en Suisse (CH)</option>
+                <option value="FR">Stock en France (FR)</option>
+                <option value="DE">Stock en Allemagne (DE)</option>
+                <option value="IT">Stock en Italie (IT)</option>
+                <option value="AT">Stock en Autriche (AT)</option>
+                <option value="BE">Stock en Belgique (BE)</option>
+                <option value="NL">Stock aux Pays-Bas (NL)</option>
+                <option value="ES">Stock en Espagne (ES)</option>
               </select>
             </label>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-white px-3 text-sm font-medium text-sky-900"><input type="checkbox" checked={cjFreeShippingOnly} onChange={event => setCjFreeShippingOnly(event.target.checked)} className="h-4 w-4 accent-sky-600" /> Livraison gratuite CJ</label>
             <Button type="submit" disabled={!cjStatus?.configured || searchCj.isPending} className="h-11 bg-sky-600 text-white hover:bg-sky-700">{searchCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />} Rechercher</Button>
           </form>
+          <p className="mt-3 text-xs leading-5 text-slate-600"><strong>Important :</strong> ce menu filtre seulement les produits ayant du stock dans un entrepôt CJ. Pour confirmer une livraison vers l’Espagne, l’Italie ou un autre pays, ouvrez ensuite « Préparer le devis par pays » sur le produit choisi.</p>
           {!cjStatus?.configured && <p className="mt-3 text-xs text-slate-500">Configurez et vérifiez d’abord la clé CJ dans le bloc situé au-dessus.</p>}
 
           <div className="mt-5 rounded-xl border border-dashed border-violet-200 bg-violet-50/50 p-4">
@@ -258,9 +259,9 @@ export default function AdminSuppliers() {
                       <div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div>
                       <div className="flex flex-wrap gap-1.5">{product.category && <Badge variant="secondary" className="max-w-full truncate bg-slate-100 text-slate-600">{product.category}</Badge>}{product.hasCeCertification && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">CE indiqué</Badge>}{product.isFreeShipping && <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">Livraison gratuite indiquée</Badge>}</div>
                       <p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p>
-                      <Button type="button" variant="outline" size="sm" onClick={() => checkCjSwissDelivery.mutate({ productId: product.id })} disabled={checkCjSwissDelivery.isPending} className="w-full border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100">{checkCjSwissDelivery.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />} Vérifier la Suisse</Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => checkCjSwissDelivery.mutate({ productId: product.id })} disabled={checkCjSwissDelivery.isPending} className="w-full border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100">{checkCjSwissDelivery.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />} Contrôle rapide Suisse</Button>
                       {swissChecks[product.id] && <p className={`rounded-md px-2 py-1.5 text-xs leading-4 ${swissChecks[product.id].deliverable ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{swissChecks[product.id].deliverable ? <><strong>Suisse confirmée :</strong> dès ${swissChecks[product.id].costUsd?.toFixed(2)} USD{swissChecks[product.id].delay ? ` · ${swissChecks[product.id].delay} jours` : ""}.</> : <><strong>Suisse non confirmée :</strong> {swissChecks[product.id].message}</>}</p>}
-                      {swissChecks[product.id]?.deliverable ? <Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link> : <Button type="button" variant="outline" size="sm" disabled className="w-full">Préparer après confirmation Suisse</Button>}
+                      <Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer le devis par pays</Button></Link>
                     </div>
                   </article>)}
                 </div>
@@ -271,7 +272,7 @@ export default function AdminSuppliers() {
 
           {searchCjByImage.data && <div className="mt-6 border-t border-violet-100 pt-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm text-slate-700"><strong className="text-violet-900">{searchCjByImage.data.total.toLocaleString("fr-CH")}</strong> résultats possibles à partir du mot-clé « {searchCjByImage.data.keyword} »</p><p className="mt-1 text-xs text-slate-500">Interprétation : {searchCjByImage.data.interpretation || "produit de référence"} · confiance {searchCjByImage.data.confidence === "high" ? "élevée" : searchCjByImage.data.confidence === "low" ? "faible" : "moyenne"}.</p></div><Badge variant="secondary" className="bg-violet-50 text-violet-800">Suggestion à vérifier</Badge></div>
-            {searchCjByImage.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-violet-200 bg-white p-6 text-sm text-slate-600">Aucun produit CJ n’a été renvoyé pour cette suggestion. Essayez une photo plus nette ou utilisez un mot-clé.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{searchCjByImage.data.products.map(product => <article key={`image-${product.id}`} className="overflow-hidden rounded-xl border border-violet-100 bg-white shadow-sm"><div className="flex h-36 items-center justify-center bg-violet-50/50">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-contain p-2" /> : <Boxes className="h-8 w-8 text-slate-300" />}</div><div className="space-y-3 p-4"><div><h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-slate-900">{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">SKU : {product.sku || "Non communiqué"}</p></div><div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div><p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p><Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link></div></article>)}</div>}
+            {searchCjByImage.data.products.length === 0 ? <div className="rounded-xl border border-dashed border-violet-200 bg-white p-6 text-sm text-slate-600">Aucun produit CJ n’a été renvoyé pour cette suggestion. Essayez une photo plus nette ou utilisez un mot-clé.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{searchCjByImage.data.products.map(product => <article key={`image-${product.id}`} className="overflow-hidden rounded-xl border border-violet-100 bg-white shadow-sm"><div className="flex h-36 items-center justify-center bg-violet-50/50">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-contain p-2" /> : <Boxes className="h-8 w-8 text-slate-300" />}</div><div className="space-y-3 p-4"><div><h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-slate-900">{product.name}</h3><p className="mt-1 truncate text-xs text-slate-500">SKU : {product.sku || "Non communiqué"}</p></div><div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div><p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p><Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer le devis par pays</Button></Link></div></article>)}</div>}
             <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><strong>Résultats indicatifs :</strong> une photo produit une suggestion de mot-clé, pas une identification certaine. Vérifiez toujours prix, livraison, variantes, conformité et droits d’image avant toute préparation de brouillon.</div>
           </div>}
         </section>
