@@ -103,6 +103,11 @@ export default function AdminSuppliers() {
   const searchCj = trpc.admin.suppliers.searchCj.useMutation({
     onError: (error) => toast.error(error.message || "La recherche CJ a échoué."),
   });
+  const [swissChecks, setSwissChecks] = useState<Record<string, { deliverable: boolean; variantLabel: string | null; costUsd: number | null; delay: string | null; message: string }>>({});
+  const checkCjSwissDelivery = trpc.admin.suppliers.checkCjSwissDelivery.useMutation({
+    onSuccess: (result) => setSwissChecks(current => ({ ...current, [result.productId]: result })),
+    onError: (error) => toast.error(error.message || "Impossible de vérifier la livraison Suisse."),
+  });
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [photoName, setPhotoName] = useState("");
   const searchCjByImage = trpc.admin.suppliers.searchCjByImage.useMutation({
@@ -115,6 +120,7 @@ export default function AdminSuppliers() {
       toast.error("Saisissez au moins 2 caractères pour rechercher un produit.");
       return;
     }
+    setSwissChecks({});
     searchCj.mutate({ keyword: cjKeyword.trim(), countryCode: cjCountry || undefined, freeShippingOnly: cjFreeShippingOnly });
   };
 
@@ -232,7 +238,9 @@ export default function AdminSuppliers() {
                       <div className="flex items-end justify-between gap-3"><div><p className="text-xs text-slate-500">Prix fournisseur</p><p className="font-semibold text-slate-900">{product.supplierPriceUsd == null ? "—" : `$${product.supplierPriceUsd.toFixed(2)} USD`}</p></div><div className="text-right"><p className="text-xs text-slate-500">Stock vérifié</p><p className="font-medium text-slate-700">{product.verifiedStock == null ? "À confirmer" : product.verifiedStock.toLocaleString("fr-CH")}</p></div></div>
                       <div className="flex flex-wrap gap-1.5">{product.category && <Badge variant="secondary" className="max-w-full truncate bg-slate-100 text-slate-600">{product.category}</Badge>}{product.hasCeCertification && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">CE indiqué</Badge>}{product.isFreeShipping && <Badge className="bg-sky-100 text-sky-800 hover:bg-sky-100">Livraison gratuite indiquée</Badge>}</div>
                       <p className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> Délai CJ : {product.deliveryCycle ? `${product.deliveryCycle} jours` : "à confirmer"}</p>
-                      <Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link>
+                      <Button type="button" variant="outline" size="sm" onClick={() => checkCjSwissDelivery.mutate({ productId: product.id })} disabled={checkCjSwissDelivery.isPending} className="w-full border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100">{checkCjSwissDelivery.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MapPin className="mr-2 h-4 w-4" />} Vérifier la Suisse</Button>
+                      {swissChecks[product.id] && <p className={`rounded-md px-2 py-1.5 text-xs leading-4 ${swissChecks[product.id].deliverable ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>{swissChecks[product.id].deliverable ? <><strong>Suisse confirmée :</strong> dès ${swissChecks[product.id].costUsd?.toFixed(2)} USD{swissChecks[product.id].delay ? ` · ${swissChecks[product.id].delay} jours` : ""}.</> : <><strong>Suisse non confirmée :</strong> {swissChecks[product.id].message}</>}</p>}
+                      {swissChecks[product.id]?.deliverable ? <Link href={`/admin/import-cj?pid=${encodeURIComponent(product.id)}${cjCountry ? `&country=${encodeURIComponent(cjCountry)}` : ""}`}><Button type="button" variant="outline" size="sm" className="w-full border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"><ClipboardPenLine className="mr-2 h-4 w-4" /> Préparer l’import</Button></Link> : <Button type="button" variant="outline" size="sm" disabled className="w-full">Préparer après confirmation Suisse</Button>}
                     </div>
                   </article>)}
                 </div>

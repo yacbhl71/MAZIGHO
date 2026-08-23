@@ -4,7 +4,7 @@ import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
+import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -553,6 +553,18 @@ export const adminRouter = router({
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "BAD_GATEWAY", message: "CJdropshipping est momentanément inaccessible. Réessayez plus tard." });
         if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de préparer cette fiche CJ pour le moment." });
+      }
+    }),
+    checkCjSwissDelivery: adminProcedure.input(z.object({
+      productId: z.string().trim().min(1).max(128),
+    })).mutation(async ({ input }) => {
+      try {
+        return await checkCjSwissDelivery(input.productId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour la vérification Suisse. Réessayez plus tard." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de vérifier la livraison Suisse pour le moment." });
       }
     }),
     quoteCjDelivery: adminProcedure.input(z.object({

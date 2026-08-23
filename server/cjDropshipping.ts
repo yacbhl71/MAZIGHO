@@ -124,6 +124,15 @@ export type CjImportPreparation = {
   }>;
 };
 
+export type CjSwissDeliveryCheck = {
+  productId: string;
+  deliverable: boolean;
+  variantLabel: string | null;
+  costUsd: number | null;
+  delay: string | null;
+  message: string;
+};
+
 export type CjDeliveryQuote = {
   variantId: string;
   variantLabel: string;
@@ -633,6 +642,25 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
   }));
 
   return { variantId: variant.id, variantLabel: variant.label, countries };
+}
+
+/** Vérifie la Suisse sur les premières variantes d’un produit sans créer de brouillon ni de commande. */
+export async function checkCjSwissDelivery(productId: string): Promise<CjSwissDeliveryCheck> {
+  const prepared = await prepareCjProductImport({ productId });
+  const candidates = prepared.variants.slice(0, 4);
+  if (!candidates.length) {
+    return { productId: prepared.productId, deliverable: false, variantLabel: null, costUsd: null, delay: null, message: "CJ ne retourne aucune variante exploitable pour ce produit." };
+  }
+
+  for (const variant of candidates) {
+    const quote = await quoteCjDelivery({ productId: prepared.productId, variantId: variant.id, countryCodes: ["CH"] });
+    const option = quote.countries[0]?.options[0];
+    if (option) {
+      return { productId: prepared.productId, deliverable: true, variantLabel: variant.label, costUsd: option.costUsd, delay: option.delay, message: "Livraison Suisse confirmée par le calculateur CJ pour cette variante." };
+    }
+  }
+
+  return { productId: prepared.productId, deliverable: false, variantLabel: null, costUsd: null, delay: null, message: "La livraison Suisse n’est pas confirmée par les calculateurs CJ pour les premières variantes vérifiées." };
 }
 
 export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string; freeShippingOnly?: boolean }): Promise<CjCatalogSearch> {
