@@ -10,6 +10,7 @@ import {
   Loader2,
   PackageSearch,
   ShieldCheck,
+  PackageCheck,
   Store,
   Search,
   MapPin,
@@ -87,6 +88,7 @@ function ProviderCard({ provider }: { provider: typeof providerCards[number] }) 
 export default function AdminSuppliers() {
   const utils = trpc.useUtils();
   const cjStatusQuery = trpc.admin.suppliers.cjStatus.useQuery();
+  const legalProfileQuery = trpc.admin.legal.get.useQuery();
   const verifyCj = trpc.admin.suppliers.verifyCj.useMutation({
     onSuccess: async (result) => {
       await utils.admin.suppliers.cjStatus.invalidate();
@@ -173,6 +175,12 @@ export default function AdminSuppliers() {
             </div>
             {cjStatus?.configured ? <Button onClick={() => verifyCj.mutate()} disabled={verifyCj.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la connexion</Button> : <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">La clé sera ajoutée plus tard dans les variables sécurisées Vercel, jamais dans ce formulaire.</div>}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-violet-100 bg-violet-50/40 p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between"><div><div className="mb-2 flex items-center gap-2 text-sm font-semibold text-violet-800"><PackageCheck className="h-4 w-4" /> Identité colis MAZIGHO</div><h2 className="text-xl font-semibold text-slate-950">Préparer la marque avant les premières expéditions</h2><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Ces informations serviront de référence pour les tests d’emballage et d’expédition CJ. Elles ne sont pas encore transmises à CJ, ni affichées sur un colis sans validation préalable.</p></div><Badge variant="secondary" className="w-fit bg-white text-violet-800">À confirmer dans CJ</Badge></div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3"><div className="rounded-xl border border-violet-100 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Marque à utiliser</p><p className="mt-1 font-semibold text-slate-900">MAZIGHO</p><p className="mt-1 text-xs text-slate-500">À associer au packaging personnalisé, si choisi.</p></div><div className="rounded-xl border border-violet-100 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Adresse de référence</p><p className="mt-1 text-sm font-medium text-slate-900">{legalProfileQuery.data ? `${legalProfileQuery.data.addressLine}, ${legalProfileQuery.data.postalCodeCity}` : "Chargement de l’adresse légale…"}</p><p className="mt-1 text-xs text-slate-500">{legalProfileQuery.data?.country || "Suisse"} · à vérifier avec CJ avant toute expédition.</p></div><div className="rounded-xl border border-violet-100 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Statut fournisseur</p><p className="mt-1 text-sm font-medium text-slate-900">Aucune transmission automatique</p><p className="mt-1 text-xs text-slate-500">Le contenu du colis, l’adresse affichée et le packaging seront testés puis confirmés.</p></div></div>
+          <div className="mt-4 flex flex-wrap gap-3"><Link href="/admin/legal"><Button variant="outline" className="border-violet-200 bg-white text-violet-900 hover:bg-violet-100">Vérifier l’adresse légale</Button></Link><a href="https://cjdropshipping.com/customPackaging" target="_blank" rel="noreferrer"><Button variant="outline" className="border-violet-200 bg-white text-violet-900 hover:bg-violet-100"><ExternalLink className="mr-2 h-4 w-4" /> Voir le packaging CJ</Button></a></div>
         </section>
 
         <section className="rounded-2xl border border-sky-100 bg-sky-50/40 p-5 shadow-sm md:p-6">
