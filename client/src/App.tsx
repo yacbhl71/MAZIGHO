@@ -38,6 +38,10 @@ import FAQ from "./pages/FAQ";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ActivateAccount from "./pages/ActivateAccount";
+import LegalNotice from "./pages/LegalNotice";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import ShippingReturns from "./pages/ShippingReturns";
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -85,6 +89,10 @@ function BrowserTitle() {
       "/contact": "Contact | MAZIGHO",
       "/a-propos": "À propos | MAZIGHO",
       "/faq": "Aide | MAZIGHO",
+      "/mentions-legales": "Mentions légales | MAZIGHO",
+      "/confidentialite": "Confidentialité | MAZIGHO",
+      "/conditions-generales": "Conditions générales | MAZIGHO",
+      "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
     document.title = adminTitles[location] || publicTitles[location] || "MAZIGHO | Boutique en ligne";
@@ -122,6 +130,10 @@ function Router() {
       <Route path="/activer-compte" component={ActivateAccount} />
       <Route path="/register" component={Register} />
       <Route path="/faq" component={FAQ} />
+      <Route path="/mentions-legales" component={LegalNotice} />
+      <Route path="/confidentialite" component={PrivacyPolicy} />
+      <Route path="/conditions-generales" component={TermsAndConditions} />
+      <Route path="/livraison-retours" component={ShippingReturns} />
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/admin/produits"} component={AdminProducts} />
       <Route path={"/admin/importation"} component={AdminDropshipping} />

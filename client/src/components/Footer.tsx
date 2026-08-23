@@ -135,9 +135,15 @@ export default function Footer() {
             <p className="text-amber-100 text-sm mb-2">
               © {new Date().getFullYear()} MAZIGHO. Tous droits réservés.
             </p>
-            <p className="text-amber-200 text-xs">
-              Conditions d'utilisation • Politique de confidentialité • Mentions légales
-            </p>
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-amber-200">
+              <Link href="/conditions-generales"><span className="cursor-pointer hover:text-orange-400">Conditions générales</span></Link>
+              <span aria-hidden="true">•</span>
+              <Link href="/livraison-retours"><span className="cursor-pointer hover:text-orange-400">Livraison et retours</span></Link>
+              <span aria-hidden="true">•</span>
+              <Link href="/confidentialite"><span className="cursor-pointer hover:text-orange-400">Politique de confidentialité</span></Link>
+              <span aria-hidden="true">•</span>
+              <Link href="/mentions-legales"><span className="cursor-pointer hover:text-orange-400">Mentions légales</span></Link>
+            </div>
           </div>
         </div>
       </div>
