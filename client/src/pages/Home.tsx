@@ -17,12 +17,12 @@ const categoryAccents = [
 ];
 
 const discoveryTiles = [
-  { title: "Mode & accessoires", description: "Les détails qui accompagnent votre style au quotidien.", image: "/assets/category-mode.jpg" },
-  { title: "Beauté & bien-être", description: "Des instants de soin et de confort à s’offrir.", image: "/assets/category-beaute.jpg" },
-  { title: "Maison & cuisine", description: "Des objets simples qui facilitent les petits moments.", image: "/assets/category-maison.jpg" },
-  { title: "Sport & plein air", description: "Pour bouger, respirer et profiter davantage.", image: "/assets/category-sport.jpg" },
-  { title: "High-tech utile", description: "Des accessoires pensés pour rester connecté sans effort.", image: "/assets/category-high-tech.jpg" },
-  { title: "Mobilité & auto", description: "Les indispensables pour vos trajets et vos escapades.", image: "/assets/category-auto.jpg" },
+  { title: "Mode & accessoires", description: "Les détails qui accompagnent votre style au quotidien.", image: "/assets/category-mode.jpg", href: "/categorie/mode" },
+  { title: "Beauté & bien-être", description: "Des instants de soin et de confort à s’offrir.", image: "/assets/category-beaute.jpg", href: "/categorie/beaute-bien-etre" },
+  { title: "Maison & cuisine", description: "Des objets simples qui facilitent les petits moments.", image: "/assets/category-maison.jpg", href: "/categorie/maison-organisation" },
+  { title: "Sport & plein air", description: "Pour bouger, respirer et profiter davantage.", image: "/assets/category-sport.jpg", href: "/categorie/sport-fitness" },
+  { title: "High-tech utile", description: "Des accessoires pensés pour rester connecté sans effort.", image: "/assets/category-high-tech.jpg", href: "/categorie/high-tech-gadgets" },
+  { title: "Mobilité & auto", description: "Les indispensables pour vos trajets et vos escapades.", image: "/assets/category-auto.jpg", href: "/categorie/auto-accessoires" },
 ];
 
 const testimonialPlaceholders = [
@@ -144,7 +144,7 @@ export default function Home() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {discoveryTiles.map((tile) => (
-                <Link key={tile.title} href="/boutique" className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
+                <Link key={tile.title} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
                   <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
                 </Link>
