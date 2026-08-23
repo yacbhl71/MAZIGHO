@@ -154,16 +154,26 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-[#f4eee7] py-16 md:py-24">
-          <div className="container grid items-center gap-10 lg:grid-cols-[0.92fr_1.08fr] lg:gap-16">
-            <div className="relative min-h-[320px] overflow-hidden rounded-[2rem] bg-slate-900"><img src="/assets/home-lifestyle-top.jpg" alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" /><p className="absolute bottom-6 left-6 right-6 text-sm font-medium text-white/90">Des trouvailles pour accompagner les moments qui comptent.</p></div>
-            <div>
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">Notre inspiration</p>
-              <h2 className="max-w-xl text-3xl font-semibold leading-tight tracking-tight text-slate-950 md:text-5xl">L’esprit MAZIGHO, au quotidien.</h2>
-              <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.</p>
+        <section className="relative overflow-hidden bg-[#f4eee7] py-16 md:py-24">
+          <div aria-hidden="true" className="absolute -left-24 top-12 h-64 w-64 rounded-full bg-orange-200/45 blur-3xl" />
+          <div aria-hidden="true" className="absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-amber-100/80 blur-3xl" />
+          <div className="container relative grid items-center gap-12 lg:grid-cols-[1.04fr_0.96fr] lg:gap-20">
+            <div className="order-2 lg:order-1">
+              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/75 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-700"><Sparkles className="h-3.5 w-3.5" /> Notre inspiration</div>
+              <h2 className="mt-5 max-w-xl text-4xl font-semibold leading-[1.04] tracking-tight text-slate-950 md:text-6xl">L’histoire inspirante de <span className="text-orange-600">MAZIGHO.</span></h2>
+              <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 md:text-lg">MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.</p>
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">Notre sélection évolue avec les envies de la saison, entre mode, bien-être, maison et accessoires, afin de vous laisser explorer librement ce qui vous ressemble.</p>
-              <div className="mt-7 grid gap-3 sm:grid-cols-3"><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Choisir avec attention</div><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Simplifier la recherche</div><div className="border-l-2 border-orange-400 pl-3 text-sm font-semibold text-slate-800">Inspirer le quotidien</div></div>
-              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white hover:bg-orange-600">Découvrir l’univers MAZIGHO <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+              <div className="mt-8 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">01</p><p className="mt-2 text-sm font-semibold text-slate-800">Choisir avec attention</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">02</p><p className="mt-2 text-sm font-semibold text-slate-800">Simplifier la recherche</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">03</p><p className="mt-2 text-sm font-semibold text-slate-800">Inspirer le quotidien</p></div>
+              </div>
+              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">Découvrir l’univers MAZIGHO <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+            </div>
+            <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src="/assets/home-lifestyle-top.jpg" alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> L’esprit MAZIGHO</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">Une sélection qui évolue</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">Des trouvailles pour accompagner les moments qui comptent.</p></div></div>
+              <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">Notre promesse</p><p className="mt-1 text-sm font-semibold text-slate-800">De l’inspiration, simplement.</p></div>
+              <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
             </div>
           </div>
         </section>
