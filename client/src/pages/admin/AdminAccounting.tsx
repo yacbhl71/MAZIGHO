@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
+  Download,
   FileText,
   Loader2,
   PackageCheck,
@@ -24,6 +25,7 @@ import {
   Upload,
   WalletCards,
 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type AccountingKind = "inventory_purchase" | "shipping" | "platform" | "advertising" | "payment_fee" | "other_expense" | "refund";
 type EntryForm = {
@@ -207,6 +209,53 @@ export default function AdminAccounting() {
 
   const summary = overview?.summary ?? { sales: 0, refunds: 0, netSales: 0, purchases: 0, otherExpenses: 0, totalExpenses: 0, estimatedProfit: 0 };
 
+  const monthlyData = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat("fr-CH", { month: "short" });
+    const months = Array.from({ length: 12 }, (_, month) => ({
+      month: formatter.format(new Date(year, month, 1)),
+      sales: 0,
+      expenses: 0,
+    }));
+    for (const sale of overview?.sales ?? []) {
+      const month = new Date(sale.createdAt).getMonth();
+      if (month >= 0 && month < 12) months[month].sales += Number(sale.totalAmount);
+    }
+    for (const entry of overview?.entries ?? []) {
+      const month = new Date(entry.occurredAt).getMonth();
+      if (month >= 0 && month < 12) months[month].expenses += Number(entry.amount);
+    }
+    return months;
+  }, [overview?.entries, overview?.sales, year]);
+
+  const expenseBreakdown = useMemo(() => {
+    const totals = new Map<AccountingKind, number>();
+    for (const entry of overview?.entries ?? []) {
+      totals.set(entry.kind as AccountingKind, (totals.get(entry.kind as AccountingKind) ?? 0) + Number(entry.amount));
+    }
+    return Array.from(totals.entries()).map(([kind, amount]) => ({ kind, amount })).sort((a, b) => b.amount - a.amount);
+  }, [overview?.entries]);
+
+  const hasChartData = monthlyData.some(item => item.sales > 0 || item.expenses > 0);
+  const expenseTotal = expenseBreakdown.reduce((total, item) => total + item.amount, 0);
+
+  const exportCsv = () => {
+    if (!overview) return;
+    const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Date", "Type", "Nature", "Description", "Fournisseur", "Montant CHF", "Référence", "Justificatif"],
+      ...overview.sales.map((sale: any) => [new Date(sale.createdAt).toISOString().slice(0, 10), "Vente site", "Commande payée", `Commande #${sale.id}`, "", (Number(sale.totalAmount) / 100).toFixed(2), `#${sale.id}`, ""]),
+      ...overview.entries.map((entry: any) => [new Date(entry.occurredAt).toISOString().slice(0, 10), "Dépense", categoryLabels[entry.kind as AccountingKind], entry.description, entry.supplier ?? "", `-${(Number(entry.amount) / 100).toFixed(2)}`, "", entry.receiptUrl ?? ""]),
+    ];
+    const csv = `\uFEFF${rows.map(row => row.map(escape).join(";")).join("\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `mazigho-suivi-${year}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Rapport ${year} exporté en CSV.`);
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-8">
@@ -221,9 +270,9 @@ export default function AdminAccounting() {
           </div>
           <div className="flex flex-col gap-3 border-t border-emerald-100 bg-white/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-between md:px-8">
             <div className="flex items-center gap-2 text-sm text-slate-700"><CalendarDays className="h-4 w-4 text-emerald-600" /> Période de suivi</div>
-            <select value={year} onChange={event => setYear(Number(event.target.value))} className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800">
+            <div className="flex items-center gap-2"><select value={year} onChange={event => setYear(Number(event.target.value))} className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800">
               {[currentYear, currentYear - 1, currentYear - 2].map(option => <option key={option} value={option}>{option}</option>)}
-            </select>
+            </select><Button type="button" onClick={exportCsv} variant="outline" size="sm" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={!overview}><Download className="mr-2 h-4 w-4" /> Exporter CSV</Button></div>
           </div>
         </section>
 
@@ -232,6 +281,11 @@ export default function AdminAccounting() {
           <Card className="border-orange-100 shadow-sm"><CardContent className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-slate-500">Achats marchandises</p><p className="mt-2 text-2xl font-bold text-orange-700">{formatChf(summary.purchases)}</p><p className="mt-1 text-xs text-slate-500">Coût des produits fournisseurs</p></div><span className="rounded-xl bg-orange-100 p-2 text-orange-700"><PackageCheck className="h-5 w-5" /></span></div></CardContent></Card>
           <Card className="border-slate-200 shadow-sm"><CardContent className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-slate-500">Autres frais</p><p className="mt-2 text-2xl font-bold text-slate-800">{formatChf(summary.otherExpenses + summary.refunds)}</p><p className="mt-1 text-xs text-slate-500">Frais et remboursements</p></div><span className="rounded-xl bg-slate-100 p-2 text-slate-600"><ArrowDownRight className="h-5 w-5" /></span></div></CardContent></Card>
           <Card className={`shadow-sm ${summary.estimatedProfit >= 0 ? "border-violet-100" : "border-rose-100"}`}><CardContent className="p-5"><div className="flex items-start justify-between"><div><p className="text-sm font-medium text-slate-500">Bénéfice estimé</p><p className={`mt-2 text-2xl font-bold ${summary.estimatedProfit >= 0 ? "text-violet-700" : "text-rose-700"}`}>{formatChf(summary.estimatedProfit)}</p><p className="mt-1 text-xs text-slate-500">Ventes nettes − achats − frais</p></div><span className={`rounded-xl p-2 ${summary.estimatedProfit >= 0 ? "bg-violet-100 text-violet-700" : "bg-rose-100 text-rose-700"}`}><Banknote className="h-5 w-5" /></span></div></CardContent></Card>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
+          <Card className="shadow-sm"><CardHeader><CardTitle>Évolution mensuelle</CardTitle><CardDescription>Ventes réellement encaissées comparées à vos dépenses et achats saisis.</CardDescription></CardHeader><CardContent>{hasChartData ? <div className="h-[300px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} /><YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)} CHF`} /><Tooltip formatter={(value: number) => formatChf(Number(value))} labelStyle={{ color: "#0f172a" }} /><Legend wrapperStyle={{ fontSize: 12 }} /><Bar dataKey="sales" name="Ventes encaissées" fill="#059669" radius={[5, 5, 0, 0]} /><Bar dataKey="expenses" name="Achats et frais" fill="#f97316" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div> : <div className="flex h-[300px] flex-col items-center justify-center rounded-xl bg-slate-50 text-center"><ReceiptText className="h-9 w-9 text-slate-400" /><p className="mt-3 font-semibold text-slate-800">Le graphique apparaîtra avec vos premières données</p><p className="mt-1 max-w-md text-sm text-slate-500">Les commandes payées, achats et frais saisis alimentent automatiquement cette vue.</p></div>}</CardContent></Card>
+          <Card className="shadow-sm"><CardHeader><CardTitle>Répartition des dépenses</CardTitle><CardDescription>Où part votre budget sur {year}.</CardDescription></CardHeader><CardContent>{expenseBreakdown.length === 0 ? <div className="flex h-[220px] items-center justify-center rounded-xl bg-slate-50 px-5 text-center text-sm text-slate-500">Aucune dépense saisie pour le moment.</div> : <div className="space-y-4">{expenseBreakdown.map(item => <div key={item.kind}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="font-medium text-slate-700">{categoryLabels[item.kind]}</span><span className="font-semibold text-slate-900">{formatChf(item.amount)}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${expenseTotal > 0 ? Math.max(4, Math.round((item.amount / expenseTotal) * 100)) : 0}%` }} /></div></div>)}</div>}</CardContent></Card>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
