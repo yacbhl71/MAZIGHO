@@ -3,251 +3,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, ArrowLeft, Mail, User, MapPin } from "lucide-react";
+import { Settings, ArrowLeft, Mail, User, ShieldCheck } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useLocale } from "@/contexts/LocaleContext";
+import { getAccountStatusCopy } from "@/lib/accountStatusCopy";
+import { getAccountSecurityCopy } from "@/lib/accountSecurityCopy";
 
 export default function SettingsPage() {
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    address: "",
-    city: "",
-    postalCode: "",
-    country: "",
-  });
-
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const { locale } = useLocale();
+  const copy = getAccountStatusCopy(locale).settings;
+  const securityCopy = getAccountSecurityCopy(locale);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const changePassword = trpc.auth.changePassword.useMutation({
-    onSuccess: () => {
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      toast.success("Mot de passe modifié avec succès.");
-    },
-    onError: error => toast.error(error.message || "Modification impossible."),
-  });
+  const changePassword = trpc.auth.changePassword.useMutation({ onSuccess: () => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); toast.success(securityCopy.reset.success); }, onError: error => toast.error(error.message || securityCopy.reset.expired) });
+  const handleChangePassword = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); if (newPassword !== confirmPassword) { toast.error(securityCopy.reset.mismatch); return; } changePassword.mutate({ currentPassword, newPassword }); };
 
-  const handleChangePassword = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast.error("Les deux nouveaux mots de passe ne correspondent pas.");
-      return;
-    }
-    changePassword.mutate({ currentPassword, newPassword });
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast.success("Paramètres sauvegardés avec succès !", {
-      description: "Vos informations ont été mises à jour.",
-    });
-  };
-
-  return (
-    <div className="min-h-screen flex flex-col bg-white">
-      <Header />
-
-      <main className="flex-1">
-        {/* Header Section */}
-        <section className="bg-gradient-to-r from-green-50 to-emerald-50 py-12 md:py-16">
-          <div className="container mx-auto px-4">
-            <Link href="/mon-compte">
-              <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
-                <ArrowLeft className="h-5 w-5" />
-                <span className="font-medium">Retour à mon compte</span>
-              </div>
-            </Link>
-            <div className="flex items-center gap-3 mb-4">
-              <Settings className="h-8 w-8 text-green-600" />
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                Paramètres
-              </h1>
-            </div>
-            <p className="text-lg text-gray-600 max-w-2xl">
-              Gérez vos informations personnelles et vos préférences
-            </p>
-          </div>
-        </section>
-
-        {/* Settings Content */}
-        <section className="py-16 md:py-24">
-          <div className="container mx-auto px-4 max-w-2xl">
-            <Card>
-              <CardContent className="p-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                  Informations Personnelles
-                </h2>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Name Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">Prénom</Label>
-                      <Input
-                        id="firstName"
-                        name="firstName"
-                        placeholder="Votre prénom"
-                        value={formData.firstName}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Nom</Label>
-                      <Input
-                        id="lastName"
-                        name="lastName"
-                        placeholder="Votre nom"
-                        value={formData.lastName}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Contact Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="email" className="flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="votre@email.com"
-                        value={formData.email}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Téléphone</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        placeholder="+33 1 23 45 67 89"
-                        value={formData.phone}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Address Fields */}
-                  <div className="space-y-2">
-                    <Label htmlFor="address" className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      Adresse
-                    </Label>
-                    <Input
-                      id="address"
-                      name="address"
-                      placeholder="Votre adresse"
-                      value={formData.address}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* City, Postal Code, Country */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">Ville</Label>
-                      <Input
-                        id="city"
-                        name="city"
-                        placeholder="Paris"
-                        value={formData.city}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="postalCode">Code Postal</Label>
-                      <Input
-                        id="postalCode"
-                        name="postalCode"
-                        placeholder="75001"
-                        value={formData.postalCode}
-                        onChange={handleChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country">Pays</Label>
-                      <Input
-                        id="country"
-                        name="country"
-                        placeholder="France"
-                        value={formData.country}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <div className="flex gap-4 pt-6">
-                    <Button
-                      type="submit"
-                      className="bg-orange-500 hover:bg-orange-600 text-white flex-1"
-                    >
-                      Sauvegarder les modifications
-                    </Button>
-                    <Link href="/mon-compte">
-                      <Button variant="outline" className="flex-1">
-                        Annuler
-                      </Button>
-                    </Link>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card className="mt-8 bg-green-50 border-green-200">
-              <CardContent className="p-6">
-                <h3 className="font-semibold text-gray-800 mb-2">Sécurité du compte</h3>
-                <p className="text-gray-700 mb-5">Modifiez votre mot de passe à tout moment. Il doit comporter au moins 8 caractères.</p>
-                {isAuthenticated ? (
-                  <form onSubmit={handleChangePassword} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="currentPassword">Mot de passe actuel</Label>
-                      <Input id="currentPassword" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" minLength={8} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="newPassword">Nouveau mot de passe</Label>
-                      <Input id="newPassword" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirmer le nouveau mot de passe</Label>
-                      <Input id="confirmPassword" type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required />
-                    </div>
-                    <Button type="submit" disabled={changePassword.isPending} className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-                      {changePassword.isPending ? "Modification…" : "Mettre à jour le mot de passe"}
-                    </Button>
-                  </form>
-                ) : (
-                  <Link href="/login"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">Se connecter pour modifier le mot de passe</Button></Link>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-      </main>
-
-      <Footer />
-    </div>
-  );
+  return <div className="flex min-h-screen flex-col bg-white"><Header /><main className="flex-1"><section className="bg-gradient-to-r from-green-50 to-emerald-50 py-12 md:py-16"><div className="container mx-auto px-4"><Link href="/mon-compte"><div className="mb-6 flex w-fit cursor-pointer items-center gap-2 text-orange-500 hover:text-orange-600"><ArrowLeft className="h-5 w-5" /><span className="font-medium">{getAccountStatusCopy(locale).back}</span></div></Link><div className="mb-4 flex items-center gap-3"><Settings className="h-8 w-8 text-green-600" /><h1 className="text-4xl font-bold text-gray-800 md:text-5xl">{copy.title}</h1></div><p className="max-w-2xl text-lg text-gray-600">{copy.lead}</p></div></section><section className="py-16 md:py-24"><div className="container mx-auto max-w-2xl px-4"><Card><CardContent className="p-8"><h2 className="mb-2 text-2xl font-bold text-gray-800">{copy.profileTitle}</h2><p className="mb-6 text-gray-600">{copy.profileText}</p><div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-5"><div className="flex items-center gap-3"><User className="h-5 w-5 text-slate-500" /><div><p className="text-xs font-medium uppercase tracking-wide text-slate-500">{copy.name}</p><p className="font-medium text-slate-800">{user?.name || "—"}</p></div></div><div className="flex items-center gap-3"><Mail className="h-5 w-5 text-slate-500" /><div><p className="text-xs font-medium uppercase tracking-wide text-slate-500">{copy.email}</p><p className="break-all font-medium text-slate-800">{user?.email || "—"}</p></div></div></div><Link href="/contact"><Button className="mt-6 w-full bg-orange-500 text-white hover:bg-orange-600">{copy.contactCta}</Button></Link></CardContent></Card><Card className="mt-8 border-green-200 bg-green-50"><CardContent className="p-6"><h2 className="mb-2 font-semibold text-gray-800">{copy.securityTitle}</h2><p className="mb-5 text-gray-700">{copy.securityText}</p>{isAuthenticated ? <form onSubmit={handleChangePassword} className="space-y-4"><div className="space-y-2"><Label htmlFor="currentPassword">{securityCopy.password}</Label><Input id="currentPassword" type="password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} autoComplete="current-password" minLength={8} required /></div><div className="space-y-2"><Label htmlFor="newPassword">{securityCopy.reset.newPassword}</Label><Input id="newPassword" type="password" value={newPassword} onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" minLength={8} required /></div><div className="space-y-2"><Label htmlFor="confirmPassword">{securityCopy.reset.confirm}</Label><Input id="confirmPassword" type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required /></div><Button type="submit" disabled={changePassword.isPending} className="w-full bg-orange-500 text-white hover:bg-orange-600">{changePassword.isPending ? securityCopy.reset.saving : copy.passwordCta}</Button></form> : <Link href="/login"><Button className="w-full bg-orange-500 text-white hover:bg-orange-600">{copy.signInCta}</Button></Link>}<div className="mt-5 flex items-start gap-2 text-sm text-green-900"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />{securityCopy.activate.security}</div></CardContent></Card></div></section></main><Footer /></div>;
 }
