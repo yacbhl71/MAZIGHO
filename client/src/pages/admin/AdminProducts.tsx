@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -71,6 +71,41 @@ export default function AdminProducts() {
   const translationOverviewQuery = trpc.admin.products.getTranslationOverview.useQuery();
   const translationOverviewByProductId = new Map((translationOverviewQuery.data || []).map((product: any) => [product.id, product]));
   const [translatingProductId, setTranslatingProductId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft" | "archived">("all");
+  const [translationFilter, setTranslationFilter] = useState<"all" | "ready" | "attention">("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
+
+  const translationState = (productId: number) => {
+    const overview = translationOverviewByProductId.get(productId) as any;
+    const ready = overview?.translations?.filter((translation: any) => translation.status === "ready").length || 0;
+    const stale = overview?.translations?.some((translation: any) => translation.status === "stale");
+    return { ready, stale, complete: ready === 6 && !stale };
+  };
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return (products || []).filter((product: any) => {
+      const translation = translationState(product.id);
+      const matchesQuery = !normalizedQuery || [product.name, product.slug, product.categoryName, product.supplier]
+        .filter(Boolean)
+        .some((value: string) => value.toLowerCase().includes(normalizedQuery));
+      const matchesStatus = statusFilter === "all" || product.status === statusFilter;
+      const matchesTranslation = translationFilter === "all" || (translationFilter === "ready" ? translation.complete : !translation.complete);
+      const matchesStock = stockFilter === "all"
+        || (stockFilter === "available" && product.stock > 5)
+        || (stockFilter === "low" && product.stock > 0 && product.stock <= 5)
+        || (stockFilter === "empty" && product.stock <= 0);
+      return matchesQuery && matchesStatus && matchesTranslation && matchesStock;
+    });
+  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, translationOverviewQuery.data]);
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setTranslationFilter("all");
+    setStockFilter("all");
+  };
 
   const translateProduct = trpc.admin.products.translate.useMutation({
     onMutate: (input) => setTranslatingProductId(input.productId),
@@ -329,6 +364,22 @@ export default function AdminProducts() {
           </div>
         </div>
 
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-orange-600" /><h2 className="font-semibold text-slate-900">Recherche et préparation</h2></div>
+              <p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement du catalogue…" : `${filteredProducts.length} produit(s) affiché(s) sur ${products?.length ?? 0}`}</p>
+            </div>
+            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_1fr_1fr_1fr]">
+            <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom, URL, catégorie ou fournisseur…" /></div>
+            <Select value={statusFilter} onValueChange={value => setStatusFilter(value as typeof statusFilter)}><SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="draft">Brouillons</SelectItem><SelectItem value="archived">Archivés</SelectItem></SelectContent></Select>
+            <Select value={translationFilter} onValueChange={value => setTranslationFilter(value as typeof translationFilter)}><SelectTrigger><SelectValue placeholder="Traductions" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les traductions</SelectItem><SelectItem value="ready">6 langues prêtes</SelectItem><SelectItem value="attention">À compléter / régénérer</SelectItem></SelectContent></Select>
+            <Select value={stockFilter} onValueChange={value => setStockFilter(value as typeof stockFilter)}><SelectTrigger><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les stocks</SelectItem><SelectItem value="available">Plus de 5 unités</SelectItem><SelectItem value="low">1 à 5 unités</SelectItem><SelectItem value="empty">Rupture de stock</SelectItem></SelectContent></Select>
+          </div>
+        </section>
+
         <div className="border rounded-lg bg-white overflow-x-auto">
           <Table className="min-w-[800px]">
             <TableHeader>
@@ -365,17 +416,17 @@ export default function AdminProducts() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : products?.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
-                      <p>Aucun produit trouvé.</p>
-                      <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button>
+                      <p>{products?.length === 0 ? "Aucun produit trouvé." : "Aucun produit ne correspond à ces filtres."}</p>
+                      {products?.length === 0 ? <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button> : <Button variant="outline" size="sm" onClick={clearFilters}>Effacer les filtres</Button>}
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                products?.map((product) => (
+                filteredProducts.map((product: any) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
@@ -414,7 +465,7 @@ export default function AdminProducts() {
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{(() => { const overview = translationOverviewByProductId.get(product.id) as any; const ready = overview?.translations?.filter((translation: any) => translation.status === "ready").length || 0; const stale = overview?.translations?.some((translation: any) => translation.status === "stale"); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : stale ? "border-amber-200 bg-amber-50 text-amber-700" : ready === 6 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : stale ? "À régénérer" : ready === 6 ? "6 / 6 prêtes" : `${ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
+                    <TableCell>{(() => { const translation = translationState(product.id); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : translation.stale ? "border-amber-200 bg-amber-50 text-amber-700" : translation.complete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : translation.stale ? "À régénérer" : translation.complete ? "6 / 6 prêtes" : `${translation.ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
                     <TableCell className="w-[100px]">
                       <div className="flex items-center gap-2">
                         <Button 
