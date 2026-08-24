@@ -12,6 +12,8 @@ import {
   CircleAlert,
   ClipboardList,
   Mail,
+  Languages,
+  PencilLine,
   Package,
   PackagePlus,
   RefreshCw,
@@ -240,6 +242,8 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-0">
               <QuickAction href="/admin/produits" title="Ajouter ou mettre à jour un produit" detail="Créer un produit, ajuster son prix et son stock." icon={PackagePlus} />
+              <QuickAction href="/admin/traductions" title="Langues & traductions" detail="Voir les fiches prêtes, absentes ou à régénérer." icon={Languages} />
+              <QuickAction href="/admin/editeur" title="Éditeur simple" detail="Modifier les textes et cartes visibles sans risque technique." icon={PencilLine} />
               <QuickAction href="/admin/importation" title="Importer depuis un fournisseur" detail="Préparer un produit depuis un lien fournisseur." icon={Boxes} />
               <QuickAction href="/admin/commandes" title="Traiter les commandes" detail={`${stats?.pendingOrders ?? 0} commande(s) actuellement en attente.`} icon={ShoppingBag} />
               <QuickAction href="/admin/promotions" title="Créer une offre" detail="Gérer les codes promotionnels et les réductions." icon={Tags} />

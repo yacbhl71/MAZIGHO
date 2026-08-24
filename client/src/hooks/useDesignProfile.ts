@@ -14,6 +14,11 @@ export type DesignProfile = {
   editorialEyebrow: string;
   editorialTitle: string;
   editorialImageUrl: string;
+  navigationHome: string;
+  navigationShop: string;
+  navigationCategories: string;
+  navigationCreations: string;
+  navigationContact: string;
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -33,6 +38,11 @@ export const defaultDesignProfile: DesignProfile = {
   editorialEyebrow: "Sélection éditoriale",
   editorialTitle: "Le détail qui fait la différence.",
   editorialImageUrl: "/assets/home-editorial-divider.jpg",
+  navigationHome: "Accueil",
+  navigationShop: "Boutique",
+  navigationCategories: "Catégories",
+  navigationCreations: "Créations",
+  navigationContact: "Contact",
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,

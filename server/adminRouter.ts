@@ -98,6 +98,9 @@ export const adminRouter = router({
     getTranslations: adminProcedure.input(z.number().int().positive()).query(async ({ input }) => {
       return await db.getProductTranslations(input);
     }),
+    getTranslationOverview: adminProcedure.query(async () => {
+      return await db.getProductTranslationOverview();
+    }),
     translate: adminProcedure.input(z.object({
       productId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
@@ -714,6 +717,11 @@ export const adminRouter = router({
       editorialEyebrow: z.string().trim().min(2).max(120),
       editorialTitle: z.string().trim().min(2).max(180),
       editorialImageUrl: visualUrlSchema,
+      navigationHome: z.string().trim().min(1).max(40),
+      navigationShop: z.string().trim().min(1).max(40),
+      navigationCategories: z.string().trim().min(1).max(40),
+      navigationCreations: z.string().trim().min(1).max(40),
+      navigationContact: z.string().trim().min(1).max(40),
       showDiscovery: z.boolean(),
       showStory: z.boolean(),
       showTestimonials: z.boolean(),

@@ -12,6 +12,7 @@ import { localeOptions, useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
 import { getCreativeMenuCopy, getDiscoveryTiles, getPublicCopy } from "@/lib/publicCopy";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,10 +31,24 @@ export default function Header() {
   const isAdmin = isAuthenticated && user?.role === "admin";
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
+  const { profile } = useDesignProfile();
   const copy = getPublicCopy(locale);
   const discoveryTiles = getDiscoveryTiles(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
   const standardCategoryCopyIndex: Record<string, number> = { mode: 0, "beaute-bien-etre": 1, "maison-organisation": 2, "sport-fitness": 3, "high-tech-gadgets": 4, "auto-accessoires": 5 };
+  const navigation = locale === "fr" ? {
+    home: profile.navigationHome,
+    shop: profile.navigationShop,
+    categories: profile.navigationCategories,
+    creations: profile.navigationCreations,
+    contact: profile.navigationContact,
+  } : {
+    home: t(locale, "home"),
+    shop: t(locale, "shop"),
+    categories: t(locale, "categories"),
+    creations: t(locale, "creations"),
+    contact: t(locale, "contact"),
+  };
 
   const isActive = (path: string) => location === path;
 
@@ -67,7 +82,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                {t(locale, "home")}
+                {navigation.home}
               </span>
             </Link>
 
@@ -75,7 +90,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/boutique") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                {t(locale, "shop")}
+                {navigation.shop}
               </span>
             </Link>
 
@@ -87,7 +102,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 1 ? null : 1)}
                 className="flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-500"
               >
-                {t(locale, "categories")}
+                {navigation.categories}
                 <span className={`text-xs transition-transform ${openDropdown === 1 ? "rotate-180" : ""}`}>▼</span>
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[420px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 1 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
@@ -121,7 +136,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 2 ? null : 2)}
                 className={`flex items-center gap-1 rounded px-3 py-2 text-sm font-medium transition-colors ${isActive("/creations") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"}`}
               >
-                {t(locale, "creations")}
+                {navigation.creations}
                 <span className={`text-xs transition-transform ${openDropdown === 2 ? "rotate-180" : ""}`}>▼</span>
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[380px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 2 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
@@ -171,7 +186,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/contact") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                {t(locale, "contact")}
+                {navigation.contact}
               </span>
             </Link>
           </div>
@@ -241,12 +256,12 @@ export default function Header() {
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
             <Link href="/">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                {t(locale, "home")}
+                {navigation.home}
               </div>
             </Link>
             <Link href="/boutique">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                {t(locale, "shop")}
+                {navigation.shop}
               </div>
             </Link>
 
@@ -256,7 +271,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 0 ? null : 0)}
                 className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded font-medium flex items-center justify-between text-sm"
               >
-                {t(locale, "categories")}
+                {navigation.categories}
                 <span className={`transition-transform text-xs ${openDropdown === 0 ? "rotate-180" : ""}`}>
                   ▼
                 </span>
@@ -317,7 +332,7 @@ export default function Header() {
 
             <Link href="/contact">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                {t(locale, "contact")}
+                {navigation.contact}
               </div>
             </Link>
 

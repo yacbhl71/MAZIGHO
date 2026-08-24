@@ -36,6 +36,8 @@ import AdminAccounting from "./pages/admin/AdminAccounting";
 import AdminContent from "./pages/admin/AdminContent";
 import AdminPromotions from "./pages/admin/AdminPromotions";
 import AdminCreations from "./pages/admin/AdminCreations";
+import AdminTranslations from "./pages/admin/AdminTranslations";
+import AdminSimpleEditor from "./pages/admin/AdminSimpleEditor";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import Favorites from "./pages/Favorites";
@@ -84,6 +86,8 @@ function BrowserTitle() {
       "/admin/legal": "MAZIGHO Admin | Informations légales",
       "/admin/personnalisation": "MAZIGHO Admin | Personnalisation",
       "/admin/creations": "MAZIGHO Admin | Collections créatives",
+      "/admin/traductions": "MAZIGHO Admin | Langues & traductions",
+      "/admin/editeur": "MAZIGHO Admin | Éditeur simple",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
     };
     const publicTitles: Record<string, string> = {
@@ -169,6 +173,8 @@ function Router() {
       <Route path={"/admin/legal"} component={AdminLegal} />
       <Route path={"/admin/personnalisation"} component={AdminCustomization} />
       <Route path={"/admin/creations"} component={AdminCreations} />
+      <Route path={"/admin/traductions"} component={AdminTranslations} />
+      <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
         <Route component={NotFound} />

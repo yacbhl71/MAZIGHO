@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,6 +30,8 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Tableau de Bord", path: "/admin" },
   { icon: Package, label: "Produits", path: "/admin/produits" },
+  { icon: Languages, label: "Langues & traductions", path: "/admin/traductions" },
+  { icon: PencilLine, label: "Éditeur simple", path: "/admin/editeur" },
   { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
   { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
   { icon: Brush, label: "Collections créatives", path: "/admin/creations" },
@@ -229,18 +231,17 @@ function DashboardLayoutContent({
             <SidebarMenu className="px-2 py-1">
               {menuItems.map(item => {
                 const isActive = location === item.path;
+                const isSimpleEditor = item.path === "/admin/editeur";
                 return (
                   <SidebarMenuItem key={item.path}>
                     <SidebarMenuButton
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal ${isActive ? 'bg-orange-500/10 text-orange-500' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}
+                      className={`h-10 transition-all ${isSimpleEditor ? (isActive ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100") : (isActive ? "bg-orange-500/10 text-orange-500" : "text-slate-300 hover:text-white hover:bg-slate-800")}`}
                     >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-orange-500" : "text-slate-400"}`}
-                      />
-                      <span className="font-medium">{item.label}</span>
+                      <item.icon className={`h-4 w-4 ${isSimpleEditor ? "text-emerald-300" : (isActive ? "text-orange-500" : "text-slate-400")}`} />
+                      <span className={isSimpleEditor ? "font-bold" : "font-medium"}>{item.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );

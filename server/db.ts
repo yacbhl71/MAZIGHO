@@ -710,6 +710,48 @@ export async function getProductTranslations(productId: number) {
     .orderBy(asc(productTranslations.locale));
 }
 
+export async function getProductTranslationOverview() {
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select({
+    productId: products.id,
+    productName: products.name,
+    productStatus: products.status,
+    productUpdatedAt: products.updatedAt,
+    locale: productTranslations.locale,
+    translationStatus: productTranslations.status,
+    translatedAt: productTranslations.translatedAt,
+  }).from(products)
+    .leftJoin(productTranslations, eq(products.id, productTranslations.productId))
+    .orderBy(desc(products.updatedAt));
+
+  const grouped = new Map<number, {
+    id: number;
+    name: string;
+    status: typeof products.$inferSelect.status;
+    updatedAt: Date | null;
+    translations: Array<{ locale: string; status: string; translatedAt: Date | null }>;
+  }>();
+
+  for (const row of rows) {
+    const current = grouped.get(row.productId) ?? {
+      id: row.productId,
+      name: row.productName,
+      status: row.productStatus,
+      updatedAt: row.productUpdatedAt,
+      translations: [],
+    };
+    if (row.locale && row.translationStatus) {
+      current.translations.push({ locale: row.locale, status: row.translationStatus, translatedAt: row.translatedAt });
+    }
+    grouped.set(row.productId, current);
+  }
+
+  return Array.from(grouped.values());
+}
+
 export async function getProductTranslationSource(productId: number) {
   const db = await getDb();
   if (!db) return undefined;
@@ -1791,6 +1833,11 @@ export type DesignProfile = {
   editorialEyebrow: string;
   editorialTitle: string;
   editorialImageUrl: string;
+  navigationHome: string;
+  navigationShop: string;
+  navigationCategories: string;
+  navigationCreations: string;
+  navigationContact: string;
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -1810,6 +1857,11 @@ export const defaultDesignProfile: DesignProfile = {
   editorialEyebrow: "Sélection éditoriale",
   editorialTitle: "Le détail qui fait la différence.",
   editorialImageUrl: "/assets/home-editorial-divider.jpg",
+  navigationHome: "Accueil",
+  navigationShop: "Boutique",
+  navigationCategories: "Catégories",
+  navigationCreations: "Créations",
+  navigationContact: "Contact",
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,
@@ -1828,6 +1880,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   const textFields = [
     "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
     "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
+    "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
   ] as const;
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
