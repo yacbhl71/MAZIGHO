@@ -197,6 +197,14 @@ export default function Header() {
                 {navigation.contact}
               </span>
             </Link>
+
+            <Link href="/faq">
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
+                isActive("/faq") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
+              }`}>
+                {t(locale, "faq")}
+              </span>
+            </Link>
           </div>
 
           {/* Search Bar - Desktop */}
@@ -338,8 +346,14 @@ export default function Header() {
             </Link>
 
             <Link href="/contact">
-              <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
+              <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
                 {navigation.contact}
+              </div>
+            </Link>
+
+            <Link href="/faq">
+              <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
+                {t(locale, "faq")}
               </div>
             </Link>
 

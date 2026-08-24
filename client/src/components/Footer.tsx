@@ -45,6 +45,7 @@ export default function Footer() {
           <div>
             <h3 className="font-semibold text-white mb-4 text-lg">{copy.footer.help}</h3>
             <ul className="space-y-3">
+              <li><Link href="/faq"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{t(locale, "faq")}</span></Link></li>
               <li><Link href="/contact"><span className="flex items-start gap-2 text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm"><Mail className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />{copy.footer.contactForm}</span></Link></li>
               <li className="text-amber-100 text-sm leading-relaxed">{copy.footer.contactInfo}</li>
             </ul>
