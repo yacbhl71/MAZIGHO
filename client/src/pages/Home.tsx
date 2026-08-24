@@ -173,10 +173,8 @@ export default function Home() {
         {profile.showTestimonials && (
         <section className="bg-slate-950 py-16 text-white md:py-24">
           <div className="container">
-            <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2><p className="mt-3 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
-            <div className="grid gap-5 md:grid-cols-3">
-              {copy.testimonials.items.map((testimonial, index) => <article key={testimonial.title} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5"><div className="relative aspect-[16/8] overflow-hidden"><img src={testimonialImages[index]} alt="MAZIGHO" className="h-full w-full object-cover opacity-80" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><Quote className="absolute bottom-4 left-4 h-7 w-7 text-orange-300" /></div><div className="p-6"><h3 className="text-lg font-semibold text-white">{testimonial.title}</h3><p className="mt-3 text-sm leading-6 text-slate-300">{testimonial.text}</p></div></article>)}
-            </div>
+            <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
+            <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7 text-orange-300" aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
             <div className="mt-8 text-center"><Link href="/boutique"><Button variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white">{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
           </div>
         </section>

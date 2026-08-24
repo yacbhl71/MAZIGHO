@@ -89,7 +89,7 @@
     "testimonials": {
       "eyebrow": "La parole à nos clients",
       "title": "Vos retours font grandir MAZIGHO.",
-      "text": "Les avis approuvés seront présentés ici pour partager les expériences réelles de notre communauté.",
+      "text": "Aucun avis client vérifié n’est publié pour le moment.",
       "cta": "Découvrir la sélection",
       "items": [
         {
@@ -244,7 +244,7 @@
     "testimonials": {
       "eyebrow": "Stimmen unserer Kunden",
       "title": "Ihr Feedback lässt MAZIGHO wachsen.",
-      "text": "Freigegebene Bewertungen werden hier angezeigt, um echte Erfahrungen unserer Community zu teilen.",
+      "text": "Derzeit sind keine verifizierten Kundenbewertungen veröffentlicht.",
       "cta": "Auswahl entdecken",
       "items": [
         {
@@ -399,7 +399,7 @@
     "testimonials": {
       "eyebrow": "La parola ai nostri clienti",
       "title": "I tuoi feedback fanno crescere MAZIGHO.",
-      "text": "Le recensioni approvate saranno presentate qui per condividere le esperienze reali della nostra community.",
+      "text": "Al momento non è pubblicata alcuna recensione cliente verificata.",
       "cta": "Scopri la selezione",
       "items": [
         {
@@ -554,7 +554,7 @@
     "testimonials": {
       "eyebrow": "Hear from our customers",
       "title": "Your feedback helps MAZIGHO grow.",
-      "text": "Approved reviews will be shown here to share real experiences from our community.",
+      "text": "No verified customer reviews have been published yet.",
       "cta": "Discover the selection",
       "items": [
         {
@@ -709,7 +709,7 @@
     "testimonials": {
       "eyebrow": "La palabra a nuestros clientes",
       "title": "Tus comentarios hacen crecer a MAZIGHO.",
-      "text": "Las reseñas aprobadas se presentarán aquí para compartir las experiencias reales de nuestra comunidad.",
+      "text": "Aún no se ha publicado ninguna reseña de cliente verificada.",
       "cta": "Descubrir la selección",
       "items": [
         {
@@ -864,7 +864,7 @@
     "testimonials": {
       "eyebrow": "Onze klanten aan het woord",
       "title": "Jouw feedback laat MAZIGHO groeien.",
-      "text": "Goedgekeurde beoordelingen worden hier getoond om echte ervaringen van onze community te delen.",
+      "text": "Er zijn momenteel geen geverifieerde klantbeoordelingen gepubliceerd.",
       "cta": "Ontdek de selectie",
       "items": [
         {
@@ -1019,7 +1019,7 @@
     "testimonials": {
       "eyebrow": "كلمة عملائنا",
       "title": "تعليقاتكم تُنمّي MAZIGHO.",
-      "text": "سيتم عرض التقييمات المعتمدة هنا لمشاركة تجارب حقيقية من مجتمعنا.",
+      "text": "لا توجد حالياً أي تقييمات عملاء موثقة منشورة.",
       "cta": "اكتشف الاختيار",
       "items": [
         {
