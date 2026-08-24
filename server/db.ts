@@ -959,11 +959,11 @@ export async function markPublicContentTranslationsStale(contentType: PublicCont
   await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
 }
 
-export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale): Promise<DesignProfile> {
+export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale): Promise<DesignProfile & { contentTranslationReady: boolean }> {
   const profile = await getDesignProfile();
-  if (locale === "fr") return profile;
+  if (locale === "fr") return { ...profile, contentTranslationReady: true };
   const translation = await getPublicContentTranslation("design", 1, locale, true);
-  return translation ? { ...profile, ...translation.payload } : profile;
+  return translation ? { ...profile, ...translation.payload, contentTranslationReady: true } : { ...profile, contentTranslationReady: false };
 }
 
 export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTranslationLocale) {
@@ -977,18 +977,19 @@ export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTran
 
 export async function getLocalizedCategories(locale: "fr" | PublicContentTranslationLocale) {
   const sourceCategories = await getAllCategories();
-  if (locale === "fr") return sourceCategories;
+  if (locale === "fr") return sourceCategories.map(category => ({ ...category, contentTranslationReady: true }));
   return await Promise.all(sourceCategories.map(async category => {
     const translation = await getPublicContentTranslation("category", category.id, locale, true);
-    return translation ? { ...category, ...translation.payload } : category;
+    return translation ? { ...category, ...translation.payload, contentTranslationReady: true } : { ...category, contentTranslationReady: false };
   }));
 }
 
 export async function getLocalizedCategoryBySlug(slug: string, locale: "fr" | PublicContentTranslationLocale) {
   const category = await getCategoryBySlug(slug);
-  if (!category || locale === "fr") return category;
+  if (!category) return category;
+  if (locale === "fr") return { ...category, contentTranslationReady: true };
   const translation = await getPublicContentTranslation("category", category.id, locale, true);
-  return translation ? { ...category, ...translation.payload } : category;
+  return translation ? { ...category, ...translation.payload, contentTranslationReady: true } : { ...category, contentTranslationReady: false };
 }
 
 export async function getAllProducts() {

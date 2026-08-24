@@ -15,6 +15,7 @@ import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { commerceT, t } from "@/lib/i18n";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
@@ -54,13 +55,13 @@ export default function Product() {
       <div className="min-h-screen flex flex-col bg-white">
         <Header />
         <main className="flex-1 container mx-auto px-4 py-16 text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Produit non trouvé</h1>
-          <p className="text-gray-600 mb-8">Le produit que vous recherchez n'existe pas.</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">{commerceT(locale, "productNotFoundTitle")}</h1>
+          <p className="text-gray-600 mb-8">{commerceT(locale, "productNotFoundText")}</p>
           <Button 
             onClick={() => setLocation("/boutique")}
             className="bg-orange-500 hover:bg-orange-600 text-white"
           >
-            Retour à la boutique
+            {commerceT(locale, "backToShop")}
           </Button>
         </main>
         <Footer />
@@ -74,15 +75,15 @@ export default function Product() {
 
   const handleAddToCart = () => {
     if (!product || !deliveryProfile) {
-      toast.error(`Ce produit n’est pas encore livrable vers ${countryLabel}.`);
+      toast.error(commerceT(locale, "deliveryUnconfirmed", { country: countryLabel }));
       return;
     }
     setIsAdding(true);
     const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
     addToCart(product.id, product.name, product.price, quantity, selectedOptions, imageUrl);
     
-    toast.success(`${product.name} ajouté au panier !`, {
-      description: `${quantity} article(s) ajouté(s)`,
+    toast.success(`${product.name} · ${commerceT(locale, "added")}`, {
+      description: `${quantity} × ${commerceT(locale, "addToCart")}`,
     });
 
     setTimeout(() => {
@@ -98,11 +99,11 @@ export default function Product() {
         {/* Breadcrumb */}
         <div className="container mx-auto px-4 py-4 text-sm text-gray-600">
           <button onClick={() => setLocation("/")} className="hover:text-orange-500">
-            Accueil
+            {t(locale, "home")}
           </button>
           <span className="mx-2">/</span>
           <button onClick={() => setLocation(product.categoryCatalogSection === "creations" ? "/creations" : "/boutique")} className="hover:text-orange-500">
-            {product.categoryCatalogSection === "creations" ? "Créations" : "Boutique"}
+            {product.categoryCatalogSection === "creations" ? commerceT(locale, "creations") : commerceT(locale, "shop")}
           </button>
           <span className="mx-2">/</span>
           <span className="text-gray-800 font-medium">{product.name}</span>
@@ -137,7 +138,7 @@ export default function Product() {
                     ))}
                   </div>
                   <span className="text-gray-600">
-                    {product.reviews.length} avis
+                    {product.reviews.length} {commerceT(locale, "reviews")}
                   </span>
                 </div>
               </div>
@@ -156,13 +157,13 @@ export default function Product() {
                 </div>
                 {product.originalPrice && (
                   <p className="text-green-600 font-semibold">
-                    Économisez {(((product.originalPrice - product.price) / product.originalPrice) * 100).toFixed(0)}%
+                    {commerceT(locale, "save", { percent: Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) })}
                   </p>
                 )}
               </div>
 
               <div className={`rounded-xl border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-                {deliveryProfile ? <><div className="flex items-start gap-3"><Truck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><div><p className="font-semibold text-emerald-950">Livrable vers {countryLabel}</p><p className="mt-1 text-sm leading-6 text-emerald-900">{deliveryProfile.customerShippingCost === 0 ? "Livraison incluse dans le prix" : `${formatPrice(deliveryProfile.customerShippingCost, locale)} par article`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}{deliveryProfile.deliveryMethod ? ` · ${deliveryProfile.deliveryMethod}` : ""}</p><p className="mt-2 text-xs leading-5 text-emerald-800">Pour {quantity} article(s) : {formatPrice(deliveryProfile.customerShippingCost * quantity, locale)} de livraison. Le panier reverra ces informations avant toute commande.</p></div></div><p className="mt-3 border-t border-emerald-200 pt-3 text-[11px] text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm leading-6 text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi. Sélectionnez une autre destination pour vérifier sa disponibilité.</p></>}
+                {deliveryProfile ? <><div className="flex items-start gap-3"><Truck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><div><p className="font-semibold text-emerald-950">{commerceT(locale, "availableTo", { country: countryLabel })}</p><p className="mt-1 text-sm leading-6 text-emerald-900">{deliveryProfile.customerShippingCost === 0 ? commerceT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(deliveryProfile.customerShippingCost, locale) })}{deliveryProfile.minDeliveryDays ? ` · ${commerceT(locale, "deliveryEstimate", { min: deliveryProfile.minDeliveryDays, range: deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : "" })}` : ""}{deliveryProfile.deliveryMethod ? ` · ${deliveryProfile.deliveryMethod}` : ""}</p></div></div><p className="mt-3 border-t border-emerald-200 pt-3 text-[11px] text-emerald-700">{commerceT(locale, "quoteVerified")}</p></> : <><p className="font-semibold text-amber-900">{commerceT(locale, "deliveryUnconfirmed", { country: countryLabel })}</p><p className="mt-1 text-sm leading-6 text-amber-800">{commerceT(locale, "deliveryBlocked")}</p></>}
               </div>
 
               {/* Description */}
@@ -174,9 +175,9 @@ export default function Product() {
               {/* Stock Status */}
               <div className={`p-4 rounded-lg ${product.stock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
                 {product.stock > 0 ? (
-                  <p className="font-semibold">✓ En stock ({product.stock} disponibles)</p>
+                  <p className="font-semibold">{commerceT(locale, "inStock", { count: product.stock })}</p>
                 ) : (
-                  <p className="font-semibold">✗ Rupture de stock</p>
+                  <p className="font-semibold">{commerceT(locale, "outOfStock")}</p>
                 )}
               </div>
 
@@ -190,7 +191,7 @@ export default function Product() {
 
               {/* Quantity */}
               <div className="flex items-center gap-4">
-                <label className="font-semibold text-gray-800">Quantité:</label>
+                <label className="font-semibold text-gray-800">{commerceT(locale, "quantity")}:</label>
                 <div className="flex items-center border border-gray-300 rounded-lg">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
@@ -230,12 +231,12 @@ export default function Product() {
                   {isAdding ? (
                     <>
                       <CheckCircle2 className="mr-2 h-5 w-5" />
-                      Ajouté !
+                      {commerceT(locale, "added")}
                     </>
                   ) : !deliveryProfile ? (
-                    `Indisponible vers ${countryLabel}`
+                    commerceT(locale, "deliveryUnconfirmed", { country: countryLabel })
                   ) : (
-                    "Ajouter au panier"
+                    commerceT(locale, "addToCart")
                   )}
                 </Button>
                 <Button
@@ -258,18 +259,18 @@ export default function Product() {
               <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200">
                 <div className="text-center">
                   <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">{deliveryProfile ? `Vers ${countryLabel}` : "Destination non confirmée"}</p>
-                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? "Livraison offerte confirmée" : `Livraison ${formatPrice(deliveryProfile.customerShippingCost, locale)}`) : "Choisissez un autre pays"}</p>
+                  <p className="text-sm font-medium text-gray-800">{deliveryProfile ? commerceT(locale, "availableTo", { country: countryLabel }) : commerceT(locale, "destinationUnconfirmed")}</p>
+                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? commerceT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(deliveryProfile.customerShippingCost, locale) })) : commerceT(locale, "chooseOtherCountry")}</p>
                 </div>
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Paiement à venir</p>
-                  <p className="text-xs text-gray-600">Aucune donnée de paiement demandée maintenant</p>
+                  <p className="text-sm font-medium text-gray-800">{commerceT(locale, "paymentSoon")}</p>
+                  <p className="text-xs text-gray-600">{commerceT(locale, "noPaymentNow")}</p>
                 </div>
                 <div className="text-center">
                   <RotateCcw className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Commande encadrée</p>
-                  <p className="text-xs text-gray-600">Informations revérifiées avant activation</p>
+                  <p className="text-sm font-medium text-gray-800">{commerceT(locale, "orderReview")}</p>
+                  <p className="text-xs text-gray-600">{commerceT(locale, "rechecked")}</p>
                 </div>
               </div>
             </div>

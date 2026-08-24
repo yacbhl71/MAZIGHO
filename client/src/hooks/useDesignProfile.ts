@@ -32,6 +32,7 @@ export type DesignProfile = {
   showStory: boolean;
   showTestimonials: boolean;
   showEditorial: boolean;
+  contentTranslationReady?: boolean;
 };
 
 export const defaultDesignProfile: DesignProfile = {

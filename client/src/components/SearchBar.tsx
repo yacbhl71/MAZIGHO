@@ -4,6 +4,8 @@ import { Search, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { t } from "@/lib/i18n";
+import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 
 interface SearchResult {
   id: number;
@@ -26,7 +28,7 @@ export default function SearchBar() {
   const { countryCode } = useDeliveryCountry();
   
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
-  const categories = categoriesQuery.data || [];
+  const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
 
   // Fermer le dropdown quand on clique ailleurs
   useEffect(() => {
@@ -111,7 +113,7 @@ export default function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query && setIsOpen(true)}
-          placeholder="Rechercher un produit..."
+          placeholder={t(locale, "searchPlaceholder")}
           className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
         />
         {query && (
@@ -131,7 +133,7 @@ export default function SearchBar() {
           {results.filter((r) => r.type === "product").length > 0 && (
             <div>
               <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600">
-                Produits
+                {t(locale, "searchProducts")}
               </div>
               {results
                 .filter((r) => r.type === "product")
@@ -155,7 +157,7 @@ export default function SearchBar() {
           {results.filter((r) => r.type === "category").length > 0 && (
             <div>
               <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600">
-                Catégories
+                {t(locale, "searchCategories")}
               </div>
               {results
                 .filter((r) => r.type === "category")

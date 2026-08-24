@@ -13,6 +13,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { getDiscoveryTiles, getPublicCopy, interpolatePublicCopy } from "@/lib/publicCopy";
 import { t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
@@ -41,11 +42,12 @@ export default function Home() {
   const { locale } = useLocale();
   const { profile, palette } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
+  const useManagedPublicTranslation = locale === "fr" || profile.contentTranslationReady === true;
   const copy = {
     ...generatedCopy,
-    highlight: { ...generatedCopy.highlight, eyebrow: profile.highlightEyebrow, title: profile.highlightTitle, text: profile.highlightText },
-    story: { ...generatedCopy.story, title: profile.storyTitle, text: profile.storyText },
-    editorial: { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle },
+    highlight: useManagedPublicTranslation ? { ...generatedCopy.highlight, eyebrow: profile.highlightEyebrow, title: profile.highlightTitle, text: profile.highlightText } : generatedCopy.highlight,
+    story: useManagedPublicTranslation ? { ...generatedCopy.story, title: profile.storyTitle, text: profile.storyText } : generatedCopy.story,
+    editorial: useManagedPublicTranslation ? { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle } : generatedCopy.editorial,
   };
   const discoveryTiles = getDiscoveryTiles(locale);
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
@@ -59,7 +61,8 @@ export default function Home() {
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
   const localizedDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
     const slug = tile.href.split("/").pop();
-    const category = categoriesQuery.data?.find(item => item.slug === slug);
+    const sourceCategory = categoriesQuery.data?.find(item => item.slug === slug);
+    const category = sourceCategory ? getLocalizedCategoryPresentation(locale, sourceCategory) : undefined;
     const fallback = discoveryTiles[index];
     return { ...tile, title: category?.name || fallback?.title || "Découvrir", description: category?.description || fallback?.description || "" };
   });

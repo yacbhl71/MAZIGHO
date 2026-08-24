@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
+import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 
 const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700", "bg-rose-50 text-rose-700", "bg-emerald-50 text-emerald-700", "bg-violet-50 text-violet-700", "bg-amber-50 text-amber-700"];
 
@@ -14,7 +15,7 @@ export default function Shop() {
   const { locale } = useLocale();
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
-  const categories = categoriesQuery.data || [];
+  const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const standardCategoryIds = new Set(standardCategories.map(category => category.id));
   const { countryCode, countryLabel } = useDeliveryCountry();

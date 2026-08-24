@@ -11,6 +11,8 @@ import { useState } from "react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
+import { categoryT, t } from "@/lib/i18n";
+import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 
 const categoryHeroImages: Record<string, string> = {
   "high-tech-gadgets": "/assets/category-high-tech.jpg",
@@ -26,7 +28,7 @@ export default function Category() {
   const slug = params?.slug || "";
   const { locale } = useLocale();
   const categoryQuery = trpc.categories.getBySlug.useQuery({ slug, locale });
-  const category = categoryQuery.data;
+  const category = categoryQuery.data ? getLocalizedCategoryPresentation(locale, categoryQuery.data) : undefined;
   
   const productsQuery = trpc.products.getByCategory.useQuery({ categoryId: category?.id || 0, locale }, {
     enabled: !!category?.id
@@ -69,11 +71,11 @@ export default function Category() {
         <Header />
         <main className="flex-1 flex items-center justify-center">
           <div className="text-center py-20">
-            <h1 className="text-3xl font-bold text-gray-800 mb-4">Catégorie introuvable</h1>
-            <p className="text-gray-600 mb-6">La catégorie que vous recherchez n'existe pas.</p>
+            <h1 className="text-3xl font-bold text-gray-800 mb-4">{categoryT(locale, "notFoundTitle")}</h1>
+            <p className="text-gray-600 mb-6">{categoryT(locale, "notFoundText")}</p>
             <Link href="/boutique">
               <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                Retour à la boutique
+                {categoryT(locale, "backShop")}
               </Button>
             </Link>
           </div>
@@ -97,19 +99,19 @@ export default function Category() {
               <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                 <div className="mb-7 flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-white/85 hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
-                  <span>{isCreativeCategory ? "Retour aux créations" : "Retour à la boutique"}</span>
+                  <span>{isCreativeCategory ? categoryT(locale, "backCreations") : categoryT(locale, "backShop")}</span>
                 </div>
               </Link>
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
-                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{isCreativeCategory ? "Collection créative MAZIGHO" : "Univers MAZIGHO"}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{isCreativeCategory ? categoryT(locale, "creativeCollection") : categoryT(locale, "universe")}</p>
               </div>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">{category.name}</h1>
-              <p className="mt-3 max-w-xl text-base leading-7 text-white/85">{category.description || "Une sélection pensée pour votre quotidien."}</p>
+              <p className="mt-3 max-w-xl text-base leading-7 text-white/85">{category.description || categoryT(locale, "dailySelection")}</p>
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? `Cette collection présente des designs MAZIGHO et reste visible partout. Le prix et le délai de livraison sont confirmés pour ${countryLabel} avant l’ajout au panier.` : `Découvrez notre sélection ${category.name.toLowerCase()}, dont la livraison est confirmée vers ${countryLabel}.`}</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : categoryT(locale, "categoryNotice", { category: category.name, country: countryLabel })}</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
@@ -167,24 +169,24 @@ export default function Category() {
                         {/* Price */}
                         <div className="flex items-baseline gap-2">
                           <span className="text-xl font-bold text-gray-800">
-                            {formatPrice(product.price)}
+                            {formatPrice(product.price, locale)}
                           </span>
                           {product.originalPrice && (
                             <span className="text-sm text-gray-500 line-through">
-                              {formatPrice(product.originalPrice)}
+                              {formatPrice(product.originalPrice, locale)}
                             </span>
                           )}
                         </div>
-                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : isCreativeCategory ? <p className="text-xs font-medium text-amber-700">Livraison à confirmer pour {countryLabel}</p> : null; })()}
+                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? categoryT(locale, "deliveryIncluded") : `${formatPrice(profile.customerShippingCost, locale)} / article`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} ${t(locale, "days")}` : ""}</p> : isCreativeCategory ? <p className="text-xs font-medium text-amber-700">{categoryT(locale, "deliveryToConfirm", { country: countryLabel })}</p> : null; })()}
 
                         {/* Stock Status */}
                         <div className="text-xs font-semibold">
                           {product.stock > 10 ? (
-                            <span className="text-green-600">✓ En stock</span>
+                            <span className="text-green-600">{categoryT(locale, "inStock")}</span>
                           ) : product.stock > 0 ? (
-                            <span className="text-orange-600">⚠ Stock limité</span>
+                            <span className="text-orange-600">{categoryT(locale, "limitedStock")}</span>
                           ) : (
-                            <span className="text-red-600">✗ Rupture de stock</span>
+                            <span className="text-red-600">{categoryT(locale, "outOfStock")}</span>
                           )}
                         </div>
 
@@ -192,25 +194,25 @@ export default function Category() {
                         <div className="flex gap-2 pt-2">
                           <Link href={`/produit/${product.slug}`} className="flex-1">
                             <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm">
-                              Voir détails
+                              {categoryT(locale, "viewDetails")}
                             </Button>
                           </Link>
                           <button
                             onClick={() => handleAddToCart(product.id)}
                             disabled={!getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35"
-                            title={getDeliveryProfileForCountry(product.deliveryProfiles, countryCode) ? "Ajouter au panier" : "Livraison à confirmer avant commande"}
+                            title={getDeliveryProfileForCountry(product.deliveryProfiles, countryCode) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
                           </button>
-                          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Ajouter à la wishlist">
+                          <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={categoryT(locale, "addToWishlist")}>
                             <Heart className="h-5 w-5 text-gray-700" />
                           </button>
                         </div>
 
                         {addedToCart === product.id && (
                           <div className="text-xs text-green-600 font-semibold text-center">
-                            ✓ Ajouté au panier
+                            {categoryT(locale, "addedToCart")}
                           </div>
                         )}
                       </div>
@@ -220,10 +222,10 @@ export default function Category() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">{isCreativeCategory ? "Cette collection de designs MAZIGHO est ouverte à tous, mais ses premiers produits sont encore en préparation." : `Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers ${countryLabel}.`}</p>
+                <p className="text-gray-600 text-lg">{isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel })}</p>
                 <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
-                    {isCreativeCategory ? "Retour aux créations" : "Choisir un autre pays ou voir la boutique"}
+                    {isCreativeCategory ? categoryT(locale, "backCreations") : categoryT(locale, "chooseCountryOrShop")}
                   </Button>
                 </Link>
               </div>
