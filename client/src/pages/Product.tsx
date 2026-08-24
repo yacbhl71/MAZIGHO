@@ -146,11 +146,11 @@ export default function Product() {
               <div className="space-y-2">
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl font-bold text-orange-500">
-                    {formatPrice(product.price)}
+                    {formatPrice(product.price, locale)}
                   </span>
                   {product.originalPrice && (
                     <span className="text-xl text-gray-500 line-through">
-                      {formatPrice(product.originalPrice)}
+                      {formatPrice(product.originalPrice, locale)}
                     </span>
                   )}
                 </div>
@@ -162,7 +162,7 @@ export default function Product() {
               </div>
 
               <div className={`rounded-lg border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-                {deliveryProfile ? <><p className="font-semibold text-emerald-900">Livrable vers {countryLabel}</p><p className="mt-1 text-sm text-emerald-800">{deliveryProfile.customerShippingCost === 0 ? "Livraison offerte pour ce produit" : `Livraison : ${formatPrice(deliveryProfile.customerShippingCost)}`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}</p><p className="mt-1 text-xs text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi.</p></>}
+                {deliveryProfile ? <><p className="font-semibold text-emerald-900">Livrable vers {countryLabel}</p><p className="mt-1 text-sm text-emerald-800">{deliveryProfile.customerShippingCost === 0 ? "Livraison offerte pour ce produit" : `Livraison : ${formatPrice(deliveryProfile.customerShippingCost, locale)}`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}</p><p className="mt-1 text-xs text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi.</p></>}
               </div>
 
               {/* Description */}
@@ -256,7 +256,7 @@ export default function Product() {
                 <div className="text-center">
                   <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium text-gray-800">{deliveryProfile ? `Vers ${countryLabel}` : "Destination non confirmée"}</p>
-                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? "Livraison offerte confirmée" : `Livraison ${formatPrice(deliveryProfile.customerShippingCost)}`) : "Choisissez un autre pays"}</p>
+                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? "Livraison offerte confirmée" : `Livraison ${formatPrice(deliveryProfile.customerShippingCost, locale)}`) : "Choisissez un autre pays"}</p>
                 </div>
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
@@ -390,11 +390,11 @@ export default function Product() {
                           </div>
                           <div className="flex items-baseline gap-2">
                             <span className="text-lg font-bold text-orange-500">
-                              {formatPrice(relatedProduct.price)}
+                              {formatPrice(relatedProduct.price, locale)}
                             </span>
                             {relatedProduct.originalPrice && (
                               <span className="text-sm text-gray-500 line-through">
-                                {formatPrice(relatedProduct.originalPrice)}
+                                {formatPrice(relatedProduct.originalPrice, locale)}
                               </span>
                             )}
                           </div>
