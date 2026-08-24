@@ -7,6 +7,7 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
+import { useFavorites } from "@/hooks/useFavorites";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
@@ -14,15 +15,19 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { getMarketingCopy } from "@/lib/marketingCopy";
 import { categoryT, commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import { getProductPublicCopy } from "@/lib/productPublicCopy";
+import { toast } from "sonner";
 
 export default function BestSellers() {
   const { locale } = useLocale();
   const copy = getMarketingCopy(locale).bestSellers;
+  const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));
   const { addToCart } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
   const handleAddToCart = (productId: number) => {
@@ -32,6 +37,11 @@ export default function BestSellers() {
       setAddedToCart(productId);
       setTimeout(() => setAddedToCart(null), 2000);
     }
+  };
+  const handleFavorite = (productId: number) => {
+    const wasFavorite = isFavorite(productId);
+    toggleFavorite(productId);
+    toast.success(wasFavorite ? productCopy.favoriteRemoved : productCopy.favoriteAdded);
   };
 
   return (
@@ -160,8 +170,8 @@ export default function BestSellers() {
                         >
                           <ShoppingCart className="h-5 w-5 text-gray-700" />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={categoryT(locale, "addToWishlist")}>
-                          <Heart className="h-5 w-5 text-gray-700" />
+                        <button onClick={() => handleFavorite(product.id)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={isFavorite(product.id) ? productCopy.removeFavorite : productCopy.addFavorite} aria-label={isFavorite(product.id) ? productCopy.removeFavorite : productCopy.addFavorite}>
+                          <Heart className={`h-5 w-5 ${isFavorite(product.id) ? "fill-red-500 text-red-500" : "text-gray-700"}`} />
                         </button>
                       </div>
 
