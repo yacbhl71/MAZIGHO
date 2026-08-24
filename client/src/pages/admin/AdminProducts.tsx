@@ -68,13 +68,19 @@ export default function AdminProducts() {
     enabled: Boolean(editingProduct?.id),
   });
   const translations = translationsQuery.data || [];
+  const translationOverviewQuery = trpc.admin.products.getTranslationOverview.useQuery();
+  const translationOverviewByProductId = new Map((translationOverviewQuery.data || []).map((product: any) => [product.id, product]));
+  const [translatingProductId, setTranslatingProductId] = useState<number | null>(null);
 
   const translateProduct = trpc.admin.products.translate.useMutation({
+    onMutate: (input) => setTranslatingProductId(input.productId),
     onSuccess: () => {
       toast.success("Traductions générées. Vous pouvez les vérifier et les corriger ci-dessous.");
       translationsQuery.refetch();
+      translationOverviewQuery.refetch();
     },
     onError: (error) => toast.error(`Traduction indisponible : ${error.message}`),
+    onSettled: () => setTranslatingProductId(null),
   });
 
   const saveTranslation = trpc.admin.products.saveTranslation.useMutation({
@@ -332,6 +338,7 @@ export default function AdminProducts() {
                 <TableHead>Prix</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Langues</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -344,12 +351,13 @@ export default function AdminProducts() {
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={7} className="text-center py-10 text-red-500">
                     <div className="flex flex-col items-center gap-2">
                       <p>Erreur lors du chargement des produits</p>
                       <p className="text-xs font-mono">{error.message}</p>
@@ -359,7 +367,7 @@ export default function AdminProducts() {
                 </TableRow>
               ) : products?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <p>Aucun produit trouvé.</p>
                       <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button>
@@ -406,6 +414,7 @@ export default function AdminProducts() {
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
                       </Badge>
                     </TableCell>
+                    <TableCell>{(() => { const overview = translationOverviewByProductId.get(product.id) as any; const ready = overview?.translations?.filter((translation: any) => translation.status === "ready").length || 0; const stale = overview?.translations?.some((translation: any) => translation.status === "stale"); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : stale ? "border-amber-200 bg-amber-50 text-amber-700" : ready === 6 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : stale ? "À régénérer" : ready === 6 ? "6 / 6 prêtes" : `${ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
                     <TableCell className="w-[100px]">
                       <div className="flex items-center gap-2">
                         <Button 
