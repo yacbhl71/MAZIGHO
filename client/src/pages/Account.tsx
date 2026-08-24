@@ -5,267 +5,61 @@ import { User, LogOut, Heart, ShoppingBag, Settings, ArrowLeft, LayoutDashboard 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useLocale } from "@/contexts/LocaleContext";
+import { getAccountCopy } from "@/lib/accountCopy";
 
 export default function Account() {
   const [, navigate] = useLocation();
   const { user, loading: isLoading, isAuthenticated, logout } = useAuth();
+  const { locale } = useLocale();
+  const copy = getAccountCopy(locale);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col bg-white">
-        <Header />
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-gray-600">Chargement...</p>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <div className="flex min-h-screen flex-col bg-white"><Header /><main className="flex flex-1 items-center justify-center"><p className="text-gray-600">{copy.loading}</p></main><Footer /></div>;
   }
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
+  const handleLogout = () => { logout(); navigate("/"); };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
+    <div className="flex min-h-screen flex-col bg-white">
       <Header />
-
       <main className="flex-1">
-        {/* Header Section */}
         <section className="bg-gradient-to-r from-orange-50 to-teal-50 py-12 md:py-16">
           <div className="container mx-auto px-4">
-            <Link href="/">
-              <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
-                <ArrowLeft className="h-5 w-5" />
-                <span className="font-medium">Retour à l'accueil</span>
-              </div>
-            </Link>
-            <div className="flex items-center gap-3 mb-4">
-              <User className="h-8 w-8 text-orange-500" />
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                Mon Compte
-              </h1>
-            </div>
-            <p className="text-lg text-gray-600 max-w-2xl">
-              Gérez votre profil, vos commandes et vos préférences
-            </p>
+            <Link href="/"><div className="mb-6 flex w-fit cursor-pointer items-center gap-2 text-orange-500 hover:text-orange-600"><ArrowLeft className="h-5 w-5" /><span className="font-medium">{copy.back}</span></div></Link>
+            <div className="mb-4 flex items-center gap-3"><User className="h-8 w-8 text-orange-500" /><h1 className="text-4xl font-bold text-gray-800 md:text-5xl">{copy.title}</h1></div>
+            <p className="max-w-2xl text-lg text-gray-600">{copy.lead}</p>
           </div>
         </section>
 
-        {/* Account Content */}
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
             {!isAuthenticated ? (
-              // Non-authenticated view
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Profile Card */}
-                <Card className="md:col-span-1">
-                  <CardContent className="p-6">
-                    <div className="text-center mb-6">
-                      <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-teal-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <User className="h-10 w-10 text-white" />
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-800 mb-1">
-                        Bienvenue !
-                      </h2>
-                      <p className="text-sm text-gray-600">
-                        Connectez-vous pour accéder à votre compte
-                      </p>
-                    </div>
-                    <Link href="/login">
-                      <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white mb-3">
-                        Se connecter
-                      </Button>
-                    </Link>
-                    <Link href="/register">
-                      <Button variant="outline" className="w-full">
-                        Créer un compte
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-
-                {/* Features */}
-                <div className="md:col-span-2 space-y-6">
-                  <Card>
-                    <CardContent className="p-6">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                        Pourquoi créer un compte ?
-                      </h3>
-                      <ul className="space-y-3">
-                        <li className="flex items-start gap-3">
-                          <ShoppingBag className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">
-                            <strong>Suivi de commandes</strong> - Consultez l'historique de vos achats
-                          </span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <Heart className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">
-                            <strong>Favoris</strong> - Sauvegardez vos produits préférés
-                          </span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <Settings className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">
-                            <strong>Paramètres</strong> - Gérez vos informations personnelles
-                          </span>
-                        </li>
-                      </ul>
-                    </CardContent>
-                  </Card>
-                </div>
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+                <Card className="md:col-span-1"><CardContent className="p-6"><div className="mb-6 text-center"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-teal-400"><User className="h-10 w-10 text-white" /></div><h2 className="mb-1 text-xl font-bold text-gray-800">{copy.welcome}</h2><p className="text-sm text-gray-600">{copy.guestLead}</p></div><Link href="/login"><Button className="mb-3 w-full bg-orange-500 text-white hover:bg-orange-600">{copy.login}</Button></Link><Link href="/register"><Button variant="outline" className="w-full">{copy.register}</Button></Link></CardContent></Card>
+                <div className="space-y-6 md:col-span-2"><Card><CardContent className="p-6"><h2 className="mb-4 text-lg font-semibold text-gray-800">{copy.whyTitle}</h2><ul className="space-y-3"><li className="flex items-start gap-3"><ShoppingBag className="mt-0.5 h-5 w-5 shrink-0 text-orange-500" /><span className="text-gray-700"><strong>{copy.benefits.ordersTitle}</strong> — {copy.benefits.ordersText}</span></li><li className="flex items-start gap-3"><Heart className="mt-0.5 h-5 w-5 shrink-0 text-red-500" /><span className="text-gray-700"><strong>{copy.benefits.favoritesTitle}</strong> — {copy.benefits.favoritesText}</span></li><li className="flex items-start gap-3"><Settings className="mt-0.5 h-5 w-5 shrink-0 text-green-500" /><span className="text-gray-700"><strong>{copy.benefits.settingsTitle}</strong> — {copy.benefits.settingsText}</span></li></ul></CardContent></Card></div>
               </div>
             ) : (
-              // Authenticated view
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* Profile Card */}
-                <Card className="md:col-span-1">
-                  <CardContent className="p-6">
-                    <div className="text-center mb-6">
-                      <div className="w-20 h-20 bg-gradient-to-br from-orange-400 to-teal-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <User className="h-10 w-10 text-white" />
-                      </div>
-                      <h2 className="text-xl font-bold text-gray-800 mb-1">
-                        {user?.name || "Client MAZIGHO"}
-                      </h2>
-                      <p className="text-sm text-gray-600 break-all">
-                        {user?.email}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Menu Items */}
-                <div className="md:col-span-2 space-y-4">
-                  {/* Orders */}
-                  <Link href="/commandes">
-                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="bg-blue-100 p-3 rounded-lg">
-                            <ShoppingBag className="h-6 w-6 text-blue-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-800 mb-1">
-                              Mes Commandes
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              Consultez l'historique de vos achats
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-
-                  {/* Favorites */}
-                  <Link href="/favoris">
-                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="bg-red-100 p-3 rounded-lg">
-                            <Heart className="h-6 w-6 text-red-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-800 mb-1">
-                              Mes Favoris
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              Accédez à vos produits préférés
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-
-                  {/* Settings */}
-                  <Link href="/parametres">
-                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div className="bg-green-100 p-3 rounded-lg">
-                            <Settings className="h-6 w-6 text-green-600" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-gray-800 mb-1">
-                              Paramètres
-                            </h3>
-                            <p className="text-sm text-gray-600">
-                              Modifiez vos informations personnelles
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-
-                  {/* Admin Dashboard - Only for admins */}
-                  {(user as any)?.role === 'admin' && (
-                    <Link href="/admin">
-                      <Card className="hover:shadow-lg transition-shadow cursor-pointer border-orange-200 bg-orange-50/30">
-                        <CardContent className="p-6">
-                          <div className="flex items-start gap-4">
-                            <div className="bg-orange-100 p-3 rounded-lg">
-                              <LayoutDashboard className="h-6 w-6 text-orange-600" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-gray-800 mb-1">
-                                Administration
-                              </h3>
-                              <p className="text-sm text-gray-600">
-                                Gérer la boutique, les produits et les commandes
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  )}
-
-                  {/* Logout */}
-                  <Card
-                    className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={handleLogout}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="bg-gray-100 p-3 rounded-lg">
-                          <LogOut className="h-6 w-6 text-gray-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-800 mb-1">
-                            Déconnexion
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            Quitter votre compte
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+                <Card className="md:col-span-1"><CardContent className="p-6"><div className="mb-6 text-center"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-teal-400"><User className="h-10 w-10 text-white" /></div><h2 className="mb-1 text-xl font-bold text-gray-800">{user?.name || copy.customerFallback}</h2><p className="break-all text-sm text-gray-600">{user?.email}</p></div></CardContent></Card>
+                <div className="space-y-4 md:col-span-2">
+                  <AccountLink href="/commandes" icon={<ShoppingBag className="h-6 w-6 text-blue-600" />} iconClass="bg-blue-100" title={copy.ordersTitle} description={copy.ordersText} />
+                  <AccountLink href="/favoris" icon={<Heart className="h-6 w-6 text-red-600" />} iconClass="bg-red-100" title={copy.favoritesTitle} description={copy.favoritesText} />
+                  <AccountLink href="/parametres" icon={<Settings className="h-6 w-6 text-green-600" />} iconClass="bg-green-100" title={copy.settingsTitle} description={copy.settingsText} />
+                  {(user as any)?.role === "admin" && <AccountLink href="/admin" icon={<LayoutDashboard className="h-6 w-6 text-orange-600" />} iconClass="bg-orange-100" title={copy.adminTitle} description={copy.adminText} className="border-orange-200 bg-orange-50/30" />}
+                  <Card role="button" tabIndex={0} className="cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2" onClick={handleLogout} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleLogout(); } }}><CardContent className="p-6"><div className="flex items-start gap-4"><div className="rounded-lg bg-gray-100 p-3"><LogOut className="h-6 w-6 text-gray-600" /></div><div><h2 className="mb-1 font-semibold text-gray-800">{copy.logoutTitle}</h2><p className="text-sm text-gray-600">{copy.logoutText}</p></div></div></CardContent></Card>
                 </div>
               </div>
             )}
-
-            {/* Info Section */}
-            <div className="mt-12 bg-blue-50 border-l-4 border-blue-500 p-6 rounded">
-              <h3 className="font-semibold text-gray-800 mb-2">
-                💡 Astuce
-              </h3>
-              <p className="text-gray-700">
-                {isAuthenticated
-                  ? "Vous êtes connecté ! Vous pouvez maintenant accéder à tous vos services MAZIGHO."
-                  : "Créez un compte pour bénéficier de fonctionnalités exclusives : suivi de commande, historique d'achat, liste de souhaits, et bien plus encore !"}
-              </p>
-            </div>
+            <div className="mt-12 rounded border-l-4 border-blue-500 bg-blue-50 p-6"><h2 className="mb-2 font-semibold text-gray-800">{copy.tipTitle}</h2><p className="text-gray-700">{isAuthenticated ? copy.tipAuthenticated : copy.tipGuest}</p></div>
           </div>
         </section>
       </main>
-
       <Footer />
     </div>
   );
+}
+
+function AccountLink({ href, icon, iconClass, title, description, className = "" }: { href: string; icon: React.ReactNode; iconClass: string; title: string; description: string; className?: string }) {
+  return <Link href={href}><Card className={`cursor-pointer transition-shadow hover:shadow-lg ${className}`}><CardContent className="p-6"><div className="flex items-start gap-4"><div className={`rounded-lg p-3 ${iconClass}`}>{icon}</div><div><h2 className="mb-1 font-semibold text-gray-800">{title}</h2><p className="text-sm text-gray-600">{description}</p></div></div></CardContent></Card></Link>;
 }
