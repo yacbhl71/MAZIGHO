@@ -6,6 +6,7 @@ import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./tr
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
+import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
   importedProductInputSchema,
   normalizeImportedProduct,
@@ -560,6 +561,8 @@ export const adminRouter = router({
     verifyCj: adminProcedure.mutation(() => verifyCjConnection()),
     aliExpressStatus: adminProcedure.query(() => getAliExpressConnectionStatus()),
     verifyAliExpress: adminProcedure.mutation(() => verifyAliExpressPreparation()),
+    bigBuyStatus: adminProcedure.query(() => getBigBuyConnectionStatus()),
+    verifyBigBuy: adminProcedure.mutation(() => verifyBigBuyPreparation()),
     prepareCjImport: adminProcedure.input(z.object({
       productId: z.string().trim().min(1).max(128),
       countryCode: z.string().trim().optional().transform(value => value || undefined).refine(value => value === undefined || /^[A-Z]{2}$/.test(value), "Utilisez un code pays à deux lettres."),
