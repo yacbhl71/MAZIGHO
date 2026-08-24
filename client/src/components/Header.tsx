@@ -53,11 +53,9 @@ export default function Header() {
         <div className="flex items-center justify-between gap-3">
           {/* Logo */}
           <Link href="/">
-            <div className="flex items-center gap-2 cursor-pointer group flex-shrink-0">
-              <div className="bg-gray-800 p-1.5 rounded">
-                <span className="text-orange-500 text-lg font-bold">≡</span>
-              </div>
-              <span className="text-lg font-bold text-orange-500 hidden sm:inline whitespace-nowrap">
+            <div className="flex cursor-pointer items-center gap-2.5 group flex-shrink-0" aria-label="Accueil MAZIGHO">
+              <img src="/brand/mazigho-monogram.svg" alt="" aria-hidden="true" className="h-9 w-9 rounded-sm transition-transform duration-200 group-hover:scale-105" />
+              <span className="hidden whitespace-nowrap text-lg font-semibold tracking-[0.08em] text-[#172B45] sm:inline">
                 MAZIGHO
               </span>
             </div>
