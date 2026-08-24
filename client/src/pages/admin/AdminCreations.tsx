@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { getCollectionVisual } from "@/lib/collectionVisuals";
 import { toast } from "sonner";
 
 const defaultIcons = ["👕", "🧥", "☕", "🖼️", "👜", "✦"];
@@ -108,7 +109,7 @@ export default function AdminCreations() {
 
         <section className="border border-slate-200 bg-white p-5 md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-700">Structure client</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Collections visibles dans l’onglet Collections créatives</h2></div><Link href="/creations"><span className="inline-flex items-center gap-2 text-sm font-bold text-rose-700">Voir le rendu client <ArrowRight className="h-4 w-4" /></span></Link></div>
-          {categoriesQuery.isLoading ? <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-rose-600" /></div> : <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{creativeCategories.map(category => <div key={category.id} className="border border-rose-100 bg-[#fffaf7] p-4"><div className="flex items-start gap-3"><span className="flex h-10 w-10 items-center justify-center bg-rose-100 text-lg">{category.icon || "✦"}</span><div className="min-w-0"><h3 className="font-semibold text-slate-900">{category.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{category.description || "Collection créative MAZIGHO"}</p></div></div><Link href={`/categorie/${category.slug}`}><span className="mt-4 inline-flex text-xs font-bold text-rose-700">Voir côté client →</span></Link></div>)}</div>}
+          {categoriesQuery.isLoading ? <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-rose-600" /></div> : <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{creativeCategories.map(category => { const visual = getCollectionVisual(category.slug); return <div key={category.id} className="overflow-hidden border border-rose-100 bg-[#fffaf7]"><div className="aspect-[4/3] bg-rose-50">{visual ? <img src={visual.imageUrl} alt={visual.alt} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-3xl">{category.icon || "✦"}</div>}</div><div className="p-4"><h3 className="font-semibold text-slate-900">{category.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{category.description || "Collection créative MAZIGHO"}</p><Link href={`/categorie/${category.slug}`}><span className="mt-4 inline-flex text-xs font-bold text-rose-700">Voir côté client →</span></Link></div></div>; })}</div>}
         </section>
 
         <section className="border border-slate-200 bg-white p-5 md:p-6">

@@ -5,14 +5,7 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
-
-const categoryAccents = [
-  "bg-rose-100 text-rose-700",
-  "bg-violet-100 text-violet-700",
-  "bg-amber-100 text-amber-700",
-  "bg-sky-100 text-sky-700",
-  "bg-emerald-100 text-emerald-700",
-];
+import { getCollectionVisual } from "@/lib/collectionVisuals";
 
 export default function Creations() {
   const categoriesQuery = trpc.categories.getAll.useQuery();
@@ -73,16 +66,23 @@ export default function Creations() {
             <div className="flex justify-center py-14"><Loader2 className="h-8 w-8 animate-spin text-rose-600" /></div>
           ) : (
             <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-              {creativeCategories.map((category, index) => (
-                <Link key={category.id} href={`/categorie/${category.slug}`}>
-                  <article className="group min-h-[178px] border border-rose-100 bg-white p-5 transition-all hover:-translate-y-1 hover:border-rose-300 hover:shadow-lg">
-                    <span className={`flex h-12 w-12 items-center justify-center text-2xl ${categoryAccents[index % categoryAccents.length]}`} aria-hidden="true">{category.icon || "✦"}</span>
-                    <h3 className="mt-5 text-base font-semibold text-slate-900 group-hover:text-rose-700">{category.name}</h3>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{category.description}</p>
-                    <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Explorer <ArrowRight className="h-3 w-3" /></span>
-                  </article>
-                </Link>
-              ))}
+              {creativeCategories.map(category => {
+                const visual = getCollectionVisual(category.slug);
+                return (
+                  <Link key={category.id} href={`/categorie/${category.slug}`}>
+                    <article className="group overflow-hidden border border-rose-100 bg-white transition-all hover:-translate-y-1 hover:border-rose-300 hover:shadow-lg">
+                      <div className="aspect-[4/3] overflow-hidden bg-rose-50">
+                        {visual ? <img src={visual.imageUrl} alt={visual.alt} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-3xl">{category.icon || "✦"}</div>}
+                      </div>
+                      <div className="p-5">
+                        <h3 className="text-base font-semibold text-slate-900 group-hover:text-rose-700">{category.name}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{category.description}</p>
+                        <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Explorer <ArrowRight className="h-3 w-3" /></span>
+                      </div>
+                    </article>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </section>
