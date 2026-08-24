@@ -9,8 +9,12 @@ import { Mail, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useLocale } from "@/contexts/LocaleContext";
+import { getMarketingCopy } from "@/lib/marketingCopy";
 
 export default function Contact() {
+  const { locale } = useLocale();
+  const copy = getMarketingCopy(locale).contact;
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -19,14 +23,14 @@ export default function Contact() {
   });
   const sendMessage = trpc.contact.send.useMutation({
     onSuccess: () => {
-      toast.success("Message envoyé avec succès.", {
-        description: "Votre demande a bien été transmise à l’équipe MAZIGHO.",
+      toast.success(copy.sent, {
+        description: copy.sentDescription,
       });
       setFormData({ name: "", email: "", subject: "", message: "" });
     },
     onError: () => {
-      toast.error("Impossible d’envoyer votre message pour le moment.", {
-        description: "Veuillez réessayer dans quelques instants.",
+      toast.error(copy.failed, {
+        description: copy.failedDescription,
       });
     },
   });
@@ -34,7 +38,7 @@ export default function Contact() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
-      toast.error("Veuillez remplir tous les champs obligatoires");
+      toast.error(copy.required);
       return;
     }
     sendMessage.mutate({
@@ -54,10 +58,10 @@ export default function Contact() {
         <section className="bg-gradient-to-br from-primary/10 via-accent/5 to-secondary/10 py-16 md:py-20">
           <div className="container mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-              Contactez-Nous
+              {copy.title}
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Une question ? Une suggestion ? Notre équipe est à votre écoute et vous répondra dans les meilleurs délais.
+              {copy.lead}
             </p>
           </div>
         </section>
@@ -70,10 +74,10 @@ export default function Contact() {
               <div className="space-y-6">
                 <div>
                   <h2 className="text-2xl font-bold text-foreground mb-6">
-                    Informations de Contact
+                    {copy.infoTitle}
                   </h2>
                   <p className="text-muted-foreground mb-8">
-                    Envoyez-nous votre demande via le formulaire sécurisé ci-dessous.
+                    {copy.infoLead}
                   </p>
                 </div>
 
@@ -84,8 +88,8 @@ export default function Contact() {
                         <Mail className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground mb-1">Formulaire de contact</h3>
-                        <p className="text-muted-foreground">Écrivez-nous directement depuis cette page : votre message est transmis à l’équipe MAZIGHO.</p>
+                        <h3 className="font-semibold text-foreground mb-1">{copy.formCardTitle}</h3>
+                        <p className="text-muted-foreground">{copy.formCardText}</p>
                       </div>
                     </div>
 
@@ -94,8 +98,8 @@ export default function Contact() {
                         <Send className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground mb-1">Suivi de votre demande</h3>
-                        <p className="text-muted-foreground">Indiquez une adresse e-mail valide afin que l’équipe puisse vous répondre au sujet de votre demande.</p>
+                        <h3 className="font-semibold text-foreground mb-1">{copy.followUpTitle}</h3>
+                        <p className="text-muted-foreground">{copy.followUpText}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -107,22 +111,22 @@ export default function Contact() {
                 <Card>
                   <CardContent className="p-8">
                     <h2 className="text-2xl font-bold text-foreground mb-6">
-                      Envoyez-nous un Message
+                      {copy.formTitle}
                     </h2>
                     <form onSubmit={handleSubmit} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label htmlFor="name">Nom complet *</Label>
+                          <Label htmlFor="name">{copy.name} *</Label>
                           <Input
                             id="name"
-                            placeholder="Votre nom"
+                            placeholder={copy.namePlaceholder}
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             required
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="email">Email *</Label>
+                          <Label htmlFor="email">{copy.email} *</Label>
                           <Input
                             id="email"
                             type="email"
@@ -135,20 +139,20 @@ export default function Contact() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="subject">Sujet</Label>
+                        <Label htmlFor="subject">{copy.subject}</Label>
                         <Input
                           id="subject"
-                          placeholder="Objet de votre message"
+                          placeholder={copy.subjectPlaceholder}
                           value={formData.subject}
                           onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="message">Message *</Label>
+                        <Label htmlFor="message">{copy.message} *</Label>
                         <Textarea
                           id="message"
-                          placeholder="Votre message..."
+                          placeholder={copy.messagePlaceholder}
                           rows={6}
                           value={formData.message}
                           onChange={(e) => setFormData({ ...formData, message: e.target.value })}
@@ -163,11 +167,11 @@ export default function Contact() {
                         disabled={sendMessage.isPending}
                       >
                         {sendMessage.isPending ? (
-                          <>Envoi en cours...</>
+                          <>{copy.sending}</>
                         ) : (
                           <>
                             <Send className="h-5 w-5" />
-                            Envoyer le message
+                            {copy.send}
                           </>
                         )}
                       </Button>
