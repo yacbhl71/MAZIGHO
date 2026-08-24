@@ -10,7 +10,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { deliveryCountries, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { localeOptions, useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
-import { getPublicCopy } from "@/lib/publicCopy";
+import { getCreativeMenuCopy, getDiscoveryTiles, getPublicCopy } from "@/lib/publicCopy";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,6 +31,8 @@ export default function Header() {
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
   const copy = getPublicCopy(locale);
+  const discoveryTiles = getDiscoveryTiles(locale);
+  const creativeCopy = getCreativeMenuCopy(locale);
   const standardCategoryCopyIndex: Record<string, number> = { mode: 0, "beaute-bien-etre": 1, "maison-organisation": 2, "sport-fitness": 3, "high-tech-gadgets": 4, "auto-accessoires": 5 };
 
   const isActive = (path: string) => location === path;
@@ -89,12 +92,12 @@ export default function Header() {
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[420px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 1 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
                 <div className="mb-3 border-b border-gray-100 pb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">Explorer par univers</p>
-                  <p className="mt-1 text-xs text-gray-500">Choisissez une catégorie pour découvrir sa sélection.</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">{t(locale, "exploreUniverse")}</p>
+                  <p className="mt-1 text-xs text-gray-500">{copy.discovery.text}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {standardCategories.map((cat) => {
-                    const localized = copy.discovery.tiles[standardCategoryCopyIndex[cat.slug]];
+                    const localized = discoveryTiles[standardCategoryCopyIndex[cat.slug]];
                     return <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div onClick={() => setOpenDropdown(null)} className="flex min-h-[58px] cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-orange-50">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-lg">{(cat as any).icon || "✦"}</span>
@@ -106,7 +109,7 @@ export default function Header() {
                     </Link>;
                   })}
                 </div>
-                <Link href="/boutique"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-500">Voir toutes les catégories <span>→</span></div></Link>
+                <Link href="/boutique"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-500">{copy.discovery.allShop} <span>→</span></div></Link>
               </div>
             </div>
 
@@ -123,8 +126,8 @@ export default function Header() {
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[380px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 2 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
                 <div className="mb-3 border-b border-rose-100 pb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">Collections créatives</p>
-                  <p className="mt-1 text-xs text-gray-500">Un univers artistique séparé de la boutique fournisseurs.</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-500">{creativeCopy.title}</p>
+                  <p className="mt-1 text-xs text-gray-500">{creativeCopy.intro}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {creativeCategories.map((cat) => (
@@ -136,7 +139,7 @@ export default function Header() {
                     </Link>
                   ))}
                 </div>
-                <Link href="/creations"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-500">Voir toutes les créations <span>→</span></div></Link>
+                <Link href="/creations"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-500">{creativeCopy.all} <span>→</span></div></Link>
               </div>
             </div>
 
@@ -178,7 +181,7 @@ export default function Header() {
             <SearchBar />
           </div>
 
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-500" /><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></div>
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-500" /><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></div>
 
           <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="La langue d’affichage est indépendante du pays de livraison."><span className="text-sm text-orange-500" aria-hidden="true">A</span><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="max-w-28 bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></div>
 
@@ -234,7 +237,7 @@ export default function Header() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-2">
-            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
+            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
             <Link href="/">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
@@ -261,7 +264,7 @@ export default function Header() {
               {openDropdown === 0 && (
                 <div className="bg-gray-50 rounded space-y-1 p-2">
                   {standardCategories.map((cat) => {
-                    const localized = copy.discovery.tiles[standardCategoryCopyIndex[cat.slug]];
+                    const localized = discoveryTiles[standardCategoryCopyIndex[cat.slug]];
                     return <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div className="px-4 py-2 hover:bg-white rounded cursor-pointer text-xs">
                         {(cat as any).icon || "📦"} {localized?.title || cat.name}

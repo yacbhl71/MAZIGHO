@@ -10,8 +10,9 @@ import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { getPublicCopy, interpolatePublicCopy } from "@/lib/publicCopy";
+import { getDiscoveryTiles, getPublicCopy, interpolatePublicCopy } from "@/lib/publicCopy";
 import { t } from "@/lib/i18n";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
@@ -40,9 +41,11 @@ export default function Home() {
   const { profile, palette } = useDesignProfile();
   const { locale } = useLocale();
   const copy = getPublicCopy(locale);
+  const discoveryTiles = getDiscoveryTiles(locale);
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale);
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
 
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
@@ -113,7 +116,7 @@ export default function Home() {
               <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {copy.discovery.tiles.map((tile, index) => (
+              {discoveryTiles.map((tile, index) => (
                 <Link key={tile.title} href={discoveryTileMeta[index].href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
                   <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={discoveryTileMeta[index].image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
