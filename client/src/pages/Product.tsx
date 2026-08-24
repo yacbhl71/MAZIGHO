@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
+import { useFavorites } from "@/hooks/useFavorites";
 import { toast } from "sonner";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -39,6 +40,7 @@ export default function Product() {
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const [isAdding, setIsAdding] = useState(false);
 
   if (productQuery.isLoading) {
@@ -92,6 +94,21 @@ export default function Product() {
     setTimeout(() => {
       setIsAdding(false);
     }, 1500);
+  };
+
+  const favorite = isFavorite(product.id);
+  const handleFavorite = () => {
+    toggleFavorite(product.id);
+    toast.success(favorite ? copy.favoriteRemoved : copy.favoriteAdded);
+  };
+  const handleShare = async () => {
+    const shareData = { title: product.name, url: window.location.href };
+    if (navigator.share) {
+      try { await navigator.share(shareData); } catch { /* User cancelled the native dialog. */ }
+      return;
+    }
+    await navigator.clipboard?.writeText(window.location.href);
+    toast.success(copy.linkCopied);
   };
 
   return (
@@ -243,15 +260,23 @@ export default function Product() {
                   )}
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
+                  onClick={handleFavorite}
+                  aria-label={favorite ? copy.removeFavorite : copy.addFavorite}
+                  title={favorite ? copy.removeFavorite : copy.addFavorite}
                   className="border-2 border-gray-300 hover:border-orange-500"
                 >
-                  <Heart className="h-6 w-6" />
+                  <Heart className={`h-6 w-6 ${favorite ? "fill-red-500 text-red-500" : ""}`} />
                 </Button>
                 <Button
+                  type="button"
                   variant="outline"
                   size="icon"
+                  onClick={handleShare}
+                  aria-label={copy.share}
+                  title={copy.share}
                   className="border-2 border-gray-300 hover:border-orange-500"
                 >
                   <Share2 className="h-6 w-6" />

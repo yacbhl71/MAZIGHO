@@ -7,6 +7,12 @@ type ProductPublicCopy = {
   reviewSubmissionTitle: string;
   reviewSubmissionUnavailable: string;
   relatedProducts: string;
+  addFavorite: string;
+  removeFavorite: string;
+  favoriteAdded: string;
+  favoriteRemoved: string;
+  share: string;
+  linkCopied: string;
   color: string;
   size: string;
   weight: string;
@@ -27,6 +33,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Publication d’avis indisponible",
     reviewSubmissionUnavailable: "La soumission d’avis depuis le site n’est pas activée actuellement.",
     relatedProducts: "Produits similaires",
+    addFavorite: "Ajouter aux favoris",
+    removeFavorite: "Retirer des favoris",
+    favoriteAdded: "Ajouté aux favoris sur cet appareil.",
+    favoriteRemoved: "Retiré des favoris sur cet appareil.",
+    share: "Partager ce produit",
+    linkCopied: "Lien du produit copié.",
     color: "Couleur",
     size: "Taille",
     weight: "Poids",
@@ -39,6 +51,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Bewertung abgeben nicht verfügbar",
     reviewSubmissionUnavailable: "Das Absenden von Bewertungen über die Website ist derzeit nicht aktiviert.",
     relatedProducts: "Ähnliche Produkte",
+    addFavorite: "Zu Favoriten hinzufügen",
+    removeFavorite: "Aus Favoriten entfernen",
+    favoriteAdded: "Auf diesem Gerät zu Favoriten hinzugefügt.",
+    favoriteRemoved: "Von diesem Gerät aus Favoriten entfernt.",
+    share: "Dieses Produkt teilen",
+    linkCopied: "Produktlink kopiert.",
     color: "Farbe",
     size: "Größe",
     weight: "Gewicht",
@@ -51,6 +69,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Invio delle recensioni non disponibile",
     reviewSubmissionUnavailable: "L’invio di recensioni dal sito non è attivo al momento.",
     relatedProducts: "Prodotti simili",
+    addFavorite: "Aggiungi ai preferiti",
+    removeFavorite: "Rimuovi dai preferiti",
+    favoriteAdded: "Aggiunto ai preferiti su questo dispositivo.",
+    favoriteRemoved: "Rimosso dai preferiti su questo dispositivo.",
+    share: "Condividi questo prodotto",
+    linkCopied: "Link del prodotto copiato.",
     color: "Colore",
     size: "Taglia",
     weight: "Peso",
@@ -63,6 +87,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Review submission unavailable",
     reviewSubmissionUnavailable: "Submitting reviews through the website is not enabled at this time.",
     relatedProducts: "Related products",
+    addFavorite: "Add to favorites",
+    removeFavorite: "Remove from favorites",
+    favoriteAdded: "Added to favorites on this device.",
+    favoriteRemoved: "Removed from favorites on this device.",
+    share: "Share this product",
+    linkCopied: "Product link copied.",
     color: "Color",
     size: "Size",
     weight: "Weight",
@@ -75,6 +105,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Envío de opiniones no disponible",
     reviewSubmissionUnavailable: "El envío de opiniones desde el sitio no está activado actualmente.",
     relatedProducts: "Productos similares",
+    addFavorite: "Añadir a favoritos",
+    removeFavorite: "Quitar de favoritos",
+    favoriteAdded: "Añadido a favoritos en este dispositivo.",
+    favoriteRemoved: "Eliminado de favoritos en este dispositivo.",
+    share: "Compartir este producto",
+    linkCopied: "Enlace del producto copiado.",
     color: "Color",
     size: "Talla",
     weight: "Peso",
@@ -87,6 +123,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "Beoordeling insturen niet beschikbaar",
     reviewSubmissionUnavailable: "Het insturen van beoordelingen via de website is momenteel niet geactiveerd.",
     relatedProducts: "Vergelijkbare producten",
+    addFavorite: "Aan favorieten toevoegen",
+    removeFavorite: "Uit favorieten verwijderen",
+    favoriteAdded: "Toegevoegd aan favorieten op dit apparaat.",
+    favoriteRemoved: "Verwijderd uit favorieten op dit apparaat.",
+    share: "Dit product delen",
+    linkCopied: "Productlink gekopieerd.",
     color: "Kleur",
     size: "Maat",
     weight: "Gewicht",
@@ -99,6 +141,12 @@ export const productPublicCopy: Record<StorefrontLocale, ProductPublicCopy> = {
     reviewSubmissionTitle: "إرسال التقييمات غير متاح",
     reviewSubmissionUnavailable: "لا تتوفر ميزة إرسال التقييمات عبر الموقع في الوقت الحالي.",
     relatedProducts: "منتجات مشابهة",
+    addFavorite: "إضافة إلى المفضلة",
+    removeFavorite: "إزالة من المفضلة",
+    favoriteAdded: "تمت الإضافة إلى المفضلة على هذا الجهاز.",
+    favoriteRemoved: "تمت الإزالة من المفضلة على هذا الجهاز.",
+    share: "مشاركة هذا المنتج",
+    linkCopied: "تم نسخ رابط المنتج.",
     color: "اللون",
     size: "المقاس",
     weight: "الوزن",
