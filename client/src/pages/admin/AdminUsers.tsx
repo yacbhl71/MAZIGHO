@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Loader2, Mail, Pencil, Shield, ShieldBan, ShieldCheck, Trash2, User, UserCog, UserPlus } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, Pencil, Shield, ShieldBan, ShieldCheck, Trash2, User, UserCog, UserPlus, Search, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -56,6 +56,9 @@ export default function AdminUsers() {
   const [editForm, setEditForm] = useState({ name: "", email: "" });
   const [sensitive, setSensitive] = useState<{ target: UserRow; action: SensitiveAction } | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
+  const [accountStatusFilter, setAccountStatusFilter] = useState<"all" | AccountStatus>("all");
 
   const utils = trpc.useUtils();
   const { data: currentUser } = trpc.auth.me.useQuery();
@@ -131,6 +134,23 @@ export default function AdminUsers() {
   });
 
   const mutationPending = createUser.isPending || resendInvitation.isPending || updateProfile.isPending || updateRole.isPending || setAccountStatus.isPending || deleteUser.isPending;
+  const filteredUsers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return (users || []).filter(rawUser => {
+      const user = rawUser as UserRow;
+      const matchesQuery = !normalizedQuery || [user.name, user.email]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(normalizedQuery));
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesStatus = accountStatusFilter === "all" || user.accountStatus === accountStatusFilter;
+      return matchesQuery && matchesRole && matchesStatus;
+    });
+  }, [users, searchQuery, roleFilter, accountStatusFilter]);
+  const clearUserFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("all");
+    setAccountStatusFilter("all");
+  };
   const expectedPhrase = useMemo(() => {
     if (!sensitive || sensitive.target.role !== "admin") return "";
     const keyword = getConfirmationKeyword(sensitive.action);
@@ -200,6 +220,18 @@ export default function AdminUsers() {
           </div>
         </div>
 
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div><div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-purple-600" /><h2 className="font-semibold text-slate-900">Recherche et suivi des comptes</h2></div><p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement des comptes…" : `${filteredUsers.length} compte(s) affiché(s) sur ${users?.length ?? 0}`}</p></div>
+            <Button type="button" variant="ghost" size="sm" onClick={clearUserFilters} disabled={!searchQuery && roleFilter === "all" && accountStatusFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1.5fr)_1fr_1fr]">
+            <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom ou adresse e-mail…" /></div>
+            <select value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Tous les rôles</option><option value="admin">Administrateurs</option><option value="user">Clients</option></select>
+            <select value={accountStatusFilter} onChange={event => setAccountStatusFilter(event.target.value as typeof accountStatusFilter)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="pending_invitation">Invitations en attente</option><option value="blocked">Bloqués</option></select>
+          </div>
+        </section>
+
         <div className="overflow-hidden rounded-lg border bg-white">
           <Table>
             <TableHeader>
@@ -219,9 +251,9 @@ export default function AdminUsers() {
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-48" /></TableCell><TableCell><Skeleton className="h-4 w-20" /></TableCell><TableCell><Skeleton className="h-4 w-28" /></TableCell><TableCell><Skeleton className="h-4 w-24" /></TableCell><TableCell><Skeleton className="ml-auto h-8 w-36" /></TableCell>
                   </TableRow>
                 ))
-              ) : users?.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground">Aucun utilisateur trouvé.</TableCell></TableRow>
-              ) : users?.map(rawUser => {
+              ) : filteredUsers.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground"><div className="flex flex-col items-center gap-2"><p>{users?.length === 0 ? "Aucun utilisateur trouvé." : "Aucun compte ne correspond à ces filtres."}</p>{users?.length ? <Button variant="outline" size="sm" onClick={clearUserFilters}>Effacer les filtres</Button> : null}</div></TableCell></TableRow>
+              ) : filteredUsers.map(rawUser => {
                 const user = rawUser as UserRow;
                 const isSelf = currentUser?.id === user.id;
                 return (
