@@ -9,10 +9,8 @@ export default function Footer() {
           {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="rounded-sm bg-[#FFF9F0] p-1.5">
-                <img src="/brand/mazigho-monogram.svg" alt="" aria-hidden="true" className="h-8 w-8" />
-              </div>
-              <span className="text-xl font-semibold tracking-[0.08em] text-white">MAZIGHO</span>
+              <span className="text-xl font-semibold tracking-[0.13em] text-white">MAZIGHO</span>
+              <span className="h-2 w-2 rounded-full bg-[#E6A46B]" aria-hidden="true" />
             </div>
             <p className="text-slate-200 text-sm">
               Votre destination pour des produits premium de qualité exceptionnelle.
