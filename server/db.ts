@@ -1156,6 +1156,8 @@ export async function createContactMessage(data: { name: string; email: string; 
 
 // Admin Queries
 export async function getAdminStats() {
+  await ensureDeliveryProfileSchema();
+  await ensureProductTranslationSchema();
   const db = await getDb();
   if (!db) return null;
 
@@ -1171,6 +1173,9 @@ export async function getAdminStats() {
     unreadMessages,
     lowStockProducts,
     recentOrders,
+    activeCatalogProducts,
+    deliveryProfileProducts,
+    productTranslationRows,
   ] = await Promise.all([
     db.select({ value: count() }).from(products),
     db.select({ value: count() }).from(products).where(eq(products.status, "active")),
@@ -1200,7 +1205,34 @@ export async function getAdminStats() {
       .leftJoin(users, eq(orders.userId, users.id))
       .orderBy(desc(orders.createdAt))
       .limit(5),
+    db
+      .select({ id: products.id, name: products.name })
+      .from(products)
+      .where(eq(products.status, "active"))
+      .orderBy(desc(products.updatedAt)),
+    db.select({ productId: productDeliveryProfiles.productId }).from(productDeliveryProfiles),
+    db.select({ productId: productTranslations.productId, locale: productTranslations.locale, status: productTranslations.status }).from(productTranslations),
   ]);
+
+  const productIdsWithDeliveryProfiles = new Set(deliveryProfileProducts.map(profile => profile.productId));
+  const productsWithoutDeliveryProfiles = activeCatalogProducts
+    .filter(product => !productIdsWithDeliveryProfiles.has(product.id))
+    .map(product => ({ id: product.id, name: product.name }));
+
+  const translationStatusesByProduct = new Map<number, Map<string, string>>();
+  for (const translation of productTranslationRows) {
+    const statuses = translationStatusesByProduct.get(translation.productId) ?? new Map<string, string>();
+    statuses.set(translation.locale, translation.status);
+    translationStatusesByProduct.set(translation.productId, statuses);
+  }
+
+  const productsNeedingTranslations = activeCatalogProducts
+    .map(product => {
+      const statuses = translationStatusesByProduct.get(product.id);
+      const incompleteLocales = PRODUCT_TRANSLATION_LOCALES.filter(locale => statuses?.get(locale) !== "ready");
+      return { id: product.id, name: product.name, incompleteLocales: incompleteLocales.length };
+    })
+    .filter(product => product.incompleteLocales > 0);
 
   return {
     products: productCount[0]?.value || 0,
@@ -1214,6 +1246,10 @@ export async function getAdminStats() {
     unreadMessages: unreadMessages[0]?.value || 0,
     lowStockProducts,
     recentOrders,
+    catalogReadiness: {
+      productsWithoutDeliveryProfiles,
+      productsNeedingTranslations,
+    },
   };
 }
 

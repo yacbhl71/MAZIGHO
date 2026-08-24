@@ -13,8 +13,10 @@ import {
   ClipboardList,
   Mail,
   Languages,
+  ListChecks,
   PencilLine,
   Package,
+  Truck,
   PackagePlus,
   RefreshCw,
   ShoppingBag,
@@ -106,6 +108,40 @@ export default function AdminDashboard() {
   const { data: stats, isLoading, refetch, isFetching } = trpc.admin.getStats.useQuery();
   const lowStockProducts = stats?.lowStockProducts ?? [];
   const recentOrders = stats?.recentOrders ?? [];
+  const productsWithoutDeliveryProfiles = stats?.catalogReadiness?.productsWithoutDeliveryProfiles ?? [];
+  const productsNeedingTranslations = stats?.catalogReadiness?.productsNeedingTranslations ?? [];
+  const readinessChecks = [
+    {
+      title: "Profils de livraison",
+      value: productsWithoutDeliveryProfiles.length,
+      detail: "produit(s) actif(s) sans devis pays validé",
+      empty: "Tous les produits actifs ont au moins un profil de livraison.",
+      href: "/admin/produits",
+      icon: Truck,
+      tone: "bg-amber-100 text-amber-700",
+      priority: productsWithoutDeliveryProfiles.length > 0,
+    },
+    {
+      title: "Traductions catalogue",
+      value: productsNeedingTranslations.length,
+      detail: "produit(s) actif(s) incomplets hors français",
+      empty: "Toutes les traductions requises sont prêtes.",
+      href: "/admin/traductions",
+      icon: Languages,
+      tone: "bg-sky-100 text-sky-700",
+      priority: productsNeedingTranslations.length > 0,
+    },
+    {
+      title: "Stock à surveiller",
+      value: lowStockProducts.length,
+      detail: "produit(s) actif(s) à 5 unités ou moins",
+      empty: "Aucun stock bas parmi les produits actifs.",
+      href: "/admin/produits",
+      icon: Boxes,
+      tone: "bg-violet-100 text-violet-700",
+      priority: lowStockProducts.length > 0,
+    },
+  ];
 
   const metrics = [
     {
@@ -166,6 +202,48 @@ export default function AdminDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map(metric => <MetricCard key={metric.title} {...metric} loading={isLoading} />)}
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+          <Card className="border-orange-200 bg-orange-50/40 shadow-sm">
+            <CardHeader className="flex flex-col gap-3 space-y-0 border-b border-orange-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><ListChecks className="h-5 w-5 text-orange-600" /> Centre de préparation</CardTitle>
+                <CardDescription className="mt-1">Contrôles lecture seule avant toute mise en avant du catalogue.</CardDescription>
+              </div>
+              <Badge className="w-fit border-0 bg-white text-orange-800">Aucune publication automatique</Badge>
+            </CardHeader>
+            <CardContent className="grid gap-3 p-5 sm:grid-cols-3">
+              {readinessChecks.map(check => {
+                const Icon = check.icon;
+                return (
+                  <Link key={check.title} href={check.href}>
+                    <div className="group h-full cursor-pointer rounded-xl border border-orange-100 bg-white p-4 transition-colors hover:border-orange-300 hover:bg-orange-50">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className={`rounded-lg p-2 ${check.tone}`}><Icon className="h-4 w-4" /></span>
+                        {isLoading ? <Skeleton className="h-6 w-8" /> : <span className={`text-2xl font-bold ${check.priority ? "text-slate-900" : "text-emerald-700"}`}>{check.value}</span>}
+                      </div>
+                      <p className="mt-4 font-semibold text-slate-900">{check.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">{isLoading ? "Vérification…" : check.priority ? check.detail : check.empty}</p>
+                      <p className="mt-3 flex items-center gap-1 text-xs font-semibold text-orange-700">Ouvrir le contrôle <ArrowUpRight className="h-3.5 w-3.5" /></p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-border/70 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl"><CircleAlert className="h-5 w-5 text-amber-600" /> À suivre aujourd’hui</CardTitle>
+              <CardDescription className="mt-1">Priorités opérationnelles qui demandent une décision humaine.</CardDescription>
+            </CardHeader>
+            <CardContent className="divide-y divide-border/70 p-0">
+              <Link href="/admin/commandes" className="block px-5 py-4 transition-colors hover:bg-slate-50"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-slate-900">Commandes en attente</p><p className="mt-1 text-xs text-muted-foreground">À examiner avant tout traitement manuel.</p></div><Badge className="border-0 bg-amber-100 text-amber-800">{isLoading ? "…" : stats?.pendingOrders ?? 0}</Badge></div></Link>
+              <Link href="/admin/messages" className="block px-5 py-4 transition-colors hover:bg-slate-50"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-slate-900">Messages non lus</p><p className="mt-1 text-xs text-muted-foreground">Questions clients à relire et traiter.</p></div><Badge className="border-0 bg-sky-100 text-sky-800">{isLoading ? "…" : stats?.unreadMessages ?? 0}</Badge></div></Link>
+              <Link href="/admin/avis" className="block px-5 py-4 transition-colors hover:bg-slate-50"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold text-slate-900">Avis à modérer</p><p className="mt-1 text-xs text-muted-foreground">À vérifier avant publication.</p></div><Badge className="border-0 bg-violet-100 text-violet-800">{isLoading ? "…" : stats?.pendingReviews ?? 0}</Badge></div></Link>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-5">

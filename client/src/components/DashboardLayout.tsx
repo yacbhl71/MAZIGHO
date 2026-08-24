@@ -10,6 +10,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -27,27 +30,54 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Tableau de Bord", path: "/admin" },
-  { icon: Package, label: "Produits", path: "/admin/produits" },
-  { icon: Languages, label: "Langues & traductions", path: "/admin/traductions" },
-  { icon: PencilLine, label: "Éditeur simple", path: "/admin/editeur" },
-  { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
-  { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
-  { icon: Brush, label: "Collections créatives", path: "/admin/creations" },
-  { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
-  { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
-  { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
-  { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
-  { icon: Star, label: "Avis Clients", path: "/admin/avis" },
-  { icon: Layout, label: "Contenu", path: "/admin/contenu" },
-  { icon: Palette, label: "Personnalisation", path: "/admin/personnalisation" },
-  { icon: Percent, label: "Promotions", path: "/admin/promotions" },
-  { icon: MessageSquare, label: "Messages", path: "/admin/messages" },
-  { icon: Scale, label: "Informations légales", path: "/admin/legal" },
-  { icon: Settings, label: "Paramètres", path: "/admin/parametres" },
-  { icon: Home, label: "Retour au Site", path: "/" },
+const menuSections = [
+  {
+    label: "Pilotage",
+    items: [
+      { icon: LayoutDashboard, label: "Tableau de bord", path: "/admin" },
+      { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
+    ],
+  },
+  {
+    label: "Catalogue",
+    items: [
+      { icon: Package, label: "Produits", path: "/admin/produits" },
+      { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
+      { icon: Brush, label: "Collections créatives", path: "/admin/creations" },
+      { icon: Languages, label: "Langues & traductions", path: "/admin/traductions" },
+      { icon: PencilLine, label: "Éditeur simple", path: "/admin/editeur" },
+    ],
+  },
+  {
+    label: "Préparation",
+    items: [
+      { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
+      { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
+      { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
+    ],
+  },
+  {
+    label: "Relation & contenu",
+    items: [
+      { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
+      { icon: Star, label: "Avis clients", path: "/admin/avis" },
+      { icon: MessageSquare, label: "Messages", path: "/admin/messages" },
+      { icon: Layout, label: "Contenu", path: "/admin/contenu" },
+      { icon: Palette, label: "Personnalisation", path: "/admin/personnalisation" },
+      { icon: Percent, label: "Promotions", path: "/admin/promotions" },
+    ],
+  },
+  {
+    label: "Configuration",
+    items: [
+      { icon: Scale, label: "Informations légales", path: "/admin/legal" },
+      { icon: Settings, label: "Paramètres", path: "/admin/parametres" },
+      { icon: Home, label: "Retour au site", path: "/" },
+    ],
+  },
 ];
+
+const menuItems = menuSections.flatMap(section => section.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -227,26 +257,35 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                const isSimpleEditor = item.path === "/admin/editeur";
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all ${isSimpleEditor ? (isActive ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100") : (isActive ? "bg-orange-500/10 text-orange-500" : "text-slate-300 hover:text-white hover:bg-slate-800")}`}
-                    >
-                      <item.icon className={`h-4 w-4 ${isSimpleEditor ? "text-emerald-300" : (isActive ? "text-orange-500" : "text-slate-400")}`} />
-                      <span className={isSimpleEditor ? "font-bold" : "font-medium"}>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+          <SidebarContent className="gap-0 overflow-y-auto">
+            {menuSections.map(section => (
+              <SidebarGroup key={section.label} className="px-2 py-1.5">
+                <SidebarGroupLabel className="px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  {section.label}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {section.items.map(item => {
+                      const isActive = location === item.path;
+                      const isSimpleEditor = item.path === "/admin/editeur";
+                      return (
+                        <SidebarMenuItem key={item.path}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            onClick={() => setLocation(item.path)}
+                            tooltip={item.label}
+                            className={`h-10 transition-all ${isSimpleEditor ? (isActive ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100") : (isActive ? "bg-orange-500/10 text-orange-500" : "text-slate-300 hover:text-white hover:bg-slate-800")}`}
+                          >
+                            <item.icon className={`h-4 w-4 ${isSimpleEditor ? "text-emerald-300" : (isActive ? "text-orange-500" : "text-slate-400")}`} />
+                            <span className={isSimpleEditor ? "font-bold" : "font-medium"}>{item.label}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
           </SidebarContent>
 
           <SidebarFooter className="p-3">
@@ -306,8 +345,9 @@ function DashboardLayoutContent({
           </div>
         )}
         <main className="flex-1 p-4">
-          <div className="mb-4 p-2 bg-orange-600 text-white text-center text-xs font-bold rounded animate-pulse">
-            SYSTÈME MAZIGHO V2.0 - DEVISE CHF ACTIVÉE
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900">
+            <span className="font-semibold">MAZIGHO · espace d’administration</span>
+            <span className="text-orange-700">Pilotage en CHF</span>
           </div>
           {children}
         </main>
