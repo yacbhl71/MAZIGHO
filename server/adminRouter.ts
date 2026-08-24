@@ -207,6 +207,7 @@ export const adminRouter = router({
       imageUrl: z.string().optional(),
       icon: z.string().optional(),
       displayOrder: z.number().optional(),
+      catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ input }) => {
       return await db.createCategory(input);
     }),
@@ -218,6 +219,7 @@ export const adminRouter = router({
       imageUrl: z.string().optional(),
       icon: z.string().optional(),
       displayOrder: z.number().optional(),
+      catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ input }) => {
       return await db.updateCategory(input.id, input);
     }),

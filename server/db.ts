@@ -16,6 +16,8 @@ let _invitationSchemaReady: Promise<void> | null = null;
 let _accountingSchemaReady: Promise<void> | null = null;
 let _orderDecisionSchemaReady: Promise<void> | null = null;
 let _deliveryProfileSchemaReady: Promise<void> | null = null;
+let _catalogSectionSchemaReady: Promise<void> | null = null;
+let _creativeCatalogSeedReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -66,6 +68,53 @@ async function ensureDeliveryProfileSchema() {
   })();
 
   return _deliveryProfileSchemaReady;
+}
+
+async function ensureCatalogSectionSchema() {
+  if (_catalogSectionSchemaReady) return _catalogSectionSchemaReady;
+
+  _catalogSectionSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    try {
+      await db.execute(sql.raw("ALTER TABLE `categories` ADD COLUMN IF NOT EXISTS `catalogSection` enum('standard','creations') NOT NULL DEFAULT 'standard'"));
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) {
+        throw error;
+      }
+    }
+  })();
+
+  return _catalogSectionSchemaReady;
+}
+
+async function ensureCreativeCatalogSeed() {
+  if (_creativeCatalogSeedReady) return _creativeCatalogSeedReady;
+
+  _creativeCatalogSeedReady = (async () => {
+    await ensureCatalogSectionSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    const defaults = [
+      { name: "T-shirts", slug: "t-shirts-creatifs", description: "Des motifs originaux à porter au quotidien.", icon: "👕", displayOrder: 101, catalogSection: "creations" as const },
+      { name: "Sweats", slug: "sweats-creatifs", description: "Des pièces confortables pensées comme des créations.", icon: "🧥", displayOrder: 102, catalogSection: "creations" as const },
+      { name: "Mugs", slug: "mugs-creatifs", description: "Des objets du quotidien personnalisés avec intention.", icon: "☕", displayOrder: 103, catalogSection: "creations" as const },
+      { name: "Affiches", slug: "affiches-creatives", description: "Des illustrations et compositions pour vos espaces.", icon: "🖼️", displayOrder: 104, catalogSection: "creations" as const },
+      { name: "Tote bags", slug: "tote-bags-creatifs", description: "Des accessoires pratiques aux visuels originaux.", icon: "👜", displayOrder: 105, catalogSection: "creations" as const },
+    ];
+
+    for (const category of defaults) {
+      const existing = await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, category.slug)).limit(1);
+      if (existing.length === 0) {
+        await db.insert(categories).values(category);
+      }
+    }
+  })();
+
+  return _creativeCatalogSeedReady;
 }
 
 async function ensureAccountingSchema() {
@@ -602,16 +651,18 @@ export async function repairOwnerAccount(input: {
 
 // Categories queries
 export async function getAllCategories() {
+  await ensureCreativeCatalogSeed();
   const db = await getDb();
   if (!db) return [];
-  
-  return await db.select().from(categories);
+
+  return await db.select().from(categories).orderBy(asc(categories.displayOrder), asc(categories.name));
 }
 
 export async function getCategoryBySlug(slug: string) {
+  await ensureCreativeCatalogSeed();
   const db = await getDb();
   if (!db) return undefined;
-  
+
   const result = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -706,6 +757,7 @@ export async function getProductsByCategory(categoryId: number) {
 }
 
 export async function getProductBySlug(slug: string) {
+  await ensureCatalogSectionSchema();
   const db = await getDb();
   if (!db) return undefined;
   
@@ -713,6 +765,7 @@ export async function getProductBySlug(slug: string) {
   const result = await db.select({
     id: products.id,
     categoryId: products.categoryId,
+    categoryCatalogSection: categories.catalogSection,
     name: products.name,
     slug: products.slug,
     description: products.description,
@@ -726,6 +779,7 @@ export async function getProductBySlug(slug: string) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
     .where(and(eq(products.slug, slug), eq(products.status, "active")))
     .limit(1);
   if (result.length === 0) return undefined;
@@ -960,6 +1014,7 @@ export async function deleteProduct(id: number) {
 }
 
 export async function createCategory(data: any) {
+  await ensureCatalogSectionSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -968,6 +1023,7 @@ export async function createCategory(data: any) {
 }
 
 export async function updateCategory(id: number, data: any) {
+  await ensureCatalogSectionSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   

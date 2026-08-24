@@ -99,8 +99,8 @@ export default function Product() {
             Accueil
           </button>
           <span className="mx-2">/</span>
-          <button onClick={() => setLocation("/boutique")} className="hover:text-orange-500">
-            Boutique
+          <button onClick={() => setLocation(product.categoryCatalogSection === "creations" ? "/creations" : "/boutique")} className="hover:text-orange-500">
+            {product.categoryCatalogSection === "creations" ? "Créations" : "Boutique"}
           </button>
           <span className="mx-2">/</span>
           <span className="text-gray-800 font-medium">{product.name}</span>

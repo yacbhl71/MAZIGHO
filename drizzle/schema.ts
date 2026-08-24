@@ -44,6 +44,8 @@ export const categories = mysqlTable("categories", {
   imageUrl: varchar("imageUrl", { length: 500 }),
   icon: varchar("icon", { length: 20 }),
   displayOrder: int("displayOrder").default(0).notNull(),
+  // Les catégories « creations » forment un univers client distinct des produits fournisseurs standards.
+  catalogSection: mysqlEnum("catalogSection", ["standard", "creations"]).default("standard").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

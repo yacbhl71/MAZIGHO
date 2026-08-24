@@ -30,14 +30,15 @@ export default function Category() {
     enabled: !!category?.id
   });
   const { countryCode, countryLabel } = useDeliveryCountry();
-  const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const isCreativeCategory = category?.catalogSection === "creations";
+  const products = (productsQuery.data || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
   const handleAddToCart = (productId: number) => {
     const product = products.find(p => p.id === productId);
-    if (product) {
+    if (product && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)) {
       const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
       addToCart(productId, product.name, product.price, 1, undefined, imageUrl);
       setAddedToCart(productId);
@@ -90,22 +91,22 @@ export default function Category() {
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10" />
           <div className="relative flex min-h-[330px] items-end px-6 py-10 md:min-h-[390px] md:px-12 lg:px-20">
             <div className="max-w-2xl text-white">
-              <Link href="/boutique">
+              <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                 <div className="mb-7 flex w-fit cursor-pointer items-center gap-2 text-sm font-semibold text-white/85 hover:text-white">
                   <ArrowLeft className="h-4 w-4" />
-                  <span>Retour à la boutique</span>
+                  <span>{isCreativeCategory ? "Retour aux créations" : "Retour à la boutique"}</span>
                 </div>
               </Link>
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
-                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">Univers MAZIGHO</p>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{isCreativeCategory ? "Créations personnalisées" : "Univers MAZIGHO"}</p>
               </div>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">{category.name}</h1>
               <p className="mt-3 max-w-xl text-base leading-7 text-white/85">{category.description || "Une sélection pensée pour votre quotidien."}</p>
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">Découvrez notre sélection {category.name.toLowerCase()}, dont la livraison est confirmée vers {countryLabel}.</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? `Cette collection est visible partout. Le prix et le délai de livraison sont confirmés pour ${countryLabel} avant l’ajout au panier.` : `Découvrez notre sélection ${category.name.toLowerCase()}, dont la livraison est confirmée vers ${countryLabel}.`}</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
@@ -171,7 +172,7 @@ export default function Category() {
                             </span>
                           )}
                         </div>
-                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
+                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : isCreativeCategory ? <p className="text-xs font-medium text-amber-700">Livraison à confirmer pour {countryLabel}</p> : null; })()}
 
                         {/* Stock Status */}
                         <div className="text-xs font-semibold">
@@ -193,8 +194,9 @@ export default function Category() {
                           </Link>
                           <button
                             onClick={() => handleAddToCart(product.id)}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            title="Ajouter au panier"
+                            disabled={!getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35"
+                            title={getDeliveryProfileForCountry(product.deliveryProfiles, countryCode) ? "Ajouter au panier" : "Livraison à confirmer avant commande"}
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
                           </button>
@@ -215,10 +217,10 @@ export default function Category() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers {countryLabel}.</p>
-                <Link href="/boutique">
+                <p className="text-gray-600 text-lg">{isCreativeCategory ? "La collection est ouverte à tous, mais ses premiers produits sont encore en préparation." : `Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers ${countryLabel}.`}</p>
+                <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
-                    Choisir un autre pays ou voir la boutique
+                    {isCreativeCategory ? "Retour aux créations" : "Choisir un autre pays ou voir la boutique"}
                   </Button>
                 </Link>
               </div>

@@ -8,6 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
+import Creations from "./pages/Creations";
 import Category from "./pages/Category";
 import Product from "./pages/Product";
 import About from "./pages/About";
@@ -33,6 +34,7 @@ import AdminCustomization from "./pages/admin/AdminCustomization";
 import AdminAccounting from "./pages/admin/AdminAccounting";
 import AdminContent from "./pages/admin/AdminContent";
 import AdminPromotions from "./pages/admin/AdminPromotions";
+import AdminCreations from "./pages/admin/AdminCreations";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
 import Favorites from "./pages/Favorites";
@@ -80,11 +82,13 @@ function BrowserTitle() {
       "/admin/parametres": "MAZIGHO Admin | Paramètres",
       "/admin/legal": "MAZIGHO Admin | Informations légales",
       "/admin/personnalisation": "MAZIGHO Admin | Personnalisation",
+      "/admin/creations": "MAZIGHO Admin | Créations personnalisées",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
     };
     const publicTitles: Record<string, string> = {
       "/": "MAZIGHO | Boutique en ligne",
       "/boutique": "Boutique | MAZIGHO",
+      "/creations": "Créations personnalisées | MAZIGHO",
       "/nouveautes": "Nouveautés | MAZIGHO",
       "/best-sellers": "Meilleures ventes | MAZIGHO",
       "/meilleures-ventes": "Meilleures ventes | MAZIGHO",
@@ -121,6 +125,7 @@ function Router() {
       <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/boutique"} component={Shop} />
+      <Route path={"/creations"} component={Creations} />
       <Route path={"/categorie/:slug"} component={Category} />
       <Route path={"/produit/:slug"} component={Product} />
       <Route path={"/a-propos"} component={About} />
@@ -162,6 +167,7 @@ function Router() {
       <Route path={"/admin/parametres"} component={AdminSettings} />
       <Route path={"/admin/legal"} component={AdminLegal} />
       <Route path={"/admin/personnalisation"} component={AdminCustomization} />
+      <Route path={"/admin/creations"} component={AdminCreations} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
         <Route component={NotFound} />
