@@ -7,7 +7,6 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ImageGallery from "@/components/ImageGallery";
 import ProductOptions from "@/components/ProductOptions";
-import ReviewForm from "@/components/ReviewForm";
 import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { Loader2, CheckCircle2 } from "lucide-react";
@@ -17,12 +16,14 @@ import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/Del
 import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import { getProductPublicCopy } from "@/lib/productPublicCopy";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
   const [, setLocation] = useLocation();
   
   const { locale } = useLocale();
+  const copy = getProductPublicCopy(locale);
   const productQuery = trpc.products.getBySlug.useQuery({ slug: slug || "", locale }, {
     enabled: !!slug
   });
@@ -282,7 +283,7 @@ export default function Product() {
         {/* Reviews Section */}
         <section className="bg-gray-50 py-16">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-gray-800 mb-8">Avis Clients</h2>
+            <h2 className="text-3xl font-bold text-gray-800 mb-8">{copy.reviewsTitle}</h2>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Review Summary */}
@@ -305,9 +306,7 @@ export default function Product() {
                           />
                         ))}
                       </div>
-                      <p className="text-gray-600 text-sm">
-                        Basé sur {product.reviews.length} avis
-                      </p>
+                      <p className="text-gray-600 text-sm">{copy.basedOnReviews(product.reviews.length)}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -342,19 +341,14 @@ export default function Product() {
                     </Card>
                   ))
                 ) : (
-                  <p className="text-gray-600 text-center py-8">
-                    Aucun avis pour le moment. Soyez le premier à donner votre avis !
-                  </p>
+                  <p className="text-gray-600 text-center py-8">{copy.noPublishedReviews}</p>
                 )}
               </div>
             </div>
 
-            {/* Review Form */}
-            <div className="mt-12">
-              <h3 className="text-2xl font-bold text-gray-800 mb-6">
-                Laisser un avis
-              </h3>
-              <ReviewForm productId={product.id} />
+            <div className="mt-12 border-t border-gray-200 pt-8 text-center">
+              <h3 className="text-xl font-semibold text-gray-800">{copy.reviewSubmissionTitle}</h3>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600">{copy.reviewSubmissionUnavailable}</p>
             </div>
           </div>
         </section>
@@ -364,7 +358,7 @@ export default function Product() {
           <section className="py-16">
             <div className="container mx-auto px-4">
               <h2 className="text-3xl font-bold text-gray-800 mb-8">
-                Produits similaires
+                {copy.relatedProducts}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {relatedProducts.map((relatedProduct) => (
