@@ -161,8 +161,8 @@ export default function Product() {
                 )}
               </div>
 
-              <div className={`rounded-lg border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-                {deliveryProfile ? <><p className="font-semibold text-emerald-900">Livrable vers {countryLabel}</p><p className="mt-1 text-sm text-emerald-800">{deliveryProfile.customerShippingCost === 0 ? "Livraison offerte pour ce produit" : `Livraison : ${formatPrice(deliveryProfile.customerShippingCost, locale)}`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}</p><p className="mt-1 text-xs text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi.</p></>}
+              <div className={`rounded-xl border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                {deliveryProfile ? <><div className="flex items-start gap-3"><Truck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><div><p className="font-semibold text-emerald-950">Livrable vers {countryLabel}</p><p className="mt-1 text-sm leading-6 text-emerald-900">{deliveryProfile.customerShippingCost === 0 ? "Livraison incluse dans le prix" : `${formatPrice(deliveryProfile.customerShippingCost, locale)} par article`}{deliveryProfile.minDeliveryDays ? ` · délai estimé ${deliveryProfile.minDeliveryDays}${deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : ""} jours` : ""}{deliveryProfile.deliveryMethod ? ` · ${deliveryProfile.deliveryMethod}` : ""}</p><p className="mt-2 text-xs leading-5 text-emerald-800">Pour {quantity} article(s) : {formatPrice(deliveryProfile.customerShippingCost * quantity, locale)} de livraison. Le panier reverra ces informations avant toute commande.</p></div></div><p className="mt-3 border-t border-emerald-200 pt-3 text-[11px] text-emerald-700">Devis fournisseur vérifié pour cette destination.</p></> : <><p className="font-semibold text-amber-900">Livraison non confirmée vers {countryLabel}</p><p className="mt-1 text-sm leading-6 text-amber-800">Ce produit ne peut pas être ajouté au panier pour le pays actuellement choisi. Sélectionnez une autre destination pour vérifier sa disponibilité.</p></>}
               </div>
 
               {/* Description */}
@@ -200,13 +200,16 @@ export default function Product() {
                   </button>
                   <input
                     type="number"
+                    min="1"
+                    max={Math.max(1, product.stock)}
                     value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock, parseInt(e.target.value) || 1)))}
                     className="w-16 text-center border-l border-r border-gray-300 py-2"
                   />
                   <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="px-4 py-2 hover:bg-gray-100 transition-colors"
+                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                    disabled={quantity >= product.stock}
+                    className="px-4 py-2 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     +
                   </button>
@@ -261,12 +264,12 @@ export default function Product() {
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium text-gray-800">Paiement à venir</p>
-                  <p className="text-xs text-gray-600">Activation sécurisée prochainement</p>
+                  <p className="text-xs text-gray-600">Aucune donnée de paiement demandée maintenant</p>
                 </div>
                 <div className="text-center">
                   <RotateCcw className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">Service client</p>
-                  <p className="text-xs text-gray-600">Conditions affichées avant commande</p>
+                  <p className="text-sm font-medium text-gray-800">Commande encadrée</p>
+                  <p className="text-xs text-gray-600">Informations revérifiées avant activation</p>
                 </div>
               </div>
             </div>
