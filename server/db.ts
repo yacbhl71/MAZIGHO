@@ -1820,6 +1820,15 @@ export async function updateLegalProfile(data: LegalProfile) {
   return profile;
 }
 
+type NavigationTranslationLocale = "de" | "it" | "en" | "es" | "nl" | "ar";
+type NavigationLabelSet = {
+  navigationHome: string;
+  navigationShop: string;
+  navigationCategories: string;
+  navigationCreations: string;
+  navigationContact: string;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
@@ -1838,6 +1847,7 @@ export type DesignProfile = {
   navigationCategories: string;
   navigationCreations: string;
   navigationContact: string;
+  navigationTranslations: Partial<Record<NavigationTranslationLocale, NavigationLabelSet>>;
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -1862,6 +1872,7 @@ export const defaultDesignProfile: DesignProfile = {
   navigationCategories: "Catégories",
   navigationCreations: "Créations",
   navigationContact: "Contact",
+  navigationTranslations: {},
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,
@@ -1885,6 +1896,18 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
     if (typeof source[field] === "string" && source[field].trim()) normalized[field] = source[field].trim();
+  }
+  const navigationTranslations = source.navigationTranslations;
+  if (navigationTranslations && typeof navigationTranslations === "object") {
+    for (const locale of ["de", "it", "en", "es", "nl", "ar"] as const) {
+      const candidate = (navigationTranslations as Record<string, unknown>)[locale];
+      if (!candidate || typeof candidate !== "object") continue;
+      const labels = candidate as Record<string, unknown>;
+      const keys = ["navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact"] as const;
+      if (keys.every(key => typeof labels[key] === "string" && labels[key].trim().length > 0 && labels[key].trim().length <= 40)) {
+        normalized.navigationTranslations[locale] = Object.fromEntries(keys.map(key => [key, String(labels[key]).trim()])) as NavigationLabelSet;
+      }
+    }
   }
   for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];

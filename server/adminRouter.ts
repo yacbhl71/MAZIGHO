@@ -704,6 +704,16 @@ export const adminRouter = router({
     get: adminProcedure.query(async () => {
       return await db.getDesignProfile();
     }),
+    translateNavigation: adminProcedure.input(z.object({
+      locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
+    })).mutation(async ({ input }) => {
+      try {
+        const { translateNavigationFromFrench } = await import("./navigationTranslation");
+        return await translateNavigationFromFrench(input.locales);
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La traduction des libellés est momentanément indisponible. Réessayez dans quelques instants." });
+      }
+    }),
     update: adminProcedure.input(z.object({
       paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
       typographyId: z.enum(["editorial", "modern", "classic"]),
@@ -722,6 +732,14 @@ export const adminRouter = router({
       navigationCategories: z.string().trim().min(1).max(40),
       navigationCreations: z.string().trim().min(1).max(40),
       navigationContact: z.string().trim().min(1).max(40),
+      navigationTranslations: z.object({
+        de: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+        it: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+        en: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+        es: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+        nl: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+        ar: z.object({ navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40) }).optional(),
+      }).default({}),
       showDiscovery: z.boolean(),
       showStory: z.boolean(),
       showTestimonials: z.boolean(),

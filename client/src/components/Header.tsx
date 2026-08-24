@@ -36,12 +36,19 @@ export default function Header() {
   const discoveryTiles = getDiscoveryTiles(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
   const standardCategoryCopyIndex: Record<string, number> = { mode: 0, "beaute-bien-etre": 1, "maison-organisation": 2, "sport-fitness": 3, "high-tech-gadgets": 4, "auto-accessoires": 5 };
+  const savedNavigation = locale === "fr" ? undefined : profile.navigationTranslations[locale];
   const navigation = locale === "fr" ? {
     home: profile.navigationHome,
     shop: profile.navigationShop,
     categories: profile.navigationCategories,
     creations: profile.navigationCreations,
     contact: profile.navigationContact,
+  } : savedNavigation ? {
+    home: savedNavigation.navigationHome,
+    shop: savedNavigation.navigationShop,
+    categories: savedNavigation.navigationCategories,
+    creations: savedNavigation.navigationCreations,
+    contact: savedNavigation.navigationContact,
   } : {
     home: t(locale, "home"),
     shop: t(locale, "shop"),

@@ -1,6 +1,14 @@
 import { useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 
+export type NavigationLabels = {
+  navigationHome: string;
+  navigationShop: string;
+  navigationCategories: string;
+  navigationCreations: string;
+  navigationContact: string;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
@@ -19,6 +27,7 @@ export type DesignProfile = {
   navigationCategories: string;
   navigationCreations: string;
   navigationContact: string;
+  navigationTranslations: Partial<Record<"de" | "it" | "en" | "es" | "nl" | "ar", NavigationLabels>>;
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -43,6 +52,7 @@ export const defaultDesignProfile: DesignProfile = {
   navigationCategories: "Catégories",
   navigationCreations: "Créations",
   navigationContact: "Contact",
+  navigationTranslations: {},
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,
