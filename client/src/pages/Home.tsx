@@ -50,12 +50,19 @@ export default function Home() {
   const discoveryTiles = getDiscoveryTiles(locale);
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale);
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
 
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
+  const localizedDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
+    const slug = tile.href.split("/").pop();
+    const category = categoriesQuery.data?.find(item => item.slug === slug);
+    const fallback = discoveryTiles[index];
+    return { ...tile, title: category?.name || fallback?.title || "Découvrir", description: category?.description || fallback?.description || "" };
+  });
 
   return (
     <div className="min-h-screen text-slate-900" style={{ backgroundColor: palette.soft }}>
@@ -122,9 +129,9 @@ export default function Home() {
               <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {discoveryTiles.map((tile, index) => (
-                <Link key={tile.title} href={discoveryTileMeta[index].href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
-                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={discoveryTileMeta[index].image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
+              {localizedDiscoveryTiles.map(tile => (
+                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
+                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
                 </Link>
               ))}

@@ -770,6 +770,10 @@ export const adminRouter = router({
   // Public editorial content translations. French stays the single source; generated text is always reviewable before use.
   publicContentTranslations: router({
     getOverview: adminProcedure.query(async () => await db.getPublicContentTranslationOverview()),
+    getSource: adminProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+    })).query(async ({ input }) => await db.getPublicContentTranslationSource(input.contentType, input.contentId)),
     get: adminProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
