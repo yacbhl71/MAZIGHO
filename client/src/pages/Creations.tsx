@@ -7,12 +7,17 @@ import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
+import { getCollectionsCopy } from "@/lib/collectionsCopy";
+import { commerceT, t } from "@/lib/i18n";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Creations() {
   const { locale } = useLocale();
+  const copy = getCollectionsCopy(locale).creations;
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
 
   const creativeCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "creations");
   const creativeCategoryIds = new Set(creativeCategories.map(category => category.id));
@@ -28,28 +33,28 @@ export default function Creations() {
           <div className="container relative mx-auto grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
             <div>
               <div className="inline-flex items-center gap-2 border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold uppercase tracking-[0.22em] text-rose-100">
-                <Palette className="h-4 w-4" /> Univers MAZIGHO
+                <Palette className="h-4 w-4" /> {copy.eyebrow}
               </div>
               <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
-                Collections créatives
+                {copy.title}
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200 md:text-lg">
-                Des objets et vêtements portant des designs imaginés par MAZIGHO. Parcourez toutes les collections, où que vous soyez ; le coût et le délai de livraison sont ensuite confirmés pour votre destination avant toute commande.
+                {copy.lead}
               </p>
               <a href="#collections" className="mt-8 inline-flex items-center gap-2 bg-white px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-rose-100">
-                Découvrir les collections <ArrowRight className="h-4 w-4" />
+                {copy.cta} <ArrowRight className="h-4 w-4" />
               </a>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <div className="border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
                 <Globe2 className="h-5 w-5 text-rose-200" />
-                <p className="mt-3 text-sm font-semibold">Catalogue visible partout</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">Aucune collection ne disparaît selon le pays choisi.</p>
+                <p className="mt-3 text-sm font-semibold">{copy.globalTitle}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">{copy.globalText}</p>
               </div>
               <div className="border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
                 <CheckCircle2 className="h-5 w-5 text-rose-200" />
-                <p className="mt-3 text-sm font-semibold">Atelier sur mesure à venir</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">La création par les clients sera ajoutée après un parcours de validation dédié.</p>
+                <p className="mt-3 text-sm font-semibold">{copy.customTitle}</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">{copy.customText}</p>
               </div>
             </div>
           </div>
@@ -58,10 +63,10 @@ export default function Creations() {
         <section id="collections" className="container mx-auto px-4 py-14 md:py-20">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.24em] text-rose-700">Choisir un support</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Nos collections</h2>
+              <p className="text-xs font-bold uppercase tracking-[0.24em] text-rose-700">{copy.chooseEyebrow}</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{copy.collectionsTitle}</h2>
             </div>
-            <p className="max-w-lg text-sm leading-6 text-slate-600">Chaque collection rassemble des produits distincts de la boutique fournisseurs habituelle.</p>
+            <p className="max-w-lg text-sm leading-6 text-slate-600">{copy.collectionsText}</p>
           </div>
 
           {categoriesQuery.isLoading ? (
@@ -79,7 +84,7 @@ export default function Creations() {
                       <div className="p-5">
                         <h3 className="text-base font-semibold text-slate-900 group-hover:text-rose-700">{category.name}</h3>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{category.description}</p>
-                        <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">Explorer <ArrowRight className="h-3 w-3" /></span>
+                        <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-rose-700">{copy.explore} <ArrowRight className="h-3 w-3" /></span>
                       </div>
                     </article>
                   </Link>
@@ -93,10 +98,10 @@ export default function Creations() {
           <div className="container mx-auto px-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-rose-700">À découvrir</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Les collections en préparation</h2>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-rose-700">{copy.discoverEyebrow}</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{copy.preparingTitle}</h2>
               </div>
-              <p className="text-sm text-slate-500">Destination sélectionnée : <span className="font-semibold text-slate-700">{countryLabel}</span></p>
+              <p className="text-sm text-slate-500">{copy.destination} : <span className="font-semibold text-slate-700">{countryLabel}</span></p>
             </div>
 
             {productsQuery.isLoading ? (
@@ -114,11 +119,11 @@ export default function Creations() {
                         </div>
                         <div className="p-5">
                           <h3 className="line-clamp-2 min-h-[3rem] text-sm font-semibold leading-6 text-slate-900 group-hover:text-rose-700">{product.name}</h3>
-                          <p className="mt-3 font-bold text-rose-700">{formatPrice(product.price)}</p>
+                          <p className="mt-3 font-bold text-rose-700">{formatPrice(product.price, locale)}</p>
                           {profile ? (
-                            <p className="mt-2 text-[11px] font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p>
+                            <p className="mt-2 text-[11px] font-medium text-slate-500">{profile.customerShippingCost === 0 ? commerceT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(profile.customerShippingCost, locale) })}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} ${t(locale, "days")}` : ""}</p>
                           ) : (
-                            <p className="mt-2 text-[11px] font-medium text-amber-700">Livraison à confirmer pour {countryLabel}</p>
+                            <p className="mt-2 text-[11px] font-medium text-amber-700">{copy.deliveryPending.replace("{country}", countryLabel)}</p>
                           )}
                         </div>
                       </article>
@@ -130,10 +135,10 @@ export default function Creations() {
               <div className="mt-8 grid gap-6 border border-dashed border-rose-200 bg-[#fffaf7] px-6 py-12 md:grid-cols-[1fr_auto] md:items-center">
                 <div>
                   <div className="flex h-10 w-10 items-center justify-center bg-rose-100 text-rose-700"><Sparkles className="h-5 w-5" /></div>
-                  <h3 className="mt-4 text-xl font-semibold text-slate-900">La première collection MAZIGHO est en préparation.</h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Les catégories sont déjà ouvertes à tous. Les premiers designs MAZIGHO apparaîtront seulement après contrôle du visuel, des droits de création, du prix et de la livraison.</p>
+                  <h3 className="mt-4 text-xl font-semibold text-slate-900">{copy.firstTitle}</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{copy.firstText}</p>
                 </div>
-                <Link href="#collections" className="inline-flex items-center gap-2 text-sm font-bold text-rose-700">Voir les catégories <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="#collections" className="inline-flex items-center gap-2 text-sm font-bold text-rose-700">{copy.categories} <ArrowRight className="h-4 w-4" /></Link>
               </div>
             )}
           </div>

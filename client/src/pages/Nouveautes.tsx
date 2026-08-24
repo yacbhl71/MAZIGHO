@@ -11,11 +11,16 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { getCollectionsCopy } from "@/lib/collectionsCopy";
+import { categoryT, commerceT, t } from "@/lib/i18n";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Nouveautes() {
   const { locale } = useLocale();
+  const copy = getCollectionsCopy(locale).newArrivals;
   const productsQuery = trpc.products.getAll.useQuery(locale);
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -40,14 +45,14 @@ export default function Nouveautes() {
             <Link href="/">
               <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
                 <ArrowLeft className="h-5 w-5" />
-                <span className="font-medium">Retour à l'accueil</span>
+                <span className="font-medium">{copy.back}</span>
               </div>
             </Link>
             <h1 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
-              🆕 Nouveautés
+              {copy.title}
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl">
-              Découvrez les nouveautés dont la livraison est confirmée vers {countryLabel}.
+              {copy.lead.replace("{country}", countryLabel)}
             </p>
           </div>
         </section>
@@ -112,24 +117,24 @@ export default function Nouveautes() {
                       {/* Price */}
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-bold text-gray-800">
-                          {formatPrice(product.price)}
+                          {formatPrice(product.price, locale)}
                         </span>
                         {product.originalPrice && (
                           <span className="text-sm text-gray-500 line-through">
-                            {formatPrice(product.originalPrice)}
+                            {formatPrice(product.originalPrice, locale)}
                           </span>
                         )}
                       </div>
-                      {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "Livraison offerte" : `Livraison : ${formatPrice(profile.customerShippingCost)}`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p> : null; })()}
+                      {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? categoryT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(profile.customerShippingCost, locale) })}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} ${t(locale, "days")}` : ""}</p> : null; })()}
 
                       {/* Stock Status */}
                       <div className="text-xs font-semibold">
                         {product.stock > 10 ? (
-                          <span className="text-green-600">✓ En stock</span>
+                          <span className="text-green-600">{categoryT(locale, "inStock")}</span>
                         ) : product.stock > 0 ? (
-                          <span className="text-orange-600">⚠ Stock limité</span>
+                          <span className="text-orange-600">{categoryT(locale, "limitedStock")}</span>
                         ) : (
-                          <span className="text-red-600">✗ Rupture de stock</span>
+                          <span className="text-red-600">{categoryT(locale, "outOfStock")}</span>
                         )}
                       </div>
 
@@ -137,31 +142,31 @@ export default function Nouveautes() {
                       <div className="flex gap-2 pt-2">
                         <Link href={`/produit/${product.slug}`} className="flex-1">
                           <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm">
-                            Voir détails
+                            {categoryT(locale, "viewDetails")}
                           </Button>
                         </Link>
                         <button
                           onClick={() => handleAddToCart(product.id)}
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                          title="Ajouter au panier"
+                          title={categoryT(locale, "addToCart")}
                         >
                           <ShoppingCart className="h-5 w-5 text-gray-700" />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Ajouter à la wishlist">
+                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={categoryT(locale, "addToWishlist")}>
                           <Heart className="h-5 w-5 text-gray-700" />
                         </button>
                       </div>
 
                       {addedToCart === product.id && (
                         <div className="text-xs text-green-600 font-semibold text-center">
-                          ✓ Ajouté au panier
+                          {categoryT(locale, "addedToCart")}
                         </div>
                       )}
                     </div>
                   </CardContent>
                 </Card>
               ))}
-            </div> : <div className="py-16 text-center text-sm text-gray-600">Aucune nouveauté n’est encore confirmée pour la livraison vers {countryLabel}.</div>
+            </div> : <div className="py-16 text-center text-sm text-gray-600">{copy.empty.replace("{country}", countryLabel)}</div>
             )}
           </div>
         </section>
