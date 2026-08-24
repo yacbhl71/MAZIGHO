@@ -38,6 +38,7 @@ const AdminPromotions = lazy(() => import("./pages/admin/AdminPromotions"));
 const AdminCreations = lazy(() => import("./pages/admin/AdminCreations"));
 const AdminTranslations = lazy(() => import("./pages/admin/AdminTranslations"));
 const AdminSimpleEditor = lazy(() => import("./pages/admin/AdminSimpleEditor"));
+const AdminSEO = lazy(() => import("./pages/admin/AdminSEO"));
 const Checkout = lazy(() => import("./pages/Checkout"));
 const OrderConfirmation = lazy(() => import("./pages/OrderConfirmation"));
 const Favorites = lazy(() => import("./pages/Favorites"));
@@ -90,6 +91,7 @@ function BrowserTitle() {
       "/admin/traductions": "MAZIGHO Admin | Langues & traductions",
       "/admin/editeur": "MAZIGHO Admin | Éditeur simple",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
+      "/admin/seo": "MAZIGHO Admin | SEO & indexation",
     };
     const publicTitles: Record<string, string> = {
       "/": "MAZIGHO | Boutique en ligne",
@@ -177,6 +179,7 @@ function Router() {
         <Route path={"/admin/creations"} component={AdminCreations} />
         <Route path={"/admin/traductions"} component={AdminTranslations} />
         <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
+        <Route path={"/admin/seo"} component={AdminSEO} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />

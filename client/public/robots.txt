@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin/
+Disallow: /mon-compte
+Disallow: /commandes
+Disallow: /parametres
+Disallow: /favoris
+Disallow: /panier
+Disallow: /commander
+Disallow: /commande-confirmation/
+Disallow: /login
+Disallow: /register
+Disallow: /mot-de-passe-oublie
+Disallow: /reinitialiser-mot-de-passe
+Disallow: /activer-compte
+
+Sitemap: https://www.mazigho.ch/sitemap.xml
