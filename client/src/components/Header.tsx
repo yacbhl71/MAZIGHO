@@ -84,7 +84,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden lg:flex flex-shrink-0 items-center gap-0.5">
+          <div className="hidden 2xl:flex flex-shrink-0 items-center gap-0.5">
             <Link href="/">
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
@@ -235,12 +235,12 @@ export default function Header() {
                 <span>{t(locale, "account")}</span>
               </Button>
             </Link>
-            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Button></Link>}
+            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Button></Link>}
 
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+              className="2xl:hidden p-2 hover:bg-gray-100 rounded-lg"
             >
               {isMenuOpen ? (
                 <X className="h-6 w-6" />
@@ -258,7 +258,7 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-2">
+          <div className="2xl:hidden mt-4 pb-4 border-t pt-4 space-y-2">
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
             <Link href="/">
