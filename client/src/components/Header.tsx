@@ -14,6 +14,9 @@ import { getCreativeMenuCopy, getDiscoveryTiles, getPublicCopy } from "@/lib/pub
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 
+const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸" };
+const languageFlags: Record<string, string> = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", en: "🇬🇧", es: "🇪🇸", nl: "🇳🇱", ar: "🌐" };
+
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<number | null>(null);
@@ -73,20 +76,20 @@ export default function Header() {
       </div>
 
       {/* Main Navigation */}
-      <nav className="container mx-auto px-4 py-3">
-        <div className="flex items-center justify-between gap-4 xl:gap-5">
+      <nav className="container mx-auto px-3 py-2 xl:px-4 xl:py-2.5">
+        <div className="flex items-center justify-between gap-2 xl:gap-3">
           {/* Logo */}
           <Link href="/">
-            <div className="group flex cursor-pointer items-center gap-2 border-r border-slate-200 pr-4 xl:pr-5" aria-label="Accueil MAZIGHO">
-              <span className="whitespace-nowrap text-lg font-semibold tracking-[0.13em] text-orange-500 transition-colors group-hover:text-orange-600 sm:text-xl">MAZIGHO</span>
+            <div className="group flex cursor-pointer items-center gap-1.5 border-r border-slate-200 pr-2 xl:pr-3" aria-label="Accueil MAZIGHO">
+              <span className="whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-500 transition-colors group-hover:text-orange-600 xl:text-lg">MAZIGHO</span>
               <span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden="true" />
             </div>
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden 2xl:flex flex-shrink-0 items-center gap-0.5">
+          <div className="hidden xl:flex flex-shrink-0 items-center gap-0">
             <Link href="/">
-              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
                 isActive("/") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {navigation.home}
@@ -94,7 +97,7 @@ export default function Header() {
             </Link>
 
             <Link href="/boutique">
-              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
                 isActive("/boutique") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {navigation.shop}
@@ -107,7 +110,7 @@ export default function Header() {
                 type="button"
                 aria-expanded={openDropdown === 1}
                 onClick={() => setOpenDropdown(openDropdown === 1 ? null : 1)}
-                className="flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-500"
+                className="flex items-center gap-0.5 rounded px-1.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-500"
               >
                 {navigation.categories}
                 <span className={`text-xs transition-transform ${openDropdown === 1 ? "rotate-180" : ""}`}>▼</span>
@@ -141,7 +144,7 @@ export default function Header() {
                 type="button"
                 aria-expanded={openDropdown === 2}
                 onClick={() => setOpenDropdown(openDropdown === 2 ? null : 2)}
-                className={`flex items-center gap-1 rounded px-3 py-2 text-sm font-medium transition-colors ${isActive("/creations") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"}`}
+                className={`flex items-center gap-0.5 rounded px-1.5 py-1.5 text-xs font-medium transition-colors ${isActive("/creations") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"}`}
               >
                 {navigation.creations}
                 <span className={`text-xs transition-transform ${openDropdown === 2 ? "rotate-180" : ""}`}>▼</span>
@@ -166,7 +169,7 @@ export default function Header() {
             </div>
 
             <Link href="/nouveautes">
-              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
                 isActive("/nouveautes") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {t(locale, "new")}
@@ -174,7 +177,7 @@ export default function Header() {
             </Link>
 
             <Link href="/best-sellers">
-              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
                 isActive("/best-sellers") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {t(locale, "bestSellers")}
@@ -182,7 +185,7 @@ export default function Header() {
             </Link>
 
             <Link href="/promos">
-              <span className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              <span className={`cursor-pointer border-b-2 px-1.5 py-1.5 text-xs font-medium transition-colors ${
                 isActive("/promos") ? "border-orange-500 text-orange-500" : "border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {t(locale, "promotions")}
@@ -190,7 +193,7 @@ export default function Header() {
             </Link>
 
             <Link href="/contact">
-              <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
+              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
                 isActive("/contact") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
                 {navigation.contact}
@@ -199,18 +202,18 @@ export default function Header() {
           </div>
 
           {/* Search Bar - Desktop */}
-          <div className="hidden md:block flex-1 max-w-xs mx-4">
+          <div className="hidden xl:block w-32 flex-none mx-1">
             <SearchBar />
           </div>
 
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-500" /><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></div>
+          <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`}><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" aria-label={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`} value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="w-[4.65rem] bg-transparent font-semibold outline-none"><option disabled value="">🌐 --</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{`${countryFlags[country.code] || "🌐"} ${country.code}`}</option>)}</select></div>
 
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="La langue d’affichage est indépendante du pays de livraison."><span className="text-sm text-orange-500" aria-hidden="true">A</span><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="max-w-28 bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></div>
+          <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`}><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" aria-label={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`} value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="w-[4.65rem] bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{`${languageFlags[option.code] || "🌐"} ${option.code.toUpperCase()}`}</option>)}</select></div>
 
           {/* Right Icons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5">
             <Link href="/favoris">
-              <div className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden sm:block">
+              <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden 2xl:block">
                 <Heart className="h-5 w-5 text-gray-700" />
                 {favoritesCount > 0 && (
                   <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
@@ -220,7 +223,7 @@ export default function Header() {
               </div>
             </Link>
             <Link href="/panier">
-              <div className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
+              <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <ShoppingCart className="h-5 w-5 text-gray-700" />
                 {cartCount > 0 && (
                   <span className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
@@ -230,7 +233,7 @@ export default function Header() {
               </div>
             </Link>
             <Link href="/mon-compte">
-              <Button className="hidden h-auto gap-2 bg-orange-500 px-3 py-2 text-sm text-white hover:bg-orange-600 sm:inline-flex">
+              <Button className="hidden h-auto gap-1.5 bg-orange-500 px-2 py-1.5 text-xs text-white hover:bg-orange-600 sm:inline-flex">
                 <User className="h-4 w-4" />
                 <span>{t(locale, "account")}</span>
               </Button>
@@ -240,7 +243,7 @@ export default function Header() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="2xl:hidden p-2 hover:bg-gray-100 rounded-lg"
+              className="xl:hidden p-1.5 hover:bg-gray-100 rounded-lg"
             >
               {isMenuOpen ? (
                 <X className="h-6 w-6" />
@@ -258,7 +261,7 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {isMenuOpen && (
-          <div className="2xl:hidden mt-4 pb-4 border-t pt-4 space-y-2">
+          <div className="xl:hidden mt-4 pb-4 border-t pt-4 space-y-2">
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>
             <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
             <Link href="/">
