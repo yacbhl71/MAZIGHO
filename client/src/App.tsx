@@ -1,58 +1,59 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
+
 import { Route, Switch, useLocation } from "wouter";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
 import { LocaleProvider } from "./contexts/LocaleContext";
 import Home from "./pages/Home";
-import Shop from "./pages/Shop";
-import Creations from "./pages/Creations";
-import Category from "./pages/Category";
-import Product from "./pages/Product";
-import About from "./pages/About";
-import Contact from "./pages/Contact";
-import Cart from "./pages/Cart";
-import Nouveautes from "./pages/Nouveautes";
-import BestSellers from "./pages/BestSellers";
-import Promos from "./pages/Promos";
-import Account from "./pages/Account";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminProducts from "./pages/admin/AdminProducts";
-import AdminDropshipping from "./pages/admin/AdminDropshipping";
-import AdminCjImport from "./pages/admin/AdminCjImport";
-import AdminSuppliers from "./pages/admin/AdminSuppliers";
-import AdminOrders from "./pages/admin/AdminOrders";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminCategories from "./pages/admin/AdminCategories";
-import AdminReviews from "./pages/admin/AdminReviews";
-import AdminMessages from "./pages/admin/AdminMessages";
-import AdminSettings from "./pages/admin/AdminSettings";
-import AdminLegal from "./pages/admin/AdminLegal";
-import AdminCustomization from "./pages/admin/AdminCustomization";
-import AdminAccounting from "./pages/admin/AdminAccounting";
-import AdminContent from "./pages/admin/AdminContent";
-import AdminPromotions from "./pages/admin/AdminPromotions";
-import AdminCreations from "./pages/admin/AdminCreations";
-import AdminTranslations from "./pages/admin/AdminTranslations";
-import AdminSimpleEditor from "./pages/admin/AdminSimpleEditor";
-import Checkout from "./pages/Checkout";
-import OrderConfirmation from "./pages/OrderConfirmation";
-import Favorites from "./pages/Favorites";
-import Orders from "./pages/Orders";
-import SettingsPage from "./pages/Settings";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import FAQ from "./pages/FAQ";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import ActivateAccount from "./pages/ActivateAccount";
-import LegalNotice from "./pages/LegalNotice";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import TermsAndConditions from "./pages/TermsAndConditions";
-import ShippingReturns from "./pages/ShippingReturns";
+const Shop = lazy(() => import("./pages/Shop"));
+const Creations = lazy(() => import("./pages/Creations"));
+const Category = lazy(() => import("./pages/Category"));
+const Product = lazy(() => import("./pages/Product"));
+const About = lazy(() => import("./pages/About"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Cart = lazy(() => import("./pages/Cart"));
+const Nouveautes = lazy(() => import("./pages/Nouveautes"));
+const BestSellers = lazy(() => import("./pages/BestSellers"));
+const Promos = lazy(() => import("./pages/Promos"));
+const Account = lazy(() => import("./pages/Account"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
+const AdminDropshipping = lazy(() => import("./pages/admin/AdminDropshipping"));
+const AdminCjImport = lazy(() => import("./pages/admin/AdminCjImport"));
+const AdminSuppliers = lazy(() => import("./pages/admin/AdminSuppliers"));
+const AdminOrders = lazy(() => import("./pages/admin/AdminOrders"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
+const AdminReviews = lazy(() => import("./pages/admin/AdminReviews"));
+const AdminMessages = lazy(() => import("./pages/admin/AdminMessages"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminLegal = lazy(() => import("./pages/admin/AdminLegal"));
+const AdminCustomization = lazy(() => import("./pages/admin/AdminCustomization"));
+const AdminAccounting = lazy(() => import("./pages/admin/AdminAccounting"));
+const AdminContent = lazy(() => import("./pages/admin/AdminContent"));
+const AdminPromotions = lazy(() => import("./pages/admin/AdminPromotions"));
+const AdminCreations = lazy(() => import("./pages/admin/AdminCreations"));
+const AdminTranslations = lazy(() => import("./pages/admin/AdminTranslations"));
+const AdminSimpleEditor = lazy(() => import("./pages/admin/AdminSimpleEditor"));
+const Checkout = lazy(() => import("./pages/Checkout"));
+const OrderConfirmation = lazy(() => import("./pages/OrderConfirmation"));
+const Favorites = lazy(() => import("./pages/Favorites"));
+const Orders = lazy(() => import("./pages/Orders"));
+const SettingsPage = lazy(() => import("./pages/Settings"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const FAQ = lazy(() => import("./pages/FAQ"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ActivateAccount = lazy(() => import("./pages/ActivateAccount"));
+const LegalNotice = lazy(() => import("./pages/LegalNotice"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
+const ShippingReturns = lazy(() => import("./pages/ShippingReturns"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 function ScrollToTop() {
   const [location] = useLocation();
@@ -127,7 +128,8 @@ function Router() {
     <>
       <ScrollToTop />
       <BrowserTitle />
-      <Switch>
+      <Suspense fallback={null}>
+        <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
@@ -156,29 +158,30 @@ function Router() {
       <Route path="/confidentialite" component={PrivacyPolicy} />
       <Route path="/conditions-generales" component={TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
-      <Route path={"/admin"} component={AdminDashboard} />
-      <Route path={"/admin/produits"} component={AdminProducts} />
-      <Route path={"/admin/importation"} component={AdminDropshipping} />
-      <Route path={"/admin/import-cj"} component={AdminCjImport} />
-      <Route path={"/admin/fournisseurs"} component={AdminSuppliers} />
-      <Route path={"/admin/categories"} component={AdminCategories} />
-      <Route path={"/admin/commandes"} component={AdminOrders} />
-      <Route path={"/admin/suivi-administratif"} component={AdminAccounting} />
-      <Route path={"/admin/utilisateurs"} component={AdminUsers} />
-      <Route path={"/admin/avis"} component={AdminReviews} />
-      <Route path={"/admin/contenu"} component={AdminContent} />
-      <Route path={"/admin/promotions"} component={AdminPromotions} />
-      <Route path={"/admin/messages"} component={AdminMessages} />
-      <Route path={"/admin/parametres"} component={AdminSettings} />
-      <Route path={"/admin/legal"} component={AdminLegal} />
-      <Route path={"/admin/personnalisation"} component={AdminCustomization} />
-      <Route path={"/admin/creations"} component={AdminCreations} />
-      <Route path={"/admin/traductions"} component={AdminTranslations} />
-      <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+        <Route path={"/admin"} component={AdminDashboard} />
+        <Route path={"/admin/produits"} component={AdminProducts} />
+        <Route path={"/admin/importation"} component={AdminDropshipping} />
+        <Route path={"/admin/import-cj"} component={AdminCjImport} />
+        <Route path={"/admin/fournisseurs"} component={AdminSuppliers} />
+        <Route path={"/admin/categories"} component={AdminCategories} />
+        <Route path={"/admin/commandes"} component={AdminOrders} />
+        <Route path={"/admin/suivi-administratif"} component={AdminAccounting} />
+        <Route path={"/admin/utilisateurs"} component={AdminUsers} />
+        <Route path={"/admin/avis"} component={AdminReviews} />
+        <Route path={"/admin/contenu"} component={AdminContent} />
+        <Route path={"/admin/promotions"} component={AdminPromotions} />
+        <Route path={"/admin/messages"} component={AdminMessages} />
+        <Route path={"/admin/parametres"} component={AdminSettings} />
+        <Route path={"/admin/legal"} component={AdminLegal} />
+        <Route path={"/admin/personnalisation"} component={AdminCustomization} />
+        <Route path={"/admin/creations"} component={AdminCreations} />
+        <Route path={"/admin/traductions"} component={AdminTranslations} />
+        <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
+        <Route path={"/404"} component={NotFound} />
+        {/* Final fallback route */}
         <Route component={NotFound} />
-      </Switch>
+        </Switch>
+      </Suspense>
     </>
   );
 }

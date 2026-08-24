@@ -24,6 +24,30 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replaceAll("\\", "/");
+          if (!normalizedId.includes("/node_modules/")) return;
+          if (/\/node_modules\/(react|react-dom|scheduler|react-is|use-sync-external-store)\//.test(normalizedId)) {
+            return "react-vendor";
+          }
+          if (
+            normalizedId.includes("/node_modules/@radix-ui/") ||
+            normalizedId.includes("/node_modules/lucide-react/")
+          ) {
+            return "ui-vendor";
+          }
+          if (
+            normalizedId.includes("/node_modules/@trpc/") ||
+            normalizedId.includes("/node_modules/@tanstack/")
+          ) {
+            return "data-vendor";
+          }
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     host: true,
