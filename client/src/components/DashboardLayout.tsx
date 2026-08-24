@@ -259,7 +259,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0 overflow-y-auto">
             {menuSections.map(section => (
-              <SidebarGroup key={section.label} className="px-2 py-1.5">
+              <SidebarGroup key={section.label} className="shrink-0 px-2 py-1.5">
                 <SidebarGroupLabel className="px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
                   {section.label}
                 </SidebarGroupLabel>
