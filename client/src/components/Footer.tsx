@@ -2,7 +2,7 @@ import { Mail } from "lucide-react";
 import { Link } from "wouter";
 import { useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
-import { getPublicCopy } from "@/lib/publicCopy";
+import { getDiscoveryTiles, getPublicCopy } from "@/lib/publicCopy";
 
 const categoryRoutes = [
   "/categorie/high-tech-gadgets",
@@ -15,6 +15,8 @@ const categoryRoutes = [
 export default function Footer() {
   const { locale } = useLocale();
   const copy = getPublicCopy(locale);
+  const discoveryTiles = getDiscoveryTiles(locale);
+  const categoryLabels = [discoveryTiles[4]?.title, discoveryTiles[2]?.title, discoveryTiles[1]?.title, discoveryTiles[3]?.title, discoveryTiles[0]?.title];
 
   return (
     <footer className="mt-20 bg-amber-950 text-white">
@@ -37,7 +39,7 @@ export default function Footer() {
 
           <div>
             <h3 className="font-semibold text-white mb-4 text-lg">{copy.footer.categories}</h3>
-            <ul className="space-y-2">{copy.footer.categoryLabels.map((label, index) => <li key={categoryRoutes[index]}><Link href={categoryRoutes[index]}><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{label}</span></Link></li>)}</ul>
+            <ul className="space-y-2">{categoryLabels.map((label, index) => <li key={categoryRoutes[index]}><Link href={categoryRoutes[index]}><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{label || copy.footer.categoryLabels[index]}</span></Link></li>)}</ul>
           </div>
 
           <div>
