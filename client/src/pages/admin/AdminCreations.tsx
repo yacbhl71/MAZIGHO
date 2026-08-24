@@ -27,6 +27,7 @@ function slugify(value: string) {
 export default function AdminCreations() {
   const categoriesQuery = trpc.categories.getAll.useQuery("fr");
   const productsQuery = trpc.admin.products.getAll.useQuery();
+  const storefrontProductsQuery = trpc.products.getAll.useQuery("fr");
   const utils = trpc.useUtils();
   const [isCollectionDialogOpen, setIsCollectionDialogOpen] = useState(false);
   const [name, setName] = useState("");
@@ -43,6 +44,7 @@ export default function AdminCreations() {
     () => (productsQuery.data || []).filter(product => creativeCategoryIds.has(product.categoryId)),
     [productsQuery.data, creativeCategoryIds]
   );
+  const deliveryProfilesByProductId = useMemo(() => new Map((storefrontProductsQuery.data || []).map(product => [product.id, product.deliveryProfiles || []])), [storefrontProductsQuery.data]);
   const creativeDrafts = creativeProducts.filter(product => product.status === "draft").length;
   const creativeActive = creativeProducts.filter(product => product.status === "active").length;
 
@@ -110,6 +112,22 @@ export default function AdminCreations() {
         <section className="border border-slate-200 bg-white p-5 md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-700">Structure client</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Collections visibles dans l’onglet Collections créatives</h2></div><Link href="/creations"><span className="inline-flex items-center gap-2 text-sm font-bold text-rose-700">Voir le rendu client <ArrowRight className="h-4 w-4" /></span></Link></div>
           {categoriesQuery.isLoading ? <div className="flex justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-rose-600" /></div> : <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{creativeCategories.map(category => { const visual = getCollectionVisual(category.slug); return <div key={category.id} className="overflow-hidden border border-rose-100 bg-[#fffaf7]"><div className="aspect-[4/3] bg-rose-50">{visual ? <img src={visual.imageUrl} alt={visual.alt} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-3xl">{category.icon || "✦"}</div>}</div><div className="p-4"><h3 className="font-semibold text-slate-900">{category.name}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">{category.description || "Collection créative MAZIGHO"}</p><Link href={`/categorie/${category.slug}`}><span className="mt-4 inline-flex text-xs font-bold text-rose-700">Voir côté client →</span></Link></div></div>; })}</div>}
+        </section>
+
+        <section className="border border-slate-200 bg-white p-5 md:p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-700">Contrôle de préparation</p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-950">État de chaque collection</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Ce tableau n’active rien : il permet uniquement de repérer ce qui manque avant toute publication manuelle.</p>
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            {creativeCategories.map(category => {
+              const visual = getCollectionVisual(category.slug);
+              const products = creativeProducts.filter(product => product.categoryId === category.id);
+              const drafts = products.filter(product => product.status === "draft").length;
+              const active = products.filter(product => product.status === "active").length;
+              const withoutDeliveryProfile = products.filter(product => !(deliveryProfilesByProductId.get(product.id) || []).length).length;
+              return <div key={`readiness-${category.id}`} className="border border-slate-200 bg-[#fffaf7] p-5"><div className="flex items-start justify-between gap-4"><div><h3 className="font-semibold text-slate-950">{category.name}</h3><p className="mt-1 text-xs text-slate-600">{category.description || "Collection créative MAZIGHO"}</p></div><Badge variant="outline" className={visual ? "border-emerald-300 text-emerald-700" : "border-amber-300 text-amber-700"}>{visual ? "Visuel associé" : "Visuel à choisir"}</Badge></div><div className="mt-4 grid grid-cols-3 gap-2 text-center"><div className="border border-amber-100 bg-white p-3"><p className="text-lg font-semibold text-amber-700">{drafts}</p><p className="mt-1 text-[11px] text-slate-600">Brouillons</p></div><div className="border border-emerald-100 bg-white p-3"><p className="text-lg font-semibold text-emerald-700">{active}</p><p className="mt-1 text-[11px] text-slate-600">Publiés</p></div><div className="border border-rose-100 bg-white p-3"><p className="text-lg font-semibold text-rose-700">{withoutDeliveryProfile}</p><p className="mt-1 text-[11px] text-slate-600">Sans profil livraison</p></div></div><p className="mt-4 text-xs leading-5 text-slate-600">Vérifier les droits, le coût, les variantes et les destinations avant de transformer un brouillon en produit publié.</p></div>;
+            })}
+          </div>
         </section>
 
         <section className="border border-slate-200 bg-white p-5 md:p-6">
