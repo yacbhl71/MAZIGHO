@@ -82,13 +82,13 @@ function BrowserTitle() {
       "/admin/parametres": "MAZIGHO Admin | Paramètres",
       "/admin/legal": "MAZIGHO Admin | Informations légales",
       "/admin/personnalisation": "MAZIGHO Admin | Personnalisation",
-      "/admin/creations": "MAZIGHO Admin | Créations personnalisées",
+      "/admin/creations": "MAZIGHO Admin | Collections créatives",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
     };
     const publicTitles: Record<string, string> = {
       "/": "MAZIGHO | Boutique en ligne",
       "/boutique": "Boutique | MAZIGHO",
-      "/creations": "Créations personnalisées | MAZIGHO",
+      "/creations": "Collections créatives | MAZIGHO",
       "/nouveautes": "Nouveautés | MAZIGHO",
       "/best-sellers": "Meilleures ventes | MAZIGHO",
       "/meilleures-ventes": "Meilleures ventes | MAZIGHO",

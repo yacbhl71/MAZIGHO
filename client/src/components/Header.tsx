@@ -114,7 +114,7 @@ export default function Header() {
               </div>
             </div>
 
-            {/* Créations personnalisées : univers autonome, visible pour tous les pays. */}
+            {/* Collections créatives MAZIGHO : univers autonome, visible pour tous les pays. */}
             <div className="relative group">
               <button
                 type="button"
@@ -127,7 +127,7 @@ export default function Header() {
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[380px] border border-rose-100 bg-white p-4 shadow-2xl transition-all duration-200 ${openDropdown === 2 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
                 <div className="mb-3 border-b border-rose-100 pb-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-700">Créations personnalisées</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-700">Collections créatives</p>
                   <p className="mt-1 text-xs text-gray-500">Un univers artistique séparé de la boutique fournisseurs.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -274,7 +274,7 @@ export default function Header() {
 
             <div className="space-y-1">
               <Link href="/creations">
-                <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-rose-50 rounded cursor-pointer text-sm font-medium text-rose-700">Créations personnalisées</div>
+                <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-rose-50 rounded cursor-pointer text-sm font-medium text-rose-700">Collections créatives</div>
               </Link>
               <button
                 onClick={() => setOpenDropdown(openDropdown === 3 ? null : 3)}

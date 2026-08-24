@@ -99,14 +99,14 @@ export default function Category() {
               </Link>
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 text-xl" aria-hidden="true">{(category as any).icon || "✦"}</span>
-                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{isCreativeCategory ? "Créations personnalisées" : "Univers MAZIGHO"}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{isCreativeCategory ? "Collection créative MAZIGHO" : "Univers MAZIGHO"}</p>
               </div>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">{category.name}</h1>
               <p className="mt-3 max-w-xl text-base leading-7 text-white/85">{category.description || "Une sélection pensée pour votre quotidien."}</p>
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? `Cette collection est visible partout. Le prix et le délai de livraison sont confirmés pour ${countryLabel} avant l’ajout au panier.` : `Découvrez notre sélection ${category.name.toLowerCase()}, dont la livraison est confirmée vers ${countryLabel}.`}</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? `Cette collection présente des designs MAZIGHO et reste visible partout. Le prix et le délai de livraison sont confirmés pour ${countryLabel} avant l’ajout au panier.` : `Découvrez notre sélection ${category.name.toLowerCase()}, dont la livraison est confirmée vers ${countryLabel}.`}</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
@@ -217,7 +217,7 @@ export default function Category() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">{isCreativeCategory ? "La collection est ouverte à tous, mais ses premiers produits sont encore en préparation." : `Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers ${countryLabel}.`}</p>
+                <p className="text-gray-600 text-lg">{isCreativeCategory ? "Cette collection de designs MAZIGHO est ouverte à tous, mais ses premiers produits sont encore en préparation." : `Aucun produit de cette catégorie n’est encore confirmé pour la livraison vers ${countryLabel}.`}</p>
                 <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
                     {isCreativeCategory ? "Retour aux créations" : "Choisir un autre pays ou voir la boutique"}

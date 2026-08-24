@@ -1548,6 +1548,58 @@ export async function upsertSetting(data: { key: string; value: string; descript
   return { success: true };
 }
 
+export type SupplierAccountReference = {
+  service: "cj" | "aliexpress" | "bigbuy" | "printful";
+  name: string;
+  email: string;
+  note: string;
+};
+
+const supplierAccountReferenceSettingKey = "supplier_account_references";
+
+export const defaultSupplierAccountReferences: SupplierAccountReference[] = [
+  { service: "cj", name: "CJdropshipping", email: "", note: "Compte de référence à confirmer." },
+  { service: "aliexpress", name: "AliExpress", email: "yacbhll@gmail.com", note: "Accès développeur officiel en attente." },
+  { service: "bigbuy", name: "BigBuy", email: "yacbhll@gmail.com", note: "Compte gratuit créé · aucun pack actif." },
+  { service: "printful", name: "Printful", email: "", note: "Compte gratuit créé · e-mail à confirmer." },
+];
+
+function normalizeSupplierAccountReferences(value: unknown): SupplierAccountReference[] {
+  if (!Array.isArray(value)) return defaultSupplierAccountReferences.map(reference => ({ ...reference }));
+  const saved = new Map(value.filter((entry): entry is Partial<SupplierAccountReference> => Boolean(entry) && typeof entry === "object").map(entry => [entry.service, entry]));
+
+  return defaultSupplierAccountReferences.map(reference => {
+    const entry = saved.get(reference.service);
+    return {
+      ...reference,
+      email: typeof entry?.email === "string" ? entry.email.trim().toLowerCase().slice(0, 254) : reference.email,
+      note: typeof entry?.note === "string" ? entry.note.trim().slice(0, 250) : reference.note,
+    };
+  });
+}
+
+export async function getSupplierAccountReferences(): Promise<SupplierAccountReference[]> {
+  const db = await getDb();
+  if (!db) return defaultSupplierAccountReferences.map(reference => ({ ...reference }));
+  const rows = await db.select().from(settings).where(eq(settings.key, supplierAccountReferenceSettingKey)).limit(1);
+  if (!rows[0]) return defaultSupplierAccountReferences.map(reference => ({ ...reference }));
+  try {
+    return normalizeSupplierAccountReferences(JSON.parse(rows[0].value));
+  } catch {
+    return defaultSupplierAccountReferences.map(reference => ({ ...reference }));
+  }
+}
+
+export async function updateSupplierAccountReferences(references: SupplierAccountReference[]) {
+  const normalized = normalizeSupplierAccountReferences(references);
+  await upsertSetting({
+    key: supplierAccountReferenceSettingKey,
+    value: JSON.stringify(normalized),
+    description: "Références de comptes fournisseurs visibles uniquement dans l’administration ; aucun mot de passe, secret, jeton ou clé API.",
+  });
+  return normalized;
+}
+
 export type LegalProfile = {
   operatorName: string;
   addressLine: string;

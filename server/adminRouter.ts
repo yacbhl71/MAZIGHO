@@ -557,6 +557,21 @@ export const adminRouter = router({
     }),
   }),
 
+  // Références de comptes : e-mail et note administrative uniquement, jamais de secret technique.
+  supplierAccounts: router({
+    get: adminProcedure.query(async () => {
+      return await db.getSupplierAccountReferences();
+    }),
+    update: adminProcedure.input(z.array(z.object({
+      service: z.enum(["cj", "aliexpress", "bigbuy", "printful"]),
+      name: z.string().trim().min(2).max(80),
+      email: z.union([z.literal(""), z.string().trim().email().max(254)]),
+      note: z.string().trim().max(250),
+    })).length(4)).mutation(async ({ input }) => {
+      return await db.updateSupplierAccountReferences(input);
+    }),
+  }),
+
   // Supplier connections: credentials stay server-side in Vercel environment variables.
   suppliers: router({
     cjStatus: adminProcedure.query(() => getCjConnectionStatus()),

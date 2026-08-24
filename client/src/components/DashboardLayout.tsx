@@ -32,7 +32,7 @@ const menuItems = [
   { icon: Package, label: "Produits", path: "/admin/produits" },
   { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
   { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
-  { icon: Brush, label: "Créations personnalisées", path: "/admin/creations" },
+  { icon: Brush, label: "Collections créatives", path: "/admin/creations" },
   { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
   { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
   { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },

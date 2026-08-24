@@ -36,10 +36,10 @@ export default function Creations() {
                 <Palette className="h-4 w-4" /> Univers MAZIGHO
               </div>
               <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
-                Créations personnalisées
+                Collections créatives
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200 md:text-lg">
-                Des objets et vêtements imaginés comme des créations. Parcourez toutes les collections, où que vous soyez ; le coût et le délai de livraison sont ensuite confirmés pour votre destination avant toute commande.
+                Des objets et vêtements portant des designs imaginés par MAZIGHO. Parcourez toutes les collections, où que vous soyez ; le coût et le délai de livraison sont ensuite confirmés pour votre destination avant toute commande.
               </p>
               <a href="#collections" className="mt-8 inline-flex items-center gap-2 bg-white px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-rose-100">
                 Découvrir les collections <ArrowRight className="h-4 w-4" />
@@ -53,8 +53,8 @@ export default function Creations() {
               </div>
               <div className="border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
                 <CheckCircle2 className="h-5 w-5 text-rose-200" />
-                <p className="mt-3 text-sm font-semibold">Commande contrôlée</p>
-                <p className="mt-1 text-xs leading-5 text-slate-300">La livraison reste vérifiée avant l’ajout au panier.</p>
+                <p className="mt-3 text-sm font-semibold">Atelier sur mesure à venir</p>
+                <p className="mt-1 text-xs leading-5 text-slate-300">La création par les clients sera ajoutée après un parcours de validation dédié.</p>
               </div>
             </div>
           </div>
@@ -92,7 +92,7 @@ export default function Creations() {
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.24em] text-rose-700">À découvrir</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Les créations en préparation</h2>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Les collections en préparation</h2>
               </div>
               <p className="text-sm text-slate-500">Destination sélectionnée : <span className="font-semibold text-slate-700">{countryLabel}</span></p>
             </div>
@@ -128,8 +128,8 @@ export default function Creations() {
               <div className="mt-8 grid gap-6 border border-dashed border-rose-200 bg-[#fffaf7] px-6 py-12 md:grid-cols-[1fr_auto] md:items-center">
                 <div>
                   <div className="flex h-10 w-10 items-center justify-center bg-rose-100 text-rose-700"><Sparkles className="h-5 w-5" /></div>
-                  <h3 className="mt-4 text-xl font-semibold text-slate-900">La première collection est en préparation.</h3>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Les catégories sont déjà ouvertes à tous. Les premiers produits apparaîtront seulement après contrôle du visuel, des droits de création, du prix et de la livraison.</p>
+                  <h3 className="mt-4 text-xl font-semibold text-slate-900">La première collection MAZIGHO est en préparation.</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Les catégories sont déjà ouvertes à tous. Les premiers designs MAZIGHO apparaîtront seulement après contrôle du visuel, des droits de création, du prix et de la livraison.</p>
                 </div>
                 <Link href="#collections" className="inline-flex items-center gap-2 text-sm font-bold text-rose-700">Voir les catégories <ArrowRight className="h-4 w-4" /></Link>
               </div>

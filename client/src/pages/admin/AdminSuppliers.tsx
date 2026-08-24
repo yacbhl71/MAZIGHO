@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import SupplierAccountRegistry from "@/components/admin/SupplierAccountRegistry";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -214,6 +215,8 @@ export default function AdminSuppliers() {
           </div>
           <div className="flex items-start gap-3 border-t border-sky-100 bg-white/70 px-6 py-4 text-sm text-slate-700 md:px-8"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /><span><strong>Protection active :</strong> aucun produit n’est publié et aucune commande fournisseur n’est envoyée sans votre validation explicite.</span></div>
         </section>
+
+        <SupplierAccountRegistry />
 
         <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
