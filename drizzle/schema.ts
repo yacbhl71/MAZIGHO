@@ -109,6 +109,23 @@ export const productTranslations = mysqlTable("productTranslations", {
 export type ProductTranslation = typeof productTranslations.$inferSelect;
 export type InsertProductTranslation = typeof productTranslations.$inferInsert;
 
+// Public editorial translations. French remains the source of truth; only customer-facing text is stored here.
+export const publicContentTranslations = mysqlTable("publicContentTranslations", {
+  id: int("id").autoincrement().primaryKey(),
+  contentType: mysqlEnum("contentType", ["design", "banner", "category"]).notNull(),
+  contentId: int("contentId").notNull(),
+  locale: varchar("locale", { length: 10 }).notNull(),
+  payload: text("payload").notNull(),
+  status: mysqlEnum("status", ["ready", "stale"]).default("ready").notNull(),
+  machineGenerated: int("machineGenerated").default(1).notNull(),
+  sourceUpdatedAt: timestamp("sourceUpdatedAt").defaultNow().notNull(),
+  translatedAt: timestamp("translatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PublicContentTranslation = typeof publicContentTranslations.$inferSelect;
+export type InsertPublicContentTranslation = typeof publicContentTranslations.$inferInsert;
+
 // Verified delivery profiles. One profile stores the supplier quote and the customer-facing charge for a product/variant/country.
 export const productDeliveryProfiles = mysqlTable("productDeliveryProfiles", {
   id: int("id").autoincrement().primaryKey(),

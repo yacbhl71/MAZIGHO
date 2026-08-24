@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, productTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -19,6 +19,7 @@ let _deliveryProfileSchemaReady: Promise<void> | null = null;
 let _catalogSectionSchemaReady: Promise<void> | null = null;
 let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
+let _publicContentTranslationSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -69,6 +70,18 @@ async function ensureProductTranslationSchema() {
   })();
 
   return _productTranslationSchemaReady;
+}
+
+async function ensurePublicContentTranslationSchema() {
+  if (_publicContentTranslationSchemaReady) return _publicContentTranslationSchemaReady;
+
+  _publicContentTranslationSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `publicContentTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `contentType` enum('design','banner','category') NOT NULL, `contentId` int NOT NULL, `locale` varchar(10) NOT NULL, `payload` text NOT NULL, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `public_content_translations_content_locale_unique` (`contentType`, `contentId`, `locale`), INDEX `public_content_translations_content_idx` (`contentType`, `contentId`))"));
+  })();
+
+  return _publicContentTranslationSchemaReady;
 }
 
 async function ensureDeliveryProfileSchema() {
@@ -826,6 +839,156 @@ export async function markProductTranslationsStale(productId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(productTranslations).set({ status: "stale" }).where(eq(productTranslations.productId, productId));
+}
+
+export const PUBLIC_CONTENT_TRANSLATION_LOCALES = ["de", "it", "en", "es", "nl", "ar"] as const;
+export type PublicContentTranslationLocale = typeof PUBLIC_CONTENT_TRANSLATION_LOCALES[number];
+export type PublicContentType = "design" | "banner" | "category";
+export type PublicContentPayload = Record<string, string>;
+
+export function isPublicContentTranslationLocale(locale: string): locale is PublicContentTranslationLocale {
+  return (PUBLIC_CONTENT_TRANSLATION_LOCALES as readonly string[]).includes(locale);
+}
+
+function normalizePublicContentPayload(value: unknown, sourcePayload: PublicContentPayload): PublicContentPayload | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const requiredKeys = Object.keys(sourcePayload);
+  if (Object.keys(candidate).length !== requiredKeys.length || !requiredKeys.every(key => typeof candidate[key] === "string" && String(candidate[key]).trim().length <= 1200 && (sourcePayload[key].trim().length === 0 || String(candidate[key]).trim().length > 0))) return undefined;
+  return Object.fromEntries(requiredKeys.map(key => [key, String(candidate[key]).trim()]));
+}
+
+export async function getPublicContentTranslationSource(contentType: PublicContentType, contentId: number): Promise<{ title: string; payload: PublicContentPayload; sourceUpdatedAt: Date } | undefined> {
+  if (contentType === "design") {
+    if (contentId !== 1) return undefined;
+    const profile = await getDesignProfile();
+    return {
+      title: "Accueil, histoire et sélection éditoriale",
+      payload: {
+        highlightEyebrow: profile.highlightEyebrow,
+        highlightTitle: profile.highlightTitle,
+        highlightText: profile.highlightText,
+        storyTitle: profile.storyTitle,
+        storyText: profile.storyText,
+        editorialEyebrow: profile.editorialEyebrow,
+        editorialTitle: profile.editorialTitle,
+      },
+      sourceUpdatedAt: new Date(),
+    };
+  }
+
+  const db = await getDb();
+  if (!db) return undefined;
+  if (contentType === "banner") {
+    const rows = await db.select().from(banners).where(eq(banners.id, contentId)).limit(1);
+    const banner = rows[0];
+    if (!banner) return undefined;
+    return { title: banner.title, payload: { title: banner.title, subtitle: banner.subtitle ?? "" }, sourceUpdatedAt: new Date() };
+  }
+
+  const rows = await db.select().from(categories).where(eq(categories.id, contentId)).limit(1);
+  const category = rows[0];
+  if (!category) return undefined;
+  return { title: category.name, payload: { name: category.name, description: category.description ?? "" }, sourceUpdatedAt: new Date() };
+}
+
+export async function getPublicContentTranslation(contentType: PublicContentType, contentId: number, locale: PublicContentTranslationLocale, readyOnly = false) {
+  await ensurePublicContentTranslationSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const conditions = [eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId), eq(publicContentTranslations.locale, locale)];
+  if (readyOnly) conditions.push(eq(publicContentTranslations.status, "ready"));
+  const rows = await db.select().from(publicContentTranslations).where(and(...conditions)).limit(1);
+  const translation = rows[0];
+  if (!translation) return undefined;
+  const source = await getPublicContentTranslationSource(contentType, contentId);
+  let candidate: unknown;
+  try {
+    candidate = JSON.parse(translation.payload);
+  } catch {
+    return undefined;
+  }
+  const payload = source ? normalizePublicContentPayload(candidate, source.payload) : undefined;
+  return payload ? { ...translation, payload } : undefined;
+}
+
+export async function getPublicContentTranslationOverview() {
+  await ensurePublicContentTranslationSchema();
+  const [design, allBanners, allCategories, translations] = await Promise.all([
+    getPublicContentTranslationSource("design", 1),
+    getAllBanners(),
+    getAllCategories(),
+    (async () => { const db = await getDb(); return db ? db.select().from(publicContentTranslations) : []; })(),
+  ]);
+  const sources: Array<{ contentType: PublicContentType; contentId: number; title: string; fields: string[] }> = [];
+  if (design) sources.push({ contentType: "design", contentId: 1, title: design.title, fields: Object.keys(design.payload) });
+  for (const banner of allBanners) sources.push({ contentType: "banner", contentId: banner.id, title: banner.title, fields: ["title", "subtitle"] });
+  for (const category of allCategories) sources.push({ contentType: "category", contentId: category.id, title: category.name, fields: ["name", "description"] });
+  return sources.map(source => ({
+    ...source,
+    translations: translations.filter(translation => translation.contentType === source.contentType && translation.contentId === source.contentId)
+      .map(translation => ({ locale: translation.locale, status: translation.status, translatedAt: translation.translatedAt, machineGenerated: translation.machineGenerated })),
+  }));
+}
+
+export async function savePublicContentTranslation(input: { contentType: PublicContentType; contentId: number; locale: PublicContentTranslationLocale; payload: PublicContentPayload; machineGenerated: boolean }) {
+  await ensurePublicContentTranslationSchema();
+  const source = await getPublicContentTranslationSource(input.contentType, input.contentId);
+  if (!source) throw new Error("Source de contenu introuvable.");
+  const payload = normalizePublicContentPayload(input.payload, source.payload);
+  if (!payload) throw new Error("La structure de la traduction ne correspond pas au contenu source.");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(publicContentTranslations).values({
+    contentType: input.contentType,
+    contentId: input.contentId,
+    locale: input.locale,
+    payload: JSON.stringify(payload),
+    status: "ready",
+    machineGenerated: input.machineGenerated ? 1 : 0,
+    sourceUpdatedAt: source.sourceUpdatedAt,
+    translatedAt: new Date(),
+  }).onDuplicateKeyUpdate({ set: { payload: JSON.stringify(payload), status: "ready", machineGenerated: input.machineGenerated ? 1 : 0, sourceUpdatedAt: source.sourceUpdatedAt, translatedAt: new Date() } });
+  return await getPublicContentTranslation(input.contentType, input.contentId, input.locale, true);
+}
+
+export async function markPublicContentTranslationsStale(contentType: PublicContentType, contentId: number) {
+  await ensurePublicContentTranslationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
+}
+
+export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale): Promise<DesignProfile> {
+  const profile = await getDesignProfile();
+  if (locale === "fr") return profile;
+  const translation = await getPublicContentTranslation("design", 1, locale, true);
+  return translation ? { ...profile, ...translation.payload } : profile;
+}
+
+export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTranslationLocale) {
+  const sourceBanners = await getActiveBanners();
+  if (locale === "fr") return sourceBanners.map(banner => ({ ...banner, sourceTitle: banner.title }));
+  return await Promise.all(sourceBanners.map(async banner => {
+    const translation = await getPublicContentTranslation("banner", banner.id, locale, true);
+    return translation ? { ...banner, ...translation.payload, sourceTitle: banner.title } : { ...banner, sourceTitle: banner.title };
+  }));
+}
+
+export async function getLocalizedCategories(locale: "fr" | PublicContentTranslationLocale) {
+  const sourceCategories = await getAllCategories();
+  if (locale === "fr") return sourceCategories;
+  return await Promise.all(sourceCategories.map(async category => {
+    const translation = await getPublicContentTranslation("category", category.id, locale, true);
+    return translation ? { ...category, ...translation.payload } : category;
+  }));
+}
+
+export async function getLocalizedCategoryBySlug(slug: string, locale: "fr" | PublicContentTranslationLocale) {
+  const category = await getCategoryBySlug(slug);
+  if (!category || locale === "fr") return category;
+  const translation = await getPublicContentTranslation("category", category.id, locale, true);
+  return translation ? { ...category, ...translation.payload } : category;
 }
 
 export async function getAllProducts() {

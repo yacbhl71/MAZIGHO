@@ -22,7 +22,7 @@ export default function SearchBar() {
 
   const { locale } = useLocale();
   const productsQuery = trpc.products.getAll.useQuery(locale);
-  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const { countryCode } = useDeliveryCountry();
   
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));

@@ -63,7 +63,7 @@ export default function AdminProducts() {
   const isLoading = productsQuery.isLoading;
   const error = productsQuery.error;
   const refetch = productsQuery.refetch;
-  const { data: categories } = trpc.categories.getAll.useQuery();
+  const { data: categories } = trpc.categories.getAll.useQuery("fr");
   const translationsQuery = trpc.admin.products.getTranslations.useQuery(editingProduct?.id || 1, {
     enabled: Boolean(editingProduct?.id),
   });

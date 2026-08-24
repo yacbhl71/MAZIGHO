@@ -26,7 +26,7 @@ export default function AdminCategories() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
 
-  const { data: categories, isLoading, refetch } = trpc.categories.getAll.useQuery();
+  const { data: categories, isLoading, refetch } = trpc.categories.getAll.useQuery("fr");
 
   const createCategory = trpc.admin.categories.create.useMutation({
     onSuccess: () => {

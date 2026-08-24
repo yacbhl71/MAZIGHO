@@ -266,7 +266,9 @@ export const adminRouter = router({
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ input }) => {
-      return await db.updateCategory(input.id, input);
+      const category = await db.updateCategory(input.id, input);
+      await db.markPublicContentTranslationsStale("category", input.id);
+      return category;
     }),
     delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteCategory(input);
@@ -745,7 +747,13 @@ export const adminRouter = router({
       showTestimonials: z.boolean(),
       showEditorial: z.boolean(),
     })).mutation(async ({ input }) => {
-      return await db.updateDesignProfile(input);
+      const previous = await db.getDesignProfile();
+      const profile = await db.updateDesignProfile(input);
+      const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
+      if (editorialFields.some(field => previous[field] !== profile[field])) {
+        await db.markPublicContentTranslationsStale("design", 1);
+      }
+      return profile;
     }),
     uploadImage: adminProcedure.input(z.object({
       dataUrl: z.string().max(7_100_000),
@@ -757,6 +765,35 @@ export const adminRouter = router({
       const { url } = await storagePut(key, image.buffer, image.contentType);
       return { url };
     }),
+  }),
+
+  // Public editorial content translations. French stays the single source; generated text is always reviewable before use.
+  publicContentTranslations: router({
+    getOverview: adminProcedure.query(async () => await db.getPublicContentTranslationOverview()),
+    get: adminProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+    })).query(async ({ input }) => await db.getPublicContentTranslation(input.contentType, input.contentId, input.locale)),
+    generate: adminProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
+    })).mutation(async ({ input }) => {
+      try {
+        const { translatePublicContentFromFrench } = await import("./publicContentTranslation");
+        return await translatePublicContentFromFrench(input.contentType, input.contentId, input.locales);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: message || "La traduction des contenus est momentanément indisponible. Réessayez dans quelques instants." });
+      }
+    }),
+    save: adminProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+      payload: z.record(z.string(), z.string().max(1200)),
+    })).mutation(async ({ input }) => await db.savePublicContentTranslation({ ...input, payload: input.payload, machineGenerated: false })),
   }),
 
   // Administrative register: customer sales are read from paid orders; purchases, costs and evidence are added here.
@@ -832,7 +869,9 @@ export const adminRouter = router({
       displayOrder: z.number().int(),
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
-      return await db.updateBanner(id, data);
+      const banner = await db.updateBanner(id, data);
+      await db.markPublicContentTranslationsStale("banner", id);
+      return banner;
     }),
     delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteBanner(input);

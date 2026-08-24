@@ -42,7 +42,7 @@ export default function AdminCjImport() {
   const parameters = new URLSearchParams(window.location.search);
   const productId = parameters.get("pid")?.trim() || "";
   const countryCode = parameters.get("country")?.trim() || undefined;
-  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categoriesQuery = trpc.categories.getAll.useQuery("fr");
 
   const [categoryId, setCategoryId] = useState("");
   const [name, setName] = useState("");

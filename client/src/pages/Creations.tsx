@@ -9,8 +9,8 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
 
 export default function Creations() {
-  const categoriesQuery = trpc.categories.getAll.useQuery();
   const { locale } = useLocale();
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
   const { countryCode, countryLabel } = useDeliveryCountry();
 

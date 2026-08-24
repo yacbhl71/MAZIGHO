@@ -111,8 +111,8 @@ export const designTypography = {
   },
 } as const;
 
-export function useDesignProfile() {
-  const query = trpc.design.get.useQuery();
+export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl" | "ar" = "fr") {
+  const query = trpc.design.get.useQuery(locale);
   const profile = (query.data ?? defaultDesignProfile) as DesignProfile;
   const palette = designPalettes[profile.paletteId] ?? designPalettes.terracotta;
   const typography = designTypography[profile.typographyId] ?? designTypography.editorial;

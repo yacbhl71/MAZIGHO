@@ -38,15 +38,15 @@ const testimonialImages = [
 ];
 
 export default function Home() {
-  const { profile, palette } = useDesignProfile();
   const { locale } = useLocale();
+  const { profile, palette } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
-  const copy = locale === "fr" ? {
+  const copy = {
     ...generatedCopy,
     highlight: { ...generatedCopy.highlight, eyebrow: profile.highlightEyebrow, title: profile.highlightTitle, text: profile.highlightText },
     story: { ...generatedCopy.story, title: profile.storyTitle, text: profile.storyText },
     editorial: { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle },
-  } : generatedCopy;
+  };
   const discoveryTiles = getDiscoveryTiles(locale);
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale);

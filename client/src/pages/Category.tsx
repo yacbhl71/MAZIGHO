@@ -24,11 +24,10 @@ const categoryHeroImages: Record<string, string> = {
 export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
-  
-  const categoryQuery = trpc.categories.getBySlug.useQuery(slug);
+  const { locale } = useLocale();
+  const categoryQuery = trpc.categories.getBySlug.useQuery({ slug, locale });
   const category = categoryQuery.data;
   
-  const { locale } = useLocale();
   const productsQuery = trpc.products.getByCategory.useQuery({ categoryId: category?.id || 0, locale }, {
     enabled: !!category?.id
   });

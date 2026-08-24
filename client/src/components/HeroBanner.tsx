@@ -42,20 +42,19 @@ export default function HeroBanner() {
   const { palette } = useDesignProfile();
   const { locale } = useLocale();
   const copy = getPublicCopy(locale);
-  const remoteBanners = trpc.content.getActiveBanners.useQuery();
+  const remoteBanners = trpc.content.getActiveBanners.useQuery(locale);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const banners = useMemo<HeroSlide[]>(() => {
     if (remoteBanners.data && remoteBanners.data.length > 0) {
       return remoteBanners.data.map((banner) => {
-        const localized = copy.hero.banners[banner.title as keyof typeof copy.hero.banners];
         return {
           id: banner.id,
-          title: localizedHeroTitles[locale][banner.title] || banner.title,
-          subtitle: localized?.subtitle || banner.subtitle || copy.highlight.text,
-          imageUrl: imageForBanner(banner.title, banner.imageUrl),
+          title: banner.title,
+          subtitle: banner.subtitle || copy.highlight.text,
+          imageUrl: imageForBanner(banner.sourceTitle || banner.title, banner.imageUrl),
           buttonLink: banner.linkUrl || "/boutique",
-          buttonText: localized?.primaryCta || copy.discovery.browseShop,
+          buttonText: copy.discovery.browseShop,
         };
       });
     }

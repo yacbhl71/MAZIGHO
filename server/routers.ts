@@ -22,19 +22,19 @@ export const appRouter = router({
   shop: shopRouter,
   auth: authRouter,
 
-  // Homepage content
+  // Homepage content. A pending translation safely falls back to the French source.
   content: router({
-    getActiveBanners: publicProcedure.query(async () => {
-      const { getActiveBanners } = await import("./db");
-      return await getActiveBanners();
+    getActiveBanners: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+      const { getLocalizedActiveBanners } = await import("./db");
+      return await getLocalizedActiveBanners(locale);
     }),
   }),
 
   // Public visual customisation applied to the storefront
   design: router({
-    get: publicProcedure.query(async () => {
-      const { getDesignProfile } = await import("./db");
-      return await getDesignProfile();
+    get: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+      const { getLocalizedDesignProfile } = await import("./db");
+      return await getLocalizedDesignProfile(locale);
     }),
   }),
 
@@ -46,18 +46,21 @@ export const appRouter = router({
     }),
   }),
 
-  // Categories
+  // Categories. The URL slug stays French and stable; only visible name and description are localized.
   categories: router({
-    getAll: publicProcedure.query(async () => {
-      const { getAllCategories } = await import("./db");
-      return await getAllCategories();
+    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+      const { getLocalizedCategories } = await import("./db");
+      return await getLocalizedCategories(locale);
     }),
     getBySlug: publicProcedure.input((val: unknown) => {
-      if (typeof val === "string") return val;
+      if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
+        return { slug: val.slug, locale: parsePublicProductLocale(val) };
+      }
+      if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
     }).query(async ({ input }) => {
-      const { getCategoryBySlug } = await import("./db");
-      return await getCategoryBySlug(input);
+      const { getLocalizedCategoryBySlug } = await import("./db");
+      return await getLocalizedCategoryBySlug(input.slug, input.locale);
     }),
   }),
 

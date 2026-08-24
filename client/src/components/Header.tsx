@@ -22,10 +22,6 @@ export default function Header() {
   const [openDropdown, setOpenDropdown] = useState<number | null>(null);
   const [location] = useLocation();
   
-  const categoriesQuery = trpc.categories.getAll.useQuery();
-  const categories = categoriesQuery.data || [];
-  const standardCategories = categories.filter(category => category.catalogSection !== "creations");
-  const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { getItemCount } = useCart();
   const { favorites } = useFavorites();
   const cartCount = getItemCount();
@@ -34,6 +30,10 @@ export default function Header() {
   const isAdmin = isAuthenticated && user?.role === "admin";
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
+  const categories = categoriesQuery.data || [];
+  const standardCategories = categories.filter(category => category.catalogSection !== "creations");
+  const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();
   const copy = getPublicCopy(locale);
   const discoveryTiles = getDiscoveryTiles(locale);

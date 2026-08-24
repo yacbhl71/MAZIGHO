@@ -25,7 +25,7 @@ function slugify(value: string) {
 }
 
 export default function AdminCreations() {
-  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categoriesQuery = trpc.categories.getAll.useQuery("fr");
   const productsQuery = trpc.admin.products.getAll.useQuery();
   const utils = trpc.useUtils();
   const [isCollectionDialogOpen, setIsCollectionDialogOpen] = useState(false);

@@ -43,7 +43,7 @@ export default function AdminDropshipping() {
   const [imagesText, setImagesText] = useState("");
   const [hasPreview, setHasPreview] = useState(false);
 
-  const categoriesQuery = trpc.categories.getAll.useQuery();
+  const categoriesQuery = trpc.categories.getAll.useQuery("fr");
   const previewImport = trpc.admin.products.previewImport.useMutation({
     onSuccess: (data) => {
       setHasPreview(true);
