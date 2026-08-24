@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { getCollectionVisual } from "@/lib/collectionVisuals";
 
 const categoryHeroImages: Record<string, string> = {
   "high-tech-gadgets": "/assets/category-high-tech.jpg",
@@ -31,6 +32,7 @@ export default function Category() {
   });
   const { countryCode, countryLabel } = useDeliveryCountry();
   const isCreativeCategory = category?.catalogSection === "creations";
+  const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const products = (productsQuery.data || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   
   const { addToCart } = useCart();
@@ -87,8 +89,8 @@ export default function Category() {
       <main className="flex-1">
         {/* Editorial Category Header */}
         <section className="relative min-h-[330px] overflow-hidden bg-slate-950 md:min-h-[390px]">
-          <img src={categoryHeroImages[slug] || "/assets/shop-editorial-hero.jpg"} alt={`Sélection ${category.name}`} className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10" />
+          <img src={creativeVisual?.imageUrl || categoryHeroImages[slug] || "/assets/shop-editorial-hero.jpg"} alt={creativeVisual?.alt || `Sélection ${category.name}`} className="absolute inset-0 h-full w-full object-cover" />
+          <div className={isCreativeCategory ? "absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/45 to-slate-950/10" : "absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10"} />
           <div className="relative flex min-h-[330px] items-end px-6 py-10 md:min-h-[390px] md:px-12 lg:px-20">
             <div className="max-w-2xl text-white">
               <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
