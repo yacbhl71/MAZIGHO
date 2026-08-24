@@ -13,6 +13,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
 import { categoryT, t } from "@/lib/i18n";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 const categoryHeroImages: Record<string, string> = {
   "high-tech-gadgets": "/assets/category-high-tech.jpg",
@@ -33,7 +34,8 @@ export default function Category() {
   const productsQuery = trpc.products.getByCategory.useQuery({ categoryId: category?.id || 0, locale }, {
     enabled: !!category?.id
   });
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const products = (productsQuery.data || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));

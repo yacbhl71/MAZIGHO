@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
@@ -26,7 +27,8 @@ export default function Product() {
     enabled: !!slug
   });
   const product = productQuery.data;
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {

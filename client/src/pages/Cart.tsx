@@ -9,12 +9,14 @@ import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const { locale } = useLocale();
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
   const products = productsQuery.data || [];
   const productById = new Map(products.map(product => [product.id, product]));

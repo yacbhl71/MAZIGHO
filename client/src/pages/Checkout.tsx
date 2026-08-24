@@ -9,13 +9,15 @@ import { useCart } from "@/hooks/useCart";
 import { trpc } from "@/lib/trpc";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
+import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { AlertTriangle, ArrowLeft, CheckCircle2, CreditCard, LockKeyhole, PackageCheck, Truck } from "lucide-react";
 
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { cart, isLoaded } = useCart();
   const { locale } = useLocale();
-  const { countryCode, countryLabel } = useDeliveryCountry();
+  const { countryCode } = useDeliveryCountry();
+  const countryLabel = getLocalizedCountryName(countryCode, locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
   const productById = new Map((productsQuery.data || []).map(product => [product.id, product]));
   const items = cart.map(item => {
