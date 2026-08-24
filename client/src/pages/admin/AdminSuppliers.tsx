@@ -105,6 +105,7 @@ function ProviderCard({ provider }: { provider: typeof providerCards[number] }) 
 export default function AdminSuppliers() {
   const utils = trpc.useUtils();
   const cjStatusQuery = trpc.admin.suppliers.cjStatus.useQuery();
+  const aliExpressStatusQuery = trpc.admin.suppliers.aliExpressStatus.useQuery();
   const legalProfileQuery = trpc.admin.legal.get.useQuery();
   const verifyCj = trpc.admin.suppliers.verifyCj.useMutation({
     onSuccess: async (result) => {
@@ -112,6 +113,14 @@ export default function AdminSuppliers() {
       result.verified ? toast.success("Connexion CJdropshipping vérifiée.") : toast.error(result.message);
     },
     onError: () => toast.error("La vérification CJdropshipping a échoué. Réessayez plus tard."),
+  });
+  const aliExpressStatus = aliExpressStatusQuery.data;
+  const verifyAliExpress = trpc.admin.suppliers.verifyAliExpress.useMutation({
+    onSuccess: async (result) => {
+      await utils.admin.suppliers.aliExpressStatus.invalidate();
+      toast.message(result.message);
+    },
+    onError: () => toast.error("La vérification de préparation AliExpress a échoué. Réessayez plus tard."),
   });
   const cjStatus = cjStatusQuery.data;
   const [cjKeyword, setCjKeyword] = useState("");
@@ -208,6 +217,20 @@ export default function AdminSuppliers() {
             </div>
             {cjStatus?.configured ? <Button onClick={() => verifyCj.mutate()} disabled={verifyCj.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la connexion</Button> : <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">La clé sera ajoutée plus tard dans les variables sécurisées Vercel, jamais dans ce formulaire.</div>}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-orange-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-4">
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${aliExpressStatus?.authorized ? "bg-emerald-100 text-emerald-700" : aliExpressStatus?.configured ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-600"}`}><ShieldCheck className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Connexion AliExpress</h2><Badge className={aliExpressStatus?.authorized ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : aliExpressStatus?.configured ? "bg-orange-100 text-orange-800 hover:bg-orange-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"}>{aliExpressStatus?.authorized ? "OAuth détecté" : aliExpressStatus?.configured ? "Autorisation à finaliser" : "Application requise"}</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{aliExpressStatusQuery.isLoading ? "Lecture de l’état de préparation…" : (aliExpressStatus?.message || "État AliExpress indisponible.")}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2"><Button onClick={() => verifyAliExpress.mutate()} disabled={verifyAliExpress.isPending} className="bg-orange-500 text-white hover:bg-orange-600">{verifyAliExpress.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la préparation</Button><a href="https://openservice.aliexpress.com/" target="_blank" rel="noreferrer"><Button variant="outline" className="border-orange-200 text-orange-800 hover:bg-orange-50"><ExternalLink className="mr-2 h-4 w-4" /> Open Platform</Button></a></div>
+          </div>
+          <p className="mt-4 rounded-xl bg-orange-50 px-4 py-3 text-xs leading-5 text-orange-950">Cette vérification lit seulement l’état sécurisé de l’application et de l’autorisation OAuth. Elle n’ouvre aucun catalogue, ne transmet aucune commande et n’affiche jamais de clé.</p>
         </section>
 
         <section className="rounded-2xl border border-violet-100 bg-violet-50/40 p-5 shadow-sm md:p-6">
