@@ -5,10 +5,22 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getBanners } from "@/data/mockData";
 import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
+import { getPublicCopy } from "@/lib/publicCopy";
 
 const DEFAULT_HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/JZmuCtGTfIYUcFRd.jpg";
 const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.jpg";
 const HERO_BEAUTE_IMAGE = "/assets/hero-beaute-bien-etre.jpg";
+
+const localizedHeroTitles: Record<StorefrontLocale, Record<string, string>> = {
+  fr: { "Découvrez nos Meilleures Offres": "Découvrez nos Meilleures Offres", "Mode & Accessoires": "Mode & Accessoires", "Beauté & Bien-Être": "Beauté & Bien-Être" },
+  de: { "Découvrez nos Meilleures Offres": "Entdecken Sie unsere besten Angebote", "Mode & Accessoires": "Mode & Accessoires", "Beauté & Bien-Être": "Schönheit & Wohlbefinden" },
+  it: { "Découvrez nos Meilleures Offres": "Scoprite le nostre migliori offerte", "Mode & Accessoires": "Moda e accessori", "Beauté & Bien-Être": "Bellezza e benessere" },
+  en: { "Découvrez nos Meilleures Offres": "Discover Our Best Offers", "Mode & Accessoires": "Fashion & Accessories", "Beauté & Bien-Être": "Beauty & Well-being" },
+  es: { "Découvrez nos Meilleures Offres": "Descubre nuestras mejores ofertas", "Mode & Accessoires": "Moda y accesorios", "Beauté & Bien-Être": "Belleza y bienestar" },
+  nl: { "Découvrez nos Meilleures Offres": "Ontdek onze beste aanbiedingen", "Mode & Accessoires": "Mode & accessoires", "Beauté & Bien-Être": "Beauty & welzijn" },
+  ar: { "Découvrez nos Meilleures Offres": "اكتشف أفضل عروضنا", "Mode & Accessoires": "الأزياء والإكسسوارات", "Beauté & Bien-Être": "الجمال والعافية" },
+};
 
 function imageForBanner(title: string, imageUrl?: string | null) {
   const normalizedTitle = title.toLocaleLowerCase("fr");
@@ -28,26 +40,37 @@ type HeroSlide = {
 
 export default function HeroBanner() {
   const { palette } = useDesignProfile();
+  const { locale } = useLocale();
+  const copy = getPublicCopy(locale);
   const remoteBanners = trpc.content.getActiveBanners.useQuery();
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const banners = useMemo<HeroSlide[]>(() => {
     if (remoteBanners.data && remoteBanners.data.length > 0) {
-      return remoteBanners.data.map((banner) => ({
-        id: banner.id,
-        title: banner.title,
-        subtitle: banner.subtitle || "Découvrez nos nouveautés MAZIGHO",
-        imageUrl: imageForBanner(banner.title, banner.imageUrl),
-        buttonLink: banner.linkUrl || "/boutique",
-        buttonText: "Découvrir",
-      }));
+      return remoteBanners.data.map((banner) => {
+        const localized = copy.hero.banners[banner.title as keyof typeof copy.hero.banners];
+        return {
+          id: banner.id,
+          title: localizedHeroTitles[locale][banner.title] || banner.title,
+          subtitle: localized?.subtitle || banner.subtitle || copy.highlight.text,
+          imageUrl: imageForBanner(banner.title, banner.imageUrl),
+          buttonLink: banner.linkUrl || "/boutique",
+          buttonText: localized?.primaryCta || copy.discovery.browseShop,
+        };
+      });
     }
 
-    return getBanners().map((banner) => ({
-      ...banner,
-      imageUrl: imageForBanner(banner.title),
-    }));
-  }, [remoteBanners.data]);
+    return getBanners().map((banner) => {
+      const localized = copy.hero.banners[banner.title as keyof typeof copy.hero.banners];
+      return {
+        ...banner,
+        title: localizedHeroTitles[locale][banner.title] || banner.title,
+        subtitle: localized?.subtitle || banner.subtitle,
+        buttonText: localized?.primaryCta || banner.buttonText,
+        imageUrl: imageForBanner(banner.title),
+      };
+    });
+  }, [remoteBanners.data, copy, locale]);
 
   useEffect(() => {
     if (currentSlide >= banners.length) setCurrentSlide(0);
@@ -90,7 +113,7 @@ export default function HeroBanner() {
 
           <div className="relative flex h-full items-center justify-start px-6 sm:px-10 lg:px-16">
             <div className="z-10 max-w-2xl text-left text-white">
-              <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>MAZIGHO · sélection du moment</p>
+              <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{copy.hero.eyebrow}</p>
               <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">{banner.title}</h1>
               <p className="mb-8 max-w-xl text-base leading-7 text-white/85 md:text-xl">{banner.subtitle}</p>
               <div className="flex flex-col justify-start gap-3 sm:flex-row">
@@ -98,7 +121,7 @@ export default function HeroBanner() {
                   <Button className="px-8 py-3 text-lg font-semibold text-white" style={{ backgroundColor: palette.primary }}>{banner.buttonText}</Button>
                 </Link>
                 <Link href="/best-sellers">
-                  <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">Voir les best-sellers</Button>
+                  <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">{copy.hero.secondaryCta}</Button>
                 </Link>
               </div>
             </div>

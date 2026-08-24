@@ -23,6 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const automaticTranslationLocales = ["de", "it", "en", "es", "nl", "ar"] as const;
+
 export default function AdminProducts() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -84,8 +86,10 @@ export default function AdminProducts() {
   });
 
   const createProduct = trpc.admin.products.create.useMutation({
-    onSuccess: () => {
-      toast.success("Produit créé avec succès");
+    onSuccess: (createdProduct) => {
+      // The translation call is explicitly tied to the administrator saving the French source.
+      translateProduct.mutate({ productId: createdProduct.id, locales: [...automaticTranslationLocales] });
+      toast.success("Produit créé. Les versions clients sont en cours de traduction.");
       setIsOpen(false);
       resetForm();
       refetch();
@@ -94,8 +98,10 @@ export default function AdminProducts() {
   });
 
   const updateProduct = trpc.admin.products.update.useMutation({
-    onSuccess: () => {
-      toast.success("Produit mis à jour avec succès");
+    onSuccess: (_result, variables) => {
+      // Rebuild all customer versions after a source save; the existing versions are marked stale server-side first.
+      translateProduct.mutate({ productId: variables.id, locales: [...automaticTranslationLocales] });
+      toast.success("Produit enregistré. Les versions clients sont en cours de mise à jour.");
       setIsOpen(false);
       resetForm();
       refetch();
@@ -631,7 +637,7 @@ export default function AdminProducts() {
                   <>
                     <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div><h3 className="font-semibold text-sky-950">Source française, traductions contrôlées</h3><p className="mt-1 text-xs leading-5 text-sky-800">Le produit est saisi en français. Une génération est lancée uniquement par votre action ; une modification française rend les anciennes versions à régénérer.</p></div>
+                        <div><h3 className="font-semibold text-sky-950">Source française, traductions contrôlées</h3><p className="mt-1 text-xs leading-5 text-sky-800">Le produit est saisi en français. Chaque enregistrement lance automatiquement la mise à jour des versions clients ; vous pouvez toujours vérifier et corriger chaque langue ci-dessous.</p></div>
                         <Button type="button" size="sm" className="shrink-0 bg-sky-700 hover:bg-sky-800" disabled={translateProduct.isPending} onClick={() => translateProduct.mutate({ productId: editingProduct.id, locales: ["de", "it", "en", "es", "nl", "ar"] })}>{translateProduct.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Languages className="mr-2 h-4 w-4" />}Générer toutes les langues</Button>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">{(["de", "it", "en", "es", "nl", "ar"] as const).map(locale => { const translation = translations.find(item => item.locale === locale); return <button type="button" key={locale} onClick={() => setTranslationLocale(locale)} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${translation?.status === "ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : translation?.status === "stale" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600"}`}>{locale.toUpperCase()} · {translation?.status === "ready" ? "prête" : translation?.status === "stale" ? "à régénérer" : "absente"}</button>; })}</div>

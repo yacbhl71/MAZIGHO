@@ -10,6 +10,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { deliveryCountries, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { localeOptions, useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
+import { getPublicCopy } from "@/lib/publicCopy";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -28,6 +29,8 @@ export default function Header() {
   const isAdmin = isAuthenticated && user?.role === "admin";
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
+  const copy = getPublicCopy(locale);
+  const standardCategoryCopyIndex: Record<string, number> = { mode: 0, "beaute-bien-etre": 1, "maison-organisation": 2, "sport-fitness": 3, "high-tech-gadgets": 4, "auto-accessoires": 5 };
 
   const isActive = (path: string) => location === path;
 
@@ -90,17 +93,18 @@ export default function Header() {
                   <p className="mt-1 text-xs text-gray-500">Choisissez une catégorie pour découvrir sa sélection.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {standardCategories.map((cat) => (
-                    <Link key={cat.id} href={`/categorie/${cat.slug}`}>
+                  {standardCategories.map((cat) => {
+                    const localized = copy.discovery.tiles[standardCategoryCopyIndex[cat.slug]];
+                    return <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div onClick={() => setOpenDropdown(null)} className="flex min-h-[58px] cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-orange-50">
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-lg">{(cat as any).icon || "✦"}</span>
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-gray-800">{cat.name}</h3>
-                          <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500">{cat.description}</p>
+                          <h3 className="truncate text-sm font-semibold text-gray-800">{localized?.title || cat.name}</h3>
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-gray-500">{localized?.description || cat.description}</p>
                         </div>
                       </div>
-                    </Link>
-                  ))}
+                    </Link>;
+                  })}
                 </div>
                 <Link href="/boutique"><div onClick={() => setOpenDropdown(null)} className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wider text-orange-500">Voir toutes les catégories <span>→</span></div></Link>
               </div>
@@ -256,13 +260,14 @@ export default function Header() {
               </button>
               {openDropdown === 0 && (
                 <div className="bg-gray-50 rounded space-y-1 p-2">
-                  {standardCategories.map((cat) => (
-                    <Link key={cat.id} href={`/categorie/${cat.slug}`}>
+                  {standardCategories.map((cat) => {
+                    const localized = copy.discovery.tiles[standardCategoryCopyIndex[cat.slug]];
+                    return <Link key={cat.id} href={`/categorie/${cat.slug}`}>
                       <div className="px-4 py-2 hover:bg-white rounded cursor-pointer text-xs">
-                        {(cat as any).icon || "📦"} {cat.name}
+                        {(cat as any).icon || "📦"} {localized?.title || cat.name}
                       </div>
-                    </Link>
-                  ))}
+                    </Link>;
+                  })}
                 </div>
               )}
             </div>

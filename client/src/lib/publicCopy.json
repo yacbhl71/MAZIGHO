@@ -1,0 +1,1087 @@
+{
+  "fr": {
+    "hero": {
+      "eyebrow": "MAZIGHO · sélection du moment",
+      "secondaryCta": "Voir les best-sellers",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Simplifiez votre quotidien avec style",
+          "primaryCta": "Commander maintenant"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "Les dernières tendances de la saison",
+          "primaryCta": "Voir la collection"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Prenez soin de vous avec nos produits premium",
+          "primaryCta": "Découvrir"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "L’inspiration MAZIGHO",
+      "title": "Des trouvailles qui embellissent le quotidien.",
+      "text": "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment."
+    },
+    "reassurance": [
+      {
+        "title": "Une sélection qui a du sens",
+        "text": "Des trouvailles utiles pour le quotidien."
+      },
+      {
+        "title": "Prix affichés en CHF",
+        "text": "Une expérience pensée pour la Suisse."
+      },
+      {
+        "title": "Un parcours simple",
+        "text": "Du produit au panier en quelques clics."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "Explorer MAZIGHO",
+      "title": "Découvrez nos univers",
+      "text": "Six catégories visuelles pour passer directement de l’inspiration à la sélection qui vous ressemble.",
+      "allShop": "Voir toute la boutique",
+      "browseShop": "Parcourir toute la boutique",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "Les détails qui accompagnent votre style au quotidien."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Des instants de soin et de confort à s’offrir."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Des objets simples qui facilitent les petits moments."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "Pour bouger, respirer et profiter davantage."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Des accessoires pensés pour rester connecté sans effort."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Les indispensables pour vos trajets et vos escapades."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "Notre inspiration",
+      "title": "L’histoire inspirante de MAZIGHO.",
+      "text": "MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.",
+      "followup": "Notre sélection évolue avec les envies de la saison, entre mode, bien-être, maison et accessoires, afin de vous laisser explorer librement ce qui vous ressemble.",
+      "points": [
+        "Choisir avec attention",
+        "Simplifier la recherche",
+        "Inspirer le quotidien"
+      ],
+      "cta": "Découvrir l’univers MAZIGHO",
+      "visualEyebrow": "L’esprit MAZIGHO",
+      "visualTitle": "Des trouvailles pour accompagner les moments qui comptent.",
+      "promiseEyebrow": "Notre promesse",
+      "promise": "De l’inspiration, simplement."
+    },
+    "testimonials": {
+      "eyebrow": "La parole à nos clients",
+      "title": "Vos retours font grandir MAZIGHO.",
+      "text": "Les avis approuvés seront présentés ici pour partager les expériences réelles de notre communauté.",
+      "cta": "Découvrir la sélection",
+      "items": [
+        {
+          "title": "Votre expérience compte",
+          "text": "Les premiers avis authentiques de nos clients seront mis en avant ici après validation."
+        },
+        {
+          "title": "Des retours en toute confiance",
+          "text": "Chaque témoignage publié aide les autres visiteurs à faire leur choix sereinement."
+        },
+        {
+          "title": "Une boutique qui grandit avec vous",
+          "text": "Vos découvertes et vos retours inspirent les prochaines sélections MAZIGHO."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "Le détail qui fait la différence.",
+      "title": "Des objets choisis pour les petits moments qui comptent."
+    },
+    "featured": {
+      "eyebrow": "La sélection du moment",
+      "title": "Produits phares",
+      "text": "Les articles dont la livraison est confirmée pour {country}.",
+      "catalogue": "Tout le catalogue",
+      "unavailable": "Aucun produit n’est encore confirmé pour la livraison vers {country}. La sélection sera affichée dès qu’un devis fournisseur aura été validé.",
+      "new": "Nouveau"
+    },
+    "closing": {
+      "eyebrow": "L’esprit MAZIGHO",
+      "title": "Des trouvailles utiles, avec une expérience plus humaine.",
+      "text": "Nous mettons en avant des produits qui simplifient le quotidien, dans une boutique claire, chaleureuse et pensée pour accompagner chaque décision.",
+      "shopCta": "Découvrir la boutique",
+      "contactCta": "Nous contacter",
+      "chfText": "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles."
+    },
+    "footer": {
+      "description": "Votre destination pour des produits premium de qualité exceptionnelle.",
+      "navigation": "Navigation",
+      "about": "À propos",
+      "categories": "Catégories",
+      "categoryLabels": [
+        "High-tech & gadgets",
+        "Maison & organisation",
+        "Beauté & bien-être",
+        "Sport & fitness",
+        "Mode"
+      ],
+      "help": "Besoin d’aide ?",
+      "contactForm": "Écrivez-nous via le formulaire de contact",
+      "contactInfo": "Votre message est transmis directement à l’équipe MAZIGHO.",
+      "deliveryTitle": "Livraison Suisse & Europe",
+      "deliveryText": "Les conditions sont précisées avant validation.",
+      "secureTitle": "Connexion sécurisée",
+      "secureText": "Votre navigation est protégée par HTTPS.",
+      "serviceTitle": "Service client",
+      "serviceText": "Une question ? Utilisez notre formulaire.",
+      "rights": "Tous droits réservés.",
+      "terms": "Conditions générales",
+      "returns": "Livraison et retours",
+      "privacy": "Politique de confidentialité",
+      "legal": "Mentions légales"
+    }
+  },
+  "de": {
+    "hero": {
+      "eyebrow": "MAZIGHO · Auswahl des Moments",
+      "secondaryCta": "Bestseller ansehen",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Vereinfachen Sie Ihren Alltag mit Stil",
+          "primaryCta": "Jetzt bestellen"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "Die neuesten Trends der Saison",
+          "primaryCta": "Kollektion ansehen"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Gönnen Sie sich Pflege mit unseren Premiumprodukten",
+          "primaryCta": "Entdecken"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "MAZIGHO-Inspiration",
+      "title": "Fundstücke, die den Alltag verschönern.",
+      "text": "Mode, Wohlbefinden, Wohnen und Accessoires: eine Auswahl für jeden Moment."
+    },
+    "reassurance": [
+      {
+        "title": "Eine durchdachte Auswahl",
+        "text": "Nützliche Entdeckungen für den Alltag."
+      },
+      {
+        "title": "Preise in CHF angegeben",
+        "text": "Ein Erlebnis, das für die Schweiz gestaltet ist."
+      },
+      {
+        "title": "Ein einfacher Ablauf",
+        "text": "Vom Produkt bis zum Warenkorb in wenigen Klicks."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "MAZIGHO entdecken",
+      "title": "Entdecken Sie unsere Welten",
+      "text": "Sechs visuelle Kategorien, um direkt von Inspiration zur Auswahl zu gelangen, die zu Ihnen passt.",
+      "allShop": "Gesamten Shop ansehen",
+      "browseShop": "Im gesamten Shop stöbern",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "Details, die Ihren Stil im Alltag begleiten."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Pflege- und Wohlfühlmomente zum Gönnen."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Einfache Gegenstände, die den Alltag erleichtern."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "Zum Bewegen, Durchatmen und Mehrgenießen."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Zubehör, das müheloses Verbundenbleiben ermöglicht."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Unverzichtbares für Ihre Fahrten und Ausflüge."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "Unsere Inspiration",
+      "title": "Die inspirierende Geschichte von MAZIGHO.",
+      "text": "MAZIGHO entstand aus einer einfachen Idee: gute Entdeckungen leichter zugänglich zu machen. Wir lieben nützliche Gegenstände, kleine Freuden und Details, die den Tag sanfter machen.",
+      "followup": "Unsere Auswahl entwickelt sich mit den Jahreszeiten, zwischen Mode, Wohlbefinden, Wohnen und Accessoires, damit Sie frei erkunden können, was zu Ihnen passt.",
+      "points": [
+        "Bewusst auswählen",
+        "Suche vereinfachen",
+        "Den Alltag inspirieren"
+      ],
+      "cta": "Die Welt von MAZIGHO entdecken",
+      "visualEyebrow": "Der Geist von MAZIGHO",
+      "visualTitle": "Fundstücke, die die wichtigen Momente begleiten.",
+      "promiseEyebrow": "Unser Versprechen",
+      "promise": "Inspiration, einfach."
+    },
+    "testimonials": {
+      "eyebrow": "Stimmen unserer Kunden",
+      "title": "Ihr Feedback lässt MAZIGHO wachsen.",
+      "text": "Freigegebene Bewertungen werden hier angezeigt, um echte Erfahrungen unserer Community zu teilen.",
+      "cta": "Auswahl entdecken",
+      "items": [
+        {
+          "title": "Ihre Erfahrung zählt",
+          "text": "Die ersten authentischen Bewertungen unserer Kunden werden hier nach Prüfung hervorgehoben."
+        },
+        {
+          "title": "Vertrauenswürdiges Feedback",
+          "text": "Jedes veröffentlichte Feedback hilft anderen Besuchern, entspannt ihre Wahl zu treffen."
+        },
+        {
+          "title": "Ein Shop, der mit Ihnen wächst",
+          "text": "Ihre Entdeckungen und Rückmeldungen inspirieren die nächsten MAZIGHO-Auswahlen."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "Das Detail, das den Unterschied macht.",
+      "title": "Ausgewählte Dinge für die kleinen Momente, die zählen."
+    },
+    "featured": {
+      "eyebrow": "Aktuelle Auswahl",
+      "title": "Top-Produkte",
+      "text": "Artikel, deren Lieferung für {country} bestätigt ist.",
+      "catalogue": "Gesamter Katalog",
+      "unavailable": "Für {country} ist noch kein Produkt zur Lieferung bestätigt. Die Auswahl wird angezeigt, sobald ein Angebot des Lieferanten bestätigt wurde.",
+      "new": "Neu"
+    },
+    "closing": {
+      "eyebrow": "Der Geist von MAZIGHO",
+      "title": "Nützliche Fundstücke mit einem persönlicheren Erlebnis.",
+      "text": "Wir präsentieren Produkte, die den Alltag vereinfachen, in einem klaren, einladenden Shop, der jede Entscheidung begleitet.",
+      "shopCta": "Shop entdecken",
+      "contactCta": "Kontaktieren Sie uns",
+      "chfText": "Ein lokaler Shop in seiner Ansprache, offen für die besten Entdeckungen."
+    },
+    "footer": {
+      "description": "Ihre Adresse für Premiumprodukte von außergewöhnlicher Qualität.",
+      "navigation": "Navigation",
+      "about": "Über uns",
+      "categories": "Kategorien",
+      "categoryLabels": [
+        "Hightech & Gadgets",
+        "Wohnen & Organisation",
+        "Beauty & Wohlbefinden",
+        "Sport & Fitness",
+        "Mode"
+      ],
+      "help": "Brauchen Sie Hilfe?",
+      "contactForm": "Schreiben Sie uns über das Kontaktformular",
+      "contactInfo": "Ihre Nachricht wird direkt an das MAZIGHO-Team weitergeleitet.",
+      "deliveryTitle": "Lieferung Schweiz & Europa",
+      "deliveryText": "Die Bedingungen werden vor Bestätigung angegeben.",
+      "secureTitle": "Sichere Verbindung",
+      "secureText": "Ihre Verbindung ist durch HTTPS geschützt.",
+      "serviceTitle": "Kundendienst",
+      "serviceText": "Fragen? Nutzen Sie unser Formular.",
+      "rights": "Alle Rechte vorbehalten.",
+      "terms": "Allgemeine Geschäftsbedingungen",
+      "returns": "Versand & Rückgabe",
+      "privacy": "Datenschutzrichtlinie",
+      "legal": "Rechtliche Hinweise"
+    }
+  },
+  "it": {
+    "hero": {
+      "eyebrow": "MAZIGHO · selezione del momento",
+      "secondaryCta": "Vedi i best-seller",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Semplifica la tua quotidianità con stile",
+          "primaryCta": "Ordina ora"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "Le ultime tendenze della stagione",
+          "primaryCta": "Vedi la collezione"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Prenditi cura di te con i nostri prodotti premium",
+          "primaryCta": "Scopri"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "Ispirazione MAZIGHO",
+      "title": "Scoperte che abbelliscono il quotidiano.",
+      "text": "Moda, benessere, casa e accessori: una selezione pensata per ogni momento."
+    },
+    "reassurance": [
+      {
+        "title": "Una selezione che ha senso",
+        "text": "Scoperte utili per la vita di tutti i giorni."
+      },
+      {
+        "title": "Prezzi esposti in CHF",
+        "text": "Un'esperienza pensata per la Svizzera."
+      },
+      {
+        "title": "Un percorso semplice",
+        "text": "Dal prodotto al carrello in pochi click."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "Esplora MAZIGHO",
+      "title": "Scopri i nostri universi",
+      "text": "Sei categorie visive per passare direttamente dall'ispirazione alla selezione che ti rappresenta.",
+      "allShop": "Vedi l'intero shop",
+      "browseShop": "Sfoglia tutto il negozio",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "I dettagli che accompagnano il tuo stile ogni giorno."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Momenti di cura e comfort da concedersi."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Oggetti semplici che facilitano i piccoli momenti."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "Per muoversi, respirare e godere di più."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Accessori pensati per restare connessi senza sforzo."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Gli indispensabili per i tuoi spostamenti e le tue fughe."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "La nostra ispirazione",
+      "title": "La storia ispiratrice di MAZIGHO.",
+      "text": "MAZIGHO nasce da un'idea semplice: rendere le buone scoperte più accessibili. Amiamo gli oggetti utili, i piccoli piaceri e i dettagli che rendono la giornata più dolce.",
+      "followup": "La nostra selezione evolve con i desideri della stagione, tra moda, benessere, casa e accessori, per lasciarti esplorare liberamente ciò che ti rappresenta.",
+      "points": [
+        "Scegliere con attenzione",
+        "Semplificare la ricerca",
+        "Ispirare il quotidiano"
+      ],
+      "cta": "Scopri l'universo MAZIGHO",
+      "visualEyebrow": "Lo spirito MAZIGHO",
+      "visualTitle": "Scoperte per accompagnare i momenti che contano.",
+      "promiseEyebrow": "La nostra promessa",
+      "promise": "Ispirazione, semplicemente."
+    },
+    "testimonials": {
+      "eyebrow": "La parola ai nostri clienti",
+      "title": "I tuoi feedback fanno crescere MAZIGHO.",
+      "text": "Le recensioni approvate saranno presentate qui per condividere le esperienze reali della nostra community.",
+      "cta": "Scopri la selezione",
+      "items": [
+        {
+          "title": "La tua esperienza conta",
+          "text": "Le prime recensioni autentiche dei nostri clienti saranno messe in evidenza qui dopo la convalida."
+        },
+        {
+          "title": "Feedback in tutta fiducia",
+          "text": "Ogni testimonianza pubblicata aiuta gli altri visitatori a scegliere con serenità."
+        },
+        {
+          "title": "Un negozio che cresce con te",
+          "text": "Le tue scoperte e i tuoi feedback ispirano le prossime selezioni MAZIGHO."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "Il dettaglio che fa la differenza.",
+      "title": "Oggetti scelti per i piccoli momenti che contano."
+    },
+    "featured": {
+      "eyebrow": "La selezione del momento",
+      "title": "Prodotti principali",
+      "text": "Articoli la cui consegna è confermata per {country}.",
+      "catalogue": "Tutto il catalogo",
+      "unavailable": "Nessun prodotto è ancora confermato per la consegna verso {country}. La selezione sarà mostrata non appena un'offerta del fornitore sarà validata.",
+      "new": "Nuovo"
+    },
+    "closing": {
+      "eyebrow": "Lo spirito MAZIGHO",
+      "title": "Scoperte utili, con un'esperienza più umana.",
+      "text": "Mettiamo in evidenza prodotti che semplificano il quotidiano, in un negozio chiaro, accogliente e pensato per accompagnare ogni decisione.",
+      "shopCta": "Scopri il negozio",
+      "contactCta": "Contattaci",
+      "chfText": "Un negozio locale nel suo modo di comunicare, aperto alle migliori scoperte."
+    },
+    "footer": {
+      "description": "La tua destinazione per prodotti premium di qualità eccezionale.",
+      "navigation": "Navigazione",
+      "about": "Chi siamo",
+      "categories": "Categorie",
+      "categoryLabels": [
+        "High-tech & gadget",
+        "Casa & organizzazione",
+        "Bellezza & benessere",
+        "Sport & fitness",
+        "Moda"
+      ],
+      "help": "Hai bisogno di aiuto?",
+      "contactForm": "Scrivici tramite il modulo di contatto",
+      "contactInfo": "Il tuo messaggio viene inoltrato direttamente al team MAZIGHO.",
+      "deliveryTitle": "Consegna Svizzera & Europa",
+      "deliveryText": "Le condizioni sono specificate prima della conferma.",
+      "secureTitle": "Connessione sicura",
+      "secureText": "La tua navigazione è protetta da HTTPS.",
+      "serviceTitle": "Servizio clienti",
+      "serviceText": "Una domanda? Usa il nostro modulo.",
+      "rights": "Tutti i diritti riservati.",
+      "terms": "Termini e condizioni",
+      "returns": "Consegna e resi",
+      "privacy": "Informativa sulla privacy",
+      "legal": "Note legali"
+    }
+  },
+  "en": {
+    "hero": {
+      "eyebrow": "MAZIGHO · selection of the moment",
+      "secondaryCta": "See best-sellers",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Make everyday life easier with style",
+          "primaryCta": "Order now"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "The latest trends of the season",
+          "primaryCta": "View the collection"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Take care of yourself with our premium products",
+          "primaryCta": "Discover"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "MAZIGHO inspiration",
+      "title": "Finds that brighten everyday life.",
+      "text": "Fashion, wellness, home and accessories: a selection designed for every moment."
+    },
+    "reassurance": [
+      {
+        "title": "A meaningful selection",
+        "text": "Useful finds for everyday life."
+      },
+      {
+        "title": "Prices shown in CHF",
+        "text": "An experience designed for Switzerland."
+      },
+      {
+        "title": "A simple journey",
+        "text": "From product to cart in a few clicks."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "Explore MAZIGHO",
+      "title": "Discover our worlds",
+      "text": "Six visual categories to go straight from inspiration to the selection that suits you.",
+      "allShop": "View the whole shop",
+      "browseShop": "Browse the entire shop",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "Details that accompany your style every day."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Moments of care and comfort to treat yourself to."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Simple objects that make small moments easier."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "To move, breathe and enjoy more."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Accessories designed to stay connected with no effort."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Essentials for your journeys and getaways."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "Our inspiration",
+      "title": "The inspiring story of MAZIGHO.",
+      "text": "MAZIGHO was born from a simple idea: to make great discoveries more accessible. We love useful objects, small pleasures and the details that make a day a little gentler.",
+      "followup": "Our selection evolves with seasonal desires, between fashion, wellness, home and accessories, so you can freely explore what suits you.",
+      "points": [
+        "Choose with care",
+        "Simplify the search",
+        "Inspire everyday life"
+      ],
+      "cta": "Discover the MAZIGHO universe",
+      "visualEyebrow": "The MAZIGHO spirit",
+      "visualTitle": "Finds to accompany the moments that matter.",
+      "promiseEyebrow": "Our promise",
+      "promise": "Inspiration, simply."
+    },
+    "testimonials": {
+      "eyebrow": "Hear from our customers",
+      "title": "Your feedback helps MAZIGHO grow.",
+      "text": "Approved reviews will be shown here to share real experiences from our community.",
+      "cta": "Discover the selection",
+      "items": [
+        {
+          "title": "Your experience matters",
+          "text": "The first authentic reviews from our customers will be featured here after validation."
+        },
+        {
+          "title": "Trusted feedback",
+          "text": "Each published testimonial helps other visitors choose with confidence."
+        },
+        {
+          "title": "A shop that grows with you",
+          "text": "Your discoveries and feedback inspire the next MAZIGHO selections."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "The detail that makes the difference.",
+      "title": "Objects chosen for the small moments that matter."
+    },
+    "featured": {
+      "eyebrow": "Selection of the moment",
+      "title": "Featured products",
+      "text": "Items whose delivery is confirmed for {country}.",
+      "catalogue": "Full catalogue",
+      "unavailable": "No product has yet been confirmed for delivery to {country}. The selection will be displayed as soon as a supplier quote has been validated.",
+      "new": "New"
+    },
+    "closing": {
+      "eyebrow": "The MAZIGHO spirit",
+      "title": "Useful finds, with a more human experience.",
+      "text": "We highlight products that simplify everyday life, in a clear, warm shop designed to support every decision.",
+      "shopCta": "Discover the shop",
+      "contactCta": "Contact us",
+      "chfText": "A local shop in its tone of voice, open to the best finds."
+    },
+    "footer": {
+      "description": "Your destination for premium products of exceptional quality.",
+      "navigation": "Navigation",
+      "about": "About",
+      "categories": "Categories",
+      "categoryLabels": [
+        "High-tech & gadgets",
+        "Home & organisation",
+        "Beauty & wellness",
+        "Sport & fitness",
+        "Fashion"
+      ],
+      "help": "Need help?",
+      "contactForm": "Write to us via the contact form",
+      "contactInfo": "Your message is forwarded directly to the MAZIGHO team.",
+      "deliveryTitle": "Switzerland & Europe delivery",
+      "deliveryText": "Conditions are specified before confirmation.",
+      "secureTitle": "Secure connection",
+      "secureText": "Your browsing is protected by HTTPS.",
+      "serviceTitle": "Customer service",
+      "serviceText": "A question? Use our form.",
+      "rights": "All rights reserved.",
+      "terms": "Terms & conditions",
+      "returns": "Delivery & returns",
+      "privacy": "Privacy policy",
+      "legal": "Legal notice"
+    }
+  },
+  "es": {
+    "hero": {
+      "eyebrow": "MAZIGHO · selección del momento",
+      "secondaryCta": "Ver los más vendidos",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Simplifica tu día a día con estilo",
+          "primaryCta": "Pedir ahora"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "Las últimas tendencias de la temporada",
+          "primaryCta": "Ver la colección"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Cuídate con nuestros productos premium",
+          "primaryCta": "Descubrir"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "La inspiración MAZIGHO",
+      "title": "Hallazgos que embellecen lo cotidiano.",
+      "text": "Moda, bienestar, hogar y accesorios: una selección pensada para cada momento."
+    },
+    "reassurance": [
+      {
+        "title": "Una selección con sentido",
+        "text": "Hallazgos útiles para el día a día."
+      },
+      {
+        "title": "Precios mostrados en CHF",
+        "text": "Una experiencia pensada para Suiza."
+      },
+      {
+        "title": "Un recorrido sencillo",
+        "text": "Del producto al carrito en unos pocos clics."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "Explorar MAZIGHO",
+      "title": "Descubre nuestros universos",
+      "text": "Seis categorías visuales para pasar directamente de la inspiración a la selección que te representa.",
+      "allShop": "Ver toda la tienda",
+      "browseShop": "Recorrer toda la tienda",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "Los detalles que acompañan tu estilo a diario."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Instantes de cuidado y confort para regalarte."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Objetos simples que facilitan los pequeños momentos."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "Para moverte, respirar y disfrutar más."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Accesorios pensados para mantenerte conectado sin esfuerzo."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Imprescindibles para tus trayectos y escapadas."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "Nuestra inspiración",
+      "title": "La inspiradora historia de MAZIGHO.",
+      "text": "MAZIGHO nació de una idea simple: hacer que los buenos descubrimientos sean más accesibles. Nos gustan los objetos útiles, los pequeños placeres y los detalles que hacen el día más amable.",
+      "followup": "Nuestra selección evoluciona con los deseos de la temporada, entre moda, bienestar, hogar y accesorios, para permitirte explorar libremente lo que te representa.",
+      "points": [
+        "Elegir con atención",
+        "Simplificar la búsqueda",
+        "Inspirar lo cotidiano"
+      ],
+      "cta": "Descubrir el universo MAZIGHO",
+      "visualEyebrow": "El espíritu MAZIGHO",
+      "visualTitle": "Hallazgos para acompañar los momentos que importan.",
+      "promiseEyebrow": "Nuestra promesa",
+      "promise": "Inspiración, simplemente."
+    },
+    "testimonials": {
+      "eyebrow": "La palabra a nuestros clientes",
+      "title": "Tus comentarios hacen crecer a MAZIGHO.",
+      "text": "Las reseñas aprobadas se presentarán aquí para compartir las experiencias reales de nuestra comunidad.",
+      "cta": "Descubrir la selección",
+      "items": [
+        {
+          "title": "Tu experiencia cuenta",
+          "text": "Las primeras reseñas auténticas de nuestros clientes se destacarán aquí tras su validación."
+        },
+        {
+          "title": "Comentarios con confianza",
+          "text": "Cada testimonio publicado ayuda a otros visitantes a decidir con tranquilidad."
+        },
+        {
+          "title": "Una tienda que crece contigo",
+          "text": "Tus descubrimientos y comentarios inspiran las próximas selecciones de MAZIGHO."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "El detalle que marca la diferencia.",
+      "title": "Objetos elegidos para los pequeños momentos que importan."
+    },
+    "featured": {
+      "eyebrow": "La selección del momento",
+      "title": "Productos destacados",
+      "text": "Los artículos cuya entrega está confirmada para {country}.",
+      "catalogue": "Todo el catálogo",
+      "unavailable": "Ningún producto ha sido aún confirmado para la entrega a {country}. La selección se mostrará tan pronto como se valide una cotización del proveedor.",
+      "new": "Nuevo"
+    },
+    "closing": {
+      "eyebrow": "El espíritu MAZIGHO",
+      "title": "Hallazgos útiles, con una experiencia más humana.",
+      "text": "Destacamos productos que simplifican lo cotidiano, en una tienda clara, cálida y pensada para acompañar cada decisión.",
+      "shopCta": "Descubrir la tienda",
+      "contactCta": "Contáctanos",
+      "chfText": "Una tienda local en su forma de expresarse, abierta a los mejores hallazgos."
+    },
+    "footer": {
+      "description": "Tu destino para productos premium de calidad excepcional.",
+      "navigation": "Navegación",
+      "about": "Acerca de",
+      "categories": "Categorías",
+      "categoryLabels": [
+        "High-tech & gadgets",
+        "Hogar & organización",
+        "Belleza & bienestar",
+        "Deporte & fitness",
+        "Moda"
+      ],
+      "help": "¿Necesitas ayuda?",
+      "contactForm": "Escríbenos mediante el formulario de contacto",
+      "contactInfo": "Tu mensaje se envía directamente al equipo MAZIGHO.",
+      "deliveryTitle": "Entrega Suiza & Europa",
+      "deliveryText": "Las condiciones se especifican antes de la confirmación.",
+      "secureTitle": "Conexión segura",
+      "secureText": "Tu navegación está protegida por HTTPS.",
+      "serviceTitle": "Atención al cliente",
+      "serviceText": "¿Una pregunta? Usa nuestro formulario.",
+      "rights": "Todos los derechos reservados.",
+      "terms": "Términos y condiciones",
+      "returns": "Entrega y devoluciones",
+      "privacy": "Política de privacidad",
+      "legal": "Aviso legal"
+    }
+  },
+  "nl": {
+    "hero": {
+      "eyebrow": "MAZIGHO · selectie van het moment",
+      "secondaryCta": "Bekijk bestsellers",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "Vereenvoudig je dagelijks leven met stijl",
+          "primaryCta": "Nu bestellen"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "De nieuwste trends van het seizoen",
+          "primaryCta": "Bekijk de collectie"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "Zorg voor jezelf met onze premiumproducten",
+          "primaryCta": "Ontdekken"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "MAZIGHO-inspiratie",
+      "title": "Vondsten die het dagelijks leven mooier maken.",
+      "text": "Mode, welzijn, wonen en accessoires: een selectie voor elk moment."
+    },
+    "reassurance": [
+      {
+        "title": "Een doordachte selectie",
+        "text": "Nuttige vondsten voor het dagelijks leven."
+      },
+      {
+        "title": "Prijzen weergegeven in CHF",
+        "text": "Een ervaring ontworpen voor Zwitserland."
+      },
+      {
+        "title": "Een eenvoudig proces",
+        "text": "Van product naar winkelwagen in een paar klikken."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "Ontdek MAZIGHO",
+      "title": "Ontdek onze werelden",
+      "text": "Zes visuele categorieën om rechtstreeks van inspiratie naar de selectie te gaan die bij je past.",
+      "allShop": "Bekijk de hele shop",
+      "browseShop": "Blader door de hele shop",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "Details die je stijl dagelijks begeleiden."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "Momenten van verzorging en comfort om jezelf te gunnen."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "Eenvoudige objecten die de kleine momenten vergemakkelijken."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "Om te bewegen, adem te halen en meer te genieten."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "Accessoires ontworpen om moeiteloos verbonden te blijven."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "Essentials voor je reizen en uitstapjes."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "Onze inspiratie",
+      "title": "Het inspirerende verhaal van MAZIGHO.",
+      "text": "MAZIGHO is ontstaan uit een eenvoudig idee: goede ontdekkingen toegankelijker maken. We houden van nuttige objecten, kleine genoegens en details die de dag zachter maken.",
+      "followup": "Onze selectie evolueert met de seizoenswensen, tussen mode, welzijn, wonen en accessoires, zodat je vrij kunt ontdekken wat bij je past.",
+      "points": [
+        "Bewust kiezen",
+        "Zoekopdracht vereenvoudigen",
+        "Het dagelijks leven inspireren"
+      ],
+      "cta": "Ontdek het MAZIGHO-universum",
+      "visualEyebrow": "De geest van MAZIGHO",
+      "visualTitle": "Vondsten om de momenten die ertoe doen te begeleiden.",
+      "promiseEyebrow": "Onze belofte",
+      "promise": "Inspiratie, gewoon."
+    },
+    "testimonials": {
+      "eyebrow": "Onze klanten aan het woord",
+      "title": "Jouw feedback laat MAZIGHO groeien.",
+      "text": "Goedgekeurde beoordelingen worden hier getoond om echte ervaringen van onze community te delen.",
+      "cta": "Ontdek de selectie",
+      "items": [
+        {
+          "title": "Jouw ervaring telt",
+          "text": "De eerste authentieke beoordelingen van onze klanten worden hier na validatie uitgelicht."
+        },
+        {
+          "title": "Feedback met vertrouwen",
+          "text": "Elke gepubliceerde getuigenis helpt andere bezoekers om met vertrouwen te kiezen."
+        },
+        {
+          "title": "Een winkel die met je meegroeit",
+          "text": "Jouw ontdekkingen en feedback inspireren de volgende MAZIGHO-selecties."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "Het detail dat het verschil maakt.",
+      "title": "Objecten geselecteerd voor de kleine momenten die ertoe doen."
+    },
+    "featured": {
+      "eyebrow": "De selectie van het moment",
+      "title": "Aanbevolen producten",
+      "text": "Artikelen waarvan de levering is bevestigd voor {country}.",
+      "catalogue": "Volledige catalogus",
+      "unavailable": "Voor {country} is nog geen product bevestigd voor levering. De selectie wordt weergegeven zodra een offerte van de leverancier is gevalideerd.",
+      "new": "Nieuw"
+    },
+    "closing": {
+      "eyebrow": "De geest van MAZIGHO",
+      "title": "Nuttige vondsten, met een menselijkere ervaring.",
+      "text": "We benadrukken producten die het dagelijks leven vereenvoudigen, in een duidelijke, warme shop die elke beslissing begeleidt.",
+      "shopCta": "Ontdek de winkel",
+      "contactCta": "Neem contact op",
+      "chfText": "Een lokale winkel in zijn manier van spreken, open voor de beste vondsten."
+    },
+    "footer": {
+      "description": "Jouw bestemming voor premiumproducten van uitzonderlijke kwaliteit.",
+      "navigation": "Navigatie",
+      "about": "Over",
+      "categories": "Categorieën",
+      "categoryLabels": [
+        "High-tech & gadgets",
+        "Wonen & organisatie",
+        "Beauty & wellness",
+        "Sport & fitness",
+        "Mode"
+      ],
+      "help": "Hulp nodig?",
+      "contactForm": "Schrijf ons via het contactformulier",
+      "contactInfo": "Je bericht wordt rechtstreeks naar het MAZIGHO-team verzonden.",
+      "deliveryTitle": "Levering Zwitserland & Europa",
+      "deliveryText": "De voorwaarden worden vóór bevestiging gespecificeerd.",
+      "secureTitle": "Veilige verbinding",
+      "secureText": "Je browse-ervaring is beschermd door HTTPS.",
+      "serviceTitle": "Klantenservice",
+      "serviceText": "Een vraag? Gebruik ons formulier.",
+      "rights": "Alle rechten voorbehouden.",
+      "terms": "Algemene voorwaarden",
+      "returns": "Verzending & retour",
+      "privacy": "Privacybeleid",
+      "legal": "Juridische informatie"
+    }
+  },
+  "ar": {
+    "hero": {
+      "eyebrow": "MAZIGHO · اختيار اللحظة",
+      "secondaryCta": "عرض الأكثر مبيعًا",
+      "banners": {
+        "Découvrez nos Meilleures Offres": {
+          "subtitle": "بسط روتينك اليومي بأناقة",
+          "primaryCta": "اطلب الآن"
+        },
+        "Mode & Accessoires": {
+          "subtitle": "أحدث صيحات الموسم",
+          "primaryCta": "عرض المجموعة"
+        },
+        "Beauté & Bien-Être": {
+          "subtitle": "اعتنِ بنفسك بمنتجاتنا المتميزة",
+          "primaryCta": "اكتشف"
+        }
+      }
+    },
+    "highlight": {
+      "eyebrow": "إلهام MAZIGHO",
+      "title": "اكتشافات تضفي جمالًا على الحياة اليومية.",
+      "text": "الموضة والرفاهية والمنزل والإكسسوارات: مجموعة مُختارة لكل لحظة."
+    },
+    "reassurance": [
+      {
+        "title": "اختيار ذو مغزى",
+        "text": "اكتشافات مفيدة للحياة اليومية."
+      },
+      {
+        "title": "الأسعار معروضة بالـ CHF",
+        "text": "تجربة مُصممة لسويسرا."
+      },
+      {
+        "title": "مسار بسيط",
+        "text": "من المنتج إلى السلة ببضع نقرات."
+      }
+    ],
+    "discovery": {
+      "eyebrow": "استكشف MAZIGHO",
+      "title": "اكتشف عوالمنا",
+      "text": "ست فئات بصرية للانتقال مباشرة من الإلهام إلى الاختيار الذي يناسبك.",
+      "allShop": "عرض المتجر بالكامل",
+      "browseShop": "تصفح المتجر بأكمله",
+      "tiles": [
+        {
+          "title": "Mode & accessoires",
+          "description": "التفاصيل التي تصاحب أسلوبك يوميًا."
+        },
+        {
+          "title": "Beauté & bien-être",
+          "description": "لحظات عناية وراحة تستحقها."
+        },
+        {
+          "title": "Maison & cuisine",
+          "description": "أغراض بسيطة تُسهِل اللحظات الصغيرة."
+        },
+        {
+          "title": "Sport & plein air",
+          "description": "للحركة والتنفس والاستمتاع أكثر."
+        },
+        {
+          "title": "High-tech utile",
+          "description": "إكسسوارات مصممة للبقاء متصلاً بسهولة."
+        },
+        {
+          "title": "Mobilité & auto",
+          "description": "الأساسيات لرحلاتك ونزهاتك."
+        }
+      ]
+    },
+    "story": {
+      "eyebrow": "إلهامنا",
+      "title": "القصة الملهمة لـ MAZIGHO.",
+      "text": "نشأت MAZIGHO من فكرة بسيطة: جعل الاكتشافات الجيدة أكثر سهولة. نحب الأشياء المفيدة، والملذات الصغيرة، والتفاصيل التي تضفي لمسة لطيفة على اليوم.",
+      "followup": "تتطور مجموعتنا مع رغبات الموسم، بين الموضة والرفاهية والمنزل والإكسسوارات، لتتيح لك استكشاف ما يناسبك بحرية.",
+      "points": [
+        "الاختيار بعناية",
+        "تبسيط البحث",
+        "إلهام الحياة اليومية"
+      ],
+      "cta": "اكتشف عالم MAZIGHO",
+      "visualEyebrow": "روح MAZIGHO",
+      "visualTitle": "اكتشافات ترافق اللحظات التي تهم.",
+      "promiseEyebrow": "وعدنا",
+      "promise": "إلهام، ببساطة."
+    },
+    "testimonials": {
+      "eyebrow": "كلمة عملائنا",
+      "title": "تعليقاتكم تُنمّي MAZIGHO.",
+      "text": "سيتم عرض التقييمات المعتمدة هنا لمشاركة تجارب حقيقية من مجتمعنا.",
+      "cta": "اكتشف الاختيار",
+      "items": [
+        {
+          "title": "تجربتك مهمة",
+          "text": "سيتم إبراز أول التعليقات الحقيقية من عملائنا هنا بعد التحقق."
+        },
+        {
+          "title": "تعليقات بثقة",
+          "text": "كل شهادة منشورة تساعد الزوار الآخرين على اتخاذ قرارهم بثقة."
+        },
+        {
+          "title": "متجر ينمو معكم",
+          "text": "اكتشافاتكم وتعليقاتكم تُلهم مختارات MAZIGHO القادمة."
+        }
+      ]
+    },
+    "editorial": {
+      "eyebrow": "التفاصيل التي تحدث الفرق.",
+      "title": "أغراض مختارة للحظات الصغيرة التي تهم."
+    },
+    "featured": {
+      "eyebrow": "مختارات اللحظة",
+      "title": "المنتجات المميزة",
+      "text": "العناصر التي تم تأكيد توصيلها إلى {country}.",
+      "catalogue": "كامل الكتالوج",
+      "unavailable": "لم يؤكد أي منتج بعد للتوصيل إلى {country}. سيتم عرض الاختيارات بمجرد اعتماد عرض من المورد.",
+      "new": "جديد"
+    },
+    "closing": {
+      "eyebrow": "روح MAZIGHO",
+      "title": "اكتشافات مفيدة، بتجربة أكثر إنسانية.",
+      "text": "نبرز منتجات تُبسّط الحياة اليومية، في متجر واضح ودافئ ومصمم لدعم كل قرار.",
+      "shopCta": "اكتشف المتجر",
+      "contactCta": "اتصل بنا",
+      "chfText": "متجر محلي في طريقة تعبيره، منفتح على أفضل الاكتشافات."
+    },
+    "footer": {
+      "description": "وجهتك للمنتجات المميزة ذات الجودة الاستثنائية.",
+      "navigation": "التنقل",
+      "about": "نبذة عنا",
+      "categories": "الفئات",
+      "categoryLabels": [
+        "High-tech & gadgets",
+        "المنزل والتنظيم",
+        "الجمال والرفاهية",
+        "الرياضة واللياقة",
+        "الموضة"
+      ],
+      "help": "هل تحتاج مساعدة؟",
+      "contactForm": "راسلنا عبر نموذج الاتصال",
+      "contactInfo": "يتم إرسال رسالتك مباشرة إلى فريق MAZIGHO.",
+      "deliveryTitle": "التوصيل إلى سويسرا وأوروبا",
+      "deliveryText": "يتم توضيح الشروط قبل التأكيد.",
+      "secureTitle": "اتصال آمن",
+      "secureText": "تصفحك محمي بواسطة HTTPS.",
+      "serviceTitle": "خدمة العملاء",
+      "serviceText": "سؤال؟ استخدم نموذجنا.",
+      "rights": "جميع الحقوق محفوظة.",
+      "terms": "الشروط العامة",
+      "returns": "التوصيل والإرجاع",
+      "privacy": "سياسة الخصوصية",
+      "legal": "ملاحظات قانونية"
+    }
+  }
+}
