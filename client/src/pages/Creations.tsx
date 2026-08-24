@@ -5,11 +5,13 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
 
 export default function Creations() {
   const categoriesQuery = trpc.categories.getAll.useQuery();
-  const productsQuery = trpc.products.getAll.useQuery();
+  const { locale } = useLocale();
+  const productsQuery = trpc.products.getAll.useQuery(locale);
   const { countryCode, countryLabel } = useDeliveryCountry();
 
   const creativeCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "creations");

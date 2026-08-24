@@ -90,6 +90,25 @@ export const productImages = mysqlTable("productImages", {
 export type ProductImage = typeof productImages.$inferSelect;
 export type InsertProductImage = typeof productImages.$inferInsert;
 
+// Customer-facing product translations. The French product record remains the administrator's source of truth.
+export const productTranslations = mysqlTable("productTranslations", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  locale: varchar("locale", { length: 10 }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  longDescription: text("longDescription"),
+  options: text("options"),
+  status: mysqlEnum("status", ["ready", "stale"]).default("ready").notNull(),
+  machineGenerated: int("machineGenerated").default(1).notNull(),
+  sourceUpdatedAt: timestamp("sourceUpdatedAt").defaultNow().notNull(),
+  translatedAt: timestamp("translatedAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ProductTranslation = typeof productTranslations.$inferSelect;
+export type InsertProductTranslation = typeof productTranslations.$inferInsert;
+
 // Verified delivery profiles. One profile stores the supplier quote and the customer-facing charge for a product/variant/country.
 export const productDeliveryProfiles = mysqlTable("productDeliveryProfiles", {
   id: int("id").autoincrement().primaryKey(),

@@ -10,9 +10,11 @@ import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function Promos() {
-  const productsQuery = trpc.products.getAll.useQuery();
+  const { locale } = useLocale();
+  const productsQuery = trpc.products.getAll.useQuery(locale);
   const { countryCode, countryLabel } = useDeliveryCountry();
   const products = (productsQuery.data || []).filter(product => product.originalPrice && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const { addToCart } = useCart();

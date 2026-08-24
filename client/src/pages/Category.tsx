@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/currency";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
 
 const categoryHeroImages: Record<string, string> = {
@@ -27,7 +28,8 @@ export default function Category() {
   const categoryQuery = trpc.categories.getBySlug.useQuery(slug);
   const category = categoryQuery.data;
   
-  const productsQuery = trpc.products.getByCategory.useQuery(category?.id || 0, {
+  const { locale } = useLocale();
+  const productsQuery = trpc.products.getByCategory.useQuery({ categoryId: category?.id || 0, locale }, {
     enabled: !!category?.id
   });
   const { countryCode, countryLabel } = useDeliveryCountry();

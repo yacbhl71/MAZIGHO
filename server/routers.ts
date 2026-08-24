@@ -4,6 +4,17 @@ import { shopRouter } from "./shopRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { authRouter } from "./authRouter";
 
+type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
+const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
+
+function parsePublicProductLocale(value: unknown): PublicProductLocale {
+  if (value === undefined || value === null) return "fr";
+  if (typeof value === "object" && value !== null && "locale" in value && typeof value.locale === "string" && publicProductLocales.includes(value.locale as PublicProductLocale)) {
+    return value.locale as PublicProductLocale;
+  }
+  throw new Error("Locale produit invalide");
+}
+
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -50,61 +61,80 @@ export const appRouter = router({
     }),
   }),
 
-  // Products
+  // Products. A non-French storefront only receives products whose current translation is ready.
   products: router({
-    getAll: publicProcedure.query(async () => {
-      const { getAllProducts, getProductImages, getProductReviews, getAverageRating } = await import("./db");
+    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+      const { getAllProducts, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
       const prods = await getAllProducts();
-      return await Promise.all(prods.map(async (p) => ({
-        ...p,
-        images: await getProductImages(p.id),
-        reviews: await getProductReviews(p.id),
-        averageRating: await getAverageRating(p.id),
+      const localized = await Promise.all(prods.map(async product => {
+        if (locale === "fr") return product;
+        const translation = await getReadyProductTranslation(product.id, locale);
+        return translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : null;
+      }));
+      return await Promise.all(localized.filter((product): product is NonNullable<typeof product> => Boolean(product)).map(async (product) => ({
+        ...product,
+        images: await getProductImages(product.id),
+        reviews: await getProductReviews(product.id),
+        averageRating: await getAverageRating(product.id),
       })));
     }),
-    getFeatured: publicProcedure.query(async () => {
-      const { getFeaturedProducts, getProductImages, getProductReviews, getAverageRating } = await import("./db");
+    getFeatured: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+      const { getFeaturedProducts, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
       const prods = await getFeaturedProducts(8);
-      return await Promise.all(prods.map(async (p) => ({
-        ...p,
-        images: await getProductImages(p.id),
-        reviews: await getProductReviews(p.id),
-        averageRating: await getAverageRating(p.id),
+      const localized = await Promise.all(prods.map(async product => {
+        if (locale === "fr") return product;
+        const translation = await getReadyProductTranslation(product.id, locale);
+        return translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : null;
+      }));
+      return await Promise.all(localized.filter((product): product is NonNullable<typeof product> => Boolean(product)).map(async (product) => ({
+        ...product,
+        images: await getProductImages(product.id),
+        reviews: await getProductReviews(product.id),
+        averageRating: await getAverageRating(product.id),
       })));
     }),
     getByCategory: publicProcedure.input((val: unknown) => {
-      if (typeof val === "number") return val;
+      if (typeof val === "object" && val !== null && "categoryId" in val && typeof val.categoryId === "number") {
+        return { categoryId: val.categoryId, locale: parsePublicProductLocale(val) };
+      }
+      // Compatible avec les appels français existants pendant le raccordement du contexte langue.
+      if (typeof val === "number") return { categoryId: val, locale: "fr" as const };
       throw new Error("Invalid category ID");
     }).query(async ({ input }) => {
-      const { getProductsByCategory, getProductImages, getProductReviews, getAverageRating } = await import("./db");
-      const prods = await getProductsByCategory(input);
-      return await Promise.all(prods.map(async (p) => ({
-        ...p,
-        images: await getProductImages(p.id),
-        reviews: await getProductReviews(p.id),
-        averageRating: await getAverageRating(p.id),
+      const { getProductsByCategory, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
+      const prods = await getProductsByCategory(input.categoryId);
+      const localized = await Promise.all(prods.map(async product => {
+        if (input.locale === "fr") return product;
+        const translation = await getReadyProductTranslation(product.id, input.locale);
+        return translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : null;
+      }));
+      return await Promise.all(localized.filter((product): product is NonNullable<typeof product> => Boolean(product)).map(async (product) => ({
+        ...product,
+        images: await getProductImages(product.id),
+        reviews: await getProductReviews(product.id),
+        averageRating: await getAverageRating(product.id),
       })));
     }),
     getBySlug: publicProcedure.input((val: unknown) => {
-      if (typeof val === "string") return val;
+      if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
+        return { slug: val.slug, locale: parsePublicProductLocale(val) };
+      }
+      // Compatible avec les liens français existants pendant le raccordement du contexte langue.
+      if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
     }).query(async ({ input }) => {
-      const { getProductBySlug, getProductImages, getProductReviews, getAverageRating } = await import("./db");
-      const product = await getProductBySlug(input);
+      const { getProductBySlug, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
+      const product = await getProductBySlug(input.slug);
       if (!product) return null;
-      
+      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
+      if (input.locale !== "fr" && !translation) return null;
+      const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
         getProductImages(product.id),
         getProductReviews(product.id),
         getAverageRating(product.id),
       ]);
-      
-      return {
-        ...product,
-        images,
-        reviews,
-        averageRating,
-      };
+      return { ...localizedProduct, images, reviews, averageRating };
     }),
   }),
 

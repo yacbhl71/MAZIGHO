@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -49,12 +49,39 @@ export default function AdminProducts() {
   const [supplierUrl, setSupplierUrl] = useState("");
   const [supplierPrice, setSupplierPrice] = useState("");
 
+  // Customer-facing translations remain separate from the French source form above.
+  const [translationLocale, setTranslationLocale] = useState<"de" | "it" | "en" | "es" | "nl" | "ar">("de");
+  const [translationName, setTranslationName] = useState("");
+  const [translationDescription, setTranslationDescription] = useState("");
+  const [translationLongDescription, setTranslationLongDescription] = useState("");
+  const [translationOptions, setTranslationOptions] = useState("");
+
   const productsQuery = trpc.admin.products.getAll.useQuery();
   const products = productsQuery.data;
   const isLoading = productsQuery.isLoading;
   const error = productsQuery.error;
   const refetch = productsQuery.refetch;
   const { data: categories } = trpc.categories.getAll.useQuery();
+  const translationsQuery = trpc.admin.products.getTranslations.useQuery(editingProduct?.id || 1, {
+    enabled: Boolean(editingProduct?.id),
+  });
+  const translations = translationsQuery.data || [];
+
+  const translateProduct = trpc.admin.products.translate.useMutation({
+    onSuccess: () => {
+      toast.success("Traductions générées. Vous pouvez les vérifier et les corriger ci-dessous.");
+      translationsQuery.refetch();
+    },
+    onError: (error) => toast.error(`Traduction indisponible : ${error.message}`),
+  });
+
+  const saveTranslation = trpc.admin.products.saveTranslation.useMutation({
+    onSuccess: () => {
+      toast.success("Traduction enregistrée.");
+      translationsQuery.refetch();
+    },
+    onError: (error) => toast.error(`Impossible d’enregistrer : ${error.message}`),
+  });
 
   const createProduct = trpc.admin.products.create.useMutation({
     onSuccess: () => {
@@ -101,6 +128,11 @@ export default function AdminProducts() {
     setSupplier("");
     setSupplierUrl("");
     setSupplierPrice("");
+    setTranslationLocale("de");
+    setTranslationName("");
+    setTranslationDescription("");
+    setTranslationLongDescription("");
+    setTranslationOptions("");
     setEditingProduct(null);
   };
 
@@ -138,6 +170,14 @@ export default function AdminProducts() {
     
     setIsOpen(true);
   };
+
+  useEffect(() => {
+    const current = translations.find(translation => translation.locale === translationLocale);
+    setTranslationName(current?.name || "");
+    setTranslationDescription(current?.description || "");
+    setTranslationLongDescription(current?.longDescription || "");
+    setTranslationOptions(current?.options || "");
+  }, [translationLocale, translationsQuery.data]);
 
   // Automatic discount calculation
   useEffect(() => {
@@ -399,11 +439,12 @@ export default function AdminProducts() {
             </DialogHeader>
             
             <Tabs defaultValue="general" className="mt-6">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-6">
                 <TabsTrigger value="general">Général</TabsTrigger>
                 <TabsTrigger value="images">Images</TabsTrigger>
                 <TabsTrigger value="variants">Variantes</TabsTrigger>
                 <TabsTrigger value="details">Détails</TabsTrigger>
+                <TabsTrigger value="translations" className="bg-sky-50 text-sky-700"><Languages className="mr-1 h-3.5 w-3.5" />Traductions</TabsTrigger>
                 <TabsTrigger value="internal" className="bg-orange-50 text-orange-700">Fournisseur</TabsTrigger>
               </TabsList>
               
@@ -581,6 +622,31 @@ export default function AdminProducts() {
                   />
                   <p className="text-xs text-muted-foreground">Cette description apparaîtra en bas de la fiche produit pour donner plus d'informations aux clients.</p>
                 </div>
+              </TabsContent>
+
+              <TabsContent value="translations" className="space-y-4 py-4">
+                {!editingProduct ? (
+                  <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50 px-4 py-8 text-center text-sm text-sky-800">Enregistrez d’abord la fiche française. Vous pourrez ensuite générer et corriger les versions destinées aux clients.</div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div><h3 className="font-semibold text-sky-950">Source française, traductions contrôlées</h3><p className="mt-1 text-xs leading-5 text-sky-800">Le produit est saisi en français. Une génération est lancée uniquement par votre action ; une modification française rend les anciennes versions à régénérer.</p></div>
+                        <Button type="button" size="sm" className="shrink-0 bg-sky-700 hover:bg-sky-800" disabled={translateProduct.isPending} onClick={() => translateProduct.mutate({ productId: editingProduct.id, locales: ["de", "it", "en", "es", "nl", "ar"] })}>{translateProduct.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Languages className="mr-2 h-4 w-4" />}Générer toutes les langues</Button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">{(["de", "it", "en", "es", "nl", "ar"] as const).map(locale => { const translation = translations.find(item => item.locale === locale); return <button type="button" key={locale} onClick={() => setTranslationLocale(locale)} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${translation?.status === "ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : translation?.status === "stale" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-white text-slate-600"}`}>{locale.toUpperCase()} · {translation?.status === "ready" ? "prête" : translation?.status === "stale" ? "à régénérer" : "absente"}</button>; })}</div>
+                    </div>
+
+                    <div className="grid gap-4 rounded-lg border bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="grid gap-1"><Label htmlFor="translation-locale">Version client à éditer</Label><Select value={translationLocale} onValueChange={(value) => setTranslationLocale(value as typeof translationLocale)}><SelectTrigger id="translation-locale" className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="de">Deutsch (DE)</SelectItem><SelectItem value="it">Italiano (IT)</SelectItem><SelectItem value="en">English (EN)</SelectItem><SelectItem value="es">Español (ES)</SelectItem><SelectItem value="nl">Nederlands (NL)</SelectItem><SelectItem value="ar">العربية (AR)</SelectItem></SelectContent></Select></div><Button type="button" variant="outline" disabled={translateProduct.isPending} onClick={() => translateProduct.mutate({ productId: editingProduct.id, locales: [translationLocale] })}>{translateProduct.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Languages className="mr-2 h-4 w-4" />}Générer cette langue</Button></div>
+                      <div className="grid gap-2"><Label htmlFor="translation-name">Nom traduit</Label><Input id="translation-name" value={translationName} onChange={event => setTranslationName(event.target.value)} /></div>
+                      <div className="grid gap-2"><Label htmlFor="translation-description">Accroche traduite</Label><Textarea id="translation-description" value={translationDescription} onChange={event => setTranslationDescription(event.target.value)} rows={2} /></div>
+                      <div className="grid gap-2"><Label htmlFor="translation-long-description">Description détaillée traduite</Label><Textarea id="translation-long-description" value={translationLongDescription} onChange={event => setTranslationLongDescription(event.target.value)} rows={7} /></div>
+                      <details className="rounded border border-slate-200 px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-slate-700">Variantes traduites (JSON, facultatif)</summary><Textarea className="mt-3 font-mono text-xs" value={translationOptions} onChange={event => setTranslationOptions(event.target.value)} rows={5} /></details>
+                      <div className="flex justify-end"><Button type="button" className="bg-sky-700 hover:bg-sky-800" disabled={saveTranslation.isPending || translationName.trim().length === 0} onClick={() => saveTranslation.mutate({ productId: editingProduct.id, locale: translationLocale, name: translationName.trim(), description: translationDescription.trim() || null, longDescription: translationLongDescription.trim() || null, options: translationOptions.trim() || null })}>{saveTranslation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer cette correction</Button></div>
+                    </div>
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="internal" className="space-y-4 py-4 border-2 border-orange-100 rounded-lg p-4 bg-orange-50/30">

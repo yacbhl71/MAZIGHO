@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Search, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 
 interface SearchResult {
   id: number;
@@ -19,7 +20,8 @@ export default function SearchBar() {
   const [isOpen, setIsOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const productsQuery = trpc.products.getAll.useQuery();
+  const { locale } = useLocale();
+  const productsQuery = trpc.products.getAll.useQuery(locale);
   const categoriesQuery = trpc.categories.getAll.useQuery();
   const { countryCode } = useDeliveryCountry();
   

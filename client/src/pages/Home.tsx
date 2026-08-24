@@ -9,6 +9,7 @@ import HeroBanner from "@/components/HeroBanner";
 import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
@@ -35,8 +36,9 @@ const testimonialPlaceholders = [
 
 export default function Home() {
   const { profile, palette } = useDesignProfile();
-  const featuredProductsQuery = trpc.products.getFeatured.useQuery();
-  const catalogProductsQuery = trpc.products.getAll.useQuery();
+  const { locale } = useLocale();
+  const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
+  const catalogProductsQuery = trpc.products.getAll.useQuery(locale);
   const { countryCode, countryLabel } = useDeliveryCountry();
 
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));

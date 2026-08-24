@@ -95,6 +95,48 @@ export const adminRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllProductsAdmin();
     }),
+    getTranslations: adminProcedure.input(z.number().int().positive()).query(async ({ input }) => {
+      return await db.getProductTranslations(input);
+    }),
+    translate: adminProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
+    })).mutation(async ({ input }) => {
+      try {
+        const { translateProductFromFrench } = await import("./productTranslation");
+        return await translateProductFromFrench(input.productId, input.locales);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Erreur inconnue";
+        if (message.includes("Produit introuvable")) {
+          throw new TRPCError({ code: "NOT_FOUND", message });
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La génération de traduction est momentanément indisponible. Réessayez dans quelques instants." });
+      }
+    }),
+    saveTranslation: adminProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+      name: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(10000).nullable().optional(),
+      longDescription: z.string().trim().max(30000).nullable().optional(),
+      options: z.string().trim().max(30000).nullable().optional(),
+    })).mutation(async ({ input }) => {
+      try {
+        const { saveManualProductTranslation } = await import("./productTranslation");
+        return await saveManualProductTranslation({
+          ...input,
+          description: input.description ?? null,
+          longDescription: input.longDescription ?? null,
+          options: input.options ?? null,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Erreur inconnue";
+        if (message.includes("Produit introuvable")) {
+          throw new TRPCError({ code: "NOT_FOUND", message });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible d’enregistrer cette traduction. Vérifiez le contenu et réessayez." });
+      }
+    }),
     create: adminProcedure.input(z.object({
       categoryId: z.number(),
       name: z.string(),

@@ -210,10 +210,12 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
+const resolveApiBase = () =>
   ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+    ? ENV.forgeApiUrl.replace(/\/$/, "")
+    : "https://forge.manus.im";
+
+const resolveApiUrl = () => `${resolveApiBase()}/v1/chat/completions`;
 
 const assertApiKey = () => {
   if (!ENV.forgeApiKey) {
@@ -265,6 +267,24 @@ const normalizeResponseFormat = ({
     },
   };
 };
+
+export type LLMModel = {
+  id: string;
+  pricing?: Record<string, unknown>;
+  capabilities?: Record<string, unknown>;
+};
+
+export async function listLLMModels(): Promise<{ data: LLMModel[] }> {
+  assertApiKey();
+  const response = await fetch(`${resolveApiBase()}/v1/models`, {
+    headers: { authorization: `Bearer ${ENV.forgeApiKey}` },
+  });
+  if (!response.ok) {
+    throw new Error(`LLM model listing failed: ${response.status} ${response.statusText}`);
+  }
+  const body = await response.json() as { data?: LLMModel[] };
+  return { data: Array.isArray(body.data) ? body.data : [] };
+}
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();

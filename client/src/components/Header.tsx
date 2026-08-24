@@ -8,6 +8,8 @@ import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { deliveryCountries, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { localeOptions, useLocale } from "@/contexts/LocaleContext";
+import { t } from "@/lib/i18n";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -25,6 +27,7 @@ export default function Header() {
   const { user, isAuthenticated } = useAuth();
   const isAdmin = isAuthenticated && user?.role === "admin";
   const { countryCode, setCountryCode } = useDeliveryCountry();
+  const { locale, setLocale } = useLocale();
 
   const isActive = (path: string) => location === path;
 
@@ -33,11 +36,11 @@ export default function Header() {
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white">
         <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-1 text-xs font-medium md:text-sm">
-          <span>Une sélection pensée pour le quotidien</span>
+          <span>{t(locale, "topSelection")}</span>
           <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
-          <span>Livraison transparente selon la destination</span>
+          <span>{t(locale, "topDelivery")}</span>
           <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
-          <span>Coût et délai confirmés avant achat</span>
+          <span>{t(locale, "topQuote")}</span>
         </div>
       </div>
 
@@ -58,7 +61,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Accueil
+                {t(locale, "home")}
               </span>
             </Link>
 
@@ -66,7 +69,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/boutique") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Boutique
+                {t(locale, "shop")}
               </span>
             </Link>
 
@@ -78,7 +81,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 1 ? null : 1)}
                 className="flex items-center gap-1 rounded px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-orange-50 hover:text-orange-500"
               >
-                Catégories
+                {t(locale, "categories")}
                 <span className={`text-xs transition-transform ${openDropdown === 1 ? "rotate-180" : ""}`}>▼</span>
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[420px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 1 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
@@ -111,7 +114,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 2 ? null : 2)}
                 className={`flex items-center gap-1 rounded px-3 py-2 text-sm font-medium transition-colors ${isActive("/creations") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"}`}
               >
-                Créations
+                {t(locale, "creations")}
                 <span className={`text-xs transition-transform ${openDropdown === 2 ? "rotate-180" : ""}`}>▼</span>
               </button>
               <div className={`absolute left-0 top-full z-50 mt-2 w-[380px] rounded-xl border border-slate-200 bg-white p-4 shadow-xl transition-all duration-200 ${openDropdown === 2 ? "visible opacity-100" : "invisible opacity-0 group-hover:visible group-hover:opacity-100"}`}>
@@ -137,7 +140,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/nouveautes") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Nouveautés
+                {t(locale, "new")}
               </span>
             </Link>
 
@@ -145,7 +148,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/best-sellers") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Best-sellers
+                {t(locale, "bestSellers")}
               </span>
             </Link>
 
@@ -153,7 +156,7 @@ export default function Header() {
               <span className={`cursor-pointer border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
                 isActive("/promos") ? "border-orange-500 text-orange-500" : "border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Promos
+                {t(locale, "promotions")}
               </span>
             </Link>
 
@@ -161,7 +164,7 @@ export default function Header() {
               <span className={`cursor-pointer font-medium text-sm px-3 py-2 rounded transition-colors ${
                 isActive("/contact") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
               }`}>
-                Contact
+                {t(locale, "contact")}
               </span>
             </Link>
           </div>
@@ -171,7 +174,9 @@ export default function Header() {
             <SearchBar />
           </div>
 
-          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-500" /><label className="sr-only" htmlFor="delivery-country">Pays de livraison</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></div>
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="Ce choix ne demande aucune adresse et sert uniquement à afficher les produits livrables."><MapPin className="h-3.5 w-3.5 text-orange-500" /><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="max-w-28 bg-transparent font-semibold outline-none"><option disabled value="">Pays</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></div>
+
+          <div className="hidden md:flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600" title="La langue d’affichage est indépendante du pays de livraison."><span className="text-sm text-orange-500" aria-hidden="true">A</span><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="max-w-28 bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></div>
 
           {/* Right Icons */}
           <div className="flex items-center gap-2">
@@ -198,10 +203,10 @@ export default function Header() {
             <Link href="/mon-compte">
               <Button className="hidden h-auto gap-2 bg-orange-500 px-3 py-2 text-sm text-white hover:bg-orange-600 sm:inline-flex">
                 <User className="h-4 w-4" />
-                <span>Mon compte</span>
+                <span>{t(locale, "account")}</span>
               </Button>
             </Link>
-            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>Gestion MAZIGHO</span></Button></Link>}
+            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Button></Link>}
 
             {/* Mobile Menu Button */}
             <button
@@ -225,15 +230,16 @@ export default function Header() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="lg:hidden mt-4 pb-4 border-t pt-4 space-y-2">
-            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">Livrer vers</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
+            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}</select></label>
+            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
             <Link href="/">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                Accueil
+                {t(locale, "home")}
               </div>
             </Link>
             <Link href="/boutique">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                Boutique
+                {t(locale, "shop")}
               </div>
             </Link>
 
@@ -243,7 +249,7 @@ export default function Header() {
                 onClick={() => setOpenDropdown(openDropdown === 0 ? null : 0)}
                 className="w-full text-left px-4 py-2 hover:bg-gray-100 rounded font-medium flex items-center justify-between text-sm"
               >
-                Catégories
+                {t(locale, "categories")}
                 <span className={`transition-transform text-xs ${openDropdown === 0 ? "rotate-180" : ""}`}>
                   ▼
                 </span>
@@ -285,29 +291,29 @@ export default function Header() {
 
             <Link href="/nouveautes">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                Nouveautés
+                {t(locale, "new")}
               </div>
             </Link>
 
             <Link href="/best-sellers">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                Best-sellers
+                {t(locale, "bestSellers")}
               </div>
             </Link>
 
             <Link href="/promos">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm text-orange-500 font-semibold">
-                Promos
+                {t(locale, "promotions")}
               </div>
             </Link>
 
             <Link href="/contact">
               <div className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                Contact
+                {t(locale, "contact")}
               </div>
             </Link>
 
-            <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> Mon compte</Button></Link>
+            <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> {t(locale, "account")}</Button></Link>
             {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> Gestion MAZIGHO</Button></Link>}
           </div>
         )}

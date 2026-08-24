@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productImages, productTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -18,6 +18,7 @@ let _orderDecisionSchemaReady: Promise<void> | null = null;
 let _deliveryProfileSchemaReady: Promise<void> | null = null;
 let _catalogSectionSchemaReady: Promise<void> | null = null;
 let _creativeCatalogSeedReady: Promise<void> | null = null;
+let _productTranslationSchemaReady: Promise<void> | null = null;
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -56,6 +57,18 @@ async function ensureInvitationSchema() {
   })();
 
   return _invitationSchemaReady;
+}
+
+async function ensureProductTranslationSchema() {
+  if (_productTranslationSchemaReady) return _productTranslationSchemaReady;
+
+  _productTranslationSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `locale` varchar(10) NOT NULL, `name` varchar(200) NOT NULL, `description` text, `longDescription` text, `options` text, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `product_translations_product_locale_unique` (`productId`, `locale`), INDEX `product_translations_product_idx` (`productId`))"));
+  })();
+
+  return _productTranslationSchemaReady;
 }
 
 async function ensureDeliveryProfileSchema() {
@@ -681,6 +694,98 @@ function attachDeliveryProfiles<T extends { id: number }>(rows: T[], profiles: A
   return rows.map(row => ({ ...row, deliveryProfiles: profiles.filter(profile => profile.productId === row.id) }));
 }
 
+export const PRODUCT_TRANSLATION_LOCALES = ["de", "it", "en", "es", "nl", "ar"] as const;
+export type ProductTranslationLocale = typeof PRODUCT_TRANSLATION_LOCALES[number];
+
+export function isProductTranslationLocale(locale: string): locale is ProductTranslationLocale {
+  return (PRODUCT_TRANSLATION_LOCALES as readonly string[]).includes(locale);
+}
+
+export async function getProductTranslations(productId: number) {
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(productTranslations)
+    .where(eq(productTranslations.productId, productId))
+    .orderBy(asc(productTranslations.locale));
+}
+
+export async function getProductTranslationSource(productId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select({
+    id: products.id,
+    name: products.name,
+    description: products.description,
+    longDescription: products.longDescription,
+    options: products.options,
+    updatedAt: products.updatedAt,
+  }).from(products).where(eq(products.id, productId)).limit(1);
+  return result[0];
+}
+
+export async function getReadyProductTranslation(productId: number, locale: ProductTranslationLocale) {
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(productTranslations)
+    .where(and(
+      eq(productTranslations.productId, productId),
+      eq(productTranslations.locale, locale),
+      eq(productTranslations.status, "ready"),
+    ))
+    .limit(1);
+  return result[0];
+}
+
+export async function saveProductTranslation(input: {
+  productId: number;
+  locale: ProductTranslationLocale;
+  name: string;
+  description?: string | null;
+  longDescription?: string | null;
+  options?: string | null;
+  machineGenerated: boolean;
+  sourceUpdatedAt: Date;
+}) {
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  await db.insert(productTranslations).values({
+    productId: input.productId,
+    locale: input.locale,
+    name: input.name,
+    description: input.description ?? null,
+    longDescription: input.longDescription ?? null,
+    options: input.options ?? null,
+    status: "ready",
+    machineGenerated: input.machineGenerated ? 1 : 0,
+    sourceUpdatedAt: input.sourceUpdatedAt,
+    translatedAt: new Date(),
+  }).onDuplicateKeyUpdate({
+    set: {
+      name: input.name,
+      description: input.description ?? null,
+      longDescription: input.longDescription ?? null,
+      options: input.options ?? null,
+      status: "ready",
+      machineGenerated: input.machineGenerated ? 1 : 0,
+      sourceUpdatedAt: input.sourceUpdatedAt,
+      translatedAt: new Date(),
+    },
+  });
+
+  return await getReadyProductTranslation(input.productId, input.locale);
+}
+
+export async function markProductTranslationsStale(productId: number) {
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(productTranslations).set({ status: "stale" }).where(eq(productTranslations.productId, productId));
+}
+
 export async function getAllProducts() {
   const db = await getDb();
   if (!db) return [];
@@ -917,6 +1022,9 @@ export async function getAllProductsAdmin() {
     name: products.name,
     slug: products.slug,
     description: products.description,
+    longDescription: products.longDescription,
+    options: products.options,
+    updatedAt: products.updatedAt,
     price: products.price,
     originalPrice: products.originalPrice,
     stock: products.stock,
@@ -979,9 +1087,13 @@ export async function updateProduct(id: number, data: any) {
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
   
-  const { images, ...productData } = data;
+  const { images, id: _ignoredId, ...productData } = data;
+  const sourceTextChanged = ["name", "description", "longDescription", "options"].some(field => Object.prototype.hasOwnProperty.call(productData, field));
   if (Object.keys(productData).length > 0) {
     await db.update(products).set(productData).where(eq(products.id, id));
+  }
+  if (sourceTextChanged) {
+    await markProductTranslationsStale(id);
   }
 
   if (images) {

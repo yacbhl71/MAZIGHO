@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
+import { LocaleProvider } from "./contexts/LocaleContext";
 import Home from "./pages/Home";
 import Shop from "./pages/Shop";
 import Creations from "./pages/Creations";
@@ -188,12 +189,14 @@ function App() {
         defaultTheme="light"
         // switchable
       >
-        <DeliveryCountryProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </DeliveryCountryProvider>
+        <LocaleProvider>
+          <DeliveryCountryProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Router />
+            </TooltipProvider>
+          </DeliveryCountryProvider>
+        </LocaleProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

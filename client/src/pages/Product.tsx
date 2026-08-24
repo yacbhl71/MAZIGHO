@@ -14,19 +14,21 @@ import { Loader2, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useLocale } from "@/contexts/LocaleContext";
 
 export default function Product() {
   const { slug } = useParams<{ slug: string }>();
   const [, setLocation] = useLocation();
   
-  const productQuery = trpc.products.getBySlug.useQuery(slug || "", {
+  const { locale } = useLocale();
+  const productQuery = trpc.products.getBySlug.useQuery({ slug: slug || "", locale }, {
     enabled: !!slug
   });
   const product = productQuery.data;
   const { countryCode, countryLabel } = useDeliveryCountry();
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
   
-  const relatedProductsQuery = trpc.products.getByCategory.useQuery(product?.categoryId || 0, {
+  const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId
   });
   
