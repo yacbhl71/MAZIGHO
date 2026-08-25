@@ -15,6 +15,15 @@ import { t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 
+const optimizedBuiltInImageUrls: Record<string, string> = {
+  "/assets/home-lifestyle-top.jpg": "/assets/home-lifestyle-top.webp",
+  "/assets/home-editorial-divider.jpg": "/assets/home-editorial-divider.webp",
+};
+
+function getOptimizedHomeImageUrl(url: string) {
+  return optimizedBuiltInImageUrls[url] || url;
+}
+
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
   "from-sky-100 via-blue-50 to-white",
@@ -49,6 +58,9 @@ export default function Home() {
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
+  const highlightImageUrl = getOptimizedHomeImageUrl(profile.highlightImageUrl);
+  const storyImageUrl = getOptimizedHomeImageUrl(profile.storyImageUrl);
+  const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
 
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
@@ -70,7 +82,7 @@ export default function Home() {
 
         <section className="container py-8 md:py-12">
           <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">
-            <img src={profile.highlightImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={highlightImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
             <div className="relative flex min-h-[230px] items-center px-7 py-8 text-white md:min-h-[300px] md:px-12">
               <div className="max-w-md">
@@ -156,7 +168,7 @@ export default function Home() {
               <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={profile.storyImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
               <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
               <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
             </div>
@@ -177,7 +189,7 @@ export default function Home() {
         {profile.showEditorial && (
         <section className="container py-4 md:py-8">
           <div className="relative min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[#c9b8a8]">
-            <img src={profile.editorialImageUrl} alt="Ambiance bien-être et accessoires MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={editorialImageUrl} alt="Ambiance bien-être et accessoires MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
             <div className="relative flex min-h-[180px] items-center px-7 py-8 text-white md:px-12">
               <div className="max-w-sm">

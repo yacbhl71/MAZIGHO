@@ -198,13 +198,6 @@ export default function Header() {
               </span>
             </Link>
 
-            <Link href="/faq">
-              <span className={`cursor-pointer font-medium text-xs px-1.5 py-1.5 rounded transition-colors ${
-                isActive("/faq") ? "border-b-2 border-orange-500 text-orange-500" : "border-b-2 border-transparent text-slate-600 hover:border-orange-200 hover:text-orange-500"
-              }`}>
-                {t(locale, "faq")}
-              </span>
-            </Link>
           </div>
 
           {/* Search Bar - Desktop */}
@@ -351,11 +344,6 @@ export default function Header() {
               </div>
             </Link>
 
-            <Link href="/faq">
-              <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded cursor-pointer text-sm">
-                {t(locale, "faq")}
-              </div>
-            </Link>
 
             <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> {t(locale, "account")}</Button></Link>
             {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> Gestion MAZIGHO</Button></Link>}
