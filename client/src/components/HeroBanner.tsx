@@ -49,13 +49,16 @@ export default function HeroBanner() {
   const banners = useMemo<HeroSlide[]>(() => {
     if (remoteBanners.data && remoteBanners.data.length > 0) {
       return remoteBanners.data.map((banner) => {
+        const sourceTitle = banner.sourceTitle || banner.title;
+        const localized = copy.hero.banners[sourceTitle as keyof typeof copy.hero.banners]
+          || copy.hero.banners[banner.title as keyof typeof copy.hero.banners];
         return {
           id: banner.id,
-          title: banner.title,
-          subtitle: banner.subtitle || copy.highlight.text,
-          imageUrl: imageForBanner(banner.sourceTitle || banner.title, banner.imageUrl),
+          title: localizedHeroTitles[locale][sourceTitle] || localizedHeroTitles[locale][banner.title] || banner.title,
+          subtitle: localized?.subtitle || banner.subtitle || copy.highlight.text,
+          imageUrl: imageForBanner(sourceTitle, banner.imageUrl),
           buttonLink: banner.linkUrl || "/boutique",
-          buttonText: copy.discovery.browseShop,
+          buttonText: localized?.primaryCta || copy.discovery.browseShop,
         };
       });
     }
