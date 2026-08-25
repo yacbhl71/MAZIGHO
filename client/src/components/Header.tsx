@@ -231,11 +231,9 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Link href="/mon-compte">
-              <Button className="hidden h-auto gap-1.5 bg-orange-700 px-2 py-1.5 text-xs text-white hover:bg-orange-800 sm:inline-flex">
-                <User className="h-4 w-4" />
-                <span>{t(locale, "account")}</span>
-              </Button>
+            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md bg-orange-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-orange-800 sm:inline-flex">
+              <User className="h-4 w-4" aria-hidden="true" />
+              <span>{t(locale, "account")}</span>
             </Link>
             {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Button></Link>}
 

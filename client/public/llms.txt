@@ -1,0 +1,32 @@
+# MAZIGHO
+
+> Boutique en ligne multilingue proposant des sélections de produits, des créations personnalisables et un catalogue éditorial.
+
+MAZIGHO permet au visiteur de choisir indépendamment sa langue et son pays. Les langues publiques disponibles sont le français, l’allemand, l’italien, l’anglais, l’espagnol, le néerlandais et l’arabe, avec prise en charge RTL pour l’arabe.
+
+## Pages publiques
+
+- [Accueil](https://www.mazigho.ch/): présentation de la boutique et sélections éditoriales.
+- [Boutique](https://www.mazigho.ch/boutique): catalogue de produits.
+- [Créations](https://www.mazigho.ch/creations): collections créatives et personnalisables.
+- [Nouveautés](https://www.mazigho.ch/nouveautes): produits récemment ajoutés.
+- [Meilleures ventes](https://www.mazigho.ch/best-sellers): sélections mises en avant.
+- [Promotions](https://www.mazigho.ch/promos): offres et sélections promotionnelles.
+- [À propos](https://www.mazigho.ch/a-propos): présentation de MAZIGHO.
+- [Contact](https://www.mazigho.ch/contact): formulaire de contact.
+- [FAQ](https://www.mazigho.ch/faq): questions fréquentes.
+
+## Informations utiles
+
+- [Livraison et retours](https://www.mazigho.ch/livraison-retours): informations de livraison et de retours.
+- [Conditions générales](https://www.mazigho.ch/conditions-generales): conditions d’utilisation et de vente.
+- [Politique de confidentialité](https://www.mazigho.ch/politique-confidentialite): informations sur les données personnelles.
+- [Mentions légales](https://www.mazigho.ch/mentions-legales): informations légales de l’exploitant.
+
+## Catalogue et disponibilité
+
+Les pages produit indiquent les informations disponibles sur l’article. La disponibilité de livraison dépend du pays sélectionné et d’un profil de livraison validé pour le produit. Les produits sans livraison confirmée pour la destination choisie ne peuvent pas être ajoutés au panier.
+
+## Limites d’accès
+
+Les espaces de compte, les commandes, l’administration et les liens d’activation de compte sont privés. Ils ne doivent pas être explorés, indexés ni utilisés comme documentation publique.
