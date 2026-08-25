@@ -29,6 +29,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import ThemeToggle from "./ThemeToggle";
 
 const menuSections = [
   {
@@ -290,6 +291,9 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
+            <div className="mb-2 flex justify-end group-data-[collapsible=icon]:justify-center">
+              <ThemeToggle className="border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800" />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">

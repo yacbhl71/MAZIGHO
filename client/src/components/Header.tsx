@@ -14,6 +14,7 @@ import { getCreativeMenuCopy, getPublicCopy } from "@/lib/publicCopy";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import ThemeToggle from "./ThemeToggle";
 
 const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸" };
 const languageFlags: Record<string, string> = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", en: "🇬🇧", es: "🇪🇸", nl: "🇳🇱", ar: "🌐" };
@@ -211,6 +212,7 @@ export default function Header() {
 
           {/* Right Icons */}
           <div className="flex items-center gap-0.5">
+            <ThemeToggle />
             <Link href="/favoris" aria-label="Favoris">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden 2xl:block">
                 <Heart className="h-5 w-5 text-gray-700" />
