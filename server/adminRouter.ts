@@ -212,7 +212,18 @@ export const adminRouter = router({
         deliveryMethod: z.string().trim().max(255).nullable().optional(),
         minDeliveryDays: z.number().int().min(0).nullable().optional(),
         maxDeliveryDays: z.number().int().min(0).nullable().optional(),
-      })).min(1).max(8),
+      })).min(1).max(8).superRefine((profiles, ctx) => {
+        const countries = new Set<string>();
+        profiles.forEach((profile, index) => {
+          if (countries.has(profile.countryCode)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "countryCode"], message: "Un seul profil de livraison est autorisé par pays." });
+          }
+          countries.add(profile.countryCode);
+          if (profile.minDeliveryDays != null && profile.maxDeliveryDays != null && profile.maxDeliveryDays < profile.minDeliveryDays) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "maxDeliveryDays"], message: "Le délai maximal doit être supérieur ou égal au délai minimal." });
+          }
+        });
+      }),
     })).mutation(async ({ input }) => {
       const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId);
       if (existing) {
