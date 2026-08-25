@@ -15,13 +15,13 @@ import { categoryT, t } from "@/lib/i18n";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 
-const categoryHeroImages: Record<string, string> = {
-  "high-tech-gadgets": "/assets/category-high-tech.jpg",
-  "maison-organisation": "/assets/category-maison.jpg",
-  "beaute-bien-etre": "/assets/category-beaute.jpg",
-  "sport-fitness": "/assets/category-sport.jpg",
-  "auto-accessoires": "/assets/category-auto.jpg",
-  mode: "/assets/category-mode.jpg",
+const categoryHeroImages: Record<string, { src: string; srcSet: string }> = {
+  "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w" },
+  "maison-organisation": { src: "/assets/category-maison-hero.webp", srcSet: "/assets/category-maison-sm.webp 480w, /assets/category-maison.webp 960w, /assets/category-maison-hero.webp 1920w" },
+  "beaute-bien-etre": { src: "/assets/category-beaute-hero.webp", srcSet: "/assets/category-beaute-sm.webp 480w, /assets/category-beaute.webp 960w, /assets/category-beaute-hero.webp 1920w" },
+  "sport-fitness": { src: "/assets/category-sport-hero.webp", srcSet: "/assets/category-sport-sm.webp 480w, /assets/category-sport.webp 960w, /assets/category-sport-hero.webp 1920w" },
+  "auto-accessoires": { src: "/assets/category-auto-hero.webp", srcSet: "/assets/category-auto-sm.webp 480w, /assets/category-auto.webp 960w, /assets/category-auto-hero.webp 1920w" },
+  mode: { src: "/assets/category-mode-hero.webp", srcSet: "/assets/category-mode-sm.webp 480w, /assets/category-mode.webp 960w, /assets/category-mode-hero.webp 1920w" },
 };
 
 export default function Category() {
@@ -94,7 +94,16 @@ export default function Category() {
       <main className="flex-1">
         {/* Editorial Category Header */}
         <section className="relative min-h-[330px] overflow-hidden bg-slate-950 md:min-h-[390px]">
-          <img src={creativeVisual?.imageUrl || categoryHeroImages[slug] || "/assets/shop-editorial-hero.jpg"} alt={creativeVisual?.alt || `Sélection ${category.name}`} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={creativeVisual?.imageUrl || categoryHeroImages[slug]?.src || "/assets/shop-editorial-hero.webp"}
+            srcSet={creativeVisual ? undefined : categoryHeroImages[slug]?.srcSet || "/assets/shop-editorial-hero-640.webp 640w, /assets/shop-editorial-hero.webp 1600w"}
+            sizes="100vw"
+            alt={creativeVisual?.alt || `Sélection ${category.name}`}
+            width={1920}
+            height={1080}
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
           <div className={isCreativeCategory ? "absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/45 to-slate-950/10" : "absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/45 to-slate-950/10"} />
           <div className="relative flex min-h-[330px] items-end px-6 py-10 md:min-h-[390px] md:px-12 lg:px-20">
             <div className="max-w-2xl text-white">
