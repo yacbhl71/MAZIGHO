@@ -44,6 +44,17 @@ export default defineConfig({
           ) {
             return "data-vendor";
           }
+          if (
+            normalizedId.includes("/node_modules/recharts/") ||
+            normalizedId.includes("/node_modules/victory-vendor/") ||
+            normalizedId.includes("/node_modules/recharts-scale/") ||
+            normalizedId.includes("/node_modules/react-smooth/") ||
+            normalizedId.includes("/node_modules/eventemitter3/") ||
+            normalizedId.includes("/node_modules/tiny-invariant/") ||
+            normalizedId.includes("/node_modules/lodash/")
+          ) {
+            return "charts-vendor";
+          }
           return "vendor";
         },
       },
