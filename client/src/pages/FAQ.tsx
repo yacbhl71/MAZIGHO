@@ -98,7 +98,7 @@ export default function FAQ() {
               <CardContent className="p-8">
                 <h2 className="mb-4 text-2xl font-bold text-gray-800">{copy.contactTitle}</h2>
                 <p className="mb-6 text-gray-700">{copy.contactText}</p>
-                <Link href="/contact"><Button className="bg-orange-500 text-white hover:bg-orange-600">{copy.contactCta}</Button></Link>
+                <Button asChild className="bg-orange-500 text-white hover:bg-orange-600"><Link href="/contact">{copy.contactCta}</Link></Button>
               </CardContent>
             </Card>
           </div>

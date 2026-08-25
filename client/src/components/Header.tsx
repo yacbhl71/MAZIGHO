@@ -237,7 +237,7 @@ export default function Header() {
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>
             </Link>
-            {isAdmin && <Link href="/admin"><Button variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Button></Link>}
+            {isAdmin && <Button asChild variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Link></Button>}
 
             {/* Mobile Menu Button */}
             <button
@@ -346,8 +346,8 @@ export default function Header() {
             </Link>
 
 
-            <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> {t(locale, "account")}</Button></Link>
-            {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Button></Link>}
+            <Button asChild className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>
+            {isAdmin && <Button asChild variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Link></Button>}
           </div>
         )}
       </nav>

@@ -91,7 +91,7 @@ export default function AdminCreations() {
             </div>
             <div className="flex flex-wrap gap-3 lg:justify-end">
               <Button onClick={() => setIsCollectionDialogOpen(true)} className="bg-rose-500 text-white hover:bg-rose-600"><Plus className="mr-2 h-4 w-4" /> Nouvelle collection</Button>
-              <Link href="/admin/produits"><Button variant="outline" className="border-white/25 bg-white/10 text-white hover:bg-white hover:text-slate-950"><PackageOpen className="mr-2 h-4 w-4" /> Gérer les produits</Button></Link>
+              <Button asChild variant="outline" className="border-white/25 bg-white/10 text-white hover:bg-white hover:text-slate-950"><Link href="/admin/produits"><PackageOpen className="mr-2 h-4 w-4" /> Gérer les produits</Link></Button>
             </div>
           </div>
         </section>

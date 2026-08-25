@@ -202,11 +202,9 @@ export default function Promos() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">{copy.empty.replace("{country}", countryLabel)}</p>
-                <Link href="/boutique">
-                  <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
+                <Button asChild className="mt-6 bg-orange-500 hover:bg-orange-600 text-white"><Link href="/boutique">
                     {copy.allProducts}
-                  </Button>
-                </Link>
+                  </Link></Button>
               </div>
             )}
           </div>

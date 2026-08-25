@@ -272,7 +272,7 @@ export default function AdminDropshipping() {
                 </label>
               </div>
               <div className="flex flex-wrap justify-end gap-3 border-t pt-4">
-                <Link href="/admin/produits"><Button type="button" variant="outline">Annuler</Button></Link>
+                <Button asChild type="button" variant="outline"><Link href="/admin/produits">Annuler</Link></Button>
                 <Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={importProduct.isPending}>
                   {importProduct.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Enregistrer en brouillon

@@ -354,9 +354,7 @@ export default function AdminProducts() {
             <p className="text-muted-foreground">Gérez votre inventaire, les prix et le statut de vos produits.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/admin/importation">
-              <Button variant="outline"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Button>
-            </Link>
+            <Button asChild variant="outline"><Link href="/admin/importation"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Link></Button>
             
             <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => { resetForm(); setIsOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" /> Nouveau Produit

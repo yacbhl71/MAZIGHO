@@ -320,7 +320,7 @@ export default function AdminDashboard() {
                 <CardTitle className="flex items-center gap-2 text-xl"><ClipboardList className="h-5 w-5 text-orange-600" /> Commandes récentes</CardTitle>
                 <CardDescription className="mt-1">Les cinq dernières commandes enregistrées dans la boutique.</CardDescription>
               </div>
-              <Link href="/admin/commandes"><Button variant="ghost" size="sm" className="text-orange-700 hover:bg-orange-50">Voir tout <ArrowUpRight className="ml-1 h-4 w-4" /></Button></Link>
+              <Button asChild variant="ghost" size="sm" className="text-orange-700 hover:bg-orange-50"><Link href="/admin/commandes">Voir tout <ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
             </CardHeader>
             <CardContent className="p-0">
               {isLoading ? (
@@ -372,7 +372,7 @@ export default function AdminDashboard() {
                       <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800">{product.stock} en stock</Badge>
                     </div>
                   ))}
-                  <Link href="/admin/produits"><Button variant="ghost" className="m-3 w-[calc(100%-1.5rem)] text-orange-700 hover:bg-orange-50">Gérer les stocks <ArrowUpRight className="ml-1 h-4 w-4" /></Button></Link>
+                  <Button asChild variant="ghost" className="m-3 w-[calc(100%-1.5rem)] text-orange-700 hover:bg-orange-50"><Link href="/admin/produits">Gérer les stocks <ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button>
                 </div>
               )}
             </CardContent>

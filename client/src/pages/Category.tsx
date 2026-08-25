@@ -75,11 +75,9 @@ export default function Category() {
           <div className="text-center py-20">
             <h1 className="text-3xl font-bold text-gray-800 mb-4">{categoryT(locale, "notFoundTitle")}</h1>
             <p className="text-gray-600 mb-6">{categoryT(locale, "notFoundText")}</p>
-            <Link href="/boutique">
-              <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button asChild className="bg-orange-500 hover:bg-orange-600 text-white"><Link href="/boutique">
                 {categoryT(locale, "backShop")}
-              </Button>
-            </Link>
+              </Link></Button>
           </div>
         </main>
         <Footer />

@@ -117,7 +117,7 @@ export default function AdminContent() {
               <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Bannières de la boutique</h1>
               <p className="mt-2 max-w-2xl text-slate-600">Préparez les visuels de la page d’accueil, vérifiez leur aperçu et choisissez lesquels seront visibles pour les clients.</p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/"><Button variant="outline" className="border-violet-200 bg-white text-violet-700 hover:bg-violet-100"><MonitorUp className="mr-2 h-4 w-4" /> Voir la boutique <ArrowUpRight className="ml-1 h-4 w-4" /></Button></Link><Button className="bg-orange-500 hover:bg-orange-600" onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Nouvelle bannière</Button></div>
+            <div className="flex flex-wrap gap-2"><Button asChild variant="outline" className="border-violet-200 bg-white text-violet-700 hover:bg-violet-100"><Link href="/"><MonitorUp className="mr-2 h-4 w-4" /> Voir la boutique <ArrowUpRight className="ml-1 h-4 w-4" /></Link></Button><Button className="bg-orange-500 hover:bg-orange-600" onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Nouvelle bannière</Button></div>
           </div>
         </section>
 

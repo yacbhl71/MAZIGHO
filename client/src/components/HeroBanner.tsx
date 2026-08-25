@@ -132,9 +132,7 @@ export default function HeroBanner() {
               <Link href={currentBanner.buttonLink}>
                 <Button className="px-8 py-3 text-lg font-semibold text-white" style={{ backgroundColor: palette.primary }}>{currentBanner.buttonText}</Button>
               </Link>
-              <Link href="/best-sellers">
-                <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">{copy.hero.secondaryCta}</Button>
-              </Link>
+              <Button asChild variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white"><Link href="/best-sellers">{copy.hero.secondaryCta}</Link></Button>
             </div>
           </div>
         </div>

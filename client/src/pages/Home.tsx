@@ -155,7 +155,7 @@ export default function Home() {
                 </Link>
               ))}
             </div>
-            <div className="mt-8 text-center"><Link href="/boutique"><Button variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600">{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
+            <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600"><Link href="/boutique">{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
           </div>
         </section>
         )}
@@ -175,7 +175,7 @@ export default function Home() {
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
               </div>
-              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-700 text-white shadow-lg shadow-orange-700/20 hover:bg-orange-800">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+              <Button asChild className="bg-orange-700 text-white shadow-lg shadow-orange-700/20 hover:bg-orange-800"><Link href="/boutique" className="mt-8 inline-block">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
               <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
@@ -191,7 +191,7 @@ export default function Home() {
           <div className="container">
             <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7 text-orange-300" aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
-            <div className="mt-8 text-center"><Link href="/boutique"><Button variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white">{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link></div>
+            <div className="mt-8 text-center"><Button asChild variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"><Link href="/boutique">{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
           </div>
         </section>
         )}
@@ -273,8 +273,8 @@ export default function Home() {
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">{copy.closing.title}</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">{copy.closing.text}</p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/boutique"><Button className="bg-orange-700 text-white hover:bg-orange-800">{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
-                  <Link href="/contact"><Button variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white">{copy.closing.contactCta}</Button></Link>
+                  <Button asChild className="bg-orange-700 text-white hover:bg-orange-800"><Link href="/boutique">{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+                  <Button asChild variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white"><Link href="/contact">{copy.closing.contactCta}</Link></Button>
                 </div>
               </div>
               <div className="relative min-h-[250px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-orange-500/80 via-amber-300/30 to-sky-500/50">

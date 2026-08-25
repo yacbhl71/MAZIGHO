@@ -233,7 +233,7 @@ export default function AdminCjImport() {
 
             <label className="block space-y-2"><span className="text-sm font-medium">Images (une URL par ligne)</span><textarea value={imagesText} onChange={event => setImagesText(event.target.value)} rows={5} className="w-full rounded-md border px-3 py-2 text-sm" /><span className="block text-xs text-muted-foreground">Vérifiez les droits d’utilisation. Vous pourrez remplacer ces images dans la fiche produit après l’enregistrement.</span></label>
 
-            <div className="flex flex-wrap justify-end gap-3 border-t pt-4"><Link href="/admin/fournisseurs"><Button type="button" variant="outline">Annuler</Button></Link><Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={importCjDraft.isPending}>{importCjDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Enregistrer en brouillon</Button></div>
+            <div className="flex flex-wrap justify-end gap-3 border-t pt-4"><Button asChild type="button" variant="outline"><Link href="/admin/fournisseurs">Annuler</Link></Button><Button type="submit" className="bg-emerald-600 hover:bg-emerald-700" disabled={importCjDraft.isPending}>{importCjDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Enregistrer en brouillon</Button></div>
           </section>
 
           <aside className="space-y-5">
