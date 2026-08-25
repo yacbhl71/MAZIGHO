@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { adminProcedure, router } from "./_core/trpc";
 import * as db from "./db";
-import { isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
+import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
@@ -435,47 +435,27 @@ export const adminRouter = router({
       email: z.string().trim().email().max(320),
       role: z.enum(["user", "catalog_editor", "support_agent", "order_operator", "admin"]),
     })).mutation(async ({ input }) => {
-      try {
+            try {
         const invitation = await db.createPendingInvitation(input);
-        if (!isTransactionalEmailConfigured()) {
-          return { success: true, invitationEmailStatus: "pending_configuration" as const };
-        }
-
-        try {
-          await sendAccountInvitationEmail({
-            email: invitation.email,
-            name: invitation.name,
-            token: invitation.invitation.token,
-            tokenId: invitation.invitation.id,
-          });
-          return { success: true, invitationEmailStatus: "sent" as const };
-        } catch (error) {
-          console.error("[Admin] Invitation e-mail delivery failed", String(error));
-          return { success: true, invitationEmailStatus: "delivery_failed" as const };
-        }
+        return {
+          success: true,
+          invitationLink: getAccountInvitationLink(invitation.invitation.token),
+          invitationExpiresAt: invitation.invitation.expiresAt,
+          recipient: { name: invitation.name, email: invitation.email, role: invitation.role },
+        };
       } catch (error) {
         return rethrowUserManagementError(error);
       }
     }),
     resendInvitation: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-      try {
+            try {
         const invitation = await db.reissuePendingInvitation(input.id);
-        if (!isTransactionalEmailConfigured()) {
-          return { success: true, invitationEmailStatus: "pending_configuration" as const };
-        }
-
-        try {
-          await sendAccountInvitationEmail({
-            email: invitation.email,
-            name: invitation.name,
-            token: invitation.invitation.token,
-            tokenId: invitation.invitation.id,
-          });
-          return { success: true, invitationEmailStatus: "sent" as const };
-        } catch (error) {
-          console.error("[Admin] Invitation resend failed", String(error));
-          return { success: true, invitationEmailStatus: "delivery_failed" as const };
-        }
+        return {
+          success: true,
+          invitationLink: getAccountInvitationLink(invitation.invitation.token),
+          invitationExpiresAt: invitation.invitation.expiresAt,
+          recipient: { name: invitation.name, email: invitation.email },
+        };
       } catch (error) {
         return rethrowUserManagementError(error);
       }

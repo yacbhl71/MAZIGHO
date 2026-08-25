@@ -34,6 +34,11 @@ export function isTransactionalEmailConfigured(): boolean {
   return Boolean(apiKey && from);
 }
 
+export function getAccountInvitationLink(token: string): string {
+  const { publicUrl } = getMailConfiguration();
+  return `${publicUrl}/activer-compte?token=${encodeURIComponent(token)}`;
+}
+
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<DeliveryResult> {
   const { apiKey, from } = getMailConfiguration();
   if (!apiKey || !from) {
@@ -74,8 +79,7 @@ export async function sendAccountInvitationEmail(input: {
   token: string;
   tokenId: number;
 }): Promise<DeliveryResult> {
-  const { publicUrl } = getMailConfiguration();
-  const link = `${publicUrl}/activer-compte?token=${encodeURIComponent(input.token)}`;
+  const link = getAccountInvitationLink(input.token);
   const displayName = escapeHtml(input.name || "Bonjour");
 
   return sendTransactionalEmail({
