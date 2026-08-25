@@ -8,9 +8,9 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
 import { getPublicCopy } from "@/lib/publicCopy";
 
-const DEFAULT_HERO_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/JZmuCtGTfIYUcFRd.jpg";
-const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.jpg";
-const HERO_BEAUTE_IMAGE = "/assets/hero-beaute-bien-etre.jpg";
+const DEFAULT_HERO_IMAGE = "/assets/hero-best-offers.webp";
+const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.webp";
+const HERO_BEAUTE_IMAGE = "/assets/hero-beaute-bien-etre.webp";
 
 const localizedHeroTitles: Record<StorefrontLocale, Record<string, string>> = {
   fr: { "Découvrez nos Meilleures Offres": "Découvrez nos Meilleures Offres", "Mode & Accessoires": "Mode & Accessoires", "Beauté & Bien-Être": "Beauté & Bien-Être" },
@@ -78,17 +78,21 @@ export default function HeroBanner() {
   useEffect(() => {
     if (banners.length < 2) return;
     const timer = window.setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % banners.length);
+      setCurrentSlide(prev => (prev + 1) % banners.length);
     }, 5000);
     return () => window.clearInterval(timer);
   }, [banners.length]);
 
+  const selectSlide = (index: number) => {
+    setCurrentSlide(index);
+  };
+
   const goToPrevious = () => {
-    setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length);
+    selectSlide((currentSlide - 1 + banners.length) % banners.length);
   };
 
   const goToNext = () => {
-    setCurrentSlide((prev) => (prev + 1) % banners.length);
+    selectSlide((currentSlide + 1) % banners.length);
   };
 
   const currentBanner = banners[currentSlide];
@@ -96,45 +100,49 @@ export default function HeroBanner() {
 
   return (
     <div className="relative h-[520px] w-full overflow-hidden md:h-[560px] lg:h-[640px]">
-      {banners.map((banner, index) => (
-        <div
-          key={banner.id}
-          className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? "opacity-100" : "pointer-events-none opacity-0"}`}
-          aria-hidden={index !== currentSlide}
-        >
-          <div className="absolute inset-0 bg-slate-950">
-            {banner.imageUrl && (
-              <img src={banner.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-90" />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/55 to-slate-950/10" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent" />
-          </div>
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-slate-950">
+          {currentBanner.imageUrl && (
+            <img
+              key={currentBanner.id}
+              src={currentBanner.imageUrl}
+              alt=""
+              width={1920}
+              height={1080}
+              fetchPriority={currentSlide === 0 ? "high" : "auto"}
+              loading="eager"
+              decoding="async"
+              className="absolute inset-0 h-full w-full object-cover opacity-90"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/55 to-slate-950/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent" />
+        </div>
 
-          <div className="relative flex h-full items-center justify-start px-6 sm:px-10 lg:px-16">
-            <div className="z-10 max-w-2xl text-left text-white">
-              <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{copy.hero.eyebrow}</p>
-              <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">{banner.title}</h1>
-              <p className="mb-8 max-w-xl text-base leading-7 text-white/85 md:text-xl">{banner.subtitle}</p>
-              <div className="flex flex-col justify-start gap-3 sm:flex-row">
-                <Link href={banner.buttonLink}>
-                  <Button className="px-8 py-3 text-lg font-semibold text-white" style={{ backgroundColor: palette.primary }}>{banner.buttonText}</Button>
-                </Link>
-                <Link href="/best-sellers">
-                  <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">{copy.hero.secondaryCta}</Button>
-                </Link>
-              </div>
+        <div className="relative flex h-full items-center justify-start px-6 sm:px-10 lg:px-16">
+          <div className="z-10 max-w-2xl text-left text-white">
+            <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{copy.hero.eyebrow}</p>
+            <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">{currentBanner.title}</h1>
+            <p className="mb-8 max-w-xl text-base leading-7 text-white/85 md:text-xl">{currentBanner.subtitle}</p>
+            <div className="flex flex-col justify-start gap-3 sm:flex-row">
+              <Link href={currentBanner.buttonLink}>
+                <Button className="px-8 py-3 text-lg font-semibold text-white" style={{ backgroundColor: palette.primary }}>{currentBanner.buttonText}</Button>
+              </Link>
+              <Link href="/best-sellers">
+                <Button variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white">{copy.hero.secondaryCta}</Button>
+              </Link>
             </div>
           </div>
         </div>
-      ))}
+      </div>
 
       {banners.length > 1 && (
         <>
-          <button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-slate-950/45 p-3 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière précédente"><ChevronLeft className="h-6 w-6" /></button>
-          <button onClick={goToNext} className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-slate-950/45 p-3 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière suivante"><ChevronRight className="h-6 w-6" /></button>
+          <button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière précédente"><ChevronLeft className="h-6 w-6" /></button>
+          <button onClick={goToNext} className="absolute right-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière suivante"><ChevronRight className="h-6 w-6" /></button>
           <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
             {banners.map((banner, index) => (
-              <button key={banner.id} onClick={() => setCurrentSlide(index)} className={`h-3 rounded-full ${index === currentSlide ? "w-8 bg-white" : "w-3 bg-white/50"}`} aria-label={`Afficher la bannière ${index + 1}`} />
+              <button key={banner.id} onClick={() => selectSlide(index)} className={`min-h-11 min-w-11 rounded-full ${index === currentSlide ? "bg-white/20" : "bg-slate-950/25"}`} aria-label={`Afficher la bannière ${index + 1}`} />
             ))}
           </div>
         </>

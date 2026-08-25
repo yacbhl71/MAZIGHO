@@ -24,18 +24,12 @@ const categoryAccents = [
 ];
 
 const discoveryTileMeta = [
-  { image: "/assets/category-mode.jpg", href: "/categorie/mode" },
-  { image: "/assets/category-beaute.jpg", href: "/categorie/beaute-bien-etre" },
-  { image: "/assets/category-maison.jpg", href: "/categorie/maison-organisation" },
-  { image: "/assets/category-sport.jpg", href: "/categorie/sport-fitness" },
-  { image: "/assets/category-high-tech.jpg", href: "/categorie/high-tech-gadgets" },
-  { image: "/assets/category-auto.jpg", href: "/categorie/auto-accessoires" },
-];
-
-const testimonialImages = [
-  "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/tAsMVzoYcQaYPlZx.jpg",
-  "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/beKRpGNWQVYLtodg.jpg",
-  "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/EaGZFquHaQggRJfK.jpg",
+  { image: "/assets/category-mode.webp", href: "/categorie/mode" },
+  { image: "/assets/category-beaute.webp", href: "/categorie/beaute-bien-etre" },
+  { image: "/assets/category-maison.webp", href: "/categorie/maison-organisation" },
+  { image: "/assets/category-sport.webp", href: "/categorie/sport-fitness" },
+  { image: "/assets/category-high-tech.webp", href: "/categorie/high-tech-gadgets" },
+  { image: "/assets/category-auto.webp", href: "/categorie/auto-accessoires" },
 ];
 
 export default function Home() {
@@ -76,7 +70,7 @@ export default function Home() {
 
         <section className="container py-8 md:py-12">
           <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">
-            <img src={profile.highlightImageUrl} alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={profile.highlightImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
             <div className="relative flex min-h-[230px] items-center px-7 py-8 text-white md:min-h-[300px] md:px-12">
               <div className="max-w-md">
@@ -134,7 +128,7 @@ export default function Home() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
                 <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
-                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
+                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
                 </Link>
               ))}
@@ -162,7 +156,7 @@ export default function Home() {
               <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={profile.storyImageUrl} alt="Sélection lifestyle MAZIGHO" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={profile.storyImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
               <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
               <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
             </div>
@@ -183,7 +177,7 @@ export default function Home() {
         {profile.showEditorial && (
         <section className="container py-4 md:py-8">
           <div className="relative min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[#c9b8a8]">
-            <img src={profile.editorialImageUrl} alt="Ambiance bien-être et accessoires MAZIGHO" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={profile.editorialImageUrl} alt="Ambiance bien-être et accessoires MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
             <div className="relative flex min-h-[180px] items-center px-7 py-8 text-white md:px-12">
               <div className="max-w-sm">
@@ -219,7 +213,7 @@ export default function Home() {
                         <CardContent className="p-0">
                           <div className="relative aspect-[4/3] overflow-hidden bg-[#f5f0ea]">
                             {imageUrl ? (
-                              <img src={imageUrl} alt={product.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              <img src={imageUrl} alt={product.name} width={720} height={720} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                             ) : (
                               <div className="flex h-full items-center justify-center text-5xl text-slate-300" aria-label="Image indisponible">✦</div>
                             )}

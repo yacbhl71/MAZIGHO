@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+      content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="https://placehold.co/128x128/FF8C00/FFFFFF?text=MAZIGHO" />
     <link rel="apple-touch-icon" href="https://placehold.co/128x128/FF8C00/FFFFFF?text=MAZIGHO" />
     <meta name="theme-color" content="#f97316" />
@@ -22,20 +22,11 @@
     <title>MAZIGHO | Boutique en ligne</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" /></noscript>
   </head>
 
   <body class="notranslate">
-    <script>
-      // Force clear service workers and caches
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) { registration.unregister(); }
-        });
-      }
-      // Add build version to avoid cache
-      console.log("MAZIGHO Build: " + new Date().getTime());
-    </script>
     <div id="root"></div>
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"WebSite","name":"MAZIGHO","url":"https://www.mazigho.ch","inLanguage":["fr","de","it","en","es","nl","ar"]}

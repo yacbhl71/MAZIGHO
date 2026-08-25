@@ -2060,13 +2060,13 @@ export const defaultDesignProfile: DesignProfile = {
   highlightEyebrow: "L'inspiration MAZIGHO",
   highlightTitle: "Des trouvailles qui embellissent le quotidien.",
   highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",
-  highlightImageUrl: "/assets/home-lifestyle-top.jpg",
+  highlightImageUrl: "/assets/home-lifestyle-top.webp",
   storyTitle: "L’histoire inspirante de MAZIGHO.",
   storyText: "MAZIGHO est né d’une idée simple : rendre les bonnes découvertes plus accessibles. Nous aimons les objets utiles, les petits plaisirs et les détails qui donnent une touche plus douce à la journée.",
-  storyImageUrl: "/assets/home-lifestyle-top.jpg",
+  storyImageUrl: "/assets/home-lifestyle-top.webp",
   editorialEyebrow: "Sélection éditoriale",
   editorialTitle: "Le détail qui fait la différence.",
-  editorialImageUrl: "/assets/home-editorial-divider.jpg",
+  editorialImageUrl: "/assets/home-editorial-divider.webp",
   navigationHome: "Accueil",
   navigationShop: "Boutique",
   navigationCategories: "Catégories",
@@ -2077,6 +2077,11 @@ export const defaultDesignProfile: DesignProfile = {
   showStory: true,
   showTestimonials: true,
   showEditorial: true,
+};
+
+const optimizedBuiltInImageUrls: Record<string, string> = {
+  "/assets/home-lifestyle-top.jpg": "/assets/home-lifestyle-top.webp",
+  "/assets/home-editorial-divider.jpg": "/assets/home-editorial-divider.webp",
 };
 
 function normalizeDesignProfile(value: unknown): DesignProfile {
@@ -2095,7 +2100,10 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   ] as const;
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
-    if (typeof source[field] === "string" && source[field].trim()) normalized[field] = source[field].trim();
+    if (typeof source[field] === "string" && source[field].trim()) {
+      const value = source[field].trim();
+      normalized[field] = field.endsWith("ImageUrl") ? optimizedBuiltInImageUrls[value] || value : value;
+    }
   }
   const navigationTranslations = source.navigationTranslations;
   if (navigationTranslations && typeof navigationTranslations === "object") {
