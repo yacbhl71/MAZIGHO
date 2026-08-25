@@ -243,7 +243,7 @@ export default function Header() {
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="xl:hidden p-1.5 hover:bg-gray-100 rounded-lg"
-              aria-label={isMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+              aria-label={t(locale, isMenuOpen ? "closeMenu" : "openMenu")}
             >
               {isMenuOpen ? (
                 <X className="h-6 w-6" />
@@ -347,7 +347,7 @@ export default function Header() {
 
 
             <Link href="/mon-compte"><Button className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><User className="h-4 w-4" /> {t(locale, "account")}</Button></Link>
-            {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> Gestion MAZIGHO</Button></Link>}
+            {isAdmin && <Link href="/admin"><Button variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Button></Link>}
           </div>
         )}
       </nav>
