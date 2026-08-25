@@ -19,6 +19,11 @@ export default function Account() {
   }
 
   const handleLogout = () => { logout(); navigate("/"); };
+  const staffWorkspace = {
+    catalog_editor: { href: "/admin/catalogue-brouillons", title: "Éditeur catalogue", description: "Préparer des fiches produit en brouillon." },
+    support_agent: { href: "/admin/assistance", title: "Service client", description: "Traiter les messages et modérer les avis." },
+    order_operator: { href: "/admin/operations-commandes", title: "Opérateur commandes", description: "Suivre les commandes déjà acceptées." },
+  }[(user as any)?.role as "catalog_editor" | "support_agent" | "order_operator"];
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -47,6 +52,7 @@ export default function Account() {
                   <AccountLink href="/favoris" icon={<Heart className="h-6 w-6 text-red-600" />} iconClass="bg-red-100" title={copy.favoritesTitle} description={copy.favoritesText} />
                   <AccountLink href="/parametres" icon={<Settings className="h-6 w-6 text-green-600" />} iconClass="bg-green-100" title={copy.settingsTitle} description={copy.settingsText} />
                   {(user as any)?.role === "admin" && <AccountLink href="/admin" icon={<LayoutDashboard className="h-6 w-6 text-orange-600" />} iconClass="bg-orange-100" title={copy.adminTitle} description={copy.adminText} className="border-orange-200 bg-orange-50/30" />}
+                  {staffWorkspace && <AccountLink href={staffWorkspace.href} icon={<LayoutDashboard className="h-6 w-6 text-orange-600" />} iconClass="bg-orange-100" title={staffWorkspace.title} description={staffWorkspace.description} className="border-orange-200 bg-orange-50/30" />}
                   <Card role="button" tabIndex={0} className="cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2" onClick={handleLogout} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleLogout(); } }}><CardContent className="p-6"><div className="flex items-start gap-4"><div className="rounded-lg bg-gray-100 p-3"><LogOut className="h-6 w-6 text-gray-600" /></div><div><h2 className="mb-1 font-semibold text-gray-800">{copy.logoutTitle}</h2><p className="text-sm text-gray-600">{copy.logoutText}</p></div></div></CardContent></Card>
                 </div>
               </div>

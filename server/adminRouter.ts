@@ -433,7 +433,7 @@ export const adminRouter = router({
     create: adminProcedure.input(z.object({
       name: z.string().trim().min(1).max(200),
       email: z.string().trim().email().max(320),
-      role: z.enum(["user", "admin"]),
+      role: z.enum(["user", "catalog_editor", "support_agent", "order_operator", "admin"]),
     })).mutation(async ({ input }) => {
       try {
         const invitation = await db.createPendingInvitation(input);
@@ -493,7 +493,7 @@ export const adminRouter = router({
     }),
     updateRole: adminProcedure.input(z.object({
       id: z.number(),
-      role: z.enum(["user", "admin"]),
+      role: z.enum(["user", "catalog_editor", "support_agent", "order_operator", "admin"]),
       confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {

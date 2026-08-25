@@ -22,7 +22,17 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   const login = trpc.auth.login.useMutation({
-    onSuccess: async data => { await utils.auth.me.invalidate(); toast.success(copy.login.success); setLocation(data.user.role === "admin" ? "/admin" : "/mon-compte"); },
+    onSuccess: async data => {
+      await utils.auth.me.invalidate();
+      toast.success(copy.login.success);
+      const staffDestinations: Record<string, string> = {
+        catalog_editor: "/admin/catalogue-brouillons",
+        support_agent: "/admin/assistance",
+        order_operator: "/admin/operations-commandes",
+        admin: "/admin",
+      };
+      setLocation(staffDestinations[data.user.role] || "/mon-compte");
+    },
     onError: error => toast.error(error.message || copy.login.error),
   });
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); login.mutate({ email, password }); };

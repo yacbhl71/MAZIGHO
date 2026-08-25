@@ -20,6 +20,19 @@ let _catalogSectionSchemaReady: Promise<void> | null = null;
 let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
 let _publicContentTranslationSchemaReady: Promise<void> | null = null;
+let _staffRolesReady: Promise<void> | null = null;
+
+async function ensureStaffRoles() {
+  if (_staffRolesReady) return _staffRolesReady;
+
+  _staffRolesReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("ALTER TABLE `users` MODIFY COLUMN `role` enum('user', 'catalog_editor', 'support_agent', 'order_operator', 'admin') NOT NULL DEFAULT 'user'"));
+  })();
+
+  return _staffRolesReady;
+}
 
 async function ensureAccountStatusColumn() {
   if (_accountStatusColumnReady) return _accountStatusColumnReady;
@@ -393,8 +406,9 @@ async function consumeAccountToken(token: string, purpose: AccountTokenPurpose):
 export async function createPendingInvitation(input: {
   name: string;
   email: string;
-  role: "user" | "admin";
+  role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin";
 }) {
+  await ensureStaffRoles();
   await ensureInvitationSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1295,6 +1309,91 @@ export async function getAllProductsAdmin() {
   })));
 }
 
+export async function getCatalogCategoriesForEditor() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select({ id: categories.id, name: categories.name, catalogSection: categories.catalogSection })
+    .from(categories)
+    .orderBy(asc(categories.displayOrder), asc(categories.name));
+}
+
+export async function getCatalogDraftsForEditor() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    id: products.id,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    options: products.options,
+    categoryId: products.categoryId,
+    categoryName: categories.name,
+    status: products.status,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(eq(products.status, "draft"))
+    .orderBy(desc(products.updatedAt));
+  return await Promise.all(rows.map(async product => ({ ...product, images: await getProductImages(product.id) })));
+}
+
+export async function createCatalogDraft(input: {
+  categoryId: number;
+  name: string;
+  slug: string;
+  description?: string;
+  longDescription?: string;
+  options?: string;
+  images?: string[];
+}) {
+  return await createProduct({
+    categoryId: input.categoryId,
+    name: input.name.trim(),
+    slug: input.slug.trim(),
+    description: input.description?.trim() || null,
+    longDescription: input.longDescription?.trim() || null,
+    options: input.options?.trim() || null,
+    images: input.images || [],
+    price: 0,
+    originalPrice: null,
+    stock: 0,
+    featured: 0,
+    status: "draft",
+    supplier: null,
+    supplierProductId: null,
+    supplierUrl: null,
+    supplierPrice: null,
+  });
+}
+
+async function ensureEditableCatalogDraft(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({ status: products.status }).from(products).where(eq(products.id, id)).limit(1);
+  if (!result[0]) throw new Error("PRODUCT_NOT_FOUND");
+  if (result[0].status !== "draft") throw new Error("PRODUCT_NOT_DRAFT");
+}
+
+export async function updateCatalogDraft(id: number, input: {
+  categoryId?: number;
+  name?: string;
+  slug?: string;
+  description?: string;
+  longDescription?: string;
+  options?: string;
+  images?: string[];
+}) {
+  await ensureEditableCatalogDraft(id);
+  return await updateProduct(id, input);
+}
+
+export async function deleteCatalogDraft(id: number) {
+  await ensureEditableCatalogDraft(id);
+  return await deleteProduct(id);
+}
+
 export async function getProductBySupplierReference(supplier: string, supplierProductId: string) {
   const db = await getDb();
   if (!db) return undefined;
@@ -1486,6 +1585,45 @@ export async function getOrderItemsAdmin(orderId: number) {
     .where(eq(orderItems.orderId, orderId));
 }
 
+export async function getOperationalOrders() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select({
+    id: orders.id,
+    status: orders.status,
+    trackingNumber: orders.trackingNumber,
+    createdAt: orders.createdAt,
+    updatedAt: orders.updatedAt,
+  }).from(orders)
+    .where(sql`${orders.status} IN ('processing', 'shipped')`)
+    .orderBy(desc(orders.updatedAt));
+}
+
+export async function getOperationalOrderItems(orderId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select({
+    id: orderItems.id,
+    quantity: orderItems.quantity,
+    productName: products.name,
+  }).from(orderItems)
+    .leftJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, orderId));
+}
+
+export async function updateOperationalOrderTracking(input: { id: number; status: "shipped" | "delivered"; trackingNumber?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const current = await db.select({ id: orders.id, status: orders.status }).from(orders).where(eq(orders.id, input.id)).limit(1);
+  if (!current[0]) throw new Error("ORDER_NOT_FOUND");
+  if (current[0].status !== "processing" && current[0].status !== "shipped") throw new Error("ORDER_NOT_OPERATIONAL");
+  if (current[0].status === "processing" && input.status !== "shipped") throw new Error("ORDER_REQUIRES_SHIPMENT");
+  const updateData: { status: "shipped" | "delivered"; trackingNumber?: string } = { status: input.status };
+  if (input.trackingNumber?.trim()) updateData.trackingNumber = input.trackingNumber.trim();
+  await db.update(orders).set(updateData).where(eq(orders.id, input.id));
+  return { success: true };
+}
+
 export async function updateOrderStatus(id: number, status: any, trackingNumber?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1586,19 +1724,19 @@ export async function updateUserProfileAdmin(input: { id: number; name: string; 
 
 export async function updateUserRoleAdmin(input: {
   id: number;
-  role: "user" | "admin";
+  role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin";
   actorId: number;
   confirmation?: string;
 }) {
+  await ensureStaffRoles();
   await ensureAccountStatusColumn();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-
   await db.transaction(async tx => {
     await getManageableUser(tx, input.id, input.actorId, {
       allowAdmin: true,
-      protectLastActiveAdmin: input.role === "user",
-      confirmationAction: input.role === "user" ? "RETROGRADER" : undefined,
+      protectLastActiveAdmin: input.role !== "admin",
+      confirmationAction: input.role !== "admin" ? "RETROGRADER" : undefined,
       confirmation: input.confirmation,
     });
     await tx.update(users).set({ role: input.role }).where(eq(users.id, input.id));
@@ -2402,6 +2540,6 @@ export async function deleteBanner(id: number) {
 
 // Kept as a compatibility wrapper for older callers. New callers should use
 // createPendingInvitation and deliver the returned one-time token by e-mail.
-export async function createAdminUser(data: { name: string; email: string; role: "user" | "admin" }) {
+export async function createAdminUser(data: { name: string; email: string; role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin" }) {
   return createPendingInvitation(data);
 }

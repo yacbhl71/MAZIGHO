@@ -18,8 +18,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Role = "user" | "admin";
+type Role = "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin";
 type AccountStatus = "pending_invitation" | "active" | "blocked";
+
+const roleLabels: Record<Role, string> = {
+  user: "Client",
+  catalog_editor: "Éditeur catalogue",
+  support_agent: "Service client",
+  order_operator: "Opérateur commandes",
+  admin: "Administrateur",
+};
+
+const assignableRoles: Role[] = ["user", "catalog_editor", "support_agent", "order_operator", "admin"];
+const roleFilterLabels: Record<Role, string> = {
+  user: "Clients",
+  catalog_editor: "Éditeurs catalogue",
+  support_agent: "Service client",
+  order_operator: "Opérateurs commandes",
+  admin: "Administrateurs",
+};
 type UserRow = {
   id: number;
   name: string | null;
@@ -227,7 +244,7 @@ export default function AdminUsers() {
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1.5fr)_1fr_1fr]">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom ou adresse e-mail…" /></div>
-            <select value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Tous les rôles</option><option value="admin">Administrateurs</option><option value="user">Clients</option></select>
+            <select value={roleFilter} onChange={event => setRoleFilter(event.target.value as typeof roleFilter)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Tous les rôles</option>{assignableRoles.map(role => <option key={role} value={role}>{roleFilterLabels[role]}</option>)}</select>
             <select value={accountStatusFilter} onChange={event => setAccountStatusFilter(event.target.value as typeof accountStatusFilter)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="all">Tous les statuts</option><option value="active">Actifs</option><option value="pending_invitation">Invitations en attente</option><option value="blocked">Bloqués</option></select>
           </div>
         </section>
@@ -260,7 +277,7 @@ export default function AdminUsers() {
                   <TableRow key={user.id}>
                     <TableCell className="font-medium"><div className="flex items-center gap-3"><div className="rounded bg-purple-50 p-2"><User className="h-4 w-4 text-purple-500" /></div>{user.name || "Utilisateur sans nom"}</div></TableCell>
                     <TableCell>{user.email || "—"}</TableCell>
-                    <TableCell><Badge variant={user.role === "admin" ? "default" : "secondary"}>{user.role === "admin" ? <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> Administrateur</span> : "Client"}</Badge></TableCell>
+                    <TableCell><Badge variant={user.role === "admin" ? "default" : user.role === "user" ? "secondary" : "outline"}>{user.role === "admin" ? <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> {roleLabels[user.role]}</span> : roleLabels[user.role]}</Badge></TableCell>
                     <TableCell><Badge variant={user.accountStatus === "blocked" ? "destructive" : user.accountStatus === "pending_invitation" ? "secondary" : "outline"}>{statusLabel(user.accountStatus)}</Badge></TableCell>
                     <TableCell>{user.lastSignedIn ? new Date(user.lastSignedIn).toLocaleDateString() : "Jamais"}</TableCell>
                     <TableCell className="text-right">
@@ -268,7 +285,8 @@ export default function AdminUsers() {
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => openEdit(user)}><Pencil className="mr-1 h-4 w-4" /> Modifier</Button>
                           {user.accountStatus === "pending_invitation" && <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => resendInvitation.mutate({ id: user.id })}><Mail className="mr-1 h-4 w-4" /> Renvoyer l’invitation</Button>}
-                          <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.role === "admin" ? "demote" : "promote" })}><UserCog className="mr-1 h-4 w-4" /> {user.role === "admin" ? "Rétrograder" : "Promouvoir"}</Button>
+                          {user.role !== "admin" && <select aria-label={`Rôle de ${user.email || user.name || "cet utilisateur"}`} value={user.role} onChange={event => updateRole.mutate({ id: user.id, role: event.target.value as Role })} disabled={mutationPending} className="h-8 max-w-44 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{assignableRoles.filter(role => role !== "admin").map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select>}
+                          <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.role === "admin" ? "demote" : "promote" })}><UserCog className="mr-1 h-4 w-4" /> {user.role === "admin" ? "Rétrograder" : "Élever admin"}</Button>
                           <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.accountStatus === "blocked" ? "unblock" : "block" })}><ShieldBan className="mr-1 h-4 w-4" /> {user.accountStatus === "blocked" ? "Débloquer" : "Bloquer"}</Button>
                           <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: "delete" })}><Trash2 className="mr-1 h-4 w-4" /> Supprimer</Button>
                         </div>
@@ -288,7 +306,7 @@ export default function AdminUsers() {
           <form onSubmit={submitCreate} className="space-y-4 py-4">
             <div className="space-y-2"><Label htmlFor="invite-name">Nom complet</Label><Input id="invite-name" value={createForm.name} onChange={event => setCreateForm({ ...createForm, name: event.target.value })} placeholder="Jean Dupont" required /></div>
             <div className="space-y-2"><Label htmlFor="invite-email">Adresse e-mail</Label><div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><Input id="invite-email" type="email" className="pl-10" value={createForm.email} onChange={event => setCreateForm({ ...createForm, email: event.target.value })} placeholder="jean.dupont@exemple.ch" required /></div></div>
-            <div className="space-y-2"><Label>Rôle à attribuer</Label><div className="grid grid-cols-2 gap-2"><Button type="button" variant={createForm.role === "user" ? "default" : "outline"} className={createForm.role === "user" ? "bg-orange-500 hover:bg-orange-600" : ""} onClick={() => setCreateForm({ ...createForm, role: "user" })}><User className="mr-2 h-4 w-4" /> Client</Button><Button type="button" variant={createForm.role === "admin" ? "default" : "outline"} className={createForm.role === "admin" ? "bg-orange-500 hover:bg-orange-600" : ""} onClick={() => setCreateForm({ ...createForm, role: "admin" })}><ShieldCheck className="mr-2 h-4 w-4" /> Admin</Button></div></div>
+            <div className="space-y-2"><Label htmlFor="invite-role">Rôle à attribuer</Label><select id="invite-role" value={createForm.role} onChange={event => setCreateForm({ ...createForm, role: event.target.value as Role })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{assignableRoles.map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select><p className="text-xs text-muted-foreground">La personne recevra un lien personnel et ne verra que les écrans nécessaires à sa mission.</p></div>
             <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={createUser.isPending}>{createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Créer l’invitation</Button></DialogFooter>
           </form>
         </DialogContent>
@@ -308,7 +326,7 @@ export default function AdminUsers() {
       <Dialog open={Boolean(sensitive)} onOpenChange={open => { if (!open) { setSensitive(null); setConfirmation(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" /> {sensitive ? `${getActionLabel(sensitive.action)} un compte` : "Action sensible"}</DialogTitle><DialogDescription>{sensitive?.action === "delete" ? "Cette action est irréversible. Un compte ayant des commandes ne pourra pas être supprimé." : "Cette action modifie immédiatement les accès au compte."}</DialogDescription></DialogHeader>
-          {sensitive && <div className="space-y-4 py-4"><div className="rounded-lg bg-muted p-3 text-sm"><p><strong>Compte ciblé :</strong> {sensitive.target.email || "sans e-mail"}</p><p><strong>Rôle :</strong> {sensitive.target.role === "admin" ? "Administrateur" : "Client"}</p></div>{expectedPhrase && <div className="space-y-2"><Label htmlFor="admin-confirmation">Pour confirmer, saisissez exactement :</Label><code className="block break-all rounded bg-slate-950 p-3 text-xs text-white">{expectedPhrase}</code><Input id="admin-confirmation" value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" placeholder={expectedPhrase} /></div>}<p className="text-sm text-muted-foreground">{expectedPhrase ? "Cette seconde confirmation écrite est également vérifiée par le serveur." : "Confirmez l’action ci-dessous."}</p></div>}
+          {sensitive && <div className="space-y-4 py-4"><div className="rounded-lg bg-muted p-3 text-sm"><p><strong>Compte ciblé :</strong> {sensitive.target.email || "sans e-mail"}</p><p><strong>Rôle :</strong> {roleLabels[sensitive.target.role]}</p></div>{expectedPhrase && <div className="space-y-2"><Label htmlFor="admin-confirmation">Pour confirmer, saisissez exactement :</Label><code className="block break-all rounded bg-slate-950 p-3 text-xs text-white">{expectedPhrase}</code><Input id="admin-confirmation" value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="off" placeholder={expectedPhrase} /></div>}<p className="text-sm text-muted-foreground">{expectedPhrase ? "Cette seconde confirmation écrite est également vérifiée par le serveur." : "Confirmez l’action ci-dessous."}</p></div>}
           <DialogFooter><Button type="button" variant="ghost" onClick={() => { setSensitive(null); setConfirmation(""); }}>Annuler</Button><Button type="button" variant={sensitive?.action === "delete" ? "destructive" : "default"} className={sensitive?.action !== "delete" ? "bg-orange-500 hover:bg-orange-600" : ""} disabled={mutationPending || Boolean(expectedPhrase && confirmation !== expectedPhrase)} onClick={runSensitiveAction}>{mutationPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{sensitive ? getActionLabel(sensitive.action) : "Confirmer"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
