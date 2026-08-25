@@ -78,9 +78,9 @@ export default function Header() {
       <nav className="container mx-auto px-3 py-2 xl:px-4 xl:py-2.5">
         <div className="flex items-center justify-between gap-2 xl:gap-3">
           {/* Logo */}
-          <Link href="/">
-            <div className="group flex cursor-pointer items-center gap-1.5 border-r border-slate-200 pr-2 xl:pr-3" aria-label="Accueil MAZIGHO">
-              <span className="whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-500 transition-colors group-hover:text-orange-600 xl:text-lg">MAZIGHO</span>
+          <Link href="/" aria-label="Accueil MAZIGHO">
+            <div className="group flex cursor-pointer items-center gap-1.5 border-r border-slate-200 pr-2 xl:pr-3">
+              <span className="whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">MAZIGHO</span>
               <span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden="true" />
             </div>
           </Link>
@@ -211,7 +211,7 @@ export default function Header() {
 
           {/* Right Icons */}
           <div className="flex items-center gap-0.5">
-            <Link href="/favoris">
+            <Link href="/favoris" aria-label="Favoris">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden 2xl:block">
                 <Heart className="h-5 w-5 text-gray-700" />
                 {favoritesCount > 0 && (
@@ -221,7 +221,7 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Link href="/panier">
+            <Link href="/panier" aria-label="Panier">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <ShoppingCart className="h-5 w-5 text-gray-700" />
                 {cartCount > 0 && (
@@ -232,7 +232,7 @@ export default function Header() {
               </div>
             </Link>
             <Link href="/mon-compte">
-              <Button className="hidden h-auto gap-1.5 bg-orange-500 px-2 py-1.5 text-xs text-white hover:bg-orange-600 sm:inline-flex">
+              <Button className="hidden h-auto gap-1.5 bg-orange-700 px-2 py-1.5 text-xs text-white hover:bg-orange-800 sm:inline-flex">
                 <User className="h-4 w-4" />
                 <span>{t(locale, "account")}</span>
               </Button>
@@ -243,6 +243,7 @@ export default function Header() {
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="xl:hidden p-1.5 hover:bg-gray-100 rounded-lg"
+              aria-label={isMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
             >
               {isMenuOpen ? (
                 <X className="h-6 w-6" />

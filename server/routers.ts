@@ -9,6 +9,9 @@ const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es
 
 function parsePublicProductLocale(value: unknown): PublicProductLocale {
   if (value === undefined || value === null) return "fr";
+  if (typeof value === "string" && publicProductLocales.includes(value as PublicProductLocale)) {
+    return value as PublicProductLocale;
+  }
   if (typeof value === "object" && value !== null && "locale" in value && typeof value.locale === "string" && publicProductLocales.includes(value.locale as PublicProductLocale)) {
     return value.locale as PublicProductLocale;
   }

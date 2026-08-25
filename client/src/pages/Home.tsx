@@ -24,6 +24,16 @@ function getOptimizedHomeImageUrl(url: string) {
   return optimizedBuiltInImageUrls[url] || url;
 }
 
+const responsiveHomeImageSources: Record<string, string> = {
+  "/assets/home-lifestyle-top.webp": "/assets/home-lifestyle-top-640.webp 640w, /assets/home-lifestyle-top.webp 1920w",
+  "/assets/category-mode.webp": "/assets/category-mode-sm.webp 480w, /assets/category-mode.webp 960w",
+  "/assets/category-beaute.webp": "/assets/category-beaute-sm.webp 480w, /assets/category-beaute.webp 960w",
+  "/assets/category-maison.webp": "/assets/category-maison-sm.webp 480w, /assets/category-maison.webp 960w",
+  "/assets/category-sport.webp": "/assets/category-sport-sm.webp 480w, /assets/category-sport.webp 960w",
+  "/assets/category-high-tech.webp": "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w",
+  "/assets/category-auto.webp": "/assets/category-auto-sm.webp 480w, /assets/category-auto.webp 960w",
+};
+
 const categoryAccents = [
   "from-orange-100 via-amber-50 to-white",
   "from-sky-100 via-blue-50 to-white",
@@ -131,7 +141,7 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">{copy.discovery.eyebrow}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-700">{copy.discovery.eyebrow}</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.discovery.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">{copy.discovery.text}</p>
               </div>
@@ -140,7 +150,7 @@ export default function Home() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
                 <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
-                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
+                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
                 </Link>
               ))}
@@ -161,15 +171,15 @@ export default function Home() {
               <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 md:text-lg">{copy.story.text}</p>
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{copy.story.followup}</p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">01</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[0]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-600">03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">01</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[0]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
               </div>
-              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+              <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-700 text-white shadow-lg shadow-orange-700/20 hover:bg-orange-800">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
-              <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
+              <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-700">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
               <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
             </div>
           </div>
@@ -205,7 +215,7 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">{copy.featured.eyebrow}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-700">{copy.featured.eyebrow}</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.featured.title}</h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>
               </div>
@@ -263,7 +273,7 @@ export default function Home() {
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">{copy.closing.title}</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">{copy.closing.text}</p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/boutique"><Button className="bg-orange-500 text-white hover:bg-orange-600">{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
+                  <Link href="/boutique"><Button className="bg-orange-700 text-white hover:bg-orange-800">{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
                   <Link href="/contact"><Button variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white">{copy.closing.contactCta}</Button></Link>
                 </div>
               </div>

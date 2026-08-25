@@ -63,7 +63,7 @@ export const defaultDesignProfile: DesignProfile = {
 export const designPalettes = {
   terracotta: {
     name: "Terracotta chaleureux",
-    primary: "#ea580c",
+    primary: "#c2410c",
     soft: "#fbf7f2",
     accent: "#0f766e",
     description: "Le style MAZIGHO actuel : chaleureux, élégant et polyvalent.",
