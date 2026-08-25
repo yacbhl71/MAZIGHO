@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -23,6 +25,10 @@ import {
   Tags,
   TrendingUp,
   Users,
+  BarChart3,
+  ChartNoAxesCombined,
+  PieChart as PieChartIcon,
+  ReceiptText,
 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
@@ -52,6 +58,12 @@ function formatDate(value: Date | string | null) {
     month: "short",
     year: "numeric",
   });
+}
+
+const chartColors = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#f97316", "#14b8a6"];
+
+function EmptyChart({ icon: Icon, title, detail }: { icon: typeof ChartNoAxesCombined; title: string; detail: string }) {
+  return <div className="flex h-[280px] flex-col items-center justify-center rounded-xl bg-slate-50 px-6 text-center"><div className="rounded-2xl bg-white p-3 text-slate-400 shadow-sm"><Icon className="h-7 w-7" /></div><p className="mt-4 font-semibold text-slate-800">{title}</p><p className="mt-1 max-w-sm text-sm leading-6 text-slate-500">{detail}</p></div>;
 }
 
 function MetricCard({
@@ -106,10 +118,28 @@ function QuickAction({ href, title, detail, icon: Icon }: { href: string; title:
 
 export default function AdminDashboard() {
   const { data: stats, isLoading, refetch, isFetching } = trpc.admin.getStats.useQuery();
+  const currentYear = new Date().getFullYear();
+  const accountingOverviewQuery = trpc.admin.accounting.getOverview.useQuery({ year: currentYear });
   const lowStockProducts = stats?.lowStockProducts ?? [];
   const recentOrders = stats?.recentOrders ?? [];
   const productsWithoutDeliveryProfiles = stats?.catalogReadiness?.productsWithoutDeliveryProfiles ?? [];
   const productsNeedingTranslations = stats?.catalogReadiness?.productsNeedingTranslations ?? [];
+  const monthlyData = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat("fr-CH", { month: "short" });
+    const months = Array.from({ length: 12 }, (_, month) => ({ month: formatter.format(new Date(currentYear, month, 1)), sales: 0, expenses: 0 }));
+    for (const sale of accountingOverviewQuery.data?.sales ?? []) {
+      const month = new Date(sale.createdAt).getMonth();
+      if (month >= 0 && month < 12) months[month].sales += Number(sale.totalAmount);
+    }
+    for (const entry of accountingOverviewQuery.data?.entries ?? []) {
+      const month = new Date(entry.occurredAt).getMonth();
+      if (month >= 0 && month < 12) months[month].expenses += Number(entry.amount);
+    }
+    return months;
+  }, [accountingOverviewQuery.data?.entries, accountingOverviewQuery.data?.sales, currentYear]);
+  const hasMonthlyData = monthlyData.some(item => item.sales > 0 || item.expenses > 0);
+  const orderStatusData = (stats?.orderStatusCounts ?? []).filter(item => item.value > 0).map(item => ({ name: statusLabels[item.status] || item.status, value: item.value }));
+  const categoryData = (stats?.catalogCategoryCounts ?? []).filter(item => item.value > 0).map(item => ({ name: item.categoryName, value: item.value }));
   const readinessChecks = [
     {
       title: "Profils de livraison",
@@ -202,6 +232,43 @@ export default function AdminDashboard() {
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map(metric => <MetricCard key={metric.title} {...metric} loading={isLoading} />)}
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-5">
+          <Card className="xl:col-span-3 border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><ChartNoAxesCombined className="h-5 w-5 text-sky-600" /> Flux mensuel</CardTitle>
+              <CardDescription>Ventes encaissées et dépenses réellement saisies en {currentYear}.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isLoading || accountingOverviewQuery.isLoading ? <Skeleton className="h-[280px] w-full" /> : hasMonthlyData ? <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyData} margin={{ top: 14, right: 8, left: -12, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} /><YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)} CHF`} /><Tooltip formatter={(value: number | string) => formatMoney(value)} labelStyle={{ color: "#0f172a" }} /><Line type="monotone" dataKey="sales" name="Ventes encaissées" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 3, fill: "#0ea5e9" }} activeDot={{ r: 5 }} /><Line type="monotone" dataKey="expenses" name="Achats et frais" stroke="#f97316" strokeWidth={3} dot={{ r: 3, fill: "#f97316" }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyChart icon={ReceiptText} title="Aucun flux financier à tracer" detail="Le graphique apparaîtra dès qu’une commande payée, un achat ou un frais sera enregistré." />}
+            </CardContent>
+          </Card>
+
+          <Card className="xl:col-span-2 border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><BarChart3 className="h-5 w-5 text-violet-600" /> Commandes par statut</CardTitle>
+              <CardDescription>Répartition actuelle, sans projection.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isLoading ? <Skeleton className="h-[280px] w-full" /> : orderStatusData.length > 0 ? <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={orderStatusData} margin={{ top: 16, right: 2, left: -22, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} interval={0} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} /><Tooltip formatter={(value: number | string) => [`${value}`, "Commandes"]} labelStyle={{ color: "#0f172a" }} /><Bar dataKey="value" radius={[7, 7, 0, 0]}>{orderStatusData.map((item, index) => <Cell key={`${item.name}-${index}`} fill={chartColors[index % chartColors.length]} />)}</Bar></BarChart></ResponsiveContainer></div> : <EmptyChart icon={ShoppingBag} title="Aucune commande enregistrée" detail="Les statuts apparaîtront ici lorsque des commandes seront réellement créées." />}
+            </CardContent>
+          </Card>
+
+          <Card className="xl:col-span-3 border-slate-200 shadow-sm">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><PieChartIcon className="h-5 w-5 text-pink-600" /> Répartition du catalogue</CardTitle>
+              <CardDescription>Produits actuellement enregistrés, regroupés par catégorie.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isLoading ? <Skeleton className="h-[280px] w-full" /> : categoryData.length > 0 ? <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={categoryData} dataKey="value" nameKey="name" cx="42%" cy="50%" innerRadius={62} outerRadius={96} paddingAngle={3}>{categoryData.map((item, index) => <Cell key={`${item.name}-${index}`} fill={chartColors[index % chartColors.length]} />)}</Pie><Tooltip formatter={(value: number | string) => [`${value}`, "Produit(s)"]} labelStyle={{ color: "#0f172a" }} /><text x="42%" y="48%" textAnchor="middle" fill="#0f172a" fontSize="28" fontWeight="700">{categoryData.reduce((total, item) => total + item.value, 0)}</text><text x="42%" y="58%" textAnchor="middle" fill="#64748b" fontSize="12">produits</text></PieChart></ResponsiveContainer></div> : <EmptyChart icon={PieChartIcon} title="Aucun produit à répartir" detail="Le graphique se renseignera dès que le catalogue contiendra des produits catégorisés." />}
+            </CardContent>
+          </Card>
+
+          <Card className="xl:col-span-2 border-orange-100 bg-gradient-to-br from-orange-50 via-white to-sky-50 shadow-sm">
+            <CardHeader className="pb-3"><CardTitle className="text-xl text-slate-900">Lecture fiable</CardTitle><CardDescription>Des graphiques utiles, sans chiffres décoratifs.</CardDescription></CardHeader>
+            <CardContent className="space-y-4"><div className="rounded-xl border border-white bg-white/80 p-4"><p className="font-semibold text-slate-900">Source des montants</p><p className="mt-1 text-sm leading-6 text-slate-600">Seules les commandes marquées réglées alimentent les ventes ; les achats et frais viennent du suivi administratif.</p></div><div className="rounded-xl border border-white bg-white/80 p-4"><p className="font-semibold text-slate-900">Mise à jour</p><p className="mt-1 text-sm leading-6 text-slate-600">Utilisez « Actualiser » après une action pour relire les données enregistrées.</p></div></CardContent>
+          </Card>
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[1.35fr_1fr]">

@@ -1176,6 +1176,8 @@ export async function getAdminStats() {
     activeCatalogProducts,
     deliveryProfileProducts,
     productTranslationRows,
+    orderStatusCounts,
+    catalogCategoryCounts,
   ] = await Promise.all([
     db.select({ value: count() }).from(products),
     db.select({ value: count() }).from(products).where(eq(products.status, "active")),
@@ -1212,6 +1214,8 @@ export async function getAdminStats() {
       .orderBy(desc(products.updatedAt)),
     db.select({ productId: productDeliveryProfiles.productId }).from(productDeliveryProfiles),
     db.select({ productId: productTranslations.productId, locale: productTranslations.locale, status: productTranslations.status }).from(productTranslations),
+    db.select({ status: orders.status, value: count() }).from(orders).groupBy(orders.status),
+    db.select({ categoryName: categories.name, value: count() }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).groupBy(categories.name),
   ]);
 
   const productIdsWithDeliveryProfiles = new Set(deliveryProfileProducts.map(profile => profile.productId));
@@ -1246,6 +1250,8 @@ export async function getAdminStats() {
     unreadMessages: unreadMessages[0]?.value || 0,
     lowStockProducts,
     recentOrders,
+    orderStatusCounts: orderStatusCounts.map(item => ({ status: item.status, value: Number(item.value) })),
+    catalogCategoryCounts: catalogCategoryCounts.map(item => ({ categoryName: item.categoryName || "Sans catégorie", value: Number(item.value) })),
     catalogReadiness: {
       productsWithoutDeliveryProfiles,
       productsNeedingTranslations,
