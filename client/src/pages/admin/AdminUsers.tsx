@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Role = "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin";
 type AccountStatus = "pending_invitation" | "active" | "blocked";
+type AccountView = "all" | "clients" | "internal";
 
 const roleLabels: Record<Role, string> = {
   user: "Client",
@@ -78,6 +79,7 @@ export default function AdminUsers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [accountStatusFilter, setAccountStatusFilter] = useState<"all" | AccountStatus>("all");
+  const [accountView, setAccountView] = useState<AccountView>("all");
   const [manualInvitation, setManualInvitation] = useState<ManualInvitation | null>(null);
 
   const utils = trpc.useUtils();
@@ -173,13 +175,19 @@ export default function AdminUsers() {
         .some(value => String(value).toLowerCase().includes(normalizedQuery));
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       const matchesStatus = accountStatusFilter === "all" || user.accountStatus === accountStatusFilter;
-      return matchesQuery && matchesRole && matchesStatus;
+      const matchesView = accountView === "all" || (accountView === "clients" ? user.role === "user" : user.role !== "user");
+      return matchesQuery && matchesRole && matchesStatus && matchesView;
     });
-  }, [users, searchQuery, roleFilter, accountStatusFilter]);
+  }, [users, searchQuery, roleFilter, accountStatusFilter, accountView]);
+  const selectAccountView = (view: AccountView) => {
+    setAccountView(view);
+    setRoleFilter("all");
+  };
   const clearUserFilters = () => {
     setSearchQuery("");
     setRoleFilter("all");
     setAccountStatusFilter("all");
+    setAccountView("all");
   };
   const expectedPhrase = useMemo(() => {
     if (!sensitive || sensitive.target.role !== "admin") return "";
@@ -251,9 +259,14 @@ export default function AdminUsers() {
         </div>
 
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer par catégorie de compte">
+            <Button type="button" size="sm" variant={accountView === "all" ? "default" : "outline"} onClick={() => selectAccountView("all")} className={accountView === "all" ? "bg-slate-900 hover:bg-slate-800" : ""}>Tous les comptes ({users?.length ?? 0})</Button>
+            <Button type="button" size="sm" variant={accountView === "clients" ? "default" : "outline"} onClick={() => selectAccountView("clients")} className={accountView === "clients" ? "bg-orange-500 hover:bg-orange-600" : ""}>Clients ({users?.filter(rawUser => (rawUser as UserRow).role === "user").length ?? 0})</Button>
+            <Button type="button" size="sm" variant={accountView === "internal" ? "default" : "outline"} onClick={() => selectAccountView("internal")} className={accountView === "internal" ? "bg-teal-600 hover:bg-teal-700" : ""}>Équipe interne ({users?.filter(rawUser => (rawUser as UserRow).role !== "user").length ?? 0})</Button>
+          </div>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div><div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-purple-600" /><h2 className="font-semibold text-slate-900">Recherche et suivi des comptes</h2></div><p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement des comptes…" : `${filteredUsers.length} compte(s) affiché(s) sur ${users?.length ?? 0}`}</p></div>
-            <Button type="button" variant="ghost" size="sm" onClick={clearUserFilters} disabled={!searchQuery && roleFilter === "all" && accountStatusFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={clearUserFilters} disabled={!searchQuery && roleFilter === "all" && accountStatusFilter === "all" && accountView === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1.5fr)_1fr_1fr]">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom ou adresse e-mail…" /></div>
