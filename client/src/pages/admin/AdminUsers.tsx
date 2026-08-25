@@ -21,7 +21,11 @@ import { Textarea } from "@/components/ui/textarea";
 
 type Role = "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin";
 type AccountStatus = "pending_invitation" | "active" | "blocked";
-type AccountView = "all" | "clients" | "internal";
+type AccountView = "all" | "clients" | "inactive" | "super" | "internal";
+
+const INACTIVE_DAYS = 90;
+const SUPER_MIN_PAID_ORDERS = 3;
+const SUPER_MIN_PAID_TOTAL = 30000;
 
 const roleLabels: Record<Role, string> = {
   user: "Client",
@@ -46,6 +50,9 @@ type UserRow = {
   role: Role;
   accountStatus: AccountStatus;
   lastSignedIn: Date | string | null;
+  paidOrderCount?: number;
+  paidTotalAmount?: number;
+  lastPaidOrderAt?: Date | string | null;
 };
 type SensitiveAction = "block" | "unblock" | "demote" | "promote" | "delete";
 type ManualInvitation = { name: string; email: string; role?: Role; link: string; expiresAt: Date | string };
@@ -85,6 +92,7 @@ export default function AdminUsers() {
   const utils = trpc.useUtils();
   const { data: currentUser } = trpc.auth.me.useQuery();
   const { data: users, isLoading, refetch } = trpc.admin.users.getAll.useQuery();
+  const { data: customerSegments } = trpc.admin.users.getCustomerSegments.useQuery();
 
   const createUser = trpc.admin.users.create.useMutation({
     onSuccess: async result => {
@@ -166,19 +174,32 @@ export default function AdminUsers() {
       toast.info("Copiez le lien affiché manuellement.");
     }
   };
+  const customerSegmentById = useMemo(() => new Map((customerSegments || []).map(segment => [segment.id, segment])), [customerSegments]);
+  const inactiveCutoff = useMemo(() => Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000, []);
   const filteredUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    return (users || []).filter(rawUser => {
-      const user = rawUser as UserRow;
+    return (users || []).map(rawUser => {
+      const baseUser = rawUser as UserRow;
+      return { ...baseUser, ...(customerSegmentById.get(baseUser.id) || {}) } as UserRow;
+    }).filter(user => {
       const matchesQuery = !normalizedQuery || [user.name, user.email]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(normalizedQuery));
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       const matchesStatus = accountStatusFilter === "all" || user.accountStatus === accountStatusFilter;
-      const matchesView = accountView === "all" || (accountView === "clients" ? user.role === "user" : user.role !== "user");
+      const paidOrderCount = user.paidOrderCount ?? 0;
+      const paidTotalAmount = user.paidTotalAmount ?? 0;
+      const lastPaidAt = user.lastPaidOrderAt ? new Date(user.lastPaidOrderAt).getTime() : null;
+      const isInactive = user.role === "user" && (paidOrderCount === 0 || !lastPaidAt || lastPaidAt < inactiveCutoff);
+      const isSuperClient = user.role === "user" && (paidOrderCount >= SUPER_MIN_PAID_ORDERS || paidTotalAmount >= SUPER_MIN_PAID_TOTAL);
+      const matchesView = accountView === "all"
+        || (accountView === "clients" && user.role === "user")
+        || (accountView === "inactive" && isInactive)
+        || (accountView === "super" && isSuperClient)
+        || (accountView === "internal" && user.role !== "user");
       return matchesQuery && matchesRole && matchesStatus && matchesView;
     });
-  }, [users, searchQuery, roleFilter, accountStatusFilter, accountView]);
+  }, [users, customerSegmentById, searchQuery, roleFilter, accountStatusFilter, accountView, inactiveCutoff]);
   const selectAccountView = (view: AccountView) => {
     setAccountView(view);
     setRoleFilter("all");
@@ -262,6 +283,8 @@ export default function AdminUsers() {
           <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer par catégorie de compte">
             <Button type="button" size="sm" variant={accountView === "all" ? "default" : "outline"} onClick={() => selectAccountView("all")} className={accountView === "all" ? "bg-slate-900 hover:bg-slate-800" : ""}>Tous les comptes ({users?.length ?? 0})</Button>
             <Button type="button" size="sm" variant={accountView === "clients" ? "default" : "outline"} onClick={() => selectAccountView("clients")} className={accountView === "clients" ? "bg-orange-500 hover:bg-orange-600" : ""}>Clients ({users?.filter(rawUser => (rawUser as UserRow).role === "user").length ?? 0})</Button>
+            <Button type="button" size="sm" variant={accountView === "inactive" ? "default" : "outline"} onClick={() => selectAccountView("inactive")} className={accountView === "inactive" ? "bg-amber-500 hover:bg-amber-600" : ""}>Clients inactifs ({customerSegments?.filter(segment => !segment.lastPaidOrderAt || new Date(segment.lastPaidOrderAt).getTime() < inactiveCutoff).length ?? 0})</Button>
+            <Button type="button" size="sm" variant={accountView === "super" ? "default" : "outline"} onClick={() => selectAccountView("super")} className={accountView === "super" ? "bg-purple-600 hover:bg-purple-700" : ""}>Super clients ({customerSegments?.filter(segment => (segment.paidOrderCount ?? 0) >= SUPER_MIN_PAID_ORDERS || (segment.paidTotalAmount ?? 0) >= SUPER_MIN_PAID_TOTAL).length ?? 0})</Button>
             <Button type="button" size="sm" variant={accountView === "internal" ? "default" : "outline"} onClick={() => selectAccountView("internal")} className={accountView === "internal" ? "bg-teal-600 hover:bg-teal-700" : ""}>Équipe interne ({users?.filter(rawUser => (rawUser as UserRow).role !== "user").length ?? 0})</Button>
           </div>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -282,6 +305,7 @@ export default function AdminUsers() {
                 <TableHead>Utilisateur</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Rôle</TableHead>
+                <TableHead>Engagement</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Dernière connexion</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -291,11 +315,11 @@ export default function AdminUsers() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-48" /></TableCell><TableCell><Skeleton className="h-4 w-20" /></TableCell><TableCell><Skeleton className="h-4 w-28" /></TableCell><TableCell><Skeleton className="h-4 w-24" /></TableCell><TableCell><Skeleton className="ml-auto h-8 w-36" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-48" /></TableCell><TableCell><Skeleton className="h-4 w-20" /></TableCell><TableCell><Skeleton className="h-4 w-32" /></TableCell><TableCell><Skeleton className="h-4 w-28" /></TableCell><TableCell><Skeleton className="h-4 w-24" /></TableCell><TableCell><Skeleton className="ml-auto h-8 w-36" /></TableCell>
                   </TableRow>
                 ))
               ) : filteredUsers.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="py-10 text-center text-muted-foreground"><div className="flex flex-col items-center gap-2"><p>{users?.length === 0 ? "Aucun utilisateur trouvé." : "Aucun compte ne correspond à ces filtres."}</p>{users?.length ? <Button variant="outline" size="sm" onClick={clearUserFilters}>Effacer les filtres</Button> : null}</div></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="py-10 text-center text-muted-foreground"><div className="flex flex-col items-center gap-2"><p>{users?.length === 0 ? "Aucun utilisateur trouvé." : "Aucun compte ne correspond à ces filtres."}</p>{users?.length ? <Button variant="outline" size="sm" onClick={clearUserFilters}>Effacer les filtres</Button> : null}</div></TableCell></TableRow>
               ) : filteredUsers.map(rawUser => {
                 const user = rawUser as UserRow;
                 const isSelf = currentUser?.id === user.id;
@@ -304,6 +328,7 @@ export default function AdminUsers() {
                     <TableCell className="font-medium"><div className="flex items-center gap-3"><div className="rounded bg-purple-50 p-2"><User className="h-4 w-4 text-purple-500" /></div>{user.name || "Utilisateur sans nom"}</div></TableCell>
                     <TableCell>{user.email || "—"}</TableCell>
                     <TableCell><Badge variant={user.role === "admin" ? "default" : user.role === "user" ? "secondary" : "outline"}>{user.role === "admin" ? <span className="flex items-center gap-1"><Shield className="h-3 w-3" /> {roleLabels[user.role]}</span> : roleLabels[user.role]}</Badge></TableCell>
+                    <TableCell>{user.role === "user" ? <div className="flex flex-wrap items-center gap-1.5 text-xs"><span>{user.paidOrderCount ?? 0} commande(s) payée(s)</span>{((user.paidOrderCount ?? 0) >= SUPER_MIN_PAID_ORDERS || (user.paidTotalAmount ?? 0) >= SUPER_MIN_PAID_TOTAL) && <Badge className="border-0 bg-purple-100 text-purple-800">Super client</Badge>}{((user.paidOrderCount ?? 0) === 0 || !user.lastPaidOrderAt || new Date(user.lastPaidOrderAt).getTime() < inactiveCutoff) && <Badge className="border-0 bg-amber-100 text-amber-800">Inactif</Badge>}</div> : <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell><Badge variant={user.accountStatus === "blocked" ? "destructive" : user.accountStatus === "pending_invitation" ? "secondary" : "outline"}>{statusLabel(user.accountStatus)}</Badge></TableCell>
                     <TableCell>{user.lastSignedIn ? new Date(user.lastSignedIn).toLocaleDateString() : "Jamais"}</TableCell>
                     <TableCell className="text-right">

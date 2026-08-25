@@ -441,6 +441,9 @@ export const adminRouter = router({
     getAll: adminProcedure.query(async () => {
       return await db.getAllUsersAdmin();
     }),
+    getCustomerSegments: adminProcedure.query(async () => {
+      return await db.getCustomerSegmentsAdmin();
+    }),
     create: adminProcedure.input(z.object({
       name: z.string().trim().min(1).max(200),
       email: z.string().trim().email().max(320),

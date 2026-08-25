@@ -1661,6 +1661,45 @@ export async function getAllUsersAdmin() {
     .from(users);
 }
 
+export async function getCustomerSegmentsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+
+  const customers = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      accountStatus: users.accountStatus,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+    })
+    .from(users)
+    .where(eq(users.role, "user"));
+
+  const paidOrdersByCustomer = await db
+    .select({
+      userId: orders.userId,
+      paidOrderCount: count(),
+      paidTotalAmount: sum(orders.totalAmount),
+      lastPaidOrderAt: sql<Date | null>`MAX(${orders.createdAt})`,
+    })
+    .from(orders)
+    .where(eq(orders.paymentStatus, "paid"))
+    .groupBy(orders.userId);
+
+  const aggregateByCustomer = new Map(paidOrdersByCustomer.map(item => [item.userId, item]));
+  return customers.map(customer => {
+    const aggregate = aggregateByCustomer.get(customer.id);
+    return {
+      ...customer,
+      paidOrderCount: Number(aggregate?.paidOrderCount ?? 0),
+      paidTotalAmount: Number(aggregate?.paidTotalAmount ?? 0),
+      lastPaidOrderAt: aggregate?.lastPaidOrderAt ?? null,
+    };
+  });
+}
+
 type AdminConfirmationAction = "BLOQUER" | "RETROGRADER" | "SUPPRIMER";
 
 async function getManageableUser(
