@@ -20,7 +20,7 @@ MAZIGHO permet au visiteur de choisir indépendamment sa langue et son pays. Les
 
 - [Livraison et retours](https://www.mazigho.ch/livraison-retours): informations de livraison et de retours.
 - [Conditions générales](https://www.mazigho.ch/conditions-generales): conditions d’utilisation et de vente.
-- [Politique de confidentialité](https://www.mazigho.ch/politique-confidentialite): informations sur les données personnelles.
+- [Politique de confidentialité](https://www.mazigho.ch/confidentialite): informations sur les données personnelles.
 - [Mentions légales](https://www.mazigho.ch/mentions-legales): informations légales de l’exploitant.
 
 ## Catalogue et disponibilité
