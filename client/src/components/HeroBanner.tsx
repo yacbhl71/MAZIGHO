@@ -7,6 +7,7 @@ import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
 import { getPublicCopy } from "@/lib/publicCopy";
+import { t } from "@/lib/i18n";
 
 const DEFAULT_HERO_IMAGE = "/assets/hero-best-offers.webp";
 const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.webp";
@@ -138,11 +139,11 @@ export default function HeroBanner() {
 
       {banners.length > 1 && (
         <>
-          <button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière précédente"><ChevronLeft className="h-6 w-6" /></button>
-          <button onClick={goToNext} className="absolute right-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label="Bannière suivante"><ChevronRight className="h-6 w-6" /></button>
+          <button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label={t(locale, "previousBanner")}><ChevronLeft className="h-6 w-6" /></button>
+          <button onClick={goToNext} className="absolute right-4 top-1/2 z-20 flex h-11 w-11 items-center justify-center -translate-y-1/2 rounded-full bg-slate-950/45 text-white" style={{ borderColor: palette.primary }} aria-label={t(locale, "nextBanner")}><ChevronRight className="h-6 w-6" /></button>
           <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
             {banners.map((banner, index) => (
-              <button key={banner.id} onClick={() => selectSlide(index)} className={`min-h-11 min-w-11 rounded-full ${index === currentSlide ? "bg-white/20" : "bg-slate-950/25"}`} aria-label={`Afficher la bannière ${index + 1}`} />
+              <button key={banner.id} onClick={() => selectSlide(index)} className={`min-h-11 min-w-11 rounded-full ${index === currentSlide ? "bg-white/20" : "bg-slate-950/25"}`} aria-label={t(locale, "showBanner", { index: index + 1 })} />
             ))}
           </div>
         </>

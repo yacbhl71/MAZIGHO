@@ -118,7 +118,9 @@ export default function SearchBar() {
         />
         {query && (
           <button
+            type="button"
             onClick={handleClear}
+            aria-label={t(locale, "clearSearch")}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
           >
             <X className="h-5 w-5" />
@@ -179,7 +181,7 @@ export default function SearchBar() {
               onClick={() => setLocation(`/recherche?q=${encodeURIComponent(query)}`)}
               className="w-full px-4 py-3 text-center text-orange-500 font-medium hover:bg-orange-50 transition-colors"
             >
-              Voir tous les résultats ({results.length})
+              {t(locale, "viewAllResults", { count: results.length })}
             </button>
           )}
         </div>
@@ -188,7 +190,7 @@ export default function SearchBar() {
       {/* No Results Message */}
       {isOpen && query && results.length === 0 && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4 text-center text-gray-600">
-          Aucun résultat pour "{query}"
+          {t(locale, "noResultsFor", { query })}
         </div>
       )}
     </div>

@@ -301,7 +301,7 @@ export default function Header() {
 
             <div className="space-y-1">
               <Link href="/creations">
-                <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-rose-50 rounded cursor-pointer text-sm font-medium text-rose-700">Collections créatives</div>
+                <div onClick={() => setIsMenuOpen(false)} className="px-4 py-2 hover:bg-rose-50 rounded cursor-pointer text-sm font-medium text-rose-700">{navigation.creations}</div>
               </Link>
               <button
                 onClick={() => setOpenDropdown(openDropdown === 3 ? null : 3)}

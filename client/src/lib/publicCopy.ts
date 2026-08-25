@@ -8,18 +8,8 @@ export function getPublicCopy(locale: StorefrontLocale): PublicCopy {
   return publicCopy[locale] ?? publicCopy.fr;
 }
 
-const discoveryTitles: Record<StorefrontLocale, string[]> = {
-  fr: ["Mode & accessoires", "Beauté & bien-être", "Maison & cuisine", "Sport & plein air", "High-tech utile", "Mobilité & auto"],
-  de: ["Mode & Accessoires", "Schönheit & Wohlbefinden", "Wohnen & Küche", "Sport & Freizeit", "Nützliche Technik", "Mobilität & Auto"],
-  it: ["Moda e accessori", "Bellezza e benessere", "Casa e cucina", "Sport e attività all’aperto", "Tecnologia utile", "Mobilità e auto"],
-  en: ["Fashion & Accessories", "Beauty & Well-being", "Home & Kitchen", "Sport & Outdoors", "Useful Tech", "Mobility & Auto"],
-  es: ["Moda y accesorios", "Belleza y bienestar", "Hogar y cocina", "Deporte y aire libre", "Tecnología útil", "Movilidad y automóvil"],
-  nl: ["Mode & accessoires", "Beauty & welzijn", "Huis & keuken", "Sport & buiten", "Handige technologie", "Mobiliteit & auto"],
-  ar: ["الأزياء والإكسسوارات", "الجمال والعافية", "المنزل والمطبخ", "الرياضة والهواء الطلق", "تقنية مفيدة", "التنقل والسيارات"],
-};
-
 export function getDiscoveryTiles(locale: StorefrontLocale) {
-  return getPublicCopy(locale).discovery.tiles.map((tile, index) => ({ ...tile, title: discoveryTitles[locale][index] || tile.title }));
+  return getPublicCopy(locale).discovery.tiles;
 }
 
 const creativeMenuCopy: Record<StorefrontLocale, { title: string; intro: string; all: string }> = {

@@ -80,7 +80,7 @@ export default function Home() {
     const sourceCategory = categoriesQuery.data?.find(item => item.slug === slug);
     const category = sourceCategory ? getLocalizedCategoryPresentation(locale, sourceCategory) : undefined;
     const fallback = discoveryTiles[index];
-    return { ...tile, title: category?.name || fallback?.title || "Découvrir", description: category?.description || fallback?.description || "" };
+    return { ...tile, title: category?.name || fallback?.title || t(locale, "discover"), description: category?.description || fallback?.description || "" };
   });
 
   return (
@@ -92,7 +92,7 @@ export default function Home() {
 
         <section className="container py-8 md:py-12">
           <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">
-            <img src={highlightImageUrl} alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={highlightImageUrl} alt={copy.highlight.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
             <div className="relative flex min-h-[230px] items-center px-7 py-8 text-white md:min-h-[300px] md:px-12">
               <div className="max-w-md">
@@ -178,7 +178,7 @@ export default function Home() {
               <Link href="/boutique" className="mt-8 inline-block"><Button className="bg-orange-700 text-white shadow-lg shadow-orange-700/20 hover:bg-orange-800">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Button></Link>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt="Sélection lifestyle MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
               <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-700">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
               <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
             </div>
@@ -199,7 +199,7 @@ export default function Home() {
         {profile.showEditorial && (
         <section className="container py-4 md:py-8">
           <div className="relative min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[#c9b8a8]">
-            <img src={editorialImageUrl} alt="Ambiance bien-être et accessoires MAZIGHO" width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={editorialImageUrl} alt={copy.editorial.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
             <div className="relative flex min-h-[180px] items-center px-7 py-8 text-white md:px-12">
               <div className="max-w-sm">
@@ -237,7 +237,7 @@ export default function Home() {
                             {imageUrl ? (
                               <img src={imageUrl} alt={product.name} width={720} height={720} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                             ) : (
-                              <div className="flex h-full items-center justify-center text-5xl text-slate-300" aria-label="Image indisponible">✦</div>
+                              <div className="flex h-full items-center justify-center text-5xl text-slate-300" aria-label={t(locale, "imageUnavailable")}>✦</div>
                             )}
                             {hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">{copy.featured.new}</span>}
                           </div>
