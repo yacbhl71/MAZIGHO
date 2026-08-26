@@ -533,14 +533,14 @@ export default function AdminProducts() {
             </DialogHeader>
             
             <Tabs defaultValue="general" className="mt-6">
-              <TabsList className="grid w-full grid-cols-7">
-                <TabsTrigger value="general">Général</TabsTrigger>
-                <TabsTrigger value="images">Images</TabsTrigger>
-                <TabsTrigger value="variants">Variantes</TabsTrigger>
-                <TabsTrigger value="details">Détails</TabsTrigger>
-                <TabsTrigger value="delivery" className="bg-emerald-50 text-emerald-700">Livraison</TabsTrigger>
-                <TabsTrigger value="translations" className="bg-sky-50 text-sky-700"><Languages className="mr-1 h-3.5 w-3.5" />Traductions</TabsTrigger>
-                <TabsTrigger value="internal" className="bg-orange-50 text-orange-700">Fournisseur</TabsTrigger>
+              <TabsList className="flex w-full gap-2 overflow-x-auto rounded-md p-1 [scrollbar-width:thin]">
+                <TabsTrigger value="general" className="min-w-max shrink-0 px-3 whitespace-nowrap">Général</TabsTrigger>
+                <TabsTrigger value="images" className="min-w-max shrink-0 px-3 whitespace-nowrap">Images</TabsTrigger>
+                <TabsTrigger value="variants" className="min-w-max shrink-0 px-3 whitespace-nowrap">Variantes</TabsTrigger>
+                <TabsTrigger value="details" className="min-w-max shrink-0 px-3 whitespace-nowrap">Détails</TabsTrigger>
+                <TabsTrigger value="delivery" className="min-w-max shrink-0 whitespace-nowrap bg-emerald-50 px-3 text-emerald-700">Livraison</TabsTrigger>
+                <TabsTrigger value="translations" className="min-w-max shrink-0 whitespace-nowrap bg-sky-50 px-3 text-sky-700"><Languages className="mr-1 h-3.5 w-3.5" />Traductions</TabsTrigger>
+                <TabsTrigger value="internal" className="min-w-max shrink-0 whitespace-nowrap bg-orange-50 px-3 text-orange-700">Fournisseur</TabsTrigger>
               </TabsList>
               
               <TabsContent value="general" className="space-y-4 py-4">
