@@ -30,7 +30,18 @@ const deliveryCountries = [
   { code: "NL", label: "Pays-Bas" }, { code: "ES", label: "Espagne" },
 ] as const;
 type DeliveryProfileDraft = { countryCode: string; supplierVariantId: string; supplierShippingCost: string; customerShippingCost: string; deliveryMethod: string; minDeliveryDays: string; maxDeliveryDays: string };
-const makeDeliveryProfile = (countryCode: string): DeliveryProfileDraft => ({ countryCode, supplierVariantId: "test", supplierShippingCost: "0", customerShippingCost: "0", deliveryMethod: "Test Stripe", minDeliveryDays: "3", maxDeliveryDays: "7" });
+const makeDeliveryProfile = (countryCode: string): DeliveryProfileDraft => ({ countryCode, supplierVariantId: "test", supplierShippingCost: "0,00", customerShippingCost: "0,00", deliveryMethod: "Test Stripe", minDeliveryDays: "3", maxDeliveryDays: "7" });
+const parseChfToCents = (raw: string): number | null => {
+  const value = raw.trim().replace(/\s/g, "");
+  if (!value) return 0;
+  const normalized = value.includes(",") && value.includes(".") ? value.replace(/\./g, "").replace(",", ".") : value.replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) : null;
+};
+const centsToChfInput = (cents: unknown): string => {
+  const amount = Number(cents || 0) / 100;
+  return amount.toFixed(2).replace(".", ",");
+};
 
 export default function AdminProducts() {
   const [isOpen, setIsOpen] = useState(false);
@@ -198,8 +209,8 @@ export default function AdminProducts() {
     setEditingProduct(product);
     setName(product.name);
     setSlug(product.slug);
-    setPrice(String(product.price));
-    setOriginalPrice(product.originalPrice ? String(product.originalPrice) : "");
+    setPrice(centsToChfInput(product.price));
+    setOriginalPrice(product.originalPrice ? centsToChfInput(product.originalPrice) : "");
     
     // Calculate initial discount percent if prices exist
     if (product.originalPrice && product.price && product.originalPrice > product.price) {
@@ -212,14 +223,14 @@ export default function AdminProducts() {
     setStock(String(product.stock));
     setCategoryId(String(product.categoryId));
     setCategoryIds(product.categoryIds?.length ? product.categoryIds : [product.categoryId]);
-    setDeliveryProfiles((product.deliveryProfiles || []).map((profile: any) => ({ countryCode: profile.countryCode, supplierVariantId: profile.supplierVariantId || "", supplierShippingCost: String(profile.supplierShippingCost ?? 0), customerShippingCost: String(profile.customerShippingCost ?? 0), deliveryMethod: profile.deliveryMethod || "", minDeliveryDays: String(profile.minDeliveryDays ?? ""), maxDeliveryDays: String(profile.maxDeliveryDays ?? "") })));
+    setDeliveryProfiles((product.deliveryProfiles || []).map((profile: any) => ({ countryCode: profile.countryCode, supplierVariantId: profile.supplierVariantId || "", supplierShippingCost: centsToChfInput(profile.supplierShippingCost), customerShippingCost: centsToChfInput(profile.customerShippingCost), deliveryMethod: profile.deliveryMethod || "", minDeliveryDays: String(profile.minDeliveryDays ?? ""), maxDeliveryDays: String(profile.maxDeliveryDays ?? "") })));
     setDescription(product.description || "");
     setLongDescription(product.longDescription || "");
     setStatus(product.status);
     setImages(product.images?.map((img: any) => img.imageUrl) || []);
     setSupplier(product.supplier || "");
     setSupplierUrl(product.supplierUrl || "");
-    setSupplierPrice(product.supplierPrice ? String(product.supplierPrice) : "");
+    setSupplierPrice(product.supplierPrice ? centsToChfInput(product.supplierPrice) : "");
     
     try {
       const parsedOptions = typeof product.options === 'string' ? JSON.parse(product.options) : (product.options || []);
@@ -242,11 +253,11 @@ export default function AdminProducts() {
   // Automatic discount calculation
   useEffect(() => {
     if (originalPrice && discountPercent) {
-      const orig = parseInt(originalPrice);
+      const orig = parseChfToCents(originalPrice);
       const perc = parseInt(discountPercent);
-      if (!isNaN(orig) && !isNaN(perc)) {
+      if (orig != null && !isNaN(perc)) {
         const calculated = Math.round(orig * (1 - perc / 100));
-        setPrice(String(calculated));
+        setPrice(centsToChfInput(calculated));
       }
     }
   }, [originalPrice, discountPercent]);
@@ -306,14 +317,14 @@ export default function AdminProducts() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const parsedPrice = parseInt(price);
-    const parsedOriginalPrice = originalPrice ? parseInt(originalPrice) : undefined;
+    const parsedPrice = parseChfToCents(price);
+    const parsedOriginalPrice = originalPrice ? parseChfToCents(originalPrice) : undefined;
     const parsedStock = parseInt(stock);
     const parsedCategoryId = parseInt(categoryId);
     const selectedCategoryIds = categoryIds.length > 0 ? categoryIds : (Number.isNaN(parsedCategoryId) ? [] : [parsedCategoryId]);
-    const parsedSupplierPrice = supplierPrice ? parseInt(supplierPrice) : undefined;
+    const parsedSupplierPrice = supplierPrice ? parseChfToCents(supplierPrice) : undefined;
 
-    if (!name || !slug || isNaN(parsedPrice) || isNaN(parsedStock) || selectedCategoryIds.length === 0) {
+    if (!name || !slug || parsedPrice == null || parsedPrice <= 0 || parsedOriginalPrice === null || parsedSupplierPrice === null || isNaN(parsedStock) || selectedCategoryIds.length === 0) {
       toast.error("Veuillez remplir tous les champs obligatoires avec des valeurs valides");
       return;
     }
@@ -326,7 +337,7 @@ export default function AdminProducts() {
       stock: parsedStock,
       categoryId: selectedCategoryIds[0],
       categoryIds: selectedCategoryIds,
-      deliveryProfiles: deliveryProfiles.map(profile => ({ countryCode: profile.countryCode as any, supplierVariantId: profile.supplierVariantId || null, supplierShippingCost: parseInt(profile.supplierShippingCost) || 0, customerShippingCost: parseInt(profile.customerShippingCost) || 0, deliveryMethod: profile.deliveryMethod || null, minDeliveryDays: profile.minDeliveryDays === "" ? null : parseInt(profile.minDeliveryDays), maxDeliveryDays: profile.maxDeliveryDays === "" ? null : parseInt(profile.maxDeliveryDays) })),
+      deliveryProfiles: deliveryProfiles.map(profile => ({ countryCode: profile.countryCode as any, supplierVariantId: profile.supplierVariantId || null, supplierShippingCost: parseChfToCents(profile.supplierShippingCost) ?? 0, customerShippingCost: parseChfToCents(profile.customerShippingCost) ?? 0, deliveryMethod: profile.deliveryMethod || null, minDeliveryDays: profile.minDeliveryDays === "" ? null : parseInt(profile.minDeliveryDays), maxDeliveryDays: profile.maxDeliveryDays === "" ? null : parseInt(profile.maxDeliveryDays) })),
       description: description || undefined,
       longDescription: longDescription || undefined,
       status: status as any,
@@ -543,8 +554,8 @@ export default function AdminProducts() {
                 
                 <div className="grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <div className="grid gap-2">
-                    <Label htmlFor="originalPrice" className="text-gray-500">Prix barré (centimes)</Label>
-                    <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="7990" />
+                    <Label htmlFor="originalPrice" className="text-gray-500">Prix barré (CHF)</Label>
+                    <Input id="originalPrice" type="text" inputMode="decimal" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="79,90" />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="discountPercent" className="text-red-500 flex items-center gap-1">
@@ -553,8 +564,8 @@ export default function AdminProducts() {
                     <Input id="discountPercent" type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} placeholder="20" className="border-red-200 focus:border-red-500" />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="price" className="font-bold">Prix de vente *</Label>
-                    <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} required placeholder="5990" />
+                    <Label htmlFor="price" className="font-bold">Prix de vente (CHF) *</Label>
+                    <Input id="price" type="text" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} required placeholder="59,90" />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="stock">Stock *</Label>
@@ -736,7 +747,7 @@ export default function AdminProducts() {
 
               <TabsContent value="delivery" className="space-y-4 py-4 border-2 border-emerald-100 rounded-lg p-4 bg-emerald-50/30">
                 <div className="flex items-center justify-between gap-3">
-                  <div><h3 className="font-bold text-emerald-800">Profils de livraison</h3><p className="text-xs text-emerald-700">Cochez les pays livrables et renseignez les coûts en centimes CHF.</p></div>
+                  <div><h3 className="font-bold text-emerald-800">Profils de livraison</h3><p className="text-xs text-emerald-700">Cochez les pays livrables et saisissez les coûts en CHF (ex. 3,50 ou 3.50).</p></div>
                   <Badge variant="outline" className="border-emerald-300 text-emerald-700">{deliveryProfiles.length} pays</Badge>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -750,7 +761,7 @@ export default function AdminProducts() {
                 </div>
                 {deliveryProfiles.map(profile => <div key={profile.countryCode} className="space-y-3 rounded border border-emerald-200 bg-white p-3">
                   <div className="flex items-center justify-between"><p className="font-semibold text-slate-900">{deliveryCountries.find(country => country.code === profile.countryCode)?.label || profile.countryCode}</p><Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setDeliveryProfiles(current => current.filter(item => item.countryCode !== profile.countryCode))}>Retirer</Button></div>
-                  <div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-1"><Label className="text-xs">Frais fournisseur</Label><Input type="number" min="0" value={profile.supplierShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, supplierShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Frais client</Label><Input type="number" min="0" value={profile.customerShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, customerShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Méthode</Label><Input value={profile.deliveryMethod} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, deliveryMethod: event.target.value } : item))} placeholder="DHL / Poste" /></div></div>
+                  <div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-1"><Label className="text-xs">Frais fournisseur (CHF)</Label><Input type="text" inputMode="decimal" placeholder="0,00" value={profile.supplierShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, supplierShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Frais client (CHF)</Label><Input type="text" inputMode="decimal" placeholder="0,00" value={profile.customerShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, customerShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Méthode</Label><Input value={profile.deliveryMethod} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, deliveryMethod: event.target.value } : item))} placeholder="DHL / Poste" /></div></div>
                   <div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-1"><Label className="text-xs">Délai minimum (jours)</Label><Input type="number" min="0" value={profile.minDeliveryDays} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, minDeliveryDays: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Délai maximum (jours)</Label><Input type="number" min="0" value={profile.maxDeliveryDays} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, maxDeliveryDays: event.target.value } : item))} /></div></div>
                 </div>)}
                 {deliveryProfiles.length === 0 && <p className="rounded border border-dashed border-emerald-300 bg-white p-3 text-sm text-muted-foreground">Aucun pays sélectionné. Le produit ne sera pas affiché comme livrable.</p>}
@@ -779,8 +790,8 @@ export default function AdminProducts() {
                     </div>
                   </div>
                   <div className="grid gap-2 w-1/2">
-                    <Label htmlFor="supplierPrice">Prix d'achat fournisseur (centimes)</Label>
-                    <Input id="supplierPrice" type="number" value={supplierPrice} onChange={(e) => setSupplierPrice(e.target.value)} placeholder="3400" />
+                    <Label htmlFor="supplierPrice">Prix d'achat fournisseur (CHF)</Label>
+                    <Input id="supplierPrice" type="text" inputMode="decimal" value={supplierPrice} onChange={(e) => setSupplierPrice(e.target.value)} placeholder="34,00" />
                     <p className="text-[10px] text-muted-foreground">Utile pour calculer votre marge réelle.</p>
                   </div>
                 </div>

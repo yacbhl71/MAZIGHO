@@ -18,6 +18,7 @@ function slugify(value: string) {
 }
 
 import { formatPrice } from "@/lib/currency";
+import { centsToChfInput, parseChfToCents } from "@/lib/moneyInput";
 
 export default function AdminDropshipping() {
   const [url, setUrl] = useState("");
@@ -32,11 +33,11 @@ export default function AdminDropshipping() {
   const [sourcePriceCents, setSourcePriceCents] = useState("");
   const handleSourcePriceChange = (val: string) => {
     setSourcePriceCents(val);
-    const numericSource = Number(val);
-    if (!isNaN(numericSource) && numericSource > 0) {
-      const margin = Number(marginPercent) || 0;
+    const numericSource = parseChfToCents(val);
+    if (numericSource != null && numericSource > 0) {
+      const margin = Number(marginPercent.replace(",", ".")) || 0;
       const calculated = Math.round(numericSource * (1 + margin / 100));
-      setPriceCents(String(calculated));
+      setPriceCents(centsToChfInput(calculated));
     }
   };
   const [stock, setStock] = useState("0");
@@ -50,8 +51,8 @@ export default function AdminDropshipping() {
       setName(data.name);
       setSlug(slugify(data.name));
       setDescription(data.description || "");
-      setSourcePriceCents(data.sourcePriceCents == null ? "" : String(data.sourcePriceCents));
-      setPriceCents(data.suggestedPriceCents == null ? "" : String(data.suggestedPriceCents));
+      setSourcePriceCents(data.sourcePriceCents == null ? "" : centsToChfInput(data.sourcePriceCents));
+      setPriceCents(data.suggestedPriceCents == null ? "" : centsToChfInput(data.suggestedPriceCents));
       setStock(String(data.stock));
       setImagesText(data.images.join("\n"));
       if (!url.trim() && data.supplierUrl) {
@@ -118,9 +119,9 @@ export default function AdminDropshipping() {
 
   const handleImport = (event: React.FormEvent) => {
     event.preventDefault();
-    const parsedPrice = Number(priceCents);
-    const parsedSourcePrice = sourcePriceCents ? Number(sourcePriceCents) : null;
-    if (!categoryId || !name.trim() || !slug.trim() || !Number.isInteger(parsedPrice) || parsedPrice <= 0) {
+    const parsedPrice = parseChfToCents(priceCents);
+    const parsedSourcePrice = sourcePriceCents ? parseChfToCents(sourcePriceCents) : null;
+    if (!categoryId || !name.trim() || !slug.trim() || parsedPrice == null || !Number.isInteger(parsedPrice) || parsedPrice <= 0) {
       toast.error("Complétez la catégorie, le nom, le slug et un prix de vente valide.");
       return;
     }
@@ -255,12 +256,12 @@ export default function AdminDropshipping() {
                   <input value={stock} onChange={event => setStock(event.target.value)} type="number" min="0" className="h-10 w-full rounded-md border px-3 text-sm" />
                 </label>
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium">Prix fournisseur (centimes)</span>
-                  <input value={sourcePriceCents} onChange={event => handleSourcePriceChange(event.target.value)} type="number" min="0" className="h-10 w-full rounded-md border px-3 text-sm" />
+                  <span className="text-sm font-medium">Prix fournisseur (CHF)</span>
+                  <input value={sourcePriceCents} onChange={event => handleSourcePriceChange(event.target.value)} type="text" inputMode="decimal" placeholder="0,00" className="h-10 w-full rounded-md border px-3 text-sm" />
                 </label>
                 <label className="block space-y-2">
-                  <span className="text-sm font-medium">Prix de vente (centimes)</span>
-                  <input value={priceCents} onChange={event => setPriceCents(event.target.value)} type="number" min="1" className="h-10 w-full rounded-md border px-3 text-sm" />
+                  <span className="text-sm font-medium">Prix de vente (CHF)</span>
+                  <input value={priceCents} onChange={event => setPriceCents(event.target.value)} type="text" inputMode="decimal" placeholder="0,00" className="h-10 w-full rounded-md border px-3 text-sm" />
                 </label>
                 <label className="block space-y-2 md:col-span-2">
                   <span className="text-sm font-medium">Description</span>
@@ -284,8 +285,8 @@ export default function AdminDropshipping() {
               <div className="rounded-xl border bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-lg font-semibold">Résumé commercial</h2>
                 <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Prix fournisseur</dt><dd className="font-medium">{formatPrice(Number(sourcePriceCents) || null)}</dd></div>
-                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Prix de vente</dt><dd className="font-semibold text-orange-600">{formatPrice(Number(priceCents) || null)}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Prix fournisseur</dt><dd className="font-medium">{formatPrice(parseChfToCents(sourcePriceCents) || null)}</dd></div>
+                  <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Prix de vente</dt><dd className="font-semibold text-orange-600">{formatPrice(parseChfToCents(priceCents) || null)}</dd></div>
                   <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Statut initial</dt><dd><Badge variant="secondary">Brouillon</Badge></dd></div>
                   <div className="flex justify-between gap-4"><dt className="text-muted-foreground">Catégorie</dt><dd className="text-right font-medium">{selectedCategoryName || "—"}</dd></div>
                 </dl>

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Edit, Loader2, Percent, Plus, Ticket, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { centsToChfInput, parseChfToCents } from "@/lib/moneyInput";
 
  type PromotionForm = {
   code: string;
@@ -86,8 +87,8 @@ export default function AdminPromotions() {
     setForm({
       code: promotion.code,
       type: promotion.type,
-      value: String(promotion.value),
-      minOrderAmount: promotion.minOrderAmount == null ? "" : String(promotion.minOrderAmount),
+      value: promotion.type === "fixed" ? centsToChfInput(promotion.value) : String(promotion.value),
+      minOrderAmount: promotion.minOrderAmount == null ? "" : centsToChfInput(promotion.minOrderAmount),
       maxUses: promotion.maxUses == null ? "" : String(promotion.maxUses),
       active: promotion.active,
       startsAt: dateForInput(promotion.startsAt),
@@ -97,14 +98,14 @@ export default function AdminPromotions() {
   };
 
   const buildPayload = () => {
-    const value = Number(form.value);
-    const minOrderAmount = form.minOrderAmount.trim() ? Number(form.minOrderAmount) : undefined;
+    const value = form.type === "fixed" ? parseChfToCents(form.value) : Number(form.value);
+    const minOrderAmount = form.minOrderAmount.trim() ? parseChfToCents(form.minOrderAmount) : undefined;
     const maxUses = form.maxUses.trim() ? Number(form.maxUses) : undefined;
-    if (!form.code.trim() || !Number.isInteger(value) || value <= 0 || (form.type === "percent" && value > 100)) {
-      toast.error(form.type === "percent" ? "Saisissez un pourcentage entre 1 et 100" : "Saisissez une remise fixe valide en centimes");
+    if (!form.code.trim() || value == null || !Number.isInteger(value) || value <= 0 || (form.type === "percent" && value > 100)) {
+      toast.error(form.type === "percent" ? "Saisissez un pourcentage entre 1 et 100" : "Saisissez une remise fixe valide en CHF");
       return null;
     }
-    if (minOrderAmount !== undefined && (!Number.isInteger(minOrderAmount) || minOrderAmount < 0)) { toast.error("Le minimum de commande est invalide"); return null; }
+    if (minOrderAmount !== undefined && (minOrderAmount == null || !Number.isInteger(minOrderAmount) || minOrderAmount < 0)) { toast.error("Le minimum de commande est invalide"); return null; }
     if (maxUses !== undefined && (!Number.isInteger(maxUses) || maxUses <= 0)) { toast.error("Le nombre maximal d'utilisations est invalide"); return null; }
     const startsAt = form.startsAt ? new Date(form.startsAt) : undefined;
     const expiresAt = form.expiresAt ? new Date(form.expiresAt) : undefined;
@@ -134,7 +135,7 @@ export default function AdminPromotions() {
           </div>
         </section>
         <section className="grid gap-4 sm:grid-cols-3"><div className="rounded-xl border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Offres actives</p><p className="mt-1 text-2xl font-bold text-emerald-700">{promotionSummary.active}</p><p className="mt-1 text-xs text-muted-foreground">Disponibles actuellement</p></div><div className="rounded-xl border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Offres planifiées</p><p className="mt-1 text-2xl font-bold text-blue-700">{promotionSummary.scheduled}</p><p className="mt-1 text-xs text-muted-foreground">Démarreront à une date définie</p></div><div className="rounded-xl border bg-white p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Utilisations</p><p className="mt-1 text-2xl font-bold text-orange-700">{promotionSummary.uses}</p><p className="mt-1 text-xs text-muted-foreground">Toutes les offres confondues</p></div></section>
-        <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4 text-sm text-slate-700"><strong>Règle de saisie :</strong> une remise fixe est exprimée en centimes CHF (ex. 500 = 5,00 CHF), tandis qu'une remise en pourcentage est saisie directement (ex. 10 = 10 %).</div>
+        <div className="rounded-xl border border-orange-100 bg-orange-50/60 p-4 text-sm text-slate-700"><strong>Règle de saisie :</strong> une remise fixe est exprimée en CHF (ex. 5,00 ou 5.00), tandis qu'une remise en pourcentage est saisie directement (ex. 10 = 10 %).</div>
         <div className="overflow-hidden rounded-lg border bg-white">
           <Table><TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Remise</TableHead><TableHead>Minimum</TableHead><TableHead>Performance</TableHead><TableHead>Validité</TableHead><TableHead>Statut réel</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -144,7 +145,7 @@ export default function AdminPromotions() {
         </div>
       </div>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId === null ? "Nouveau code promo" : "Modifier le code promo"}</DialogTitle><DialogDescription>Définissez les conditions de la remise. Les montants sont en centimes CHF.</DialogDescription></DialogHeader><form onSubmit={handleSubmit} className="space-y-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-code">Code *</Label><Input id="promo-code" value={form.code} onChange={(event) => updateField("code", event.target.value)} placeholder="BIENVENUE" /></div><div className="space-y-2"><Label htmlFor="promo-type">Type</Label><select id="promo-type" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={form.type} onChange={(event) => updateField("type", event.target.value as PromotionForm["type"])}><option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option></select></div></div><div className="space-y-2"><Label htmlFor="promo-value">Valeur {form.type === "percent" ? "(%)" : "(centimes CHF)"} *</Label><Input id="promo-value" type="number" min="1" max={form.type === "percent" ? "100" : undefined} value={form.value} onChange={(event) => updateField("value", event.target.value)} /></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-min">Minimum de commande (centimes)</Label><Input id="promo-min" type="number" min="0" value={form.minOrderAmount} onChange={(event) => updateField("minOrderAmount", event.target.value)} placeholder="10000" /></div><div className="space-y-2"><Label htmlFor="promo-max">Nombre maximal d'utilisations</Label><Input id="promo-max" type="number" min="1" value={form.maxUses} onChange={(event) => updateField("maxUses", event.target.value)} placeholder="Illimité" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-start">Début</Label><Input id="promo-start" type="datetime-local" value={form.startsAt} onChange={(event) => updateField("startsAt", event.target.value)} /></div><div className="space-y-2"><Label htmlFor="promo-end">Fin</Label><Input id="promo-end" type="datetime-local" value={form.expiresAt} onChange={(event) => updateField("expiresAt", event.target.value)} /></div></div><div className="flex items-center justify-between rounded-md border p-3"><div><Label>Code actif</Label><p className="text-xs text-muted-foreground">Le code peut être conservé sans être utilisable.</p></div><Button type="button" variant={form.active ? "default" : "outline"} onClick={() => updateField("active", form.active ? 0 : 1)}><Percent className="mr-2 h-4 w-4" />{form.active ? "Actif" : "Inactif"}</Button></div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button></DialogFooter></form></DialogContent></Dialog>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{editingId === null ? "Nouveau code promo" : "Modifier le code promo"}</DialogTitle><DialogDescription>Définissez les conditions de la remise. Les montants sont en CHF ; vous pouvez utiliser une virgule ou un point.</DialogDescription></DialogHeader><form onSubmit={handleSubmit} className="space-y-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-code">Code *</Label><Input id="promo-code" value={form.code} onChange={(event) => updateField("code", event.target.value)} placeholder="BIENVENUE" /></div><div className="space-y-2"><Label htmlFor="promo-type">Type</Label><select id="promo-type" className="h-10 w-full rounded-md border bg-white px-3 text-sm" value={form.type} onChange={(event) => updateField("type", event.target.value as PromotionForm["type"])}><option value="percent">Pourcentage</option><option value="fixed">Montant fixe</option></select></div></div><div className="space-y-2"><Label htmlFor="promo-value">Valeur {form.type === "percent" ? "(%)" : "(CHF)"} *</Label><Input id="promo-value" type={form.type === "percent" ? "number" : "text"} inputMode={form.type === "percent" ? "numeric" : "decimal"} min="1" max={form.type === "percent" ? "100" : undefined} placeholder={form.type === "percent" ? "10" : "5,00"} value={form.value} onChange={(event) => updateField("value", event.target.value)} /></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-min">Minimum de commande (CHF)</Label><Input id="promo-min" type="text" inputMode="decimal" min="0" value={form.minOrderAmount} onChange={(event) => updateField("minOrderAmount", event.target.value)} placeholder="100,00" /></div><div className="space-y-2"><Label htmlFor="promo-max">Nombre maximal d'utilisations</Label><Input id="promo-max" type="number" min="1" value={form.maxUses} onChange={(event) => updateField("maxUses", event.target.value)} placeholder="Illimité" /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label htmlFor="promo-start">Début</Label><Input id="promo-start" type="datetime-local" value={form.startsAt} onChange={(event) => updateField("startsAt", event.target.value)} /></div><div className="space-y-2"><Label htmlFor="promo-end">Fin</Label><Input id="promo-end" type="datetime-local" value={form.expiresAt} onChange={(event) => updateField("expiresAt", event.target.value)} /></div></div><div className="flex items-center justify-between rounded-md border p-3"><div><Label>Code actif</Label><p className="text-xs text-muted-foreground">Le code peut être conservé sans être utilisable.</p></div><Button type="button" variant={form.active ? "default" : "outline"} onClick={() => updateField("active", form.active ? 0 : 1)}><Percent className="mr-2 h-4 w-4" />{form.active ? "Actif" : "Inactif"}</Button></div><DialogFooter><Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={isSaving}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button></DialogFooter></form></DialogContent></Dialog>
     </DashboardLayout>
   );
 }

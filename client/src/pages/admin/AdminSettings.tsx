@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bell, CircleAlert, CircleCheck, CreditCard, Globe2, Loader2, Mail, Save, Settings2, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { centsToChfInput, parseChfToCents } from "@/lib/moneyInput";
 
 type SettingsForm = {
   site_name: string;
@@ -22,8 +23,8 @@ const defaultForm: SettingsForm = {
   site_name: "MAZIGHO",
   contact_email: "contact@mazigho.com",
   currency: "CHF",
-  free_shipping_threshold: "10000",
-  flat_shipping_rate: "500",
+  free_shipping_threshold: "100,00",
+  flat_shipping_rate: "5,00",
 };
 
 const settingKeys = Object.keys(defaultForm) as Array<keyof SettingsForm>;
@@ -43,14 +44,14 @@ export default function AdminSettings() {
     if (!settingsQuery.data) return;
     const next = { ...defaultForm };
     for (const setting of settingsQuery.data) {
-      if (setting.key in next) next[setting.key as keyof SettingsForm] = setting.value;
+      if (setting.key in next) next[setting.key as keyof SettingsForm] = setting.key === "free_shipping_threshold" || setting.key === "flat_shipping_rate" ? centsToChfInput(setting.value) : setting.value;
     }
     setForm(next);
   }, [settingsQuery.data]);
 
   const deliveryPreview = useMemo(() => ({
-    threshold: formatCents(form.free_shipping_threshold, form.currency),
-    rate: formatCents(form.flat_shipping_rate, form.currency),
+    threshold: formatCents(String(parseChfToCents(form.free_shipping_threshold) ?? NaN), form.currency),
+    rate: formatCents(String(parseChfToCents(form.flat_shipping_rate) ?? NaN), form.currency),
   }), [form.currency, form.flat_shipping_rate, form.free_shipping_threshold]);
 
   const setField = (key: keyof SettingsForm, value: string) => setForm(current => ({ ...current, [key]: value }));
@@ -60,18 +61,18 @@ export default function AdminSettings() {
       toast.error("Le nom du site et l'e-mail de contact sont obligatoires");
       return;
     }
-    const threshold = Number(form.free_shipping_threshold);
-    const shippingRate = Number(form.flat_shipping_rate);
-    if (!Number.isInteger(threshold) || threshold < 0 || !Number.isInteger(shippingRate) || shippingRate < 0) {
-      toast.error("Les montants de livraison doivent être exprimés en centimes entiers positifs");
+    const threshold = parseChfToCents(form.free_shipping_threshold);
+    const shippingRate = parseChfToCents(form.flat_shipping_rate);
+    if (threshold == null || threshold < 0 || shippingRate == null || shippingRate < 0) {
+      toast.error("Saisissez des montants de livraison valides en CHF (ex. 5,00 ou 5.00)");
       return;
     }
 
     try {
       await Promise.all(settingKeys.map(key => updateSetting.mutateAsync({
         key,
-        value: form[key].trim(),
-        description: key === "free_shipping_threshold" ? "Seuil de livraison gratuite en centimes" : key === "flat_shipping_rate" ? "Frais de livraison fixes en centimes" : undefined,
+        value: key === "free_shipping_threshold" ? String(threshold) : key === "flat_shipping_rate" ? String(shippingRate) : form[key].trim(),
+        description: key === "free_shipping_threshold" ? "Seuil de livraison gratuite en centimes (saisi en CHF dans le panel)" : key === "flat_shipping_rate" ? "Frais de livraison fixes en centimes (saisi en CHF dans le panel)" : undefined,
       })));
       toast.success("Paramètres enregistrés dans la base de données");
       await settingsQuery.refetch();
@@ -95,7 +96,7 @@ export default function AdminSettings() {
 
           <TabsContent value="general"><Card className="shadow-sm"><CardHeader><CardTitle>Informations générales</CardTitle><CardDescription>Ces informations représentent votre boutique et servent de référence aux interfaces publiques.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="siteName">Nom du site</Label><Input id="siteName" value={form.site_name} onChange={event => setField("site_name", event.target.value)} /></div><div className="space-y-2"><Label htmlFor="contactEmail">E-mail de contact</Label><Input id="contactEmail" type="email" value={form.contact_email} onChange={event => setField("contact_email", event.target.value)} /></div></div><div className="max-w-md space-y-2"><Label htmlFor="currency">Devise principale</Label><select id="currency" value={form.currency} onChange={event => setField("currency", event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CHF">Franc suisse (CHF)</option><option value="EUR">Euro (€)</option><option value="USD">Dollar (USD)</option></select><p className="text-xs text-muted-foreground">Le catalogue et les montants doivent rester cohérents avec cette devise.</p></div><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button></CardContent></Card></TabsContent>
 
-          <TabsContent value="shipping"><Card className="shadow-sm"><CardHeader><CardTitle>Options de livraison</CardTitle><CardDescription>Les montants sont enregistrés en centimes afin de préserver la précision des prix.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="freeShippingThreshold">Seuil de livraison gratuite (centimes)</Label><Input id="freeShippingThreshold" type="number" min="0" step="1" value={form.free_shipping_threshold} onChange={event => setField("free_shipping_threshold", event.target.value)} /><p className="text-xs text-muted-foreground">Aperçu client : livraison gratuite dès <strong>{deliveryPreview.threshold}</strong>.</p></div><div className="space-y-2"><Label htmlFor="flatRate">Frais fixes de livraison (centimes)</Label><Input id="flatRate" type="number" min="0" step="1" value={form.flat_shipping_rate} onChange={event => setField("flat_shipping_rate", event.target.value)} /><p className="text-xs text-muted-foreground">Aperçu client : frais de <strong>{deliveryPreview.rate}</strong> sous le seuil.</p></div></div><div className="flex items-start gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900"><Truck className="mt-0.5 h-5 w-5 shrink-0" /><p>Vérifiez les règles commerciales avant tout changement : ces réglages sont destinés au tunnel de commande.</p></div><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button></CardContent></Card></TabsContent>
+          <TabsContent value="shipping"><Card className="shadow-sm"><CardHeader><CardTitle>Options de livraison</CardTitle><CardDescription>Saisissez les montants en CHF ; une virgule ou un point est accepté. Le stockage reste précis en centimes.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="freeShippingThreshold">Seuil de livraison gratuite (CHF)</Label><Input id="freeShippingThreshold" type="text" inputMode="decimal" placeholder="100,00" value={form.free_shipping_threshold} onChange={event => setField("free_shipping_threshold", event.target.value)} /><p className="text-xs text-muted-foreground">Aperçu client : livraison gratuite dès <strong>{deliveryPreview.threshold}</strong>.</p></div><div className="space-y-2"><Label htmlFor="flatRate">Frais fixes de livraison (CHF)</Label><Input id="flatRate" type="text" inputMode="decimal" placeholder="5,00" value={form.flat_shipping_rate} onChange={event => setField("flat_shipping_rate", event.target.value)} /><p className="text-xs text-muted-foreground">Aperçu client : frais de <strong>{deliveryPreview.rate}</strong> sous le seuil.</p></div></div><div className="flex items-start gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm text-sky-900"><Truck className="mt-0.5 h-5 w-5 shrink-0" /><p>Vérifiez les règles commerciales avant tout changement : ces réglages sont destinés au tunnel de commande.</p></div><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button></CardContent></Card></TabsContent>
 
           <TabsContent value="payment"><Card className="shadow-sm"><CardHeader><CardTitle>Paiement en ligne</CardTitle><CardDescription>Le panneau indique l’état réel de l’intégration : aucun prestataire de paiement n’est encore connecté.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><CreditCard className="h-5 w-5 text-amber-600" /> Paiement sécurisé</div><p className="mt-1 text-sm text-slate-700">Stripe pourra être relié lorsque vous serez prêt à activer les encaissements réels.</p></div><Badge className="w-fit border-0 bg-amber-600">À configurer</Badge></div><div className="flex items-start gap-3 rounded-xl border bg-slate-50 p-4 text-sm text-slate-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p>Les clés de paiement ne seront jamais saisies sur cette page. Elles devront être ajoutées uniquement dans les variables sécurisées de Vercel.</p></div></CardContent></Card></TabsContent>
 
