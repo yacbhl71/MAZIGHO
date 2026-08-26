@@ -15,6 +15,27 @@ import {
   previewProductInput,
 } from "./dropshipping";
 
+const deliveryProfileInput = z.object({
+  countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
+  supplierVariantId: z.string().trim().max(128).nullable().optional(),
+  supplierShippingCost: z.number().int().min(0),
+  customerShippingCost: z.number().int().min(0),
+  deliveryMethod: z.string().trim().max(255).nullable().optional(),
+  minDeliveryDays: z.number().int().min(0).nullable().optional(),
+  maxDeliveryDays: z.number().int().min(0).nullable().optional(),
+}).superRefine((profile, ctx) => {
+  if (profile.minDeliveryDays != null && profile.maxDeliveryDays != null && profile.maxDeliveryDays < profile.minDeliveryDays) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["maxDeliveryDays"], message: "Le délai maximal doit être supérieur ou égal au délai minimal." });
+  }
+});
+const deliveryProfilesInput = z.array(deliveryProfileInput).max(8).superRefine((profiles, ctx) => {
+  const countries = new Set<string>();
+  profiles.forEach((profile, index) => {
+    if (countries.has(profile.countryCode)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "countryCode"], message: "Un seul profil est autorisé par pays." });
+    countries.add(profile.countryCode);
+  });
+});
+
 function rethrowUserManagementError(error: unknown): never {
   const code = String(error);
   if (code.includes("CANNOT_MANAGE_SELF")) {
@@ -156,6 +177,8 @@ export const adminRouter = router({
       supplier: z.string().optional(),
       supplierUrl: z.string().optional(),
       supplierPrice: z.number().optional(),
+      categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
+      deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ input }) => {
       return await db.createProduct(input);
     }),
@@ -175,6 +198,8 @@ export const adminRouter = router({
       supplier: z.string().optional(),
       supplierUrl: z.string().optional(),
       supplierPrice: z.number().optional(),
+      categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
+      deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ input }) => {
       return await db.updateProduct(input.id, input);
     }),

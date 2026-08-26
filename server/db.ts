@@ -1,4 +1,4 @@
-import { and, desc, asc, count, eq, gt, gte, lt, isNull, sql, sum, avg } from "drizzle-orm";
+import { and, desc, asc, count, eq, gt, gte, lt, isNull, inArray, sql, sum, avg } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -16,6 +16,7 @@ let _invitationSchemaReady: Promise<void> | null = null;
 let _accountingSchemaReady: Promise<void> | null = null;
 let _orderDecisionSchemaReady: Promise<void> | null = null;
 let _deliveryProfileSchemaReady: Promise<void> | null = null;
+let _productCategorySchemaReady: Promise<void> | null = null;
 let _catalogSectionSchemaReady: Promise<void> | null = null;
 let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
@@ -107,6 +108,17 @@ async function ensureDeliveryProfileSchema() {
   })();
 
   return _deliveryProfileSchemaReady;
+}
+
+async function ensureProductCategorySchema() {
+  if (_productCategorySchemaReady) return _productCategorySchemaReady;
+  _productCategorySchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productCategories` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `categoryId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY `product_categories_product_category_unique` (`productId`, `categoryId`), INDEX `product_categories_product_idx` (`productId`), INDEX `product_categories_category_idx` (`categoryId`))"));
+    await db.execute(sql.raw("INSERT IGNORE INTO `productCategories` (`productId`, `categoryId`) SELECT `id`, `categoryId` FROM `products`"));
+  })();
+  return _productCategorySchemaReady;
 }
 
 async function ensureCatalogSectionSchema() {
@@ -713,8 +725,56 @@ export async function getProductDeliveryProfiles(productIds: number[]) {
   await ensureDeliveryProfileSchema();
   const db = await getDb();
   if (!db) return [];
-  const { inArray } = await import("drizzle-orm");
   return await db.select().from(productDeliveryProfiles).where(inArray(productDeliveryProfiles.productId, productIds));
+}
+
+export async function replaceProductDeliveryProfiles(productId: number, profiles: Array<{
+  countryCode: string;
+  supplierVariantId?: string | null;
+  supplierShippingCost: number;
+  customerShippingCost: number;
+  deliveryMethod?: string | null;
+  minDeliveryDays?: number | null;
+  maxDeliveryDays?: number | null;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await ensureDeliveryProfileSchema();
+  await db.delete(productDeliveryProfiles).where(eq(productDeliveryProfiles.productId, productId));
+  if (profiles.length > 0) {
+    await db.insert(productDeliveryProfiles).values(profiles.map(profile => ({
+      productId,
+      countryCode: profile.countryCode,
+      supplierVariantId: profile.supplierVariantId ?? null,
+      supplierShippingCost: profile.supplierShippingCost,
+      customerShippingCost: profile.customerShippingCost,
+      deliveryMethod: profile.deliveryMethod ?? null,
+      minDeliveryDays: profile.minDeliveryDays ?? null,
+      maxDeliveryDays: profile.maxDeliveryDays ?? null,
+    })));
+  }
+  return { productId, count: profiles.length };
+}
+export async function getProductCategoryIds(productId: number) {
+  await ensureProductCategorySchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ categoryId: productCategories.categoryId }).from(productCategories).where(eq(productCategories.productId, productId));
+  return rows.map(row => row.categoryId);
+}
+
+export async function replaceProductCategories(productId: number, categoryIds: number[]) {
+  await ensureProductCategorySchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(categoryId => Number.isInteger(categoryId) && categoryId > 0)));
+  if (uniqueCategoryIds.length === 0) throw new Error("PRODUCT_CATEGORY_REQUIRED");
+  const validCategories = await db.select({ id: categories.id }).from(categories).where(inArray(categories.id, uniqueCategoryIds));
+  if (validCategories.length !== uniqueCategoryIds.length) throw new Error("CATEGORY_NOT_FOUND");
+  await db.delete(productCategories).where(eq(productCategories.productId, productId));
+  await db.insert(productCategories).values(uniqueCategoryIds.map(categoryId => ({ productId, categoryId })));
+  await db.update(products).set({ categoryId: uniqueCategoryIds[0] }).where(eq(products.id, productId));
+  return { productId, categoryIds: uniqueCategoryIds };
 }
 
 function attachDeliveryProfiles<T extends { id: number }>(rows: T[], profiles: Array<typeof productDeliveryProfiles.$inferSelect>) {
@@ -1057,9 +1117,9 @@ export async function getFeaturedProducts(limit: number = 8) {
 }
 
 export async function getProductsByCategory(categoryId: number) {
+  await ensureProductCategorySchema();
   const db = await getDb();
   if (!db) return [];
-  
   const { and } = await import("drizzle-orm");
   const rows = await db.select({
     id: products.id,
@@ -1076,11 +1136,12 @@ export async function getProductsByCategory(categoryId: number) {
     options: products.options,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
-  }).from(products)
-    .where(and(eq(products.categoryId, categoryId), eq(products.status, "active")));
-  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
+    }).from(products)
+    .where(eq(products.status, "active"));
+  const assignments = await Promise.all(rows.map(async row => ({ row, categoryIds: await getProductCategoryIds(row.id) })));
+  const filteredRows = assignments.filter(item => item.categoryIds.includes(categoryId)).map(item => item.row);
+  return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id)));
 }
-
 export async function getProductBySlug(slug: string) {
   await ensureCatalogSectionSchema();
   const db = await getDb();
@@ -1274,6 +1335,8 @@ export async function getAdminStats() {
 }
 
 export async function getAllProductsAdmin() {
+  await ensureProductCategorySchema();
+  await ensureDeliveryProfileSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
   const { products, categories } = await import("../drizzle/schema");
@@ -1306,6 +1369,8 @@ export async function getAllProductsAdmin() {
   return await Promise.all(rows.map(async (product) => ({
     ...product,
     images: await getProductImages(product.id),
+    categoryIds: await getProductCategoryIds(product.id),
+    deliveryProfiles: await getProductDeliveryProfiles([product.id]),
   })));
 }
 
@@ -1409,7 +1474,7 @@ export async function createProduct(data: any) {
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
   
-  const { images, deliveryProfiles, ...productData } = data;
+  const { images, deliveryProfiles, categoryIds, ...productData } = data;
   const result = await db.insert(products).values(productData);
   const productId = (result as any)[0].insertId;
 
@@ -1421,11 +1486,12 @@ export async function createProduct(data: any) {
     }));
     await db.insert(productImages).values(imageValues);
   }
-  if (deliveryProfiles && deliveryProfiles.length > 0) {
-    await ensureDeliveryProfileSchema();
-    await db.insert(productDeliveryProfiles).values(deliveryProfiles.map((profile: any) => ({ ...profile, productId })));
+    if (deliveryProfiles && deliveryProfiles.length > 0) {
+    await replaceProductDeliveryProfiles(productId, deliveryProfiles);
   }
-
+  if (categoryIds && categoryIds.length > 0) {
+    await replaceProductCategories(productId, categoryIds);
+  }
   return { id: productId };
 }
 
@@ -1434,7 +1500,7 @@ export async function updateProduct(id: number, data: any) {
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
   
-  const { images, id: _ignoredId, ...productData } = data;
+  const { images, deliveryProfiles, categoryIds, id: _ignoredId, ...productData } = data;
   const sourceTextChanged = ["name", "description", "longDescription", "options"].some(field => Object.prototype.hasOwnProperty.call(productData, field));
   if (Object.keys(productData).length > 0) {
     await db.update(products).set(productData).where(eq(products.id, id));
@@ -1453,11 +1519,11 @@ export async function updateProduct(id: number, data: any) {
       }));
       await db.insert(productImages).values(imageValues);
     }
-  }
-
+    }
+  if (deliveryProfiles) await replaceProductDeliveryProfiles(id, deliveryProfiles);
+  if (categoryIds) await replaceProductCategories(id, categoryIds);
   return { success: true };
 }
-
 export async function deleteProduct(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

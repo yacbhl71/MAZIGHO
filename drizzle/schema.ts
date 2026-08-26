@@ -78,6 +78,16 @@ export const products = mysqlTable("products", {
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
 
+// Additional category assignments; categoryId above remains the primary category.
+export const productCategories = mysqlTable("productCategories", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  categoryId: int("categoryId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ProductCategory = typeof productCategories.$inferSelect;
+export type InsertProductCategory = typeof productCategories.$inferInsert;
+
 // Product images table
 export const productImages = mysqlTable("productImages", {
   id: int("id").autoincrement().primaryKey(),

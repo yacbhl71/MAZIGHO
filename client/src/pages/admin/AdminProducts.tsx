@@ -24,6 +24,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const automaticTranslationLocales = ["de", "it", "en", "es", "nl", "ar"] as const;
+const deliveryCountries = [
+  { code: "CH", label: "Suisse" }, { code: "FR", label: "France" }, { code: "DE", label: "Allemagne" },
+  { code: "IT", label: "Italie" }, { code: "AT", label: "Autriche" }, { code: "BE", label: "Belgique" },
+  { code: "NL", label: "Pays-Bas" }, { code: "ES", label: "Espagne" },
+] as const;
+type DeliveryProfileDraft = { countryCode: string; supplierVariantId: string; supplierShippingCost: string; customerShippingCost: string; deliveryMethod: string; minDeliveryDays: string; maxDeliveryDays: string };
+const makeDeliveryProfile = (countryCode: string): DeliveryProfileDraft => ({ countryCode, supplierVariantId: "test", supplierShippingCost: "0", customerShippingCost: "0", deliveryMethod: "Test Stripe", minDeliveryDays: "3", maxDeliveryDays: "7" });
 
 export default function AdminProducts() {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +44,8 @@ export default function AdminProducts() {
   const [discountPercent, setDiscountPercent] = useState("");
   const [stock, setStock] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [categoryIds, setCategoryIds] = useState<number[]>([]);
+  const [deliveryProfiles, setDeliveryProfiles] = useState<DeliveryProfileDraft[]>([]);
   const [description, setDescription] = useState("");
   const [longDescription, setLongDescription] = useState("");
   const [status, setStatus] = useState("draft");
@@ -166,6 +175,8 @@ export default function AdminProducts() {
     setDiscountPercent("");
     setStock("");
     setCategoryId("");
+    setCategoryIds([]);
+    setDeliveryProfiles([]);
     setDescription("");
     setLongDescription("");
     setStatus("draft");
@@ -200,6 +211,8 @@ export default function AdminProducts() {
 
     setStock(String(product.stock));
     setCategoryId(String(product.categoryId));
+    setCategoryIds(product.categoryIds?.length ? product.categoryIds : [product.categoryId]);
+    setDeliveryProfiles((product.deliveryProfiles || []).map((profile: any) => ({ countryCode: profile.countryCode, supplierVariantId: profile.supplierVariantId || "", supplierShippingCost: String(profile.supplierShippingCost ?? 0), customerShippingCost: String(profile.customerShippingCost ?? 0), deliveryMethod: profile.deliveryMethod || "", minDeliveryDays: String(profile.minDeliveryDays ?? ""), maxDeliveryDays: String(profile.maxDeliveryDays ?? "") })));
     setDescription(product.description || "");
     setLongDescription(product.longDescription || "");
     setStatus(product.status);
@@ -297,9 +310,10 @@ export default function AdminProducts() {
     const parsedOriginalPrice = originalPrice ? parseInt(originalPrice) : undefined;
     const parsedStock = parseInt(stock);
     const parsedCategoryId = parseInt(categoryId);
+    const selectedCategoryIds = categoryIds.length > 0 ? categoryIds : (Number.isNaN(parsedCategoryId) ? [] : [parsedCategoryId]);
     const parsedSupplierPrice = supplierPrice ? parseInt(supplierPrice) : undefined;
 
-    if (!name || !slug || isNaN(parsedPrice) || isNaN(parsedStock) || isNaN(parsedCategoryId)) {
+    if (!name || !slug || isNaN(parsedPrice) || isNaN(parsedStock) || selectedCategoryIds.length === 0) {
       toast.error("Veuillez remplir tous les champs obligatoires avec des valeurs valides");
       return;
     }
@@ -310,7 +324,9 @@ export default function AdminProducts() {
       price: parsedPrice,
       originalPrice: parsedOriginalPrice,
       stock: parsedStock,
-      categoryId: parsedCategoryId,
+      categoryId: selectedCategoryIds[0],
+      categoryIds: selectedCategoryIds,
+      deliveryProfiles: deliveryProfiles.map(profile => ({ countryCode: profile.countryCode as any, supplierVariantId: profile.supplierVariantId || null, supplierShippingCost: parseInt(profile.supplierShippingCost) || 0, customerShippingCost: parseInt(profile.customerShippingCost) || 0, deliveryMethod: profile.deliveryMethod || null, minDeliveryDays: profile.minDeliveryDays === "" ? null : parseInt(profile.minDeliveryDays), maxDeliveryDays: profile.maxDeliveryDays === "" ? null : parseInt(profile.maxDeliveryDays) })),
       description: description || undefined,
       longDescription: longDescription || undefined,
       status: status as any,
@@ -503,11 +519,12 @@ export default function AdminProducts() {
             </DialogHeader>
             
             <Tabs defaultValue="general" className="mt-6">
-              <TabsList className="grid w-full grid-cols-6">
+              <TabsList className="grid w-full grid-cols-7">
                 <TabsTrigger value="general">Général</TabsTrigger>
                 <TabsTrigger value="images">Images</TabsTrigger>
                 <TabsTrigger value="variants">Variantes</TabsTrigger>
                 <TabsTrigger value="details">Détails</TabsTrigger>
+                <TabsTrigger value="delivery" className="bg-emerald-50 text-emerald-700">Livraison</TabsTrigger>
                 <TabsTrigger value="translations" className="bg-sky-50 text-sky-700"><Languages className="mr-1 h-3.5 w-3.5" />Traductions</TabsTrigger>
                 <TabsTrigger value="internal" className="bg-orange-50 text-orange-700">Fournisseur</TabsTrigger>
               </TabsList>
@@ -547,17 +564,21 @@ export default function AdminProducts() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="category">Catégorie *</Label>
-                    <Select value={categoryId} onValueChange={setCategoryId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choisir une catégorie" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories?.map((cat) => (
-                          <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Catégories * <span className="font-normal text-xs text-muted-foreground">(la première cochée est principale)</span></Label>
+                    <div className="max-h-44 overflow-y-auto rounded-md border border-input bg-background p-3 space-y-2">
+                      {categories?.map((cat) => {
+                        const checked = categoryIds.includes(cat.id) || (categoryIds.length === 0 && String(cat.id) === categoryId);
+                        return <label key={cat.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <input type="checkbox" checked={checked} onChange={(event) => {
+                            setCategoryIds(current => event.target.checked ? Array.from(new Set([...current, cat.id])) : current.filter(id => id !== cat.id));
+                            if (event.target.checked && !categoryId) setCategoryId(String(cat.id));
+                            if (!event.target.checked && categoryId === String(cat.id)) setCategoryId(String(categoryIds.find(id => id !== cat.id) || ""));
+                          }} className="h-4 w-4 accent-orange-500" />
+                          <span>{cat.name}</span>
+                        </label>;
+                      })}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">Sélectionnez une ou plusieurs catégories. La première sélectionnée reste la catégorie principale pour les liens existants.</p>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="status">Statut de publication</Label>
@@ -713,6 +734,27 @@ export default function AdminProducts() {
                 )}
               </TabsContent>
 
+              <TabsContent value="delivery" className="space-y-4 py-4 border-2 border-emerald-100 rounded-lg p-4 bg-emerald-50/30">
+                <div className="flex items-center justify-between gap-3">
+                  <div><h3 className="font-bold text-emerald-800">Profils de livraison</h3><p className="text-xs text-emerald-700">Cochez les pays livrables et renseignez les coûts en centimes CHF.</p></div>
+                  <Badge variant="outline" className="border-emerald-300 text-emerald-700">{deliveryProfiles.length} pays</Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {deliveryCountries.map(country => {
+                    const profile = deliveryProfiles.find(item => item.countryCode === country.code);
+                    return <label key={country.code} className="flex cursor-pointer items-center gap-2 rounded border border-emerald-100 bg-white p-2 text-sm">
+                      <input type="checkbox" checked={Boolean(profile)} onChange={event => setDeliveryProfiles(current => event.target.checked ? [...current, makeDeliveryProfile(country.code)] : current.filter(item => item.countryCode !== country.code))} className="h-4 w-4 accent-emerald-600" />
+                      <span className="font-medium">{country.label}</span><span className="text-xs text-muted-foreground">({country.code})</span>
+                    </label>;
+                  })}
+                </div>
+                {deliveryProfiles.map(profile => <div key={profile.countryCode} className="space-y-3 rounded border border-emerald-200 bg-white p-3">
+                  <div className="flex items-center justify-between"><p className="font-semibold text-slate-900">{deliveryCountries.find(country => country.code === profile.countryCode)?.label || profile.countryCode}</p><Button type="button" variant="ghost" size="sm" className="text-red-600" onClick={() => setDeliveryProfiles(current => current.filter(item => item.countryCode !== profile.countryCode))}>Retirer</Button></div>
+                  <div className="grid gap-3 sm:grid-cols-3"><div className="grid gap-1"><Label className="text-xs">Frais fournisseur</Label><Input type="number" min="0" value={profile.supplierShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, supplierShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Frais client</Label><Input type="number" min="0" value={profile.customerShippingCost} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, customerShippingCost: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Méthode</Label><Input value={profile.deliveryMethod} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, deliveryMethod: event.target.value } : item))} placeholder="DHL / Poste" /></div></div>
+                  <div className="grid gap-3 sm:grid-cols-2"><div className="grid gap-1"><Label className="text-xs">Délai minimum (jours)</Label><Input type="number" min="0" value={profile.minDeliveryDays} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, minDeliveryDays: event.target.value } : item))} /></div><div className="grid gap-1"><Label className="text-xs">Délai maximum (jours)</Label><Input type="number" min="0" value={profile.maxDeliveryDays} onChange={event => setDeliveryProfiles(current => current.map(item => item.countryCode === profile.countryCode ? { ...item, maxDeliveryDays: event.target.value } : item))} /></div></div>
+                </div>)}
+                {deliveryProfiles.length === 0 && <p className="rounded border border-dashed border-emerald-300 bg-white p-3 text-sm text-muted-foreground">Aucun pays sélectionné. Le produit ne sera pas affiché comme livrable.</p>}
+              </TabsContent>
               <TabsContent value="internal" className="space-y-4 py-4 border-2 border-orange-100 rounded-lg p-4 bg-orange-50/30">
                 <div className="flex items-center gap-2 text-orange-700 mb-2">
                   <ShieldCheck className="h-5 w-5" />
