@@ -1220,6 +1220,19 @@ export async function getAverageRating(productId: number) {
   return result[0]?.average ? Number(result[0].average) : 0;
 }
 
+export async function getProductReviewSummary(productId: number) {
+  const db = await getDb();
+  if (!db) return { averageRating: 0, reviewCount: 0 };
+  const result = await db
+    .select({ average: avg(reviews.rating), reviewCount: count(reviews.id) })
+    .from(reviews)
+    .where(eq(reviews.productId, productId));
+  return {
+    averageRating: result[0]?.average ? Number(result[0].average) : 0,
+    reviewCount: Number(result[0]?.reviewCount || 0),
+  };
+}
+
 // Contact message
 export async function createContactMessage(data: { name: string; email: string; subject?: string; message: string }) {
   const db = await getDb();

@@ -69,6 +69,29 @@ export const appRouter = router({
       const { getLocalizedCategoryBySlug } = await import("./db");
       return await getLocalizedCategoryBySlug(input.slug, input.locale);
     }),
+    getBySlugWithProducts: publicProcedure.input((val: unknown) => {
+      if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
+        return { slug: val.slug, locale: parsePublicProductLocale(val) };
+      }
+      if (typeof val === "string") return { slug: val, locale: "fr" as const };
+      throw new Error("Invalid slug");
+    }).query(async ({ input }) => {
+      const { getLocalizedCategoryBySlug, getProductsByCategory, getProductImages, getProductReviewSummary, getReadyProductTranslation } = await import("./db");
+      const category = await getLocalizedCategoryBySlug(input.slug, input.locale);
+      if (!category) return { category: null, products: [] };
+      const prods = await getProductsByCategory(category.id);
+      const localized = await Promise.all(prods.map(async product => {
+        if (input.locale === "fr") return product;
+        const translation = await getReadyProductTranslation(product.id, input.locale);
+        return translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : null;
+      }));
+      const products = await Promise.all(localized.filter((product): product is NonNullable<typeof product> => Boolean(product)).map(async product => ({
+        ...product,
+        images: await getProductImages(product.id),
+        ...(await getProductReviewSummary(product.id)),
+      })));
+      return { category, products };
+    }),
   }),
 
   // Products. A non-French storefront only receives products whose current translation is ready.

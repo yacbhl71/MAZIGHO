@@ -28,17 +28,14 @@ export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
   const { locale } = useLocale();
-  const categoryQuery = trpc.categories.getBySlug.useQuery({ slug, locale });
-  const category = categoryQuery.data ? getLocalizedCategoryPresentation(locale, categoryQuery.data) : undefined;
-  
-  const productsQuery = trpc.products.getByCategory.useQuery({ categoryId: category?.id || 0, locale }, {
-    enabled: !!category?.id
-  });
+  const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale });
+  const categoryData = categoryQuery.data?.category;
+  const category = categoryData ? getLocalizedCategoryPresentation(locale, categoryData) : undefined;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
-  const products = (productsQuery.data || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -101,7 +98,7 @@ export default function Category() {
             height={1080}
             loading="eager"
             fetchPriority="high"
-            decoding="sync"
+            decoding="async"
             onError={(event) => {
               const image = event.currentTarget;
               const fallback = categoryHeroImages[slug]?.fallback || "/assets/shop-editorial-hero.webp";
@@ -146,7 +143,11 @@ export default function Category() {
 	                          <img 
 	                            src={product.images[0].imageUrl} 
 	                            alt={product.name}
-	                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+	                            width={640}
+                            height={480}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
 	                          />
 	                        ) : (
 	                          <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
@@ -181,7 +182,7 @@ export default function Category() {
                             ))}
                           </div>
                           <span className="text-xs text-gray-600">
-                            ({(product as any).reviews?.length || 0})
+                            ({(product as any).reviewCount ?? (product as any).reviews?.length ?? 0})
                           </span>
                         </div>
 

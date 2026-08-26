@@ -88,7 +88,11 @@ export default function BestSellers() {
 	                        <img 
 	                          src={product.images[0].imageUrl} 
 	                          alt={product.name}
-	                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+	                          width={640}
+                          height={480}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
 	                        />
 	                      ) : (
 	                        <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
