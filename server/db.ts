@@ -2582,3 +2582,81 @@ export async function deleteBanner(id: number) {
 export async function createAdminUser(data: { name: string; email: string; role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin" }) {
   return createPendingInvitation(data);
 }
+
+
+export async function getStripeCheckoutCart(userId: number, countryCode: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cart = await getCart(userId);
+  if (!cart || cart.items.length === 0) throw new Error("CART_EMPTY");
+  const normalizedCountry = countryCode.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalizedCountry)) throw new Error("INVALID_COUNTRY");
+
+  const verifiedItems = [] as Array<{
+    productId: number;
+    name: string;
+    quantity: number;
+    unitAmount: number;
+    shippingAmount: number;
+  }>;
+  for (const item of cart.items) {
+    const profile = await db.select({
+      customerShippingCost: productDeliveryProfiles.customerShippingCost,
+    }).from(productDeliveryProfiles)
+      .where(and(eq(productDeliveryProfiles.productId, item.productId), eq(productDeliveryProfiles.countryCode, normalizedCountry)))
+      .limit(1);
+    if (!profile[0]) throw new Error("DELIVERY_NOT_AVAILABLE");
+    verifiedItems.push({
+      productId: item.productId,
+      name: item.name,
+      quantity: item.quantity,
+      unitAmount: item.price,
+      shippingAmount: profile[0].customerShippingCost,
+    });
+  }
+  return {
+    items: verifiedItems,
+    totalAmount: verifiedItems.reduce((sum, item) => sum + (item.unitAmount + item.shippingAmount) * item.quantity, 0),
+  };
+}
+
+export async function createStripePendingOrder(input: {
+  userId: number;
+  sessionId: string;
+  countryCode: string;
+  totalAmount: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
+  if (existing[0]) return existing[0];
+  const cart = await getStripeCheckoutCart(input.userId, input.countryCode);
+  if (cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
+  const result = await db.insert(orders).values({
+    userId: input.userId,
+    totalAmount: cart.totalAmount,
+    shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout" }),
+    billingAddress: null,
+    paymentStatus: "unpaid",
+    paymentMethod: "stripe_test",
+    stripeSessionId: input.sessionId,
+    status: "pending",
+  });
+  const orderId = Number((result as any)[0].insertId);
+  await db.insert(orderItems).values(cart.items.map(item => ({
+    orderId,
+    productId: item.productId,
+    quantity: item.quantity,
+    priceAtPurchase: item.unitAmount + item.shippingAmount,
+  })));
+  return { id: orderId };
+}
+
+export async function markOrderPaidByStripeSession(sessionId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(orders)
+    .set({ paymentStatus: "paid", paymentMethod: "stripe_test" })
+    .where(and(eq(orders.stripeSessionId, sessionId), eq(orders.paymentStatus, "unpaid")));
+  return { success: true };
+}

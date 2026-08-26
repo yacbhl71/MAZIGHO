@@ -4,6 +4,7 @@ import { staffRouter } from "./staffRouter";
 import { shopRouter } from "./shopRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { authRouter } from "./authRouter";
+import { stripeCheckoutRouter } from "./stripeCheckout";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
@@ -26,6 +27,7 @@ export const appRouter = router({
   staff: staffRouter,
   shop: shopRouter,
   auth: authRouter,
+  checkout: stripeCheckoutRouter,
 
   // Homepage content. A pending translation safely falls back to the French source.
   content: router({

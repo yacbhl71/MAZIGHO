@@ -155,6 +155,7 @@ export const orders = mysqlTable("orders", {
   billingAddress: text("billingAddress"),
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),
   paymentMethod: varchar("paymentMethod", { length: 50 }),
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   trackingNumber: varchar("trackingNumber", { length: 100 }),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
