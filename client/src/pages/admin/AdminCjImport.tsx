@@ -52,6 +52,8 @@ export default function AdminCjImport() {
   const [marginPercent, setMarginPercent] = useState("50");
   const [supplierCostChf, setSupplierCostChf] = useState("");
   const [salePriceChf, setSalePriceChf] = useState("");
+  const [salePriceManual, setSalePriceManual] = useState(false);
+  const [allInShipping, setAllInShipping] = useState(true);
   const [stock, setStock] = useState("0");
   const [deliveryVariantId, setDeliveryVariantId] = useState("");
   const [deliveryCountries, setDeliveryCountries] = useState<Array<(typeof deliveryMarkets)[number]["code"]>>(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]);
@@ -95,6 +97,15 @@ export default function AdminCjImport() {
   const supplierCostCents = parseChfCents(supplierCostChf);
   const salePriceCents = parseChfCents(salePriceChf);
   const productMarkupCents = supplierCostCents == null || salePriceCents == null ? null : salePriceCents - supplierCostCents;
+  useEffect(() => {
+    setSalePriceManual(false);
+  }, [preparedProduct?.productId]);
+  const confirmedShippingCosts = useMemo(() => {
+    const rate = Number(exchangeRate.replace(",", "."));
+    if (!Number.isFinite(rate) || rate <= 0) return [];
+    return confirmedDeliveryCountries.flatMap(country => country.options[0] ? [Math.round(country.options[0].costUsd * rate * 100)] : []);
+  }, [confirmedDeliveryCountries, exchangeRate]);
+  const maxSupplierShippingCents = confirmedShippingCosts.length > 0 ? Math.max(...confirmedShippingCosts) : 0;
   const deliveryProfiles = useMemo(() => {
     const rate = Number(exchangeRate.replace(",", "."));
     const targetMargin = Number(marginPercent.replace(",", "."));
@@ -105,7 +116,7 @@ export default function AdminCjImport() {
       if (!option) return [];
       const supplierShippingCost = Math.round(option.costUsd * rate * 100);
       const profitAfterShipping = salePriceCents - supplierCostCents - supplierShippingCost;
-      const customerShippingCost = profitAfterShipping >= requiredProfitCents ? 0 : supplierShippingCost;
+      const customerShippingCost = allInShipping ? 0 : (profitAfterShipping >= requiredProfitCents ? 0 : supplierShippingCost);
       const range = parseDeliveryRange(option.delay);
       return [{
         countryCode: country.countryCode as (typeof deliveryMarkets)[number]["code"],
@@ -116,17 +127,17 @@ export default function AdminCjImport() {
         ...range,
       }];
     });
-  }, [confirmedDeliveryCountries, exchangeRate, marginPercent, salePriceCents, selectedVariant, supplierCostCents]);
+    }, [allInShipping, confirmedDeliveryCountries, exchangeRate, marginPercent, salePriceCents, selectedVariant, supplierCostCents]);
   const suggestedSaleCents = useMemo(() => {
     const margin = Number(marginPercent.replace(",", "."));
     if (supplierCostCents == null || supplierCostCents <= 0 || !Number.isFinite(margin) || margin < 0) return null;
-    return Math.round(supplierCostCents * (1 + margin / 100));
-  }, [supplierCostCents, marginPercent]);
-
+    const landedCostCents = supplierCostCents + (allInShipping ? maxSupplierShippingCents : 0);
+    return Math.ceil((landedCostCents * (1 + margin / 100)) / 50) * 50;
+  }, [allInShipping, marginPercent, maxSupplierShippingCents, supplierCostCents]);
   useEffect(() => {
-    if (suggestedSaleCents == null) return;
+    if (suggestedSaleCents == null || salePriceManual) return;
     setSalePriceChf(formatChfInput(suggestedSaleCents));
-  }, [suggestedSaleCents]);
+  }, [salePriceManual, suggestedSaleCents]);
 
   const importCjDraft = trpc.admin.products.importCjDraft.useMutation({
     onSuccess: () => {
@@ -155,6 +166,11 @@ export default function AdminCjImport() {
     }
     if (supplierCostCents == null || supplierCostCents <= 0 || salePriceCents == null || salePriceCents <= 0) {
       toast.error("Vérifiez le coût fournisseur et le prix de vente en CHF.");
+      return;
+    }
+    const lossCountries = deliveryProfiles.filter(profile => salePriceCents - profile.supplierShippingCost - supplierCostCents + profile.customerShippingCost < 0);
+    if (lossCountries.length > 0) {
+      toast.error(`Prix insuffisant pour ${lossCountries.map(profile => deliveryMarkets.find(market => market.code === profile.countryCode)?.label || profile.countryCode).join(", ")}. Augmentez le prix final ou vérifiez les frais.`);
       return;
     }
     if (!Number.isInteger(parsedStock) || parsedStock < 0) {
@@ -223,10 +239,13 @@ export default function AdminCjImport() {
               <div className="border-t border-sky-200 pt-4"><h3 className="font-semibold text-slate-900">Prix produit et transport à valider</h3><p className="mt-1 text-xs leading-5 text-slate-600">La majoration cible s’applique au prix du produit hors transport. Le transport reste facturé au client, sauf si le prix produit couvre aussi le devis CJ tout en conservant cette majoration : la livraison est alors offerte.</p></div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block space-y-2"><span className="text-sm font-medium">Taux USD → CHF vérifié</span><input value={exchangeRate} onChange={event => setExchangeRate(event.target.value)} type="text" inputMode="decimal" placeholder="Ex. 0,90" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">Aucun taux de change n’est supposé par MAZIGHO.</span></label>
-                <label className="block space-y-2"><span className="text-sm font-medium">Majoration cible sur le produit (%)</span><input value={marginPercent} onChange={event => setMarginPercent(event.target.value)} type="number" min="0" max="1000" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">Ex. 50 % : coût produit × 1,50. Le transport n’est pas inclus dans ce calcul.</span></label>
+                <label className="block space-y-2"><span className="text-sm font-medium">Majoration cible (%)</span><input value={marginPercent} onChange={event => setMarginPercent(event.target.value)} type="number" min="0" max="1000" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">50 % = coût total × 1,5 ; 100 % = coût total × 2. Le calcul inclut le transport fournisseur.</span></label>
                 <label className="block space-y-2"><span className="text-sm font-medium">Coût produit CJ hors livraison (CHF)</span><input value={supplierCostChf} onChange={event => setSupplierCostChf(event.target.value)} type="text" inputMode="decimal" placeholder="0,00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /></label>
-                <label className="block space-y-2"><span className="text-sm font-medium">Prix produit (CHF)</span><input value={salePriceChf} onChange={event => setSalePriceChf(event.target.value)} type="text" inputMode="decimal" placeholder="0,00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">Le transport éventuel est affiché séparément au client.</span></label>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950"><label className="flex items-start gap-3"><input type="checkbox" checked={allInShipping} onChange={event => setAllInShipping(event.target.checked)} className="mt-1 h-4 w-4 accent-blue-600" /><span><strong>Inclure la livraison fournisseur dans le prix final</strong><span className="mt-1 block text-xs text-blue-800">Recommandé : le client verra « Livraison offerte » et paiera un prix unique, même s’il commande plusieurs articles.</span></span></label></div>
+                <label className="block space-y-2"><span className="text-sm font-medium">Prix de vente final (CHF, frais inclus)</span><input value={salePriceChf} onChange={event => { setSalePriceManual(true); setSalePriceChf(event.target.value); }} type="text" inputMode="decimal" placeholder="0,00" className="h-10 w-full rounded-md border bg-white px-3 text-sm" /><span className="block text-xs text-muted-foreground">Prix conseillé automatique : {suggestedSaleCents == null ? "en attente du devis livraison" : `${formatChfInput(suggestedSaleCents)} CHF`}. Tu peux le remplacer par le prix que tu souhaites.</span>{salePriceManual && suggestedSaleCents != null && <button type="button" className="text-xs font-medium text-sky-700 underline" onClick={() => { setSalePriceManual(false); setSalePriceChf(formatChfInput(suggestedSaleCents)); }}>Réappliquer le prix conseillé</button>}</label>
               </div>
+              {salePriceCents != null && deliveryProfiles.some(profile => salePriceCents - profile.supplierShippingCost - (supplierCostCents || 0) + profile.customerShippingCost < 0) && <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-950"><strong>Action requise : prix insuffisant.</strong><p className="mt-1">Le prix final choisi ne couvre pas le prix de revient total pour au moins une destination. Augmente le prix, vérifie le devis ou désactive cette destination avant d’enregistrer.</p></div>}
+              {salePriceCents != null && suggestedSaleCents != null && deliveryProfiles.length > 0 && !deliveryProfiles.some(profile => salePriceCents - profile.supplierShippingCost - (supplierCostCents || 0) + profile.customerShippingCost < 0) && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950"><strong>Rentabilité contrôlée :</strong> le prix final couvre le coût rendu de toutes les destinations confirmées. La livraison sera affichée comme offerte au client.</div>}
               {deliveryProfiles.length > 0 && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs leading-5 text-emerald-950"><strong>Frais de livraison importés automatiquement :</strong><p className="mt-1">Ces montants viennent du devis CJ confirmé. Ils sont enregistrés avec le brouillon par pays ; ils ne peuvent pas être modifiés ici.</p><div className="mt-3 grid gap-3 md:grid-cols-2">{deliveryProfiles.map(profile => <div key={profile.countryCode} className="rounded-md border border-emerald-100 bg-white/80 p-2.5"><p className="mb-2 font-semibold">{deliveryMarkets.find(market => market.code === profile.countryCode)?.label || profile.countryCode}</p><div className="grid gap-2 sm:grid-cols-2"><label className="block"><span className="block text-[11px] font-medium text-slate-600">Frais CJ fournisseur</span><input readOnly value={`${formatChfInput(profile.supplierShippingCost)} CHF`} className="mt-1 h-8 w-full rounded-md border bg-slate-50 px-2 text-xs text-slate-700" /></label><label className="block"><span className="block text-[11px] font-medium text-slate-600">Frais facturés au client</span><input readOnly value={`${formatChfInput(profile.customerShippingCost)} CHF`} className="mt-1 h-8 w-full rounded-md border bg-slate-50 px-2 text-xs text-slate-700" /></label></div><p className="mt-2">{profile.customerShippingCost === 0 ? "Livraison offerte : la majoration validée couvre le devis CJ." : "Transport ajouté séparément au total client."}{profile.minDeliveryDays != null ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} jours` : ""}</p>{supplierCostCents != null && salePriceCents != null && <p className="mt-2 border-t border-emerald-100 pt-2 text-emerald-900"><strong>Prix de revient total :</strong> {formatChfInput(supplierCostCents + profile.supplierShippingCost)} CHF <span className="text-emerald-700">(produit + transport fournisseur)</span><br /><strong>Marge après transport :</strong> {formatChfInput(salePriceCents - supplierCostCents - profile.supplierShippingCost + profile.customerShippingCost)} CHF</p>}</div>)}</div>{productMarkupCents != null && <p className="mt-3 border-t border-emerald-200 pt-2">Prix produit : <strong>{formatChfInput(salePriceCents || 0)} CHF</strong> · majoration produit : <strong>{formatChfInput(productMarkupCents)} CHF</strong>.</p>}</div>}
             </div>
 
