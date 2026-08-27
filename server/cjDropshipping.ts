@@ -716,7 +716,6 @@ export async function searchCjCatalog(input: { keyword: string; page?: number; c
     page: String(input.page ?? 1),
     size: "12",
     features: "enable_category",
-    verifiedWarehouse: "1",
     orderBy: "0",
     sort: "desc",
   });
