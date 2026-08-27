@@ -148,6 +148,25 @@ export const appRouter = router({
         averageRating: await getAverageRating(product.id),
       })));
     }),
+    getById: publicProcedure.input((val: unknown) => {
+      if (typeof val === "object" && val !== null && "id" in val && typeof val.id === "number" && Number.isInteger(val.id) && val.id > 0) {
+        return { id: val.id, locale: parsePublicProductLocale(val) };
+      }
+      throw new Error("Invalid product id");
+    }).query(async ({ input }) => {
+      const { getProductById, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
+      const product = await getProductById(input.id);
+      if (!product) return null;
+      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
+      if (input.locale !== "fr" && !translation) return null;
+      const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
+      const [images, reviews, averageRating] = await Promise.all([
+        getProductImages(product.id),
+        getProductReviews(product.id),
+        getAverageRating(product.id),
+      ]);
+      return { ...localizedProduct, images, reviews, averageRating };
+    }),
     getBySlug: publicProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
         return { slug: val.slug, locale: parsePublicProductLocale(val) };

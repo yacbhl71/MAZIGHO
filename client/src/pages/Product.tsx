@@ -1,8 +1,8 @@
 import { useParams, useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Star, Heart, Share2, Truck, Shield, RotateCcw } from "lucide-react";
+import { Star, Heart, Share2, Shield, RotateCcw } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ImageGallery from "@/components/ImageGallery";
@@ -20,18 +20,29 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 
 export default function Product() {
-  const { slug } = useParams<{ slug: string }>();
+  const { id, slug } = useParams<{ id?: string; slug?: string }>();
   const [, setLocation] = useLocation();
+  const canonicalId = id && /^\d+$/.test(id) ? Number(id) : undefined;
   
   const { locale } = useLocale();
   const copy = getProductPublicCopy(locale);
-  const productQuery = trpc.products.getBySlug.useQuery({ slug: slug || "", locale }, {
-    enabled: !!slug
+  const productByIdQuery = trpc.products.getById.useQuery({ id: canonicalId || 0, locale }, {
+    enabled: Boolean(canonicalId)
   });
+  const productBySlugQuery = trpc.products.getBySlug.useQuery({ slug: slug || "", locale }, {
+    enabled: !canonicalId && !!slug
+  });
+  const productQuery = canonicalId ? productByIdQuery : productBySlugQuery;
   const product = productQuery.data;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
+
+  useEffect(() => {
+    if (product && !canonicalId && slug) {
+      setLocation(`/produit/${product.id}`, { replace: true });
+    }
+  }, [product, canonicalId, slug, setLocation]);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId
@@ -182,9 +193,6 @@ export default function Product() {
                 )}
               </div>
 
-              <div className={`rounded-xl border p-4 ${deliveryProfile ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
-                {deliveryProfile ? <><div className="flex items-start gap-3"><Truck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><div><p className="font-semibold text-emerald-950">{commerceT(locale, "availableTo", { country: countryLabel })}</p><p className="mt-1 text-sm leading-6 text-emerald-900">{deliveryProfile.customerShippingCost === 0 ? commerceT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(deliveryProfile.customerShippingCost, locale) })}{deliveryProfile.minDeliveryDays ? ` · ${commerceT(locale, "deliveryEstimate", { min: deliveryProfile.minDeliveryDays, range: deliveryProfile.maxDeliveryDays && deliveryProfile.maxDeliveryDays !== deliveryProfile.minDeliveryDays ? `–${deliveryProfile.maxDeliveryDays}` : "" })}` : ""}{deliveryProfile.deliveryMethod ? ` · ${deliveryProfile.deliveryMethod}` : ""}</p></div></div><p className="mt-3 border-t border-emerald-200 pt-3 text-[11px] text-emerald-700">{commerceT(locale, "quoteVerified")}</p></> : <><p className="font-semibold text-amber-900">{commerceT(locale, "deliveryUnconfirmed", { country: countryLabel })}</p><p className="mt-1 text-sm leading-6 text-amber-800">{commerceT(locale, "deliveryBlocked")}</p></>}
-              </div>
 
               {/* Description */}
               <div
@@ -284,12 +292,7 @@ export default function Product() {
               </div>
 
               {/* Trust Badges */}
-              <div className="grid grid-cols-3 gap-4 pt-6 border-t border-gray-200">
-                <div className="text-center">
-                  <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">{deliveryProfile ? commerceT(locale, "availableTo", { country: countryLabel }) : commerceT(locale, "destinationUnconfirmed")}</p>
-                  <p className="text-xs text-gray-600">{deliveryProfile ? (deliveryProfile.customerShippingCost === 0 ? commerceT(locale, "deliveryIncluded") : commerceT(locale, "shippingPerItem", { amount: formatPrice(deliveryProfile.customerShippingCost, locale) })) : commerceT(locale, "chooseOtherCountry")}</p>
-                </div>
+              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-200">
                 <div className="text-center">
                   <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium text-gray-800">{commerceT(locale, "paymentSoon")}</p>

@@ -1174,6 +1174,36 @@ export async function getProductBySlug(slug: string) {
   return { ...product, deliveryProfiles };
 }
 
+export async function getProductById(productId: number) {
+  await ensureCatalogSectionSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    categoryCatalogSection: categories.catalogSection,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(eq(products.id, productId))
+    .limit(1);
+  if (result.length === 0 || result[0].status !== "active") return undefined;
+  const product = result[0];
+  return { ...product, deliveryProfiles: await getProductDeliveryProfiles([product.id]) };
+}
+
 // Product images queries
 export async function getProductImages(productId: number) {
   const db = await getDb();
