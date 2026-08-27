@@ -20,9 +20,10 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 
 export default function Product() {
-  const { id, slug } = useParams<{ id?: string; slug?: string }>();
+  const { key } = useParams<{ key?: string }>();
   const [, setLocation] = useLocation();
-  const canonicalId = id && /^\d+$/.test(id) ? Number(id) : undefined;
+  const canonicalId = key && /^\d+$/.test(key) ? Number(key) : undefined;
+  const slug = canonicalId ? undefined : key;
   
   const { locale } = useLocale();
   const copy = getProductPublicCopy(locale);

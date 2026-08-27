@@ -142,8 +142,7 @@ function Router() {
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
       <Route path={"/categorie/:slug"} component={Category} />
-      <Route path={"/produit/:id"} component={Product} />
-      <Route path={"/produit/:slug"} component={Product} />
+      <Route path={"/produit/:key"} component={Product} />
       <Route path={"/a-propos"} component={About} />
       <Route path={"/contact"} component={Contact} />
       <Route path={"/panier"} component={Cart} />
