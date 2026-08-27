@@ -626,7 +626,8 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
     const variantSku = variant.sku;
     const variantWeightG = variant.weightG;
     const variantVolumeM3 = variant.volumeM3;
-    if (standardOptions.length === 0 && templateOptions.length === 0 && variantSku && variantWeightG != null && variantWeightG > 0 && variantVolumeM3 != null && variantVolumeM3 > 0 && prepared.logisticsProperties.length) {
+    const variantVolumeCm3 = variantVolumeM3 == null ? null : variantVolumeM3 * 1_000_000;
+    if (standardOptions.length === 0 && templateOptions.length === 0 && variantSku && variantWeightG != null && variantWeightG > 0 && variantVolumeCm3 != null && variantVolumeCm3 > 0 && prepared.logisticsProperties.length) {
       const detailedResponses = await Promise.allSettled(originCountries.map(async originCountry => {
         let response: Response;
         try {
@@ -639,7 +640,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
                 destAreaCode: target.countryCode,
                 wrapWeight: 0,
                 weight: Math.round(variantWeightG),
-                volume: variantVolumeM3,
+                volume: variantVolumeCm3,
                 totalGoodsAmount: variant.supplierPriceUsd ?? prepared.supplierPriceUsd ?? 0,
                 productProp: prepared.logisticsProperties,
                 freightTrialSkuList: [{
@@ -647,7 +648,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
                   vid: variant.id,
                   skuQuantity: 1,
                   skuWeight: variantWeightG,
-                  skuVolume: variantVolumeM3,
+                  skuVolume: variantVolumeCm3,
                 }],
                 skuList: [variantSku],
               }],
