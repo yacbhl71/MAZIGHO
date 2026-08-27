@@ -668,7 +668,14 @@ export const adminRouter = router({
         return await checkCjSwissDelivery(input.productId, input.productSku);
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
-        if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });
+        if (code === "CJ_PRODUCT_DETAILS_FAILED") return {
+          productId: input.productId,
+          deliverable: false,
+          variantLabel: null,
+          costUsd: null,
+          delay: null,
+          message: "CJ n’a pas renvoyé le détail de cette fiche dans le contrôle automatique. Vérifiez le devis Suisse depuis la fiche CJ officielle avant toute publication.",
+        };
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour la vérification Suisse. Réessayez plus tard." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de vérifier la livraison Suisse pour le moment." });
       }
