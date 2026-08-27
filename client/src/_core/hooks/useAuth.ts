@@ -8,6 +8,17 @@ type UseAuthOptions = {
   redirectPath?: string;
 };
 
+function getSafeRedirectPath(redirectPath?: string): string | null {
+  if (!redirectPath || typeof window === "undefined") return null;
+  try {
+    const url = new URL(redirectPath, window.location.origin);
+    if (url.origin !== window.location.origin || url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+}
+
 export function useAuth(options?: UseAuthOptions) {
   const {
     redirectOnUnauthenticated = false,
@@ -54,7 +65,12 @@ export function useAuth(options?: UseAuthOptions) {
     if (user || typeof window === "undefined") return;
     if (redirectPath && window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath ?? getLoginUrl();
+    const safeRedirectPath = getSafeRedirectPath(redirectPath);
+    if (safeRedirectPath) {
+      window.location.replace(safeRedirectPath);
+    } else {
+      window.location.replace(getLoginUrl());
+    }
   }, [
     redirectOnUnauthenticated,
     redirectPath,

@@ -26,6 +26,7 @@
  * ```
  */
 import { ENV } from "./env";
+import net from "node:net";
 
 export type TranscribeOptions = {
   audioUrl: string; // URL to the audio file (e.g., S3 URL)
@@ -57,6 +58,28 @@ export type WhisperResponse = {
 };
 
 export type TranscriptionResponse = WhisperResponse; // Return native Whisper API response directly
+
+function isBlockedAudioHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host === "metadata.google.internal") return true;
+  const ipVersion = net.isIP(host);
+  if (ipVersion === 4) {
+    const [a, b] = host.split(".").map(Number);
+    return a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  if (ipVersion === 6) return host === "::1" || host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd");
+  return false;
+}
+
+function validateAudioUrl(audioUrl: string): URL | null {
+  try {
+    const url = new URL(audioUrl);
+    if (!['https:', 'http:'].includes(url.protocol) || isBlockedAudioHost(url.hostname)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
 
 export type TranscriptionError = {
   error: string;
@@ -90,11 +113,28 @@ export async function transcribeAudio(
       };
     }
 
-    // Step 2: Download audio from URL
+    // Step 2: Download audio from a validated public URL.
+    const validatedAudioUrl = validateAudioUrl(options.audioUrl);
+    if (!validatedAudioUrl) {
+      return {
+        error: "Audio URL is invalid or not allowed",
+        code: "INVALID_FORMAT",
+        details: "Only public HTTP(S) audio URLs are accepted",
+      };
+    }
+
     let audioBuffer: Buffer;
     let mimeType: string;
     try {
-      const response = await fetch(options.audioUrl);
+      const response = await fetch(validatedAudioUrl, { redirect: "manual" });
+      const contentLength = Number(response.headers.get("content-length") || 0);
+      if (contentLength > 16 * 1024 * 1024) {
+        return {
+          error: "Audio file exceeds maximum size limit",
+          code: "FILE_TOO_LARGE",
+          details: "Content-Length exceeds 16MB",
+        };
+      }
       if (!response.ok) {
         return {
           error: "Failed to download audio file",
