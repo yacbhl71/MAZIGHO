@@ -12,7 +12,7 @@ import { localeOptions, useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
 import { getCreativeMenuCopy, getPublicCopy } from "@/lib/publicCopy";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
-import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { getLocalizedCategoryPresentation, getStandardCategoryFallbacks } from "@/lib/categoryPresentation";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import ThemeToggle from "./ThemeToggle";
 
@@ -33,7 +33,9 @@ export default function Header() {
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
-  const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
+  const categories = categoriesQuery.data?.length
+    ? categoriesQuery.data.map(category => getLocalizedCategoryPresentation(locale, category))
+    : getStandardCategoryFallbacks(locale);
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();

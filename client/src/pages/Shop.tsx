@@ -8,7 +8,7 @@ import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/Del
 import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
 import { getPublicCopy } from "@/lib/publicCopy";
-import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { getLocalizedCategoryPresentation, getStandardCategoryFallbacks } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700", "bg-rose-50 text-rose-700", "bg-emerald-50 text-emerald-700", "bg-violet-50 text-violet-700", "bg-amber-50 text-amber-700"];
@@ -18,7 +18,9 @@ export default function Shop() {
   const publicCopy = getPublicCopy(locale);
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale);
-  const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
+  const categories = categoriesQuery.data?.length
+    ? categoriesQuery.data.map(category => getLocalizedCategoryPresentation(locale, category))
+    : getStandardCategoryFallbacks(locale);
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const standardCategoryIds = new Set(standardCategories.map(category => category.id));
   const { countryCode } = useDeliveryCountry();
