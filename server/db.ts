@@ -44,7 +44,7 @@ async function ensureAccountStatusColumn() {
 
     try {
       await db.execute(
-        sql.raw("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `accountStatus` enum('active', 'blocked') NOT NULL DEFAULT 'active'")
+        sql.raw("ALTER TABLE `users` ADD COLUMN `accountStatus` enum('active', 'blocked') NOT NULL DEFAULT 'active'")
       );
     } catch (error) {
       const message = String(error).toLowerCase();
@@ -129,7 +129,7 @@ async function ensureCatalogSectionSchema() {
     if (!db) throw new Error("Database unavailable");
 
     try {
-      await db.execute(sql.raw("ALTER TABLE `categories` ADD COLUMN IF NOT EXISTS `catalogSection` enum('standard','creations') NOT NULL DEFAULT 'standard'"));
+      await db.execute(sql.raw("ALTER TABLE `categories` ADD COLUMN `catalogSection` enum('standard','creations') NOT NULL DEFAULT 'standard'"));
     } catch (error) {
       const message = String(error).toLowerCase();
       if (!message.includes("duplicate column") && !message.includes("already exists")) {
@@ -201,7 +201,7 @@ async function ensurePasswordHashColumn() {
 
     try {
       await db.execute(
-        sql.raw("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `passwordHash` varchar(255)")
+        sql.raw("ALTER TABLE `users` ADD COLUMN `passwordHash` varchar(255)")
       );
     } catch (error) {
       const message = String(error).toLowerCase();
