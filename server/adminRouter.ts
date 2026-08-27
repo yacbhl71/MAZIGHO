@@ -648,6 +648,7 @@ export const adminRouter = router({
     verifyBigBuy: adminProcedure.mutation(() => verifyBigBuyPreparation()),
     prepareCjImport: adminProcedure.input(z.object({
       productId: z.string().trim().min(1).max(128),
+      productSku: z.string().trim().max(200).optional(),
       countryCode: z.string().trim().optional().transform(value => value || undefined).refine(value => value === undefined || /^[A-Z]{2}$/.test(value), "Utilisez un code pays à deux lettres."),
     })).mutation(async ({ input }) => {
       try {
@@ -661,9 +662,10 @@ export const adminRouter = router({
     }),
     checkCjSwissDelivery: adminProcedure.input(z.object({
       productId: z.string().trim().min(1).max(128),
+      productSku: z.string().trim().max(200).optional(),
     })).mutation(async ({ input }) => {
       try {
-        return await checkCjSwissDelivery(input.productId);
+        return await checkCjSwissDelivery(input.productId, input.productSku);
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "CJ_PRODUCT_DETAILS_FAILED") throw new TRPCError({ code: "NOT_FOUND", message: "La fiche CJ n’est plus disponible. Choisissez un autre produit." });

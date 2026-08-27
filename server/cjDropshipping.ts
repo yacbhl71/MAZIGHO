@@ -436,29 +436,36 @@ export async function searchCjCatalogByImage(input: { imageDataUrl: string; coun
   };
 }
 
-export async function prepareCjProductImport(input: { productId: string; countryCode?: string }): Promise<CjImportPreparation> {
+export async function prepareCjProductImport(input: { productId: string; productSku?: string; countryCode?: string }): Promise<CjImportPreparation> {
   const access = await getCjAccessToken();
-  const params = new URLSearchParams({ pid: input.productId.trim() });
-  if (input.countryCode) params.set("countryCode", input.countryCode);
-
-  let response: Response;
-  try {
-    response = await fetch(`${CJ_API_BASE}/product/query?${params.toString()}`, {
-      headers: { "CJ-Access-Token": access.token },
-      signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
-    });
-  } catch {
-    throw new Error("CJ_UNREACHABLE");
-  }
-
+  const lookups = [
+    { pid: input.productId.trim() },
+    ...(input.productSku?.trim() ? [{ productSku: input.productSku.trim() }] : []),
+  ];
   let payload: CjProductDetailResponse | null = null;
-  try {
-    payload = await response.json() as CjProductDetailResponse;
-  } catch {
-    throw new Error("CJ_INVALID_RESPONSE");
+  let responseOk = false;
+  for (const lookup of lookups) {
+    const params = new URLSearchParams(lookup);
+    if (input.countryCode) params.set("countryCode", input.countryCode);
+    let response: Response;
+    try {
+      response = await fetch(`${CJ_API_BASE}/product/query?${params.toString()}`, {
+        headers: { "CJ-Access-Token": access.token },
+        signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+      });
+    } catch {
+      throw new Error("CJ_UNREACHABLE");
+    }
+    try {
+      payload = await response.json() as CjProductDetailResponse;
+    } catch {
+      throw new Error("CJ_INVALID_RESPONSE");
+    }
+    responseOk = response.ok;
+    if (response.ok && payload?.success && payload.data?.pid && payload.data.productNameEn) break;
   }
   const product = payload?.data;
-  if (!response.ok || !payload?.success || !product?.pid || !product.productNameEn) {
+  if (!responseOk || !payload?.success || !product?.pid || !product.productNameEn) {
     throw new Error("CJ_PRODUCT_DETAILS_FAILED");
   }
 
@@ -692,8 +699,8 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
 }
 
 /** Vérifie la Suisse sur les premières variantes d’un produit sans créer de brouillon ni de commande. */
-export async function checkCjSwissDelivery(productId: string): Promise<CjSwissDeliveryCheck> {
-  const prepared = await prepareCjProductImport({ productId });
+export async function checkCjSwissDelivery(productId: string, productSku?: string): Promise<CjSwissDeliveryCheck> {
+  const prepared = await prepareCjProductImport({ productId, productSku });
   const candidates = prepared.variants.slice(0, 4);
   if (!candidates.length) {
     return { productId: prepared.productId, deliverable: false, variantLabel: null, costUsd: null, delay: null, message: "CJ ne retourne aucune variante exploitable pour ce produit." };
