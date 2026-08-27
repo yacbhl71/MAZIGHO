@@ -158,7 +158,7 @@ export const appRouter = router({
       const product = await getProductById(input.id);
       if (!product) return null;
       const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
-      if (input.locale !== "fr" && !translation) return null;
+      // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
         getProductImages(product.id),
@@ -179,7 +179,7 @@ export const appRouter = router({
       const product = await getProductBySlug(input.slug);
       if (!product) return null;
       const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
-      if (input.locale !== "fr" && !translation) return null;
+      // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
         getProductImages(product.id),
