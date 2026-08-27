@@ -7,6 +7,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic } from "./static";
 import { stripeWebhookHandler } from "../stripeWebhook";
+import helmet from "helmet";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -28,6 +29,7 @@ export async function findAvailablePort(startPort: number = 3000): Promise<numbe
 }
 
 const app = express();
+app.use(helmet());
 export { app };
 
 export function configureApi(targetApp: Express = app) {
