@@ -1,6 +1,5 @@
 import { useParams, useLocation } from "wouter";
 import { useState } from "react";
-import DOMPurify from "dompurify";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Star, Heart, Share2, Truck, Shield, RotateCcw } from "lucide-react";
@@ -33,13 +32,6 @@ export default function Product() {
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
-  const safeLongDescription = product
-    ? DOMPurify.sanitize((product as any).longDescription || product.description || "", {
-        ALLOWED_TAGS: ["p", "br", "strong", "b", "em", "i", "ul", "ol", "li", "h2", "h3", "h4", "a"],
-        ALLOWED_ATTR: ["href", "target", "rel"],
-        FORBID_ATTR: ["style", "id", "class"],
-      })
-    : "";
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId
@@ -197,7 +189,7 @@ export default function Product() {
               {/* Description */}
               <div
                 className="prose prose-slate max-w-none text-gray-700 text-lg leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: safeLongDescription }}
+                dangerouslySetInnerHTML={{ __html: (product as any).longDescription || product.description || "" }}
               />
 
               {/* Stock Status */}
