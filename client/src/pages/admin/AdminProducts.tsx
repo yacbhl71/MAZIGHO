@@ -250,17 +250,29 @@ export default function AdminProducts() {
     setTranslationOptions(current?.options || "");
   }, [translationLocale, translationsQuery.data]);
 
-  // Automatic discount calculation
-  useEffect(() => {
-    if (originalPrice && discountPercent) {
-      const orig = parseChfToCents(originalPrice);
-      const perc = parseInt(discountPercent);
-      if (orig != null && !isNaN(perc)) {
-        const calculated = Math.round(orig * (1 - perc / 100));
-        setPrice(centsToChfInput(calculated));
-      }
+  const handleDiscountChange = (value: string) => {
+    setDiscountPercent(value);
+    const finalCents = parseChfToCents(price);
+    const discount = Number.parseInt(value, 10);
+    if (finalCents != null && finalCents > 0 && Number.isFinite(discount) && discount > 0 && discount < 100) {
+      const calculatedOriginal = Math.round(finalCents / (1 - discount / 100));
+      setOriginalPrice(centsToChfInput(calculatedOriginal));
+    } else if (!value.trim()) {
+      setOriginalPrice("");
     }
-  }, [originalPrice, discountPercent]);
+  };
+
+  const handleOriginalPriceChange = (value: string) => {
+    setOriginalPrice(value);
+    const finalCents = parseChfToCents(price);
+    const originalCents = parseChfToCents(value);
+    if (finalCents != null && finalCents > 0 && originalCents != null && originalCents > finalCents) {
+      const calculatedDiscount = Math.round(((originalCents - finalCents) / originalCents) * 100);
+      setDiscountPercent(String(calculatedDiscount));
+    } else if (!value.trim()) {
+      setDiscountPercent("");
+    }
+  };
 
   const addImage = () => {
     if (newImageUrl.trim()) {
@@ -558,13 +570,13 @@ export default function AdminProducts() {
                 <div className="grid grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <div className="grid gap-2">
                     <Label htmlFor="originalPrice" className="text-gray-500">Prix barré (CHF)</Label>
-                    <Input id="originalPrice" type="text" inputMode="decimal" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="79,90" />
+                    <Input id="originalPrice" type="text" inputMode="decimal" value={originalPrice} onChange={(e) => handleOriginalPriceChange(e.target.value)} placeholder="Optionnel" />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="discountPercent" className="text-red-500 flex items-center gap-1">
                       <Percent className="h-3 w-3" /> Rabais (%)
                     </Label>
-                    <Input id="discountPercent" type="number" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} placeholder="20" className="border-red-200 focus:border-red-500" />
+                    <Input id="discountPercent" type="number" min="1" max="99" value={discountPercent} onChange={(e) => handleDiscountChange(e.target.value)} placeholder="Optionnel" className="border-red-200 focus:border-red-500" />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="price" className="font-bold">Prix de vente (CHF) *</Label>
