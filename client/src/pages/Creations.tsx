@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/currency";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
+import { getCreativeCategoryFallbacks } from "@/lib/categoryPresentation";
 import { getCollectionsCopy } from "@/lib/collectionsCopy";
 import { commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
@@ -19,7 +20,9 @@ export default function Creations() {
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
 
-  const creativeCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "creations");
+  const creativeCategories = categoriesQuery.data?.length
+    ? categoriesQuery.data.filter(category => category.catalogSection === "creations")
+    : getCreativeCategoryFallbacks(locale);
   const creativeCategoryIds = new Set(creativeCategories.map(category => category.id));
   const creativeProducts = (productsQuery.data || []).filter(product => creativeCategoryIds.has(product.categoryId));
 
