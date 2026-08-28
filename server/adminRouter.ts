@@ -14,6 +14,7 @@ import {
   previewSupplierProductFromHtml,
   previewProductInput,
 } from "./dropshipping";
+import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
 
 const deliveryProfileInput = z.object({
   countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
@@ -726,6 +727,13 @@ export const adminRouter = router({
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJdropshipping ne répond pas pour le moment. Réessayez plus tard." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de lire le catalogue CJ pour le moment." });
       }
+    }),
+  }),
+
+  integrations: router({
+    make: router({
+      status: adminProcedure.query(() => getMakeIntegrationStatus()),
+      test: adminProcedure.mutation(() => sendMakeIntegrationTest()),
     }),
   }),
 
