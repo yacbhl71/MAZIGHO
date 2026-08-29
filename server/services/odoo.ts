@@ -31,6 +31,8 @@ export type OdooOrderLine = {
   quantity: number;
   /** Unit price expressed in the store currency (e.g. CHF), not in cents. */
   priceUnit: number;
+  /** Stable mapping key -> Odoo product default_code (e.g. "MAZIGHO-42"). */
+  reference?: string | null;
 };
 
 export type OdooCustomer = {
@@ -157,6 +159,36 @@ async function findOrCreatePartner(config: OdooConfig, uid: number, customer: Od
 }
 
 /**
+ * Maps a MAZIGHO order line to an Odoo product.product id. Reuses an existing
+ * product matched on default_code (stable "MAZIGHO-<id>" reference) or exact
+ * name, otherwise creates a saleable consumable product. Returns null on error
+ * so the caller can fall back to ODOO_DEFAULT_PRODUCT_ID or the note summary.
+ */
+async function findOrCreateProduct(
+  config: OdooConfig,
+  uid: number,
+  line: OdooOrderLine,
+): Promise<number | null> {
+  try {
+    if (line.reference) {
+      const byCode = await executeKw<number[]>(config, uid, "product.product", "search", [[["default_code", "=", line.reference]]], { limit: 1 });
+      if (byCode.length > 0) return byCode[0];
+    }
+    const byName = await executeKw<number[]>(config, uid, "product.product", "search", [[["name", "=", line.name]]], { limit: 1 });
+    if (byName.length > 0) return byName[0];
+    return await executeKw<number>(config, uid, "product.product", "create", [{
+      name: line.name,
+      default_code: line.reference || false,
+      list_price: line.priceUnit,
+      type: "consu",
+      sale_ok: true,
+    }]);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Synchronises a paid order and its customer to Odoo as a confirmed sale order.
  * Never throws to the caller: failures are reported in the returned result so
  * the Stripe webhook stays resilient.
@@ -188,17 +220,24 @@ export async function syncOrderToOdoo(input: {
       note,
     };
 
-    // Order lines require a mapped Odoo product. When a default product is
-    // configured we create priced lines; otherwise the itemised summary in the
-    // note keeps the order self-explanatory without a product mapping.
+    // Map each line to a real Odoo product so the sale order carries priced
+    // lines. If a line cannot be mapped, fall back to ODOO_DEFAULT_PRODUCT_ID;
+    // the itemised note above keeps the order readable in every case.
     const defaultProductId = Number.parseInt(process.env.ODOO_DEFAULT_PRODUCT_ID ?? "", 10);
-    if (Number.isInteger(defaultProductId) && defaultProductId > 0 && input.lines.length > 0) {
-      saleOrderPayload.order_line = input.lines.map(line => [0, 0, {
-        product_id: defaultProductId,
+    const fallbackProductId = Number.isInteger(defaultProductId) && defaultProductId > 0 ? defaultProductId : null;
+    const orderLines: Array<[number, number, Record<string, unknown>]> = [];
+    for (const line of input.lines) {
+      const productId = (await findOrCreateProduct(config, uid, line)) ?? fallbackProductId;
+      if (!productId) continue;
+      orderLines.push([0, 0, {
+        product_id: productId,
         name: line.name,
         product_uom_qty: line.quantity,
         price_unit: line.priceUnit,
       }]);
+    }
+    if (orderLines.length > 0) {
+      saleOrderPayload.order_line = orderLines;
     }
 
     const saleOrderId = await executeKw<number>(config, uid, "sale.order", "create", [saleOrderPayload]);

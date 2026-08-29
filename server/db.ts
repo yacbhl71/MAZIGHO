@@ -2797,6 +2797,7 @@ export async function getOrderForStripeSession(sessionId: string) {
 
   const items = await db
     .select({
+      productId: orderItems.productId,
       quantity: orderItems.quantity,
       priceAtPurchase: orderItems.priceAtPurchase,
       productName: products.name,

@@ -17,6 +17,7 @@ async function syncPaidOrderToOdoo(sessionId: string) {
         name: item.productName || "Article MAZIGHO",
         quantity: item.quantity,
         priceUnit: Math.round(item.priceAtPurchase) / 100,
+        reference: item.productId ? `MAZIGHO-${item.productId}` : null,
       })),
       currency: "CHF",
       note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
