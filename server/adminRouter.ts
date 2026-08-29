@@ -785,6 +785,22 @@ export const adminRouter = router({
       showStory: z.boolean(),
       showTestimonials: z.boolean(),
       showEditorial: z.boolean(),
+      showFeatured: z.boolean().default(true),
+      customColorsEnabled: z.boolean().default(false),
+      customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#c2410c"),
+      customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#0f766e"),
+      customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#fbf7f2"),
+      buttonRadius: z.enum(["flat", "rounded", "full"]).default("rounded"),
+      homeOrder: z.array(z.string().max(60)).max(40).default([]),
+      textBanners: z.array(z.object({
+        id: z.string().trim().min(1).max(60),
+        eyebrow: z.string().trim().max(120).default(""),
+        title: z.string().trim().min(1).max(180),
+        text: z.string().trim().max(600).default(""),
+        buttonLabel: z.string().trim().max(60).default(""),
+        buttonUrl: z.string().trim().max(300).default(""),
+        enabled: z.boolean().default(true),
+      })).max(8).default([]),
     })).mutation(async ({ input }) => {
       const previous = await db.getDesignProfile();
       const profile = await db.updateDesignProfile(input);

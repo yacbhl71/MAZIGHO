@@ -251,3 +251,7 @@
     }
   }
 }
+/* Global button roundness driven by the customization studio (public store only). */
+html[data-mazigho-theme] [data-slot="button"] {
+  border-radius: var(--mazigho-button-radius, 0.5rem);
+}

@@ -83,6 +83,9 @@ export default function Home() {
     return { ...tile, title: category?.name || fallback?.title || t(locale, "discover"), description: category?.description || fallback?.description || "" };
   });
 
+  const orderedKeys = profile.homeOrder?.length ? profile.homeOrder : ["discovery", "story", "testimonials", "editorial", "featured"];
+  const orderIndex = (key: string) => { const index = orderedKeys.indexOf(key); return index === -1 ? 90 : index; };
+
   return (
     <div className="min-h-screen text-slate-900" style={{ backgroundColor: palette.soft }}>
       <Header />
@@ -136,8 +139,9 @@ export default function Home() {
           </div>
         </section>
 
+        <div className="flex flex-col">
         {profile.showDiscovery && (
-        <section className="bg-white py-16 md:py-24">
+        <section style={{ order: orderIndex("discovery") }} className="bg-white py-16 md:py-24">
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
@@ -161,7 +165,7 @@ export default function Home() {
         )}
 
         {profile.showStory && (
-        <section className="relative overflow-hidden py-16 md:py-24" style={{ backgroundColor: palette.soft }}>
+        <section className="relative overflow-hidden py-16 md:py-24" style={{ backgroundColor: palette.soft, order: orderIndex("story") }}>
           <div aria-hidden="true" className="absolute -left-24 top-12 h-64 w-64 rounded-full bg-orange-200/45 blur-3xl" />
           <div aria-hidden="true" className="absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-amber-100/80 blur-3xl" />
           <div className="container relative grid items-center gap-12 lg:grid-cols-[1.04fr_0.96fr] lg:gap-20">
@@ -187,7 +191,7 @@ export default function Home() {
         )}
 
         {profile.showTestimonials && (
-        <section className="bg-slate-950 py-16 text-white md:py-24">
+        <section style={{ order: orderIndex("testimonials") }} className="bg-slate-950 py-16 text-white md:py-24">
           <div className="container">
             <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7 text-orange-300" aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
@@ -197,7 +201,7 @@ export default function Home() {
         )}
 
         {profile.showEditorial && (
-        <section className="container py-4 md:py-8">
+        <section style={{ order: orderIndex("editorial") }} className="container py-4 md:py-8">
           <div className="relative min-h-[180px] overflow-hidden rounded-[1.5rem] bg-[#c9b8a8]">
             <img src={editorialImageUrl} alt={copy.editorial.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
@@ -211,7 +215,8 @@ export default function Home() {
         </section>
         )}
 
-        <section className="py-16 md:py-24" style={{ backgroundColor: palette.soft }}>
+        {profile.showFeatured && (
+        <section style={{ order: orderIndex("featured"), backgroundColor: palette.soft }} className="py-16 md:py-24">
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -264,6 +269,21 @@ export default function Home() {
             )}
           </div>
         </section>
+        )}
+
+        {(profile.textBanners || []).filter(banner => banner.enabled).map(banner => (
+          <section key={`text-${banner.id}`} style={{ order: orderIndex(`text:${banner.id}`) }} className="container py-4 md:py-8">
+            <div className="relative overflow-hidden rounded-[1.5rem] px-7 py-8 md:px-12 md:py-12" style={{ backgroundColor: palette.primary }}>
+              <div className="max-w-2xl text-white">
+                {banner.eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.28em] text-white/80">{banner.eyebrow}</p> : null}
+                <p className="mt-3 text-2xl font-semibold md:text-3xl">{banner.title}</p>
+                {banner.text ? <p className="mt-3 text-sm leading-6 text-white/85 md:text-base">{banner.text}</p> : null}
+                {banner.buttonLabel && banner.buttonUrl ? <Button asChild className="mt-6 bg-white text-slate-900 hover:bg-white/90"><Link href={banner.buttonUrl}>{banner.buttonLabel}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
+              </div>
+            </div>
+          </section>
+        ))}
+        </div>
 
         <section className="py-16 md:py-24">
           <div className="container">

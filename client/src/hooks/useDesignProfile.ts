@@ -9,6 +9,18 @@ export type NavigationLabels = {
   navigationContact: string;
 };
 
+export type ButtonRadius = "flat" | "rounded" | "full";
+
+export type HomeTextBanner = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  text: string;
+  buttonLabel: string;
+  buttonUrl: string;
+  enabled: boolean;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
@@ -32,6 +44,14 @@ export type DesignProfile = {
   showStory: boolean;
   showTestimonials: boolean;
   showEditorial: boolean;
+  showFeatured: boolean;
+  customColorsEnabled: boolean;
+  customPrimary: string;
+  customAccent: string;
+  customSoft: string;
+  buttonRadius: ButtonRadius;
+  homeOrder: string[];
+  textBanners: HomeTextBanner[];
   contentTranslationReady?: boolean;
 };
 
@@ -58,6 +78,28 @@ export const defaultDesignProfile: DesignProfile = {
   showStory: true,
   showTestimonials: true,
   showEditorial: true,
+  showFeatured: true,
+  customColorsEnabled: false,
+  customPrimary: "#c2410c",
+  customAccent: "#0f766e",
+  customSoft: "#fbf7f2",
+  buttonRadius: "rounded",
+  homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
+  textBanners: [],
+};
+
+export const buttonRadiusValues: Record<ButtonRadius, string> = {
+  flat: "0px",
+  rounded: "0.75rem",
+  full: "9999px",
+};
+
+export const homeSectionMeta: Record<string, { label: string; description: string }> = {
+  discovery: { label: "Découvrez nos univers", description: "Grille illustrée des grandes catégories" },
+  story: { label: "L’histoire MAZIGHO", description: "Section éditoriale avec grande image" },
+  testimonials: { label: "Témoignages clients", description: "Section avis / paroles de clients" },
+  editorial: { label: "Encart éditorial", description: "Bannière d’inspiration horizontale" },
+  featured: { label: "Grille de produits vedettes", description: "Sélection de produits phares" },
 };
 
 export const designPalettes = {
@@ -115,8 +157,17 @@ export const designTypography = {
 export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl" | "ar" = "fr") {
   const query = trpc.design.get.useQuery(locale);
   const profile = (query.data ?? defaultDesignProfile) as DesignProfile;
-  const palette = designPalettes[profile.paletteId] ?? designPalettes.terracotta;
+  const basePalette = designPalettes[profile.paletteId] ?? designPalettes.terracotta;
+  const palette = profile.customColorsEnabled
+    ? {
+        ...basePalette,
+        primary: profile.customPrimary || basePalette.primary,
+        accent: profile.customAccent || basePalette.accent,
+        soft: profile.customSoft || basePalette.soft,
+      }
+    : basePalette;
   const typography = designTypography[profile.typographyId] ?? designTypography.editorial;
+  const buttonRadius = buttonRadiusValues[profile.buttonRadius] ?? buttonRadiusValues.rounded;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -125,6 +176,8 @@ export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl"
     root.style.setProperty("--mazigho-soft", palette.soft);
     root.style.setProperty("--mazigho-body-font", typography.body);
     root.style.setProperty("--mazigho-heading-font", typography.heading);
+    root.style.setProperty("--mazigho-button-radius", buttonRadius);
+    root.setAttribute("data-mazigho-theme", "");
 
     return () => {
       root.style.removeProperty("--mazigho-primary");
@@ -132,8 +185,10 @@ export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl"
       root.style.removeProperty("--mazigho-soft");
       root.style.removeProperty("--mazigho-body-font");
       root.style.removeProperty("--mazigho-heading-font");
+      root.style.removeProperty("--mazigho-button-radius");
+      root.removeAttribute("data-mazigho-theme");
     };
-  }, [palette.accent, palette.primary, palette.soft, typography.body, typography.heading]);
+  }, [palette.accent, palette.primary, palette.soft, typography.body, typography.heading, buttonRadius]);
 
   return { ...query, profile, palette, typography };
 }

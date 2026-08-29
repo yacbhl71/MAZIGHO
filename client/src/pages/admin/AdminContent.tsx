@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -6,9 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUpRight, Edit, Eye, EyeOff, Image as ImageIcon, LayoutTemplate, Loader2, MonitorUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, Edit, Eye, EyeOff, Image as ImageIcon, LayoutTemplate, Loader2, MonitorUp, Plus, Save, Trash2, Type } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { homeSectionMeta, type DesignProfile } from "@/hooks/useDesignProfile";
 import {
   Dialog,
   DialogContent,
@@ -107,6 +108,44 @@ export default function AdminContent() {
 
   const isSaving = createBanner.isPending || updateBanner.isPending;
 
+  const utils = trpc.useUtils();
+  const designQuery = trpc.admin.design.get.useQuery();
+  const updateDesign = trpc.admin.design.update.useMutation({
+    onSuccess: async () => { toast.success("Disposition de l'accueil enregistrée"); await utils.admin.design.get.invalidate(); },
+    onError: error => toast.error(`Erreur : ${error.message}`),
+  });
+  const [layout, setLayout] = useState<DesignProfile | null>(null);
+  useEffect(() => { if (designQuery.data) setLayout(designQuery.data as DesignProfile); }, [designQuery.data]);
+
+  const sectionVisibility: Record<string, "showDiscovery" | "showStory" | "showTestimonials" | "showEditorial" | "showFeatured"> = {
+    discovery: "showDiscovery", story: "showStory", testimonials: "showTestimonials", editorial: "showEditorial", featured: "showFeatured",
+  };
+  const moveBlock = (index: number, direction: -1 | 1) => setLayout(current => {
+    if (!current) return current;
+    const order = [...current.homeOrder];
+    const target = index + direction;
+    if (target < 0 || target >= order.length) return current;
+    [order[index], order[target]] = [order[target], order[index]];
+    return { ...current, homeOrder: order };
+  });
+  const toggleBlockVisible = (key: string) => setLayout(current => {
+    if (!current) return current;
+    if (key.startsWith("text:")) {
+      const id = key.slice(5);
+      return { ...current, textBanners: current.textBanners.map(banner => banner.id === id ? { ...banner, enabled: !banner.enabled } : banner) };
+    }
+    const field = sectionVisibility[key];
+    return field ? { ...current, [field]: !current[field] } : current;
+  });
+  const addTextBanner = () => setLayout(current => {
+    if (!current) return current;
+    const id = `tb_${Date.now().toString(36)}`;
+    return { ...current, textBanners: [...current.textBanners, { id, eyebrow: "Nouveau bloc", title: "Titre de la bannière texte", text: "", buttonLabel: "", buttonUrl: "", enabled: true }], homeOrder: [...current.homeOrder, `text:${id}`] };
+  });
+  const updateTextBanner = (id: string, patch: Partial<DesignProfile["textBanners"][number]>) => setLayout(current => current ? { ...current, textBanners: current.textBanners.map(banner => banner.id === id ? { ...banner, ...patch } : banner) } : current);
+  const removeTextBanner = (id: string) => setLayout(current => current ? { ...current, textBanners: current.textBanners.filter(banner => banner.id !== id), homeOrder: current.homeOrder.filter(key => key !== `text:${id}`) } : current);
+  const saveLayout = () => { if (layout) updateDesign.mutate(layout); };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-8">
@@ -128,6 +167,49 @@ export default function AdminContent() {
         </section>
 
         <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 text-sm text-slate-700"><strong>Conseil visuel :</strong> privilégiez une image large, nette et libre de droits. L’ordre le plus bas s’affiche en premier sur la page d’accueil.</div>
+
+        {layout && (
+        <section className="rounded-2xl border bg-white p-5 shadow-sm" data-testid="home-layout-studio">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><LayoutTemplate className="h-5 w-5 text-violet-600" /> Disposition dynamique de l’accueil</h2><p className="mt-1 text-sm text-muted-foreground">Réorganisez les blocs, masquez-les ou ajoutez des bannières texte. L’ordre choisi s’applique directement à la page d’accueil.</p></div>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={addTextBanner} data-testid="add-text-banner"><Plus className="mr-2 h-4 w-4" /> Bannière texte</Button><Button onClick={saveLayout} disabled={updateDesign.isPending} className="bg-violet-600 hover:bg-violet-700" data-testid="save-layout">{updateDesign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Enregistrer la disposition</Button></div>
+          </div>
+          <div className="mt-4 space-y-2">
+            {layout.homeOrder.map((key, index) => {
+              const isText = key.startsWith("text:");
+              const banner = isText ? layout.textBanners.find(item => `text:${item.id}` === key) : null;
+              if (isText && !banner) return null;
+              const meta = isText ? { label: banner!.title || "Bannière texte", description: "Bloc de texte personnalisé" } : homeSectionMeta[key];
+              if (!meta) return null;
+              const visible = isText ? banner!.enabled : Boolean(layout[sectionVisibility[key]]);
+              return (
+                <div key={key} className="rounded-xl border border-slate-200 p-3" data-testid={`layout-block-${key}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <button type="button" onClick={() => moveBlock(index, -1)} disabled={index === 0} className="text-slate-400 hover:text-violet-600 disabled:opacity-30" aria-label="Monter" data-testid={`move-up-${key}`}><ArrowUp className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => moveBlock(index, 1)} disabled={index === layout.homeOrder.length - 1} className="text-slate-400 hover:text-violet-600 disabled:opacity-30" aria-label="Descendre" data-testid={`move-down-${key}`}><ArrowDown className="h-4 w-4" /></button>
+                    </div>
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600">{isText ? <Type className="h-4 w-4" /> : <LayoutTemplate className="h-4 w-4" />}</div>
+                    <div className="min-w-0 flex-1"><p className="truncate font-semibold text-slate-900">{meta.label}</p><p className="truncate text-xs text-muted-foreground">{meta.description}</p></div>
+                    <Badge variant="secondary" className="hidden sm:inline-flex">#{index + 1}</Badge>
+                    <Button type="button" variant={visible ? "default" : "outline"} size="sm" className={visible ? "bg-emerald-600 hover:bg-emerald-700" : ""} onClick={() => toggleBlockVisible(key)} data-testid={`toggle-block-${key}`}>{visible ? <><Eye className="mr-1.5 h-4 w-4" /> Visible</> : <><EyeOff className="mr-1.5 h-4 w-4" /> Masqué</>}</Button>
+                    {isText && <Button type="button" variant="outline" size="icon" className="text-red-600 hover:text-red-700" onClick={() => removeTextBanner(banner!.id)} data-testid={`remove-block-${key}`}><Trash2 className="h-4 w-4" /></Button>}
+                  </div>
+                  {isText && (
+                    <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                      <div className="grid gap-1.5"><Label className="text-xs">Petit libellé</Label><Input value={banner!.eyebrow} onChange={event => updateTextBanner(banner!.id, { eyebrow: event.target.value })} /></div>
+                      <div className="grid gap-1.5"><Label className="text-xs">Titre *</Label><Input value={banner!.title} onChange={event => updateTextBanner(banner!.id, { title: event.target.value })} /></div>
+                      <div className="grid gap-1.5 sm:col-span-2"><Label className="text-xs">Texte</Label><Textarea rows={2} value={banner!.text} onChange={event => updateTextBanner(banner!.id, { text: event.target.value })} /></div>
+                      <div className="grid gap-1.5"><Label className="text-xs">Libellé du bouton</Label><Input value={banner!.buttonLabel} onChange={event => updateTextBanner(banner!.id, { buttonLabel: event.target.value })} placeholder="Découvrir" /></div>
+                      <div className="grid gap-1.5"><Label className="text-xs">Lien du bouton</Label><Input value={banner!.buttonUrl} onChange={event => updateTextBanner(banner!.id, { buttonUrl: event.target.value })} placeholder="/boutique" /></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        )}
 
         {bannersQuery.isLoading ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-2xl bg-slate-100" />)}</div>

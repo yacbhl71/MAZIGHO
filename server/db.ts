@@ -2321,6 +2321,18 @@ type NavigationLabelSet = {
   navigationContact: string;
 };
 
+export type ButtonRadius = "flat" | "rounded" | "full";
+
+export type HomeTextBanner = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  text: string;
+  buttonLabel: string;
+  buttonUrl: string;
+  enabled: boolean;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
@@ -2344,6 +2356,14 @@ export type DesignProfile = {
   showStory: boolean;
   showTestimonials: boolean;
   showEditorial: boolean;
+  showFeatured: boolean;
+  customColorsEnabled: boolean;
+  customPrimary: string;
+  customAccent: string;
+  customSoft: string;
+  buttonRadius: ButtonRadius;
+  homeOrder: string[];
+  textBanners: HomeTextBanner[];
 };
 
 export const defaultDesignProfile: DesignProfile = {
@@ -2369,6 +2389,14 @@ export const defaultDesignProfile: DesignProfile = {
   showStory: true,
   showTestimonials: true,
   showEditorial: true,
+  showFeatured: true,
+  customColorsEnabled: false,
+  customPrimary: "#c2410c",
+  customAccent: "#0f766e",
+  customSoft: "#fbf7f2",
+  buttonRadius: "rounded",
+  homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
+  textBanners: [],
 };
 
 const optimizedBuiltInImageUrls: Record<string, string> = {
@@ -2409,9 +2437,59 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
       }
     }
   }
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
+
+  // Custom colors + global component style
+  if (typeof source.customColorsEnabled === "boolean") normalized.customColorsEnabled = source.customColorsEnabled;
+  const hexColor = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+  for (const field of ["customPrimary", "customAccent", "customSoft"] as const) {
+    if (typeof source[field] === "string" && hexColor.test(source[field].trim())) normalized[field] = source[field].trim();
+  }
+  if (["flat", "rounded", "full"].includes(String(source.buttonRadius))) {
+    normalized.buttonRadius = source.buttonRadius as ButtonRadius;
+  }
+
+  // Dynamic homepage text banners (custom blocks)
+  const textBanners: HomeTextBanner[] = [];
+  if (Array.isArray(source.textBanners)) {
+    for (const raw of source.textBanners.slice(0, 8)) {
+      if (!raw || typeof raw !== "object") continue;
+      const b = raw as Record<string, unknown>;
+      const id = typeof b.id === "string" && b.id.trim() ? b.id.trim().slice(0, 60) : null;
+      const title = typeof b.title === "string" ? b.title.trim().slice(0, 180) : "";
+      if (!id || !title) continue;
+      textBanners.push({
+        id,
+        title,
+        eyebrow: typeof b.eyebrow === "string" ? b.eyebrow.trim().slice(0, 120) : "",
+        text: typeof b.text === "string" ? b.text.trim().slice(0, 600) : "",
+        buttonLabel: typeof b.buttonLabel === "string" ? b.buttonLabel.trim().slice(0, 60) : "",
+        buttonUrl: typeof b.buttonUrl === "string" ? b.buttonUrl.trim().slice(0, 300) : "",
+        enabled: typeof b.enabled === "boolean" ? b.enabled : true,
+      });
+    }
+  }
+  normalized.textBanners = textBanners;
+
+  // Ordered homepage layout: keep valid keys, then ensure every section + banner is present
+  const baseKeys = ["discovery", "story", "testimonials", "editorial", "featured"];
+  const bannerIds = new Set(textBanners.map(b => b.id));
+  const order: string[] = [];
+  const seen = new Set<string>();
+  if (Array.isArray(source.homeOrder)) {
+    for (const raw of source.homeOrder) {
+      if (typeof raw !== "string") continue;
+      const key = raw.trim();
+      const valid = baseKeys.includes(key) || (key.startsWith("text:") && bannerIds.has(key.slice(5)));
+      if (valid && !seen.has(key)) { order.push(key); seen.add(key); }
+    }
+  }
+  for (const key of baseKeys) if (!seen.has(key)) { order.push(key); seen.add(key); }
+  for (const b of textBanners) { const key = `text:${b.id}`; if (!seen.has(key)) { order.push(key); seen.add(key); } }
+  normalized.homeOrder = order;
+
   return normalized;
 }
 

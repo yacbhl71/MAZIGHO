@@ -132,6 +132,15 @@ export default function AdminSuppliers() {
     },
     onError: () => toast.error("La vérification de préparation BigBuy a échoué. Réessayez plus tard."),
   });
+  const odooStatusQuery = trpc.admin.suppliers.odooStatus.useQuery();
+  const odooStatus = odooStatusQuery.data;
+  const verifyOdoo = trpc.admin.suppliers.verifyOdoo.useMutation({
+    onSuccess: async (result) => {
+      await utils.admin.suppliers.odooStatus.invalidate();
+      result.verified ? toast.success("Connexion Odoo vérifiée.") : toast.message(result.message);
+    },
+    onError: () => toast.error("La vérification de la connexion Odoo a échoué. Réessayez plus tard."),
+  });
   const cjStatus = cjStatusQuery.data;
   const [cjKeyword, setCjKeyword] = useState("");
   const [cjCountry, setCjCountry] = useState("");
@@ -257,6 +266,21 @@ export default function AdminSuppliers() {
             <div className="flex flex-wrap gap-2"><Button onClick={() => verifyBigBuy.mutate()} disabled={verifyBigBuy.isPending} className="bg-sky-600 text-white hover:bg-sky-700">{verifyBigBuy.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la préparation</Button><a href="https://www.bigbuy.eu/en/account/create/" target="_blank" rel="noreferrer"><Button variant="outline" className="border-sky-200 text-sky-800 hover:bg-sky-50"><ExternalLink className="mr-2 h-4 w-4" /> Créer un compte gratuit</Button></a></div>
           </div>
           <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-950"><strong>Étape gratuite :</strong> créez un compte pour consulter le catalogue, les prix distributeur et les frais/délais de transport. <strong>N’activez aucun pack ni aucun essai payant à cette étape.</strong><br /><span className="text-sky-900">L’accès API sera utile plus tard : MAZIGHO lira alors seulement le catalogue, le stock et les devis par pays avant tout brouillon ; aucune commande ou paiement ne sera envoyé automatiquement.</span></div>
+        </section>
+
+        <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm md:p-6" data-testid="odoo-status-card">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex gap-4">
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${odooStatus?.configured ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}><ShieldCheck className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Connexion Odoo (ERP)</h2><Badge data-testid="odoo-status-badge" className={verifyOdoo.data?.verified ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : odooStatus?.configured ? "bg-orange-100 text-orange-800 hover:bg-orange-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"}>{verifyOdoo.data?.verified ? "Vérifiée" : odooStatus?.configured ? "À vérifier" : "En attente de variables"}</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{odooStatusQuery.isLoading ? "Lecture de l’état de connexion…" : (verifyOdoo.data?.message || odooStatus?.message || "État Odoo indisponible.")}</p>
+                {odooStatus?.configured && (odooStatus.url || odooStatus.db) && <p className="mt-1 text-xs text-slate-500">{odooStatus.url}{odooStatus.db ? ` · base ${odooStatus.db}` : ""}</p>}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2"><Button onClick={() => verifyOdoo.mutate()} disabled={verifyOdoo.isPending} data-testid="verify-odoo-btn" className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyOdoo.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Tester la connexion</Button></div>
+          </div>
+          <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-950">Confirme que les variables <strong>ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_API_KEY</strong> configurées dans Vercel répondent. Les commandes payées créent automatiquement le client et une vente chiffrée dans Odoo. Ce test lit uniquement l’état d’authentification (aucune donnée n’est modifiée).</div>
         </section>
 
         <section className="rounded-2xl border border-violet-100 bg-violet-50/40 p-5 shadow-sm md:p-6">
