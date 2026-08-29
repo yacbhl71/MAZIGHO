@@ -1,6 +1,10 @@
+import "dotenv/config";
 import mysql from "mysql2/promise";
 
-const url = "mysql://2k8SPDCFWK7NDkW.root:hEplpFVDAZ0031VV@gateway01.eu-central-1.prod.aws.tidbcloud.com:4000/mazigho";
+const url: string = process.env.DATABASE_URL ?? "";
+if (!url) {
+  throw new Error("DATABASE_URL is required to run the database diagnostic.");
+}
 
 async function test(name: string, config: any) {
   console.log(`\n--- Test: ${name} ---`);
