@@ -48,7 +48,7 @@ export default function AdminCjImport() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [imagesText, setImagesText] = useState("");
-  const [exchangeRate, setExchangeRate] = useState("");
+  const [exchangeRate, setExchangeRate] = useState(import.meta.env.VITE_CJ_USD_CHF_RATE || "0.90");
   const [marginPercent, setMarginPercent] = useState("50");
   const [supplierCostChf, setSupplierCostChf] = useState("");
   const [salePriceChf, setSalePriceChf] = useState("");
@@ -82,6 +82,7 @@ export default function AdminCjImport() {
   const deliveryQuoteIsCurrent = quoteCjDelivery.data?.variantId === deliveryVariantId;
   const confirmedDeliveryCountries = useMemo(() => deliveryQuoteIsCurrent ? (quoteCjDelivery.data?.countries.filter(country => country.options.length > 0) || []) : [], [deliveryQuoteIsCurrent, quoteCjDelivery.data]);
   const confirmedVariantStock = deliveryQuoteIsCurrent && quoteCjDelivery.data?.stock.checked === true && (quoteCjDelivery.data.stock.totalQuantity ?? 0) > 0;
+  const variantStockZeroConfirmed = deliveryQuoteIsCurrent && quoteCjDelivery.data?.stock.checked === true && (quoteCjDelivery.data.stock.totalQuantity ?? 0) <= 0;
   const suggestedCostCents = useMemo(() => {
     const rate = Number(exchangeRate.replace(",", "."));
     const productUsd = selectedVariant?.supplierPriceUsd ?? preparedProduct?.supplierPriceUsd;
@@ -160,8 +161,8 @@ export default function AdminCjImport() {
       toast.error("Vérifiez au moins une destination CJ réellement desservie avant de créer le brouillon.");
       return;
     }
-    if (!confirmedVariantStock) {
-      toast.error("Le stock officiel de la variante CJ doit être contrôlé et supérieur à zéro avant le brouillon.");
+    if (!confirmedVariantStock && variantStockZeroConfirmed) {
+      toast.error("CJ confirme un stock à zéro pour cette variante. Choisissez une autre variante ou un autre produit.");
       return;
     }
     if (supplierCostCents == null || supplierCostCents <= 0 || salePriceCents == null || salePriceCents <= 0) {

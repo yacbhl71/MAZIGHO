@@ -15,6 +15,7 @@ import {
   previewProductInput,
 } from "./dropshipping";
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
+import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
 
 const deliveryProfileInput = z.object({
   countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
@@ -647,6 +648,8 @@ export const adminRouter = router({
     verifyAliExpress: adminProcedure.mutation(() => verifyAliExpressPreparation()),
     bigBuyStatus: adminProcedure.query(() => getBigBuyConnectionStatus()),
     verifyBigBuy: adminProcedure.mutation(() => verifyBigBuyPreparation()),
+    odooStatus: adminProcedure.query(() => getOdooStatus()),
+    verifyOdoo: adminProcedure.mutation(() => verifyOdooConnection()),
     prepareCjImport: adminProcedure.input(z.object({
       productId: z.string().trim().min(1).max(128),
       productSku: z.string().trim().max(200).optional(),

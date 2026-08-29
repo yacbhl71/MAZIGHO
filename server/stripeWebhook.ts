@@ -1,6 +1,35 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { markOrderPaidByStripeSession } from "./db";
+import { getOrderForStripeSession, markOrderPaidByStripeSession } from "./db";
+import { syncOrderToOdoo } from "./services/odoo";
+
+// Best-effort synchronisation of a paid order to Odoo. Never throws so the
+// Stripe webhook keeps returning 200 even when Odoo is down or not configured.
+async function syncPaidOrderToOdoo(sessionId: string) {
+  try {
+    const snapshot = await getOrderForStripeSession(sessionId);
+    if (!snapshot) return;
+    const { order, items } = snapshot;
+    const result = await syncOrderToOdoo({
+      orderReference: `MAZIGHO-${order.id}`,
+      customer: { name: order.userName || order.userEmail || "Client MAZIGHO", email: order.userEmail },
+      lines: items.map(item => ({
+        name: item.productName || "Article MAZIGHO",
+        quantity: item.quantity,
+        priceUnit: Math.round(item.priceAtPurchase) / 100,
+      })),
+      currency: "CHF",
+      note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
+    });
+    if (result.synced) {
+      console.log(`[Odoo] Order MAZIGHO-${order.id} synced (sale.order ${result.saleOrderId}, partner ${result.partnerId}).`);
+    } else if (!result.skipped) {
+      console.error(`[Odoo] Order MAZIGHO-${order.id} sync failed: ${result.reason}`);
+    }
+  } catch (error) {
+    console.error("[Odoo] Unexpected sync error", error);
+  }
+}
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
   const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
@@ -26,6 +55,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       const session = event.data.object as Stripe.Checkout.Session;
       if (session.mode === "payment" && session.payment_status === "paid") {
         await markOrderPaidByStripeSession(session.id);
+        await syncPaidOrderToOdoo(session.id);
       }
     }
     return res.json({ received: true });

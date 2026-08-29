@@ -121,6 +121,7 @@ export type CjImportPreparation = {
   category: string | null;
   supplierName: string | null;
   reportedStock: number | null;
+  stockConfirmed: boolean;
   variantsLabel: string | null;
   logisticsProperties: string[];
   variants: Array<{
@@ -131,6 +132,8 @@ export type CjImportPreparation = {
     originCountries: string[];
     weightG: number | null;
     volumeM3: number | null;
+    stock: number | null;
+    stockChecked: boolean;
   }>;
 };
 
@@ -438,7 +441,7 @@ export async function searchCjCatalogByImage(input: { imageDataUrl: string; coun
 
 export async function prepareCjProductImport(input: { productId: string; productSku?: string; countryCode?: string }): Promise<CjImportPreparation> {
   const access = await getCjAccessToken();
-  const lookups = [
+  const lookups: Array<Record<string, string>> = [
     { pid: input.productId.trim() },
     ...(input.productSku?.trim() ? [{ productSku: input.productSku.trim() }] : []),
   ];
@@ -494,7 +497,40 @@ export async function prepareCjProductImport(input: { productId: string; product
         .filter(inventory => typeof inventory.totalInventory !== "number" || inventory.totalInventory > 0)
         .map(inventory => inventory.countryCode)
         .filter((countryCode): countryCode is string => Boolean(countryCode)))),
+      stock: null as number | null,
+      stockChecked: false,
     }));
+
+  // product/query n'expose pas toujours les inventaires ; dans ce cas on lit le
+  // stock réel de chaque variante par son VID (stock/queryByVid) pour afficher la
+  // vraie quantité disponible au lieu de rester bloqué sur « À confirmer ».
+  let stockConfirmed = inlineInventories.length > 0;
+  let aggregateReportedStock = reportedStock;
+  if (!stockConfirmed && preparedVariants.length > 0) {
+    const sampledVariants = preparedVariants.slice(0, 6);
+    const stockResults = await Promise.allSettled(
+      sampledVariants.map(variant => getCjVariantStock(access, variant.id)),
+    );
+    let liveTotal = 0;
+    let anyChecked = false;
+    stockResults.forEach((result, index) => {
+      if (result.status !== "fulfilled" || !result.value.checked) return;
+      anyChecked = true;
+      const quantity = result.value.totalQuantity ?? 0;
+      sampledVariants[index].stock = quantity;
+      sampledVariants[index].stockChecked = true;
+      if (sampledVariants[index].originCountries.length === 0) {
+        sampledVariants[index].originCountries = result.value.warehouses
+          .filter(warehouse => warehouse.quantity > 0)
+          .map(warehouse => warehouse.countryCode);
+      }
+      liveTotal += quantity;
+    });
+    if (anyChecked) {
+      aggregateReportedStock = liveTotal;
+      stockConfirmed = true;
+    }
+  }
 
   return {
     productId: product.pid,
@@ -505,7 +541,8 @@ export async function prepareCjProductImport(input: { productId: string; product
     supplierPriceUsd: asFiniteNumber(product.sellPrice),
     category: product.categoryName || null,
     supplierName: product.supplierName || null,
-    reportedStock,
+    reportedStock: aggregateReportedStock,
+    stockConfirmed,
     variantsLabel,
     logisticsProperties: (product.productProEnSet || []).filter(Boolean),
     variants: preparedVariants,
@@ -722,7 +759,7 @@ export async function searchCjCatalog(input: { keyword: string; page?: number; c
   const params = new URLSearchParams({
     keyWord: input.keyword.trim(),
     page: String(input.page ?? 1),
-    size: "12",
+    size: "20",
     features: "enable_category",
     orderBy: "0",
     sort: "desc",

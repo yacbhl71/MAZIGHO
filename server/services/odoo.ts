@@ -1,0 +1,209 @@
+/**
+ * Odoo integration (JSON-RPC).
+ *
+ * Synchronises paid customer orders and their customer record towards an Odoo
+ * instance. The integration is optional: when the ODOO_* environment variables
+ * are not configured, every function degrades gracefully (no-op) so the Stripe
+ * webhook and the rest of the app keep working.
+ *
+ * Reference: https://www.odoo.com/documentation/17.0/developer/reference/external_api.html
+ */
+
+const ODOO_REQUEST_TIMEOUT_MS = 15_000;
+
+type OdooConfig = {
+  url: string;
+  db: string;
+  username: string;
+  secret: string; // password or API key
+};
+
+export type OdooStatus = {
+  configured: boolean;
+  provider: "Odoo";
+  url: string | null;
+  db: string | null;
+  message: string;
+};
+
+export type OdooOrderLine = {
+  name: string;
+  quantity: number;
+  /** Unit price expressed in the store currency (e.g. CHF), not in cents. */
+  priceUnit: number;
+};
+
+export type OdooCustomer = {
+  name: string;
+  email: string | null;
+};
+
+export type OdooSyncResult = {
+  synced: boolean;
+  skipped: boolean;
+  partnerId?: number;
+  saleOrderId?: number;
+  reason?: string;
+};
+
+function readOdooConfig(): OdooConfig | null {
+  const url = process.env.ODOO_URL?.trim().replace(/\/+$/, "");
+  const db = process.env.ODOO_DB?.trim();
+  const username = process.env.ODOO_USERNAME?.trim();
+  const secret = (process.env.ODOO_API_KEY?.trim() || process.env.ODOO_PASSWORD?.trim()) ?? "";
+  if (!url || !db || !username || !secret) return null;
+  return { url, db, username, secret };
+}
+
+export function isOdooConfigured(): boolean {
+  return readOdooConfig() !== null;
+}
+
+export function getOdooStatus(): OdooStatus {
+  const config = readOdooConfig();
+  return {
+    configured: Boolean(config),
+    provider: "Odoo",
+    url: config?.url ?? null,
+    db: config?.db ?? null,
+    message: config
+      ? "Odoo est configuré. Les commandes payées sont synchronisées automatiquement."
+      : "Odoo n'est pas configuré. Ajoutez ODOO_URL, ODOO_DB, ODOO_USERNAME et ODOO_API_KEY (ou ODOO_PASSWORD) dans Vercel.",
+  };
+}
+
+async function odooJsonRpc<T>(url: string, params: Record<string, unknown>): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${url}/jsonrpc`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "call", params, id: Date.now() }),
+      signal: AbortSignal.timeout(ODOO_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error("ODOO_UNREACHABLE");
+  }
+
+  let payload: { result?: T; error?: { data?: { message?: string }; message?: string } } | null = null;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("ODOO_INVALID_RESPONSE");
+  }
+
+  if (!response.ok || payload?.error) {
+    const detail = payload?.error?.data?.message || payload?.error?.message || `HTTP ${response.status}`;
+    throw new Error(`ODOO_RPC_ERROR: ${detail}`);
+  }
+  return payload!.result as T;
+}
+
+let uidCache: { config: string; uid: number; cachedAt: number } | null = null;
+
+async function authenticate(config: OdooConfig): Promise<number> {
+  const cacheKey = `${config.url}|${config.db}|${config.username}`;
+  if (uidCache && uidCache.config === cacheKey && Date.now() - uidCache.cachedAt < 30 * 60 * 1000) {
+    return uidCache.uid;
+  }
+  const uid = await odooJsonRpc<number | false>(config.url, {
+    service: "common",
+    method: "authenticate",
+    args: [config.db, config.username, config.secret, {}],
+  });
+  if (!uid || typeof uid !== "number") throw new Error("ODOO_AUTHENTICATION_FAILED");
+  uidCache = { config: cacheKey, uid, cachedAt: Date.now() };
+  return uid;
+}
+
+async function executeKw<T>(
+  config: OdooConfig,
+  uid: number,
+  model: string,
+  method: string,
+  args: unknown[],
+  kwargs: Record<string, unknown> = {},
+): Promise<T> {
+  return odooJsonRpc<T>(config.url, {
+    service: "object",
+    method: "execute_kw",
+    args: [config.db, uid, config.secret, model, method, args, kwargs],
+  });
+}
+
+/** Verifies the Odoo credentials without exposing them to the browser. */
+export async function verifyOdooConnection(): Promise<OdooStatus & { verified: boolean }> {
+  const config = readOdooConfig();
+  if (!config) return { ...getOdooStatus(), verified: false };
+  try {
+    await authenticate(config);
+    return { ...getOdooStatus(), verified: true, message: "Connexion Odoo vérifiée." };
+  } catch (error) {
+    return { ...getOdooStatus(), verified: false, message: `La connexion Odoo a échoué : ${error instanceof Error ? error.message : "inconnue"}.` };
+  }
+}
+
+async function findOrCreatePartner(config: OdooConfig, uid: number, customer: OdooCustomer): Promise<number> {
+  if (customer.email) {
+    const existing = await executeKw<number[]>(config, uid, "res.partner", "search", [[["email", "=", customer.email]]], { limit: 1 });
+    if (existing.length > 0) return existing[0];
+  }
+  return executeKw<number>(config, uid, "res.partner", "create", [{
+    name: customer.name || customer.email || "Client MAZIGHO",
+    email: customer.email || false,
+    customer_rank: 1,
+    comment: "Client créé automatiquement depuis la boutique MAZIGHO.",
+  }]);
+}
+
+/**
+ * Synchronises a paid order and its customer to Odoo as a confirmed sale order.
+ * Never throws to the caller: failures are reported in the returned result so
+ * the Stripe webhook stays resilient.
+ */
+export async function syncOrderToOdoo(input: {
+  orderReference: string;
+  customer: OdooCustomer;
+  lines: OdooOrderLine[];
+  currency?: string;
+  note?: string;
+}): Promise<OdooSyncResult> {
+  const config = readOdooConfig();
+  if (!config) return { synced: false, skipped: true, reason: "ODOO_NOT_CONFIGURED" };
+
+  try {
+    const uid = await authenticate(config);
+    const partnerId = await findOrCreatePartner(config, uid, input.customer);
+
+    const summary = input.lines
+      .map(line => `- ${line.quantity} x ${line.name} @ ${line.priceUnit.toFixed(2)} ${input.currency || "CHF"}`)
+      .join("\n");
+    const note = [`Commande boutique MAZIGHO ${input.orderReference}`, input.note, summary]
+      .filter(Boolean)
+      .join("\n");
+
+    const saleOrderPayload: Record<string, unknown> = {
+      partner_id: partnerId,
+      client_order_ref: input.orderReference,
+      note,
+    };
+
+    // Order lines require a mapped Odoo product. When a default product is
+    // configured we create priced lines; otherwise the itemised summary in the
+    // note keeps the order self-explanatory without a product mapping.
+    const defaultProductId = Number.parseInt(process.env.ODOO_DEFAULT_PRODUCT_ID ?? "", 10);
+    if (Number.isInteger(defaultProductId) && defaultProductId > 0 && input.lines.length > 0) {
+      saleOrderPayload.order_line = input.lines.map(line => [0, 0, {
+        product_id: defaultProductId,
+        name: line.name,
+        product_uom_qty: line.quantity,
+        price_unit: line.priceUnit,
+      }]);
+    }
+
+    const saleOrderId = await executeKw<number>(config, uid, "sale.order", "create", [saleOrderPayload]);
+    return { synced: true, skipped: false, partnerId, saleOrderId };
+  } catch (error) {
+    return { synced: false, skipped: false, reason: error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR" };
+  }
+}

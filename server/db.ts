@@ -2769,3 +2769,41 @@ export async function markOrderPaidByStripeSession(sessionId: string) {
     .where(and(eq(orders.stripeSessionId, sessionId), eq(orders.paymentStatus, "unpaid")));
   return { success: true };
 }
+
+// Order snapshot used to synchronise a paid order + its customer towards Odoo.
+export async function getOrderForStripeSession(sessionId: string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const orderRows = await db
+    .select({
+      id: orders.id,
+      totalAmount: orders.totalAmount,
+      status: orders.status,
+      paymentStatus: orders.paymentStatus,
+      shippingAddress: orders.shippingAddress,
+      createdAt: orders.createdAt,
+      userId: orders.userId,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(orders)
+    .leftJoin(users, eq(orders.userId, users.id))
+    .where(eq(orders.stripeSessionId, sessionId))
+    .limit(1);
+
+  const order = orderRows[0];
+  if (!order) return null;
+
+  const items = await db
+    .select({
+      quantity: orderItems.quantity,
+      priceAtPurchase: orderItems.priceAtPurchase,
+      productName: products.name,
+    })
+    .from(orderItems)
+    .leftJoin(products, eq(orderItems.productId, products.id))
+    .where(eq(orderItems.orderId, order.id));
+
+  return { order, items };
+}
