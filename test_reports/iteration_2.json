@@ -1,0 +1,44 @@
+{
+  "summary": "Frontend-only UI verification of MAZIGHO (Node/Express/tRPC on http://localhost:3100) admin extensions: Personnalisation Style (custom colors + button radius), Contenu (home-layout studio) and Fournisseurs (Odoo graceful check), plus homepage reflection. All three feature areas render with the required data-testids and their save flows succeed with success toasts. Persistence and homepage reflection verified. Design defaults restored at the end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Auth session cookie (server-side, but observable only in the browser)",
+        "issue": "Set-Cookie for app_session_id uses 'SameSite=None; HttpOnly' WITHOUT the 'Secure' attribute. Chromium (and other modern browsers) reject SameSite=None cookies over plain http://localhost, so the session cookie is silently dropped. Result: after a successful POST /api/trpc/auth.login (200), the browser has no cookie, auth.me + admin.* return 401, and every admin page renders 'Veuillez vous connecter pour continuer' even though credentials are valid. Reproduced consistently in fresh Playwright/Chromium contexts (context.cookies() returns []). curl works because it doesn't enforce the SameSite=None+Secure rule. Fix: set SameSite=Lax (default) in dev, or set Secure only when serving over HTTPS in production.",
+        "selector": "N/A (network/Set-Cookie header)",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_verified": {
+    "login_admin_dashboard": "PARTIAL - auth.login returns 200 and user role=admin (verified via curl). In the browser however the session cookie is dropped (see CRITICAL ui_bug above), so /admin shows the 'please log in' placeholder. Testing continued by injecting the JWT session cookie with SameSite=Lax so real features could be validated.",
+    "personnalisation_style_tab": "PASS - All required testids present: toggle-custom-colors, color-customPrimary, color-customAccent, color-customSoft, radius-flat, radius-rounded, radius-full. Toggle enables color inputs (they became .isEnabled()=true). Radius options are all clickable. 'Enregistrer et publier' save button triggered success toast: 'Personnalisation enregistrée et publiée sur la boutique.' Persistence verified via admin.design.get (customColorsEnabled=true, buttonRadius=rounded).",
+    "contenu_layout_studio": "PASS - home-layout-studio rendered with exactly 5 layout-block-* items (discovery, story, testimonials, editorial, featured). move-down-discovery reorders (verified via API homeOrder: story,discovery,...). toggle-block-story flips visibility (showStory=false persisted). add-text-banner appends a new block with editable Petit libellé + Titre fields. save-layout produced success toast 'Disposition de l'accueil enregistrée' and persisted textBanners with 1 item.",
+    "fournisseurs_odoo": "PASS - odoo-status-card + odoo-status-badge ('En attente de variables') visible. Clicking verify-odoo-btn does NOT crash; it shows a graceful toast: 'Odoo n'est pas configuré. Ajoutez ODOO_URL, ODOO_DB, ODOO_USERNAME et ODOO_API_KEY (ou ODOO_PASSWORD) dans Vercel.' Badge remains 'En attente de variables'.",
+    "homepage_reflection": "PASS - After saving the reordered layout with story hidden + one text banner: (a) 'L'histoire MAZIGHO' section absent from homepage body text (showStory=false), (b) 'Découvrez nos univers' still present, (c) text banner rendered with default title 'Titre de la bannière texte' + eyebrow 'NOUVEAU BLOC'. Section 'order' CSS values reflect the persisted homeOrder (discovery→order:1, testimonials→2, editorial→3, featured→4, text banner→5)."
+  },
+  "cleanup": "COMPLETED via admin.design.update (status 200). Verified via admin.design.get: homeOrder=['discovery','story','testimonials','editorial','featured'], customColorsEnabled=false, buttonRadius='rounded', textBanners=[], showDiscovery/showStory/showTestimonials/showEditorial/showFeatured all true. Production data is clean.",
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: Fix auth cookie flag. In the tRPC/Express session middleware that emits `app_session_id`, change `SameSite=None` to `SameSite=Lax` in dev (or only set `Secure` + `SameSite=None` when running under HTTPS in production). Without this, no browser can maintain an admin session on http(s)://localhost or any http host — the entire admin panel is unusable from a browser even though the backend is correct. Suggested code location: the Express response setCookie for app_session_id (search server code for 'app_session_id' and 'SameSite')."
+  ],
+  "critical_code_review_comments": [
+    "Cookie attributes for session token do not respect the browser rule that SameSite=None requires Secure. On plain http (dev/preview) this results in a silent auth failure that is very hard to diagnose (login POST returns 200, but no subsequent request is authenticated). Suggest deriving cookie flags from NODE_ENV / request.protocol.",
+    "The admin.design.update endpoint requires the full DesignProfile schema (rejects partial updates); every field including paletteId/typographyId must be sent. Consider making it a partial/merge update or clearly documenting the requirement to reduce clients accidentally wiping fields.",
+    "tRPC batching returns an unusual HTTP 207 (Multi-Status) when a single procedure inside a batch is unauthorized (auth.me OK, admin.getStats 401 in same batch). Clients then retry the batch and get 401. UX-wise the admin shell should treat 'auth.me OK + admin.* 401' as 'not admin' rather than 'not logged in'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "100% for the 3 requested feature areas (with the session-cookie workaround); 0% for real end-user login until the SameSite/Secure bug is fixed"},
+  "test_credentials": "yacbhll@gmail.com / Mazigho2026! (role=admin, confirmed via auth.me)",
+  "seed_data_creation": "None. One temporary text-banner block was created during Contenu test then removed during cleanup.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL is http://localhost:3100 (Node app, NOT the FastAPI template). Login is at /login (French UI). Real DB. Admin routes: /admin/personnalisation, /admin/contenu, /admin/fournisseurs. Cookie name is app_session_id (JWT). CURRENT BLOCKER for pure-UI testing: server sets `SameSite=None; HttpOnly` without `Secure`, so Chromium drops the cookie on http and every admin page shows the login placeholder. Workaround used here: log in via curl to obtain the JWT, then inject it into Playwright with sameSite='Lax'. Once the server fix is applied, a fresh Playwright session should be able to complete the flow purely via the UI. Data-testids used: toggle-custom-colors, color-customPrimary/Accent/Soft, radius-flat/rounded/full, home-layout-studio, layout-block-<key>, move-up-<key>, move-down-<key>, toggle-block-<key>, add-text-banner, save-layout, odoo-status-card, odoo-status-badge, verify-odoo-btn.",
+  "rca of the issue": "Login POST /api/trpc/auth.login succeeds (HTTP 200) and returns Set-Cookie: `app_session_id=<JWT>; Max-Age=2592000; Path=/; HttpOnly; SameSite=None`. Because the response is served over plain http and the cookie has SameSite=None but no Secure flag, Chromium enforces the modern rule (SameSite=None requires Secure) and silently discards the cookie. Subsequent tRPC requests (auth.me, admin.*) have no session, so admin.getStats and admin.accounting.getOverview return 401, which causes the AdminLayout guard to render 'Veuillez vous connecter pour continuer'. Reproduction: incognito browser → /login → submit valid credentials → observe DevTools Application → Cookies: empty. Mitigation: on the server, when NODE_ENV !== 'production' (or when req.secure===false) emit the cookie with `SameSite=Lax` (or omit Secure). In production over HTTPS, keep `SameSite=None; Secure` if cross-site embedding is needed, otherwise prefer `SameSite=Lax; Secure`."
+}
