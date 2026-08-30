@@ -148,7 +148,9 @@ export default function AdminCjImport() {
     const margin = Number(marginPercent.replace(",", "."));
     if (supplierCostCents == null || supplierCostCents <= 0 || !Number.isFinite(margin) || margin < 0) return null;
     const landedCostCents = supplierCostCents + maxSupplierShippingCents;
-    return Math.ceil((landedCostCents * (1 + margin / 100)) / 50) * 50;
+    const raw = landedCostCents * (1 + margin / 100);
+    // Smart pricing: always end the price in .90 (psychological pricing).
+    return Math.max(90, Math.ceil(raw / 100) * 100 - 10);
   }, [marginPercent, maxSupplierShippingCents, supplierCostCents]);
   useEffect(() => {
     if (suggestedSaleCents == null || salePriceManual) return;
