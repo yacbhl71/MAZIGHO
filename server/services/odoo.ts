@@ -246,3 +246,51 @@ export async function syncOrderToOdoo(input: {
     return { synced: false, skipped: false, reason: error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR" };
   }
 }
+
+// ---- Admin "Suivi Odoo" panel: read + CRUD helpers (admin-only at the router) ----
+export type OdooPartnerRow = { id: number; name: string; email: string | false; phone: string | false; city: string | false; };
+export type OdooOrderRow = { id: number; name: string; partner_id: [number, string] | false; amount_total: number; state: string; client_order_ref: string | false; date_order: string | false; };
+
+export async function listOdooPartners(limit = 60): Promise<{ configured: boolean; partners: OdooPartnerRow[] }> {
+  const config = readOdooConfig();
+  if (!config) return { configured: false, partners: [] };
+  const uid = await authenticate(config);
+  const partners = await executeKw<OdooPartnerRow[]>(config, uid, "res.partner", "search_read", [[["customer_rank", ">", 0]]], { fields: ["id", "name", "email", "phone", "city"], limit, order: "id desc" });
+  return { configured: true, partners };
+}
+
+export async function listOdooSaleOrders(limit = 60): Promise<{ configured: boolean; orders: OdooOrderRow[] }> {
+  const config = readOdooConfig();
+  if (!config) return { configured: false, orders: [] };
+  const uid = await authenticate(config);
+  const orders = await executeKw<OdooOrderRow[]>(config, uid, "sale.order", "search_read", [[]], { fields: ["id", "name", "partner_id", "amount_total", "state", "client_order_ref", "date_order"], limit, order: "id desc" });
+  return { configured: true, orders };
+}
+
+export async function createOdooPartner(input: { name: string; email?: string; phone?: string }): Promise<{ id: number }> {
+  const config = readOdooConfig();
+  if (!config) throw new Error("ODOO_NOT_CONFIGURED");
+  const uid = await authenticate(config);
+  const id = await executeKw<number>(config, uid, "res.partner", "create", [{ name: input.name, email: input.email || false, phone: input.phone || false, customer_rank: 1 }]);
+  return { id };
+}
+
+export async function updateOdooPartner(id: number, patch: { name?: string; email?: string; phone?: string }): Promise<{ success: boolean }> {
+  const config = readOdooConfig();
+  if (!config) throw new Error("ODOO_NOT_CONFIGURED");
+  const uid = await authenticate(config);
+  const values: Record<string, unknown> = {};
+  if (patch.name !== undefined) values.name = patch.name;
+  if (patch.email !== undefined) values.email = patch.email || false;
+  if (patch.phone !== undefined) values.phone = patch.phone || false;
+  await executeKw(config, uid, "res.partner", "write", [[id], values]);
+  return { success: true };
+}
+
+export async function cancelOdooSaleOrder(id: number): Promise<{ success: boolean }> {
+  const config = readOdooConfig();
+  if (!config) throw new Error("ODOO_NOT_CONFIGURED");
+  const uid = await authenticate(config);
+  await executeKw(config, uid, "sale.order", "action_cancel", [[id]]);
+  return { success: true };
+}

@@ -39,6 +39,7 @@ const AdminCreations = lazy(() => import("./pages/admin/AdminCreations"));
 const AdminTranslations = lazy(() => import("./pages/admin/AdminTranslations"));
 const AdminSimpleEditor = lazy(() => import("./pages/admin/AdminSimpleEditor"));
 const AdminSEO = lazy(() => import("./pages/admin/AdminSEO"));
+const AdminOdoo = lazy(() => import("./pages/admin/AdminOdoo"));
 const StaffCatalog = lazy(() => import("./pages/admin/StaffCatalog"));
 const StaffSupport = lazy(() => import("./pages/admin/StaffSupport"));
 const StaffOrders = lazy(() => import("./pages/admin/StaffOrders"));
@@ -186,6 +187,7 @@ function Router() {
         <Route path={"/admin/traductions"} component={AdminTranslations} />
         <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
         <Route path={"/admin/seo"} component={AdminSEO} />
+        <Route path={"/admin/suivi-odoo"} component={AdminOdoo} />
         <Route path={"/admin/catalogue-brouillons"} component={StaffCatalog} />
         <Route path={"/admin/assistance"} component={StaffSupport} />
         <Route path={"/admin/operations-commandes"} component={StaffOrders} />

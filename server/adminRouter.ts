@@ -16,6 +16,7 @@ import {
 } from "./dropshipping";
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
 import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
+import { cancelOdooSaleOrder, createOdooPartner, listOdooPartners, listOdooSaleOrders, updateOdooPartner } from "./services/odoo";
 
 const deliveryProfileInput = z.object({
   countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
@@ -108,6 +109,26 @@ const accountingEntrySchema = z.object({
 });
 
 export const adminRouter = router({
+  // Suivi Odoo (ERP) — strictly admin-only.
+  odoo: router({
+    status: adminProcedure.query(() => getOdooStatus()),
+    verify: adminProcedure.mutation(() => verifyOdooConnection()),
+    partners: adminProcedure.query(() => listOdooPartners()),
+    orders: adminProcedure.query(() => listOdooSaleOrders()),
+    createPartner: adminProcedure.input(z.object({
+      name: z.string().trim().min(1).max(180),
+      email: z.string().trim().email().max(180).optional().or(z.literal("")),
+      phone: z.string().trim().max(60).optional(),
+    })).mutation(({ input }) => createOdooPartner({ name: input.name, email: input.email || undefined, phone: input.phone })),
+    updatePartner: adminProcedure.input(z.object({
+      id: z.number().int().positive(),
+      name: z.string().trim().min(1).max(180).optional(),
+      email: z.string().trim().max(180).optional(),
+      phone: z.string().trim().max(60).optional(),
+    })).mutation(({ input }) => updateOdooPartner(input.id, { name: input.name, email: input.email, phone: input.phone })),
+    cancelOrder: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => cancelOdooSaleOrder(input.id)),
+  }),
+
   // Dashboard Stats
   getStats: adminProcedure.query(async () => {
     return await db.getAdminStats();
