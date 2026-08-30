@@ -1,6 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { adminProcedure, router } from "./_core/trpc";
+import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
@@ -115,16 +115,16 @@ export const adminRouter = router({
 
   // Products Management
   products: router({
-    getAll: adminProcedure.query(async () => {
+    getAll: catalogEditorProcedure.query(async () => {
       return await db.getAllProductsAdmin();
     }),
-    getTranslations: adminProcedure.input(z.number().int().positive()).query(async ({ input }) => {
+    getTranslations: catalogEditorProcedure.input(z.number().int().positive()).query(async ({ input }) => {
       return await db.getProductTranslations(input);
     }),
-    getTranslationOverview: adminProcedure.query(async () => {
+    getTranslationOverview: catalogEditorProcedure.query(async () => {
       return await db.getProductTranslationOverview();
     }),
-    translate: adminProcedure.input(z.object({
+    translate: catalogEditorProcedure.input(z.object({
       productId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
     })).mutation(async ({ input }) => {
@@ -139,7 +139,7 @@ export const adminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La génération de traduction est momentanément indisponible. Réessayez dans quelques instants." });
       }
     }),
-    saveTranslation: adminProcedure.input(z.object({
+    saveTranslation: catalogEditorProcedure.input(z.object({
       productId: z.number().int().positive(),
       locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
       name: z.string().trim().min(1).max(200),
@@ -163,7 +163,7 @@ export const adminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible d’enregistrer cette traduction. Vérifiez le contenu et réessayez." });
       }
     }),
-    create: adminProcedure.input(z.object({
+    create: catalogEditorProcedure.input(z.object({
       categoryId: z.number(),
       name: z.string(),
       slug: z.string(),
@@ -184,7 +184,7 @@ export const adminRouter = router({
     })).mutation(async ({ input }) => {
       return await db.createProduct(input);
     }),
-    update: adminProcedure.input(z.object({
+    update: catalogEditorProcedure.input(z.object({
       id: z.number(),
       categoryId: z.number().optional(),
       name: z.string().optional(),
@@ -205,10 +205,10 @@ export const adminRouter = router({
     })).mutation(async ({ input }) => {
       return await db.updateProduct(input.id, input);
     }),
-    delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
+    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteProduct(input);
     }),
-    previewImport: adminProcedure.input(previewProductInput).mutation(async ({ input }) => {
+    previewImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ input }) => {
       if (input.rawHtml && input.rawHtml.trim().length > 0) {
         return await previewSupplierProductFromHtml(input.rawHtml, input.url);
       }
@@ -217,10 +217,10 @@ export const adminRouter = router({
       }
       return await previewSupplierProduct(input.url);
     }),
-    importFromUrl: adminProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {
+    importFromUrl: catalogEditorProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {
       return await db.createProduct(normalizeImportedProduct(input));
     }),
-    importCjDraft: adminProcedure.input(z.object({
+    importCjDraft: catalogEditorProcedure.input(z.object({
       categoryId: z.number().int().positive(),
       productId: z.string().trim().min(1).max(128),
       sku: z.string().trim().max(200).nullable().optional(),
@@ -283,7 +283,7 @@ export const adminRouter = router({
 
   // Categories Management
   categories: router({
-    create: adminProcedure.input(z.object({
+    create: catalogEditorProcedure.input(z.object({
       name: z.string(),
       slug: z.string(),
       description: z.string().optional(),
@@ -294,7 +294,7 @@ export const adminRouter = router({
     })).mutation(async ({ input }) => {
       return await db.createCategory(input);
     }),
-    update: adminProcedure.input(z.object({
+    update: catalogEditorProcedure.input(z.object({
       id: z.number(),
       name: z.string().optional(),
       slug: z.string().optional(),
@@ -308,10 +308,10 @@ export const adminRouter = router({
       await db.markPublicContentTranslationsStale("category", input.id);
       return category;
     }),
-    delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
+    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteCategory(input);
     }),
-    seedDefault: adminProcedure.mutation(async () => {
+    seedDefault: catalogEditorProcedure.mutation(async () => {
       const logs: string[] = [];
       const connectionString = process.env.DATABASE_URL;
       if (!connectionString) throw new Error("DATABASE_URL non définie");
@@ -411,16 +411,16 @@ export const adminRouter = router({
 
   // Orders Management
   orders: router({
-    getAll: adminProcedure.query(async () => {
+    getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllOrdersAdmin();
     }),
-    getItems: adminProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
+    getItems: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderItemsAdmin(input.orderId);
     }),
-    getDecisions: adminProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
+    getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderDecisionsAdmin(input.orderId);
     }),
-    decide: adminProcedure.input(z.object({
+    decide: orderOperatorProcedure.input(z.object({
       orderId: z.number(),
       action: z.enum(["accepted", "rejected", "refund_requested"]),
       reason: z.string().trim().max(500).optional(),
@@ -446,7 +446,7 @@ export const adminRouter = router({
         throw error;
       }
     }),
-    updateStatus: adminProcedure.input(z.object({
+    updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),
       trackingNumber: z.string().optional(),
@@ -465,10 +465,10 @@ export const adminRouter = router({
 
   // Users Management
   users: router({
-    getAll: adminProcedure.query(async () => {
+    getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllUsersAdmin();
     }),
-    getCustomerSegments: adminProcedure.query(async () => {
+    getCustomerSegments: orderOperatorProcedure.query(async () => {
       return await db.getCustomerSegmentsAdmin();
     }),
     create: adminProcedure.input(z.object({
@@ -488,7 +488,7 @@ export const adminRouter = router({
         return rethrowUserManagementError(error);
       }
     }),
-    resendInvitation: adminProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+    resendInvitation: orderOperatorProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
             try {
         const invitation = await db.reissuePendingInvitation(input.id);
         return {
@@ -501,7 +501,7 @@ export const adminRouter = router({
         return rethrowUserManagementError(error);
       }
     }),
-    updateProfile: adminProcedure.input(z.object({
+    updateProfile: orderOperatorProcedure.input(z.object({
       id: z.number(),
       name: z.string().trim().min(1).max(200),
       email: z.string().trim().email(),
@@ -523,7 +523,7 @@ export const adminRouter = router({
         return rethrowUserManagementError(error);
       }
     }),
-    setAccountStatus: adminProcedure.input(z.object({
+    setAccountStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       accountStatus: z.enum(["active", "blocked"]),
       confirmation: z.string().trim().max(400).optional(),
@@ -548,10 +548,10 @@ export const adminRouter = router({
 
   // Reviews Moderation
   reviews: router({
-    getAll: adminProcedure.query(async () => {
+    getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllReviewsAdmin();
     }),
-    updateStatus: adminProcedure.input(z.object({
+    updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["pending", "approved", "rejected"]),
     })).mutation(async ({ input }) => {
@@ -561,10 +561,10 @@ export const adminRouter = router({
 
   // Contact Messages
   messages: router({
-    getAll: adminProcedure.query(async () => {
+    getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllMessagesAdmin();
     }),
-    updateStatus: adminProcedure.input(z.object({
+    updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["unread", "read", "archived"]),
     })).mutation(async ({ input }) => {
@@ -824,17 +824,17 @@ export const adminRouter = router({
 
   // Public editorial content translations. French stays the single source; generated text is always reviewable before use.
   publicContentTranslations: router({
-    getOverview: adminProcedure.query(async () => await db.getPublicContentTranslationOverview()),
-    getSource: adminProcedure.input(z.object({
+    getOverview: catalogEditorProcedure.query(async () => await db.getPublicContentTranslationOverview()),
+    getSource: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
     })).query(async ({ input }) => await db.getPublicContentTranslationSource(input.contentType, input.contentId)),
-    get: adminProcedure.input(z.object({
+    get: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
       locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
     })).query(async ({ input }) => await db.getPublicContentTranslation(input.contentType, input.contentId, input.locale)),
-    generate: adminProcedure.input(z.object({
+    generate: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
@@ -847,7 +847,7 @@ export const adminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: message || "La traduction des contenus est momentanément indisponible. Réessayez dans quelques instants." });
       }
     }),
-    save: adminProcedure.input(z.object({
+    save: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
       locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),

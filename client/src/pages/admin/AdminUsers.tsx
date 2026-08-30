@@ -35,7 +35,7 @@ const roleLabels: Record<Role, string> = {
   admin: "Administrateur",
 };
 
-const assignableRoles: Role[] = ["user", "catalog_editor", "support_agent", "order_operator", "admin"];
+const assignableRoles: Role[] = ["user", "catalog_editor", "order_operator", "admin"];
 const roleFilterLabels: Record<Role, string> = {
   user: "Clients",
   catalog_editor: "Éditeurs catalogue",
