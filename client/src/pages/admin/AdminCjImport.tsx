@@ -49,7 +49,7 @@ export default function AdminCjImport() {
   const [description, setDescription] = useState("");
   const [imagesText, setImagesText] = useState("");
   const [exchangeRate, setExchangeRate] = useState(import.meta.env.VITE_CJ_USD_CHF_RATE || "0.90");
-  const [marginPercent, setMarginPercent] = useState("50");
+  const [marginPercent, setMarginPercent] = useState("35");
   const [supplierCostChf, setSupplierCostChf] = useState("");
   const [salePriceChf, setSalePriceChf] = useState("");
   const [salePriceManual, setSalePriceManual] = useState(false);
@@ -101,40 +101,55 @@ export default function AdminCjImport() {
   useEffect(() => {
     setSalePriceManual(false);
   }, [preparedProduct?.productId]);
+  const DEFAULT_SHIPPING_USD = 5;
+  const DEFAULT_METHOD = "CJ Packet Regular";
+  const variantForProfiles = selectedVariant || preparedProduct?.variants[0] || null;
+  // Every checked destination becomes a delivery profile. If CJ returns
+  // "À confirmer" (no option) we force a default method + estimated cost so the
+  // draft is never blocked.
+  const resolvedDeliveries = useMemo(() => {
+    const quoteMap = new Map((deliveryQuoteIsCurrent ? quoteCjDelivery.data?.countries ?? [] : []).map(country => [country.countryCode, country]));
+    const codes = deliveryCountries.length ? deliveryCountries : (["CH"] as Array<(typeof deliveryMarkets)[number]["code"]>);
+    return codes.map(code => {
+      const option = quoteMap.get(code)?.options[0];
+      return option
+        ? { countryCode: code, costUsd: option.costUsd, delay: option.delay, method: option.name, forced: false }
+        : { countryCode: code, costUsd: DEFAULT_SHIPPING_USD, delay: "8-20", method: DEFAULT_METHOD, forced: true };
+    });
+  }, [deliveryCountries, deliveryQuoteIsCurrent, quoteCjDelivery.data]);
+  const hasForcedDelivery = resolvedDeliveries.some(delivery => delivery.forced);
   const confirmedShippingCosts = useMemo(() => {
     const rate = Number(exchangeRate.replace(",", "."));
     if (!Number.isFinite(rate) || rate <= 0) return [];
-    return confirmedDeliveryCountries.flatMap(country => country.options[0] ? [Math.round(country.options[0].costUsd * rate * 100)] : []);
-  }, [confirmedDeliveryCountries, exchangeRate]);
+    return resolvedDeliveries.map(delivery => Math.round(delivery.costUsd * rate * 100));
+  }, [resolvedDeliveries, exchangeRate]);
   const maxSupplierShippingCents = confirmedShippingCosts.length > 0 ? Math.max(...confirmedShippingCosts) : 0;
   const deliveryProfiles = useMemo(() => {
     const rate = Number(exchangeRate.replace(",", "."));
     const targetMargin = Number(marginPercent.replace(",", "."));
-    if (!selectedVariant || !salePriceCents || supplierCostCents == null || !Number.isFinite(rate) || rate <= 0 || !Number.isFinite(targetMargin) || targetMargin < 0) return [];
-    const requiredProfitCents = Math.round(supplierCostCents * targetMargin / 100);
-    return confirmedDeliveryCountries.flatMap(country => {
-      const option = country.options[0];
-      if (!option) return [];
-      const supplierShippingCost = Math.round(option.costUsd * rate * 100);
+    if (!variantForProfiles || !salePriceCents || supplierCostCents == null || !Number.isFinite(rate) || rate <= 0) return [];
+    const requiredProfitCents = Math.round(supplierCostCents * (Number.isFinite(targetMargin) ? targetMargin : 0) / 100);
+    return resolvedDeliveries.map(delivery => {
+      const supplierShippingCost = Math.round(delivery.costUsd * rate * 100);
       const profitAfterShipping = salePriceCents - supplierCostCents - supplierShippingCost;
       const customerShippingCost = allInShipping ? 0 : (profitAfterShipping >= requiredProfitCents ? 0 : supplierShippingCost);
-      const range = parseDeliveryRange(option.delay);
-      return [{
-        countryCode: country.countryCode as (typeof deliveryMarkets)[number]["code"],
-        supplierVariantId: selectedVariant.id,
+      const range = parseDeliveryRange(delivery.delay);
+      return {
+        countryCode: delivery.countryCode as (typeof deliveryMarkets)[number]["code"],
+        supplierVariantId: variantForProfiles.id,
         supplierShippingCost,
         customerShippingCost,
-        deliveryMethod: option.name,
+        deliveryMethod: delivery.method,
         ...range,
-      }];
+      };
     });
-    }, [allInShipping, confirmedDeliveryCountries, exchangeRate, marginPercent, salePriceCents, selectedVariant, supplierCostCents]);
+    }, [allInShipping, resolvedDeliveries, exchangeRate, marginPercent, salePriceCents, variantForProfiles, supplierCostCents]);
   const suggestedSaleCents = useMemo(() => {
     const margin = Number(marginPercent.replace(",", "."));
     if (supplierCostCents == null || supplierCostCents <= 0 || !Number.isFinite(margin) || margin < 0) return null;
-    const landedCostCents = supplierCostCents + (allInShipping ? maxSupplierShippingCents : 0);
+    const landedCostCents = supplierCostCents + maxSupplierShippingCents;
     return Math.ceil((landedCostCents * (1 + margin / 100)) / 50) * 50;
-  }, [allInShipping, marginPercent, maxSupplierShippingCents, supplierCostCents]);
+  }, [marginPercent, maxSupplierShippingCents, supplierCostCents]);
   useEffect(() => {
     if (suggestedSaleCents == null || salePriceManual) return;
     setSalePriceChf(formatChfInput(suggestedSaleCents));
@@ -157,22 +172,16 @@ export default function AdminCjImport() {
       toast.error("Choisissez une catégorie et complétez le titre ainsi que le slug.");
       return;
     }
-    if (!deliveryQuoteIsCurrent || confirmedDeliveryCountries.length === 0) {
-      toast.error("Vérifiez au moins une destination CJ réellement desservie avant de créer le brouillon.");
-      return;
-    }
-    if (!confirmedVariantStock && variantStockZeroConfirmed) {
-      toast.error("CJ confirme un stock à zéro pour cette variante. Choisissez une autre variante ou un autre produit.");
-      return;
-    }
     if (supplierCostCents == null || supplierCostCents <= 0 || salePriceCents == null || salePriceCents <= 0) {
       toast.error("Vérifiez le coût fournisseur et le prix de vente en CHF.");
       return;
     }
     const lossCountries = deliveryProfiles.filter(profile => salePriceCents - profile.supplierShippingCost - supplierCostCents + profile.customerShippingCost < 0);
     if (lossCountries.length > 0) {
-      toast.error(`Prix insuffisant pour ${lossCountries.map(profile => deliveryMarkets.find(market => market.code === profile.countryCode)?.label || profile.countryCode).join(", ")}. Augmentez le prix final ou vérifiez les frais.`);
-      return;
+      toast.warning(`Attention : prix serré pour ${lossCountries.map(profile => deliveryMarkets.find(market => market.code === profile.countryCode)?.label || profile.countryCode).join(", ")}. Le brouillon est enregistré, ajustez le prix si besoin.`);
+    }
+    if (hasForcedDelivery) {
+      toast.info("Certaines destinations utilisent un transport estimé par défaut (CJ Packet Regular). Vérifiez-les plus tard si besoin.");
     }
     if (!Number.isInteger(parsedStock) || parsedStock < 0) {
       toast.error("Saisissez un stock MAZIGHO valide.");

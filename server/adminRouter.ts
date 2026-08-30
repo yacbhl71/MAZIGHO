@@ -108,6 +108,23 @@ const accountingEntrySchema = z.object({
   notes: z.string().trim().max(3000).optional().nullable(),
 });
 
+const AUTO_TRANSLATE_LOCALES = ["de", "it", "en", "es", "nl", "ar"];
+// Fire-and-forget automatic translation on save. Never blocks or fails the
+// admin mutation: if the translation service (LLM) is unavailable, the content
+// is still saved and the error is only logged.
+function autoTranslateProduct(productId: number | undefined | null) {
+  if (!productId) return;
+  import("./productTranslation")
+    .then(m => m.translateProductFromFrench(productId, AUTO_TRANSLATE_LOCALES as any))
+    .catch(err => console.error("[auto-translate:product]", productId, err instanceof Error ? err.message : err));
+}
+function autoTranslateContent(contentType: "design" | "banner" | "category", contentId: number | undefined | null) {
+  if (contentId == null) return;
+  import("./publicContentTranslation")
+    .then(m => m.translatePublicContentFromFrench(contentType, contentId, AUTO_TRANSLATE_LOCALES as any))
+    .catch(err => console.error("[auto-translate:content]", contentType, contentId, err instanceof Error ? err.message : err));
+}
+
 export const adminRouter = router({
   // Suivi Odoo (ERP) — strictly admin-only.
   odoo: router({
@@ -203,7 +220,9 @@ export const adminRouter = router({
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ input }) => {
-      return await db.createProduct(input);
+      const createdProduct = await db.createProduct(input);
+      autoTranslateProduct((createdProduct as any)?.id);
+      return createdProduct;
     }),
     update: catalogEditorProcedure.input(z.object({
       id: z.number(),
@@ -224,7 +243,9 @@ export const adminRouter = router({
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ input }) => {
-      return await db.updateProduct(input.id, input);
+      const updatedProduct = await db.updateProduct(input.id, input);
+      autoTranslateProduct(input.id);
+      return updatedProduct;
     }),
     delete: catalogEditorProcedure.input(z.number()).mutation(async ({ input }) => {
       return await db.deleteProduct(input);
@@ -313,7 +334,9 @@ export const adminRouter = router({
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ input }) => {
-      return await db.createCategory(input);
+      const createdCategory = await db.createCategory(input);
+      autoTranslateContent("category", (createdCategory as any)?.id);
+      return createdCategory;
     }),
     update: catalogEditorProcedure.input(z.object({
       id: z.number(),
@@ -326,6 +349,7 @@ export const adminRouter = router({
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ input }) => {
       const category = await db.updateCategory(input.id, input);
+      autoTranslateContent("category", input.id);
       await db.markPublicContentTranslationsStale("category", input.id);
       return category;
     }),
@@ -828,6 +852,7 @@ export const adminRouter = router({
       const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
       if (editorialFields.some(field => previous[field] !== profile[field])) {
         await db.markPublicContentTranslationsStale("design", 1);
+        autoTranslateContent("design", 1);
       }
       return profile;
     }),
@@ -937,7 +962,9 @@ export const adminRouter = router({
       active: z.number().int().min(0).max(1).default(1),
       displayOrder: z.number().int().default(0),
     })).mutation(async ({ input }) => {
-      return await db.createBanner(input);
+      const createdBanner = await db.createBanner(input);
+      autoTranslateContent("banner", (createdBanner as any)?.id);
+      return createdBanner;
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -950,6 +977,7 @@ export const adminRouter = router({
     })).mutation(async ({ input }) => {
       const { id, ...data } = input;
       const banner = await db.updateBanner(id, data);
+      autoTranslateContent("banner", id);
       await db.markPublicContentTranslationsStale("banner", id);
       return banner;
     }),
