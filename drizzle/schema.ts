@@ -167,6 +167,8 @@ export const orders = mysqlTable("orders", {
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   trackingNumber: varchar("trackingNumber", { length: 100 }),
+  promotionId: int("promotionId"),
+  discountAmount: int("discountAmount").default(0).notNull(),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -225,6 +227,7 @@ export type InsertAccountingEntry = typeof accountingEntries.$inferInsert;
 export const carts = mysqlTable("carts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull().unique(),
+  reminderSentAt: timestamp("reminderSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -310,6 +313,10 @@ export const promotions = mysqlTable("promotions", {
   maxUses: int("maxUses"),
   usedCount: int("usedCount").default(0).notNull(),
   active: int("active").default(1).notNull(),
+  // Advanced targeting: 'all' (default), 'first_order' (only customers with no prior paid order), 'category' (only items of a category).
+  scope: mysqlEnum("scope", ["all", "first_order", "category"]).default("all").notNull(),
+  categoryId: int("categoryId"), // required when scope = 'category'
+  perUserLimit: int("perUserLimit"), // max redemptions per customer
   startsAt: timestamp("startsAt"),
   expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -318,3 +325,50 @@ export const promotions = mysqlTable("promotions", {
 
 export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = typeof promotions.$inferInsert;
+
+// Per-customer promotion redemptions. Powers per-user limits and abuse prevention.
+export const promotionRedemptions = mysqlTable("promotionRedemptions", {
+  id: int("id").autoincrement().primaryKey(),
+  promotionId: int("promotionId").notNull(),
+  userId: int("userId").notNull(),
+  orderId: int("orderId"),
+  discountAmount: int("discountAmount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
+export type InsertPromotionRedemption = typeof promotionRedemptions.$inferInsert;
+
+// Staff activity audit trail. Records who did what and when across sensitive admin actions.
+export const auditLogs = mysqlTable("auditLogs", {
+  id: int("id").autoincrement().primaryKey(),
+  actorUserId: int("actorUserId"),
+  actorName: varchar("actorName", { length: 200 }),
+  actorRole: varchar("actorRole", { length: 40 }),
+  action: varchar("action", { length: 80 }).notNull(),
+  entityType: varchar("entityType", { length: 40 }).notNull(),
+  entityId: int("entityId"),
+  summary: varchar("summary", { length: 500 }).notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+// Customer return requests (RMA). Refunds are issued through Stripe when a return is approved.
+export const returnRequests = mysqlTable("returnRequests", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  userId: int("userId").notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  status: mysqlEnum("status", ["requested", "approved", "rejected", "refunded"]).default("requested").notNull(),
+  resolutionNote: varchar("resolutionNote", { length: 1000 }),
+  refundAmount: int("refundAmount"),
+  actorUserId: int("actorUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReturnRequest = typeof returnRequests.$inferSelect;
+export type InsertReturnRequest = typeof returnRequests.$inferInsert;

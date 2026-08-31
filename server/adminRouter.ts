@@ -125,6 +125,23 @@ function autoTranslateContent(contentType: "design" | "banner" | "category", con
     .catch(err => console.error("[auto-translate:content]", contentType, contentId, err instanceof Error ? err.message : err));
 }
 
+// Fire-and-forget staff audit trail. Never blocks or fails the admin mutation.
+function logAudit(ctx: any, entry: {
+  action: string;
+  entityType: string;
+  entityId?: number | null;
+  summary: string;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const user = ctx?.user;
+  db.recordAuditLog({
+    actorUserId: user?.id ?? null,
+    actorName: user?.name ?? user?.email ?? "Compte inconnu",
+    actorRole: user?.role ?? null,
+    ...entry,
+  }).catch(err => console.error("[audit]", entry.action, err instanceof Error ? err.message : err));
+}
+
 export const adminRouter = router({
   // Suivi Odoo (ERP) — strictly admin-only.
   odoo: router({
@@ -149,6 +166,31 @@ export const adminRouter = router({
   // Dashboard Stats
   getStats: adminProcedure.query(async () => {
     return await db.getAdminStats();
+  }),
+
+  // Staff activity audit trail (admin-only)
+  audit: router({
+    getLogs: adminProcedure.input(z.object({
+      entityType: z.string().trim().max(40).optional(),
+      action: z.string().trim().max(80).optional(),
+      actorUserId: z.number().int().positive().optional(),
+      search: z.string().trim().max(200).optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(100).default(50),
+    })).query(async ({ input }) => {
+      const { entries, total } = await db.getAuditLogs({
+        entityType: input.entityType || undefined,
+        action: input.action || undefined,
+        actorUserId: input.actorUserId,
+        search: input.search || undefined,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
+      });
+      return { entries, total, page: input.page, pageSize: input.pageSize };
+    }),
+    getFilters: adminProcedure.query(async () => {
+      return await db.getAuditLogFilterOptions();
+    }),
   }),
 
   // Products Management
@@ -219,9 +261,11 @@ export const adminRouter = router({
       supplierPrice: z.number().optional(),
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const createdProduct = await db.createProduct(input);
-      autoTranslateProduct((createdProduct as any)?.id);
+      const newId = (createdProduct as any)?.id;
+      autoTranslateProduct(newId);
+      logAudit(ctx, { action: "product.create", entityType: "product", entityId: newId ?? null, summary: `Produit créé : « ${input.name} » (${(input.price / 100).toFixed(2)} CHF, ${input.status})` });
       return createdProduct;
     }),
     update: catalogEditorProcedure.input(z.object({
@@ -242,13 +286,24 @@ export const adminRouter = router({
       supplierPrice: z.number().optional(),
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const updatedProduct = await db.updateProduct(input.id, input);
       autoTranslateProduct(input.id);
+      const name = input.name ?? (await db.getProductNameById(input.id)) ?? `#${input.id}`;
+      const changes: string[] = [];
+      if (input.price != null) changes.push(`prix ${(input.price / 100).toFixed(2)} CHF`);
+      if (input.stock != null) changes.push(`stock ${input.stock}`);
+      if (input.status != null) changes.push(`statut ${input.status}`);
+      if (input.featured != null) changes.push(input.featured ? "mis en avant" : "retiré de la mise en avant");
+      const detail = changes.length ? ` — ${changes.join(", ")}` : "";
+      logAudit(ctx, { action: "product.update", entityType: "product", entityId: input.id, summary: `Produit modifié : « ${name} »${detail}`, metadata: { price: input.price, stock: input.stock, status: input.status } });
       return updatedProduct;
     }),
-    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ input }) => {
-      return await db.deleteProduct(input);
+    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
+      const name = (await db.getProductNameById(input)) ?? `#${input}`;
+      const result = await db.deleteProduct(input);
+      logAudit(ctx, { action: "product.delete", entityType: "product", entityId: input, summary: `Produit supprimé : « ${name} »` });
+      return result;
     }),
     previewImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ input }) => {
       if (input.rawHtml && input.rawHtml.trim().length > 0) {
@@ -293,12 +348,12 @@ export const adminRouter = router({
           }
         });
       }),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: `Ce produit CJ est déjà enregistré dans MAZIGHO sous « ${existing.name} » (${existing.status === "draft" ? "brouillon" : existing.status}).` });
       }
-      return await db.createProduct({
+      const created = await db.createProduct({
         categoryId: input.categoryId,
         name: input.name,
         slug: input.slug,
@@ -320,6 +375,8 @@ export const adminRouter = router({
         })),
         lastSyncedAt: new Date(),
       });
+      logAudit(ctx, { action: "product.import_cj", entityType: "product", entityId: (created as any)?.id ?? null, summary: `Brouillon CJ importé : « ${input.name} » (${(input.priceCents / 100).toFixed(2)} CHF)`, metadata: { supplierProductId: input.productId } });
+      return created;
     }),
   }),
 
@@ -333,9 +390,10 @@ export const adminRouter = router({
       icon: z.string().optional(),
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const createdCategory = await db.createCategory(input);
       autoTranslateContent("category", (createdCategory as any)?.id);
+      logAudit(ctx, { action: "category.create", entityType: "category", entityId: (createdCategory as any)?.id ?? null, summary: `Catégorie créée : « ${input.name} »` });
       return createdCategory;
     }),
     update: catalogEditorProcedure.input(z.object({
@@ -347,14 +405,19 @@ export const adminRouter = router({
       icon: z.string().optional(),
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const category = await db.updateCategory(input.id, input);
       autoTranslateContent("category", input.id);
       await db.markPublicContentTranslationsStale("category", input.id);
+      const name = input.name ?? (await db.getCategoryNameById(input.id)) ?? `#${input.id}`;
+      logAudit(ctx, { action: "category.update", entityType: "category", entityId: input.id, summary: `Catégorie modifiée : « ${name} »` });
       return category;
     }),
-    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ input }) => {
-      return await db.deleteCategory(input);
+    delete: catalogEditorProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
+      const name = (await db.getCategoryNameById(input)) ?? `#${input}`;
+      const result = await db.deleteCategory(input);
+      logAudit(ctx, { action: "category.delete", entityType: "category", entityId: input, summary: `Catégorie supprimée : « ${name} »` });
+      return result;
     }),
     seedDefault: catalogEditorProcedure.mutation(async () => {
       const logs: string[] = [];
@@ -476,12 +539,15 @@ export const adminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Pour confirmer cette action, saisissez exactement : ${expectedConfirmation}` });
       }
       try {
-        return await db.recordOrderDecision({
+        const decision = await db.recordOrderDecision({
           orderId: input.orderId,
           action: input.action,
           reason: input.reason,
           actorUserId: ctx.user.id,
         });
+        const actionLabel = input.action === "accepted" ? "acceptée" : input.action === "rejected" ? "refusée" : "remboursement demandé";
+        logAudit(ctx, { action: "order.decide", entityType: "order", entityId: input.orderId, summary: `Commande #${input.orderId} ${actionLabel}${input.reason ? ` — ${input.reason}` : ""}`, metadata: { action: input.action } });
+        return decision;
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
@@ -495,9 +561,19 @@ export const adminRouter = router({
       id: z.number(),
       status: z.enum(["pending", "processing", "shipped", "delivered", "cancelled"]),
       trackingNumber: z.string().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.updateOrderStatus(input.id, input.status, input.trackingNumber);
+        const result = await db.updateOrderStatus(input.id, input.status, input.trackingNumber);
+        const statusLabels: Record<string, string> = { pending: "en attente", processing: "en préparation", shipped: "expédiée", delivered: "livrée", cancelled: "annulée" };
+        logAudit(ctx, { action: "order.status", entityType: "order", entityId: input.id, summary: `Commande #${input.id} → ${statusLabels[input.status] || input.status}${input.trackingNumber ? ` (suivi ${input.trackingNumber})` : ""}`, metadata: { status: input.status } });
+        if (input.status === "shipped") {
+          const contact = await db.getOrderContactById(input.id);
+          if (contact?.userEmail) {
+            const { sendOrderShippedEmail } = await import("./emails");
+            sendOrderShippedEmail({ email: contact.userEmail, name: contact.userName, orderId: input.id, trackingNumber: contact.trackingNumber }).catch(err => console.error("[email:order-shipped]", err));
+          }
+        }
+        return result;
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
@@ -505,6 +581,49 @@ export const adminRouter = router({
         if (code === "ORDER_REQUIRES_REJECTION") throw new TRPCError({ code: "BAD_REQUEST", message: "Utilisez le bouton Refuser avec sa double confirmation pour annuler une commande." });
         throw error;
       }
+    }),
+    getTimeline: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
+      return await db.getOrderTimeline(input.orderId);
+    }),
+    refund: adminProcedure.input(z.object({ orderId: z.number().int().positive(), confirmation: z.string().trim().max(80).optional() })).mutation(async ({ ctx, input }) => {
+      const context = await db.getOrderRefundContext(input.orderId);
+      if (!context) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
+      if (context.paymentStatus === "refunded") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande est déjà remboursée." });
+      if (context.paymentStatus !== "paid") throw new TRPCError({ code: "BAD_REQUEST", message: "Seule une commande payée peut être remboursée." });
+      if (input.confirmation !== `REMBOURSER #${input.orderId}`) throw new TRPCError({ code: "BAD_REQUEST", message: `Pour confirmer, saisissez exactement : REMBOURSER #${input.orderId}` });
+      const key = process.env.STRIPE_SECRET_KEY?.trim();
+      if (!key || !(key.startsWith("sk_test_") || key.startsWith("sk_live_"))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe n'est pas configuré : impossible de rembourser automatiquement." });
+      if (!context.stripeSessionId) throw new TRPCError({ code: "BAD_REQUEST", message: "Aucune session de paiement Stripe associée à cette commande." });
+      try {
+        const Stripe = (await import("stripe")).default;
+        const stripe = new Stripe(key);
+        const session = await stripe.checkout.sessions.retrieve(context.stripeSessionId);
+        const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+        if (!paymentIntentId) throw new Error("NO_PAYMENT_INTENT");
+        await stripe.refunds.create({ payment_intent: paymentIntentId });
+      } catch (error) {
+        console.error("[stripe:refund]", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le remboursement Stripe a échoué. Vérifiez le tableau de bord Stripe." });
+      }
+      await db.markOrderRefunded(input.orderId);
+      logAudit(ctx, { action: "order.refund", entityType: "order", entityId: input.orderId, summary: `Commande #${input.orderId} remboursée via Stripe (${(context.totalAmount / 100).toFixed(2)} CHF)` });
+      return { success: true };
+    }),
+  }),
+
+  // Returns / RMA management (Lot C)
+  returns: router({
+    getAll: orderOperatorProcedure.query(async () => {
+      return await db.getAllReturnRequestsAdmin();
+    }),
+    updateStatus: orderOperatorProcedure.input(z.object({
+      id: z.number().int().positive(),
+      status: z.enum(["approved", "rejected", "refunded"]),
+      resolutionNote: z.string().trim().max(1000).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const result = await db.updateReturnRequestStatus({ id: input.id, status: input.status, resolutionNote: input.resolutionNote, actorUserId: ctx.user.id });
+      logAudit(ctx, { action: "return.status", entityType: "return", entityId: input.id, summary: `Retour #${input.id} → ${input.status === "approved" ? "approuvé" : input.status === "rejected" ? "refusé" : "remboursé"} (commande #${result.orderId})`, metadata: { status: input.status } });
+      return result;
     }),
   }),
 
@@ -520,9 +639,10 @@ export const adminRouter = router({
       name: z.string().trim().min(1).max(200),
       email: z.string().trim().email().max(320),
       role: z.enum(["user", "catalog_editor", "support_agent", "order_operator", "admin"]),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
             try {
         const invitation = await db.createPendingInvitation(input);
+        logAudit(ctx, { action: "user.invite", entityType: "user", entityId: invitation.userId ?? null, summary: `Invitation créée pour ${input.email} (rôle ${input.role})`, metadata: { role: input.role } });
         return {
           success: true,
           invitationLink: getAccountInvitationLink(invitation.invitation.token),
@@ -552,7 +672,9 @@ export const adminRouter = router({
       email: z.string().trim().email(),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.updateUserProfileAdmin({ ...input, actorId: ctx.user.id });
+        const result = await db.updateUserProfileAdmin({ ...input, actorId: ctx.user.id });
+        logAudit(ctx, { action: "user.profile", entityType: "user", entityId: input.id, summary: `Profil client modifié : ${input.name} (${input.email})` });
+        return result;
       } catch (error) {
         return rethrowUserManagementError(error);
       }
@@ -563,7 +685,10 @@ export const adminRouter = router({
       confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.updateUserRoleAdmin({ ...input, actorId: ctx.user.id });
+        const result = await db.updateUserRoleAdmin({ ...input, actorId: ctx.user.id });
+        const name = (await db.getUserNameById(input.id)) ?? `#${input.id}`;
+        logAudit(ctx, { action: "user.role", entityType: "user", entityId: input.id, summary: `Rôle modifié pour ${name} → ${input.role}`, metadata: { role: input.role } });
+        return result;
       } catch (error) {
         return rethrowUserManagementError(error);
       }
@@ -574,7 +699,10 @@ export const adminRouter = router({
       confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.setUserAccountStatusAdmin({ ...input, actorId: ctx.user.id });
+        const result = await db.setUserAccountStatusAdmin({ ...input, actorId: ctx.user.id });
+        const name = (await db.getUserNameById(input.id)) ?? `#${input.id}`;
+        logAudit(ctx, { action: "user.status", entityType: "user", entityId: input.id, summary: `Compte ${input.accountStatus === "blocked" ? "bloqué" : "réactivé"} : ${name}`, metadata: { accountStatus: input.accountStatus } });
+        return result;
       } catch (error) {
         return rethrowUserManagementError(error);
       }
@@ -584,7 +712,10 @@ export const adminRouter = router({
       confirmation: z.string().trim().max(400).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.deleteUserAdmin({ ...input, actorId: ctx.user.id });
+        const name = (await db.getUserNameById(input.id)) ?? `#${input.id}`;
+        const result = await db.deleteUserAdmin({ ...input, actorId: ctx.user.id });
+        logAudit(ctx, { action: "user.delete", entityType: "user", entityId: input.id, summary: `Compte supprimé : ${name}` });
+        return result;
       } catch (error) {
         return rethrowUserManagementError(error);
       }
@@ -629,12 +760,18 @@ export const adminRouter = router({
       minOrderAmount: z.number().int().nonnegative().optional(),
       maxUses: z.number().int().positive().optional(),
       active: z.number().int().min(0).max(1).default(1),
+      scope: z.enum(["all", "first_order", "category"]).default("all"),
+      categoryId: z.number().int().positive().nullable().optional(),
+      perUserLimit: z.number().int().positive().nullable().optional(),
       startsAt: z.coerce.date().optional(),
       expiresAt: z.coerce.date().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       if (input.type === "percent" && input.value > 100) throw new Error("La remise en pourcentage ne peut pas dépasser 100");
       if (input.expiresAt && input.startsAt && input.expiresAt <= input.startsAt) throw new Error("La date de fin doit être après la date de début");
-      return await db.createPromotion(input);
+      if (input.scope === "category" && !input.categoryId) throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez une catégorie pour ce code ciblé." });
+      const result = await db.createPromotion(input);
+      logAudit(ctx, { action: "promotion.create", entityType: "promotion", entityId: (result as any)?.id ?? null, summary: `Code promo créé : ${input.code} (${input.type === "percent" ? `${input.value}%` : `${(input.value / 100).toFixed(2)} CHF`}, portée ${input.scope})` });
+      return result;
     }),
     update: adminProcedure.input(z.object({
       id: z.number(),
@@ -644,15 +781,98 @@ export const adminRouter = router({
       minOrderAmount: z.number().int().nonnegative().optional(),
       maxUses: z.number().int().positive().optional(),
       active: z.number().int().min(0).max(1),
+      scope: z.enum(["all", "first_order", "category"]).default("all"),
+      categoryId: z.number().int().positive().nullable().optional(),
+      perUserLimit: z.number().int().positive().nullable().optional(),
       startsAt: z.coerce.date().optional(),
       expiresAt: z.coerce.date().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       if (input.type === "percent" && input.value > 100) throw new Error("La remise en pourcentage ne peut pas dépasser 100");
+      if (input.scope === "category" && !input.categoryId) throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez une catégorie pour ce code ciblé." });
       const { id, ...data } = input;
-      return await db.updatePromotion(id, data);
+      const result = await db.updatePromotion(id, data);
+      logAudit(ctx, { action: "promotion.update", entityType: "promotion", entityId: id, summary: `Code promo modifié : ${input.code} (${input.active ? "actif" : "inactif"}, portée ${input.scope})` });
+      return result;
     }),
-    delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
-      return await db.deletePromotion(input);
+    delete: adminProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
+      const result = await db.deletePromotion(input);
+      logAudit(ctx, { action: "promotion.delete", entityType: "promotion", entityId: input, summary: `Code promo supprimé (#${input})` });
+      return result;
+    }),
+  }),
+
+  // Abandoned carts recovery (Lot B)
+  marketing: router({
+    abandonedCarts: adminProcedure.input(z.object({ olderThanHours: z.number().int().min(1).max(720).default(4) })).query(async ({ input }) => {
+      const carts = await db.getAbandonedCarts(input.olderThanHours);
+      return { carts, emailConfigured: (await import("./transactionalEmail")).isTransactionalEmailConfigured() };
+    }),
+    sendCartReminder: adminProcedure.input(z.object({ cartId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const carts = await db.getAbandonedCarts(0);
+      const cart = carts.find(c => c.cartId === input.cartId);
+      if (!cart) throw new TRPCError({ code: "NOT_FOUND", message: "Panier introuvable ou déjà vidé." });
+      if (!cart.userEmail) throw new TRPCError({ code: "BAD_REQUEST", message: "Ce client n'a pas d'adresse e-mail." });
+      const { sendAbandonedCartEmail } = await import("./emails");
+      const outcome = await sendAbandonedCartEmail({
+        email: cart.userEmail,
+        name: cart.userName,
+        cartId: cart.cartId,
+        total: cart.total,
+        items: cart.items,
+      });
+      if (!outcome.delivered) {
+        if (outcome.reason === "EMAIL_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Service e-mail non configuré (ajoutez RESEND_API_KEY et MAZIGHO_EMAIL_FROM)." });
+        if (outcome.reason === "TEMPLATE_DISABLED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le modèle « panier abandonné » est désactivé." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "L'envoi de la relance a échoué." });
+      }
+      await db.markCartReminderSent(cart.cartId);
+      logAudit(ctx, { action: "cart.reminder", entityType: "cart", entityId: cart.cartId, summary: `Relance panier envoyée à ${cart.userEmail} (${(cart.total / 100).toFixed(2)} CHF)` });
+      return { success: true };
+    }),
+  }),
+
+  // Customizable transactional email templates (Lot B)
+  emailTemplates: router({
+    getAll: adminProcedure.query(async () => {
+      return {
+        templates: await db.getAllEmailTemplates(),
+        emailConfigured: (await import("./transactionalEmail")).isTransactionalEmailConfigured(),
+      };
+    }),
+    save: adminProcedure.input(z.object({
+      type: z.enum(["order_confirmation", "order_shipped", "abandoned_cart"]),
+      subject: z.string().trim().min(2).max(200),
+      heading: z.string().trim().min(2).max(200),
+      body: z.string().trim().min(2).max(6000),
+      buttonLabel: z.string().trim().max(60),
+      enabled: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      const { type, ...template } = input;
+      const result = await db.saveEmailTemplate(type, template);
+      logAudit(ctx, { action: "email_template.update", entityType: "email_template", entityId: null, summary: `Modèle e-mail « ${type} » mis à jour (${template.enabled ? "activé" : "désactivé"})` });
+      return result;
+    }),
+  }),
+
+  // Live SEO snippet (Lot C)
+  seo: router({
+    get: adminProcedure.query(async () => {
+      const all = await db.getAllSettings();
+      const find = (key: string) => all.find(s => s.key === key)?.value ?? "";
+      return {
+        title: find("seo_default_title") || "MAZIGHO — Boutique en ligne créative & tendance",
+        description: find("seo_default_description") || "Découvrez MAZIGHO : une sélection soignée de produits et créations originales, livrés en Suisse et en Europe.",
+        siteUrl: (process.env.MAZIGHO_PUBLIC_URL?.trim() || "https://www.mazigho.ch").replace(/\/$/, ""),
+      };
+    }),
+    save: adminProcedure.input(z.object({
+      title: z.string().trim().min(3).max(70),
+      description: z.string().trim().min(10).max(320),
+    })).mutation(async ({ ctx, input }) => {
+      await db.upsertSetting({ key: "seo_default_title", value: input.title, description: "Titre SEO par défaut" });
+      await db.upsertSetting({ key: "seo_default_description", value: input.description, description: "Méta-description SEO par défaut" });
+      logAudit(ctx, { action: "seo.update", entityType: "seo", entityId: null, summary: `Aperçu SEO mis à jour : « ${input.title.slice(0, 60)} »` });
+      return { success: true };
     }),
   }),
 
@@ -846,7 +1066,7 @@ export const adminRouter = router({
         buttonUrl: z.string().trim().max(300).default(""),
         enabled: z.boolean().default(true),
       })).max(8).default([]),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       const previous = await db.getDesignProfile();
       const profile = await db.updateDesignProfile(input);
       const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
@@ -854,6 +1074,7 @@ export const adminRouter = router({
         await db.markPublicContentTranslationsStale("design", 1);
         autoTranslateContent("design", 1);
       }
+      logAudit(ctx, { action: "design.update", entityType: "design", entityId: 1, summary: `Personnalisation du site mise à jour (palette ${input.paletteId}, typographie ${input.typographyId})`, metadata: { paletteId: input.paletteId, typographyId: input.typographyId, buttonRadius: input.buttonRadius } });
       return profile;
     }),
     uploadImage: adminProcedure.input(z.object({

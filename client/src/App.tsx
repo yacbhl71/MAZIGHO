@@ -40,6 +40,10 @@ const AdminTranslations = lazy(() => import("./pages/admin/AdminTranslations"));
 const AdminSimpleEditor = lazy(() => import("./pages/admin/AdminSimpleEditor"));
 const AdminSEO = lazy(() => import("./pages/admin/AdminSEO"));
 const AdminOdoo = lazy(() => import("./pages/admin/AdminOdoo"));
+const AdminAudit = lazy(() => import("./pages/admin/AdminAudit"));
+const AdminMarketing = lazy(() => import("./pages/admin/AdminMarketing"));
+const AdminEmails = lazy(() => import("./pages/admin/AdminEmails"));
+const AdminReturns = lazy(() => import("./pages/admin/AdminReturns"));
 const StaffCatalog = lazy(() => import("./pages/admin/StaffCatalog"));
 const StaffSupport = lazy(() => import("./pages/admin/StaffSupport"));
 const StaffOrders = lazy(() => import("./pages/admin/StaffOrders"));
@@ -96,6 +100,10 @@ function BrowserTitle() {
       "/admin/editeur": "MAZIGHO Admin | Éditeur simple",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
       "/admin/seo": "MAZIGHO Admin | SEO & indexation",
+      "/admin/audit": "MAZIGHO Admin | Journal d'audit",
+      "/admin/paniers-abandonnes": "MAZIGHO Admin | Paniers abandonnés",
+      "/admin/emails": "MAZIGHO Admin | E-mails transactionnels",
+      "/admin/retours": "MAZIGHO Admin | Retours & remboursements",
       "/admin/catalogue-brouillons": "MAZIGHO | Éditeur catalogue",
       "/admin/assistance": "MAZIGHO | Service client",
       "/admin/operations-commandes": "MAZIGHO | Opérateur commandes",
@@ -188,6 +196,10 @@ function Router() {
         <Route path={"/admin/editeur"} component={AdminSimpleEditor} />
         <Route path={"/admin/seo"} component={AdminSEO} />
         <Route path={"/admin/suivi-odoo"} component={AdminOdoo} />
+        <Route path={"/admin/audit"} component={AdminAudit} />
+        <Route path={"/admin/paniers-abandonnes"} component={AdminMarketing} />
+        <Route path={"/admin/emails"} component={AdminEmails} />
+        <Route path={"/admin/retours"} component={AdminReturns} />
         <Route path={"/admin/catalogue-brouillons"} component={StaffCatalog} />
         <Route path={"/admin/assistance"} component={StaffSupport} />
         <Route path={"/admin/operations-commandes"} component={StaffOrders} />

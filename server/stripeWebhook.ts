@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { getOrderForStripeSession, markOrderPaidByStripeSession } from "./db";
+import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
+import { sendOrderConfirmationForStripeSession } from "./emails";
 
 // Best-effort synchronisation of a paid order to Odoo. Never throws so the
 // Stripe webhook keeps returning 200 even when Odoo is down or not configured.
@@ -55,8 +56,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       if (session.mode === "payment" && session.payment_status === "paid") {
-        await markOrderPaidByStripeSession(session.id);
-        await syncPaidOrderToOdoo(session.id);
+        const paid = await markOrderPaidByStripeSession(session.id);
+        if (paid.justPaid) {
+          await finalizePaidOrderRedemption(session.id);
+          await syncPaidOrderToOdoo(session.id);
+          sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
+        }
       }
     }
     return res.json({ received: true });

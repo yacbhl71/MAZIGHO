@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions } = schema;
+const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -22,6 +22,134 @@ let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
 let _publicContentTranslationSchemaReady: Promise<void> | null = null;
 let _staffRolesReady: Promise<void> | null = null;
+let _auditLogSchemaReady: Promise<void> | null = null;
+let _promotionAdvancedSchemaReady: Promise<void> | null = null;
+
+async function ensurePromotionAdvancedSchema() {
+  if (_promotionAdvancedSchemaReady) return _promotionAdvancedSchemaReady;
+
+  _promotionAdvancedSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const addColumn = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+      }
+    };
+    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `scope` enum('all','first_order','category') NOT NULL DEFAULT 'all'");
+    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `categoryId` int");
+    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `perUserLimit` int");
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `promotionId` int");
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `discountAmount` int NOT NULL DEFAULT 0");
+    await addColumn("ALTER TABLE `carts` ADD COLUMN IF NOT EXISTS `reminderSentAt` timestamp NULL DEFAULT NULL");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `promotionRedemptions` (`id` int AUTO_INCREMENT PRIMARY KEY, `promotionId` int NOT NULL, `userId` int NOT NULL, `orderId` int, `discountAmount` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `promotion_redemptions_promo_idx` (`promotionId`), INDEX `promotion_redemptions_user_idx` (`userId`), UNIQUE KEY `promotion_redemptions_order_unique` (`orderId`))"));
+  })();
+
+  return _promotionAdvancedSchemaReady;
+}
+
+async function ensureAuditLogSchema() {
+  if (_auditLogSchemaReady) return _auditLogSchemaReady;
+
+  _auditLogSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `auditLogs` (`id` int AUTO_INCREMENT PRIMARY KEY, `actorUserId` int, `actorName` varchar(200), `actorRole` varchar(40), `action` varchar(80) NOT NULL, `entityType` varchar(40) NOT NULL, `entityId` int, `summary` varchar(500) NOT NULL, `metadata` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `audit_logs_created_idx` (`createdAt`), INDEX `audit_logs_entity_idx` (`entityType`), INDEX `audit_logs_actor_idx` (`actorUserId`))"));
+  })();
+
+  return _auditLogSchemaReady;
+}
+
+export async function recordAuditLog(input: {
+  actorUserId?: number | null;
+  actorName?: string | null;
+  actorRole?: string | null;
+  action: string;
+  entityType: string;
+  entityId?: number | null;
+  summary: string;
+  metadata?: Record<string, unknown> | null;
+}) {
+  await ensureAuditLogSchema();
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(auditLogs).values({
+    actorUserId: input.actorUserId ?? null,
+    actorName: input.actorName ?? null,
+    actorRole: input.actorRole ?? null,
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId ?? null,
+    summary: input.summary.slice(0, 500),
+    metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+  });
+}
+
+export async function getAuditLogs(filters: {
+  entityType?: string;
+  action?: string;
+  actorUserId?: number;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  await ensureAuditLogSchema();
+  const db = await getDb();
+  if (!db) return { entries: [], total: 0 };
+  const conditions = [];
+  if (filters.entityType) conditions.push(eq(auditLogs.entityType, filters.entityType));
+  if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
+  if (filters.actorUserId) conditions.push(eq(auditLogs.actorUserId, filters.actorUserId));
+  if (filters.search) conditions.push(sql`${auditLogs.summary} LIKE ${"%" + filters.search + "%"}`);
+  const where = conditions.length ? and(...conditions) : undefined;
+  const limit = Math.min(filters.limit ?? 50, 200);
+  const offset = filters.offset ?? 0;
+  const [entries, totalRows] = await Promise.all([
+    db.select().from(auditLogs).where(where).orderBy(desc(auditLogs.createdAt)).limit(limit).offset(offset),
+    db.select({ value: count() }).from(auditLogs).where(where),
+  ]);
+  return { entries, total: Number(totalRows[0]?.value || 0) };
+}
+
+export async function getAuditLogFilterOptions() {
+  await ensureAuditLogSchema();
+  const db = await getDb();
+  if (!db) return { actors: [], actions: [], entityTypes: [] };
+  const [actors, actions, entityTypes] = await Promise.all([
+    db.selectDistinct({ actorUserId: auditLogs.actorUserId, actorName: auditLogs.actorName }).from(auditLogs).where(sql`${auditLogs.actorUserId} IS NOT NULL`),
+    db.selectDistinct({ action: auditLogs.action }).from(auditLogs),
+    db.selectDistinct({ entityType: auditLogs.entityType }).from(auditLogs),
+  ]);
+  return {
+    actors: actors.filter(a => a.actorUserId != null),
+    actions: actions.map(a => a.action).filter(Boolean),
+    entityTypes: entityTypes.map(e => e.entityType).filter(Boolean),
+  };
+}
+
+export async function getProductNameById(id: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ name: products.name }).from(products).where(eq(products.id, id)).limit(1);
+  return rows[0]?.name ?? null;
+}
+
+export async function getCategoryNameById(id: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ name: categories.name }).from(categories).where(eq(categories.id, id)).limit(1);
+  return rows[0]?.name ?? null;
+}
+
+export async function getUserNameById(id: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, id)).limit(1);
+  return rows[0]?.name ?? rows[0]?.email ?? null;
+}
 
 async function ensureStaffRoles() {
   if (_staffRolesReady) return _staffRolesReady;
@@ -1336,6 +1464,53 @@ export async function getAdminStats() {
     db.select({ categoryName: categories.name, value: count() }).from(products).leftJoin(categories, eq(products.categoryId, categories.id)).groupBy(categories.name),
   ]);
 
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [avgCartRows, topProductsRows, revenueTrendRows] = await Promise.all([
+    db.select({ value: avg(orders.totalAmount) }).from(orders).where(eq(orders.paymentStatus, "paid")),
+    db
+      .select({
+        productId: orderItems.productId,
+        name: products.name,
+        quantitySold: sql<number>`SUM(${orderItems.quantity})`,
+        revenue: sql<number>`SUM(${orderItems.quantity} * ${orderItems.priceAtPurchase})`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .where(eq(orders.paymentStatus, "paid"))
+      .groupBy(orderItems.productId, products.name)
+      .orderBy(desc(sql`SUM(${orderItems.quantity})`))
+      .limit(5),
+    db
+      .select({ createdAt: orders.createdAt, totalAmount: orders.totalAmount })
+      .from(orders)
+      .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, thirtyDaysAgo))),
+  ]);
+
+  const trendMap = new Map<string, number>();
+  for (const row of revenueTrendRows) {
+    const d = new Date(row.createdAt as unknown as string);
+    if (Number.isNaN(d.getTime())) continue;
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    trendMap.set(key, (trendMap.get(key) ?? 0) + Number(row.totalAmount || 0));
+  }
+  const revenueTrend: Array<{ date: string; revenue: number }> = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    revenueTrend.push({ date: key, revenue: trendMap.get(key) ?? 0 });
+  }
+  const revenueLast30Days = revenueTrend.reduce((total, item) => total + item.revenue, 0);
+  const averageCart = Math.round(Number(avgCartRows[0]?.value || 0));
+  const topProducts = topProductsRows.map(row => ({
+    productId: row.productId,
+    name: row.name || "Produit supprimé",
+    quantitySold: Number(row.quantitySold || 0),
+    revenue: Number(row.revenue || 0),
+  }));
+
   const productIdsWithDeliveryProfiles = new Set(deliveryProfileProducts.map(profile => profile.productId));
   const productsWithoutDeliveryProfiles = activeCatalogProducts
     .filter(product => !productIdsWithDeliveryProfiles.has(product.id))
@@ -1364,6 +1539,10 @@ export async function getAdminStats() {
     pendingOrders: pendingOrderCount[0]?.value || 0,
     users: userCount[0]?.value || 0,
     revenue: totalRevenue[0]?.value || 0,
+    averageCart,
+    topProducts,
+    revenueLast30Days,
+    revenueTrend,
     pendingReviews: pendingReviews[0]?.value || 0,
     unreadMessages: unreadMessages[0]?.value || 0,
     lowStockProducts,
@@ -2096,8 +2275,14 @@ export async function createOrder(userId: number, data: any) {
   if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
   const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
-  const promotionResult = data.promoCode ? await validatePromotion(data.promoCode, subtotal) : null;
-  const totalAmount = subtotal - (promotionResult?.discountAmount ?? 0);
+  const promotionResult = data.promoCode
+    ? await validatePromotion(data.promoCode, subtotal, {
+        userId,
+        cartItems: cart.items.map((item: any) => ({ productId: item.productId, price: item.price, quantity: item.quantity })),
+      })
+    : null;
+  const discountAmount = promotionResult?.discountAmount ?? 0;
+  const totalAmount = subtotal - discountAmount;
 
   const result = await db.insert(orders).values({
     userId,
@@ -2105,6 +2290,8 @@ export async function createOrder(userId: number, data: any) {
     shippingAddress: data.shippingAddress,
     billingAddress: data.billingAddress || data.shippingAddress,
     paymentMethod: data.paymentMethod,
+    promotionId: promotionResult?.promotion.id ?? null,
+    discountAmount,
     status: "pending",
     paymentStatus: "unpaid",
   });
@@ -2120,9 +2307,7 @@ export async function createOrder(userId: number, data: any) {
 
   await db.insert(orderItems).values(orderItemValues);
   if (promotionResult) {
-    await db.update(promotions)
-      .set({ usedCount: sql`${promotions.usedCount} + 1` })
-      .where(eq(promotions.id, promotionResult.promotion.id));
+    await recordPromotionRedemption({ promotionId: promotionResult.promotion.id, userId, orderId, discountAmount });
   }
   
   // Clear cart after order
@@ -2192,6 +2377,68 @@ export async function upsertSetting(data: { key: string; value: string; descript
     set: { value: data.value, description: data.description || null },
   });
   return { success: true };
+}
+
+// --- Customizable transactional email templates (Lot B) ---
+export type EmailTemplateType = "order_confirmation" | "order_shipped" | "abandoned_cart";
+export type EmailTemplate = { subject: string; heading: string; body: string; buttonLabel: string; enabled: boolean };
+
+export const EMAIL_TEMPLATE_DEFAULTS: Record<EmailTemplateType, EmailTemplate> = {
+  order_confirmation: {
+    subject: "Merci pour votre commande MAZIGHO #{{commande}}",
+    heading: "Commande confirmée 🎉",
+    body: "Bonjour {{prenom}},\n\nNous avons bien reçu votre commande #{{commande}} d'un montant de {{total}}. Notre équipe la prépare avec soin.\n\nVoici le récapitulatif :\n{{lignes}}\n\nMerci de votre confiance,\nL'équipe MAZIGHO",
+    buttonLabel: "Suivre ma commande",
+    enabled: true,
+  },
+  order_shipped: {
+    subject: "Votre commande MAZIGHO #{{commande}} est en route 🚚",
+    heading: "Votre colis est expédié",
+    body: "Bonjour {{prenom}},\n\nBonne nouvelle : votre commande #{{commande}} vient d'être expédiée.\n\nNuméro de suivi : {{suivi}}\n\nVous pouvez suivre son acheminement à tout moment.\n\nÀ très vite,\nL'équipe MAZIGHO",
+    buttonLabel: "Suivre mon colis",
+    enabled: true,
+  },
+  abandoned_cart: {
+    subject: "Vous avez oublié quelque chose chez MAZIGHO 🛒",
+    heading: "Votre panier vous attend",
+    body: "Bonjour {{prenom}},\n\nVous avez laissé de jolis articles dans votre panier ({{total}}) :\n{{panier}}\n\nFinalisez votre commande avant qu'ils ne partent !\n\nL'équipe MAZIGHO",
+    buttonLabel: "Reprendre mon panier",
+    enabled: true,
+  },
+};
+
+const EMAIL_TEMPLATE_TYPES: EmailTemplateType[] = ["order_confirmation", "order_shipped", "abandoned_cart"];
+
+function emailTemplateSettingKey(type: EmailTemplateType) {
+  return `email_template_${type}`;
+}
+
+export async function getEmailTemplate(type: EmailTemplateType): Promise<EmailTemplate> {
+  const db = await getDb();
+  const fallback = EMAIL_TEMPLATE_DEFAULTS[type];
+  if (!db) return fallback;
+  const rows = await db.select().from(settings).where(eq(settings.key, emailTemplateSettingKey(type))).limit(1);
+  if (!rows[0]) return fallback;
+  try {
+    const parsed = JSON.parse(rows[0].value);
+    return {
+      subject: typeof parsed.subject === "string" ? parsed.subject : fallback.subject,
+      heading: typeof parsed.heading === "string" ? parsed.heading : fallback.heading,
+      body: typeof parsed.body === "string" ? parsed.body : fallback.body,
+      buttonLabel: typeof parsed.buttonLabel === "string" ? parsed.buttonLabel : fallback.buttonLabel,
+      enabled: typeof parsed.enabled === "boolean" ? parsed.enabled : fallback.enabled,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export async function getAllEmailTemplates() {
+  return await Promise.all(EMAIL_TEMPLATE_TYPES.map(async type => ({ type, template: await getEmailTemplate(type), default: EMAIL_TEMPLATE_DEFAULTS[type] })));
+}
+
+export async function saveEmailTemplate(type: EmailTemplateType, template: EmailTemplate) {
+  return await upsertSetting({ key: emailTemplateSettingKey(type), value: JSON.stringify(template), description: `Modèle d'e-mail : ${type}` });
 }
 
 export type SupplierAccountReference = {
@@ -2626,23 +2873,41 @@ export async function deleteAccountingEntry(id: number) {
 }
 
 export async function getAllPromotions() {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(promotions).orderBy(desc(promotions.createdAt));
+  const rows = await db.select().from(promotions).orderBy(desc(promotions.createdAt));
+  const categoryList = await getAllCategories();
+  const categoryMap = new Map(categoryList.map(c => [c.id, c.name]));
+  const redemptionCounts = await db.select({ promotionId: promotionRedemptions.promotionId, value: count() }).from(promotionRedemptions).groupBy(promotionRedemptions.promotionId);
+  const redemptionMap = new Map(redemptionCounts.map(r => [r.promotionId, Number(r.value)]));
+  return rows.map(row => ({
+    ...row,
+    categoryName: row.categoryId ? categoryMap.get(row.categoryId) ?? null : null,
+    redemptionCount: redemptionMap.get(row.id) ?? 0,
+  }));
 }
 
-export async function createPromotion(data: {
+type PromotionWriteData = {
   code: string;
   type: "percent" | "fixed";
   value: number;
   minOrderAmount?: number;
   maxUses?: number;
   active?: number;
+  scope?: "all" | "first_order" | "category";
+  categoryId?: number | null;
+  perUserLimit?: number | null;
   startsAt?: Date;
   expiresAt?: Date;
-}) {
+};
+
+export async function createPromotion(data: PromotionWriteData) {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const scope = data.scope ?? "all";
+  if (scope === "category" && !data.categoryId) throw new Error("PROMOTION_CATEGORY_REQUIRED");
   const result = await db.insert(promotions).values({
     code: data.code.trim().toUpperCase(),
     type: data.type,
@@ -2650,24 +2915,21 @@ export async function createPromotion(data: {
     minOrderAmount: data.minOrderAmount ?? null,
     maxUses: data.maxUses ?? null,
     active: data.active ?? 1,
+    scope,
+    categoryId: scope === "category" ? data.categoryId ?? null : null,
+    perUserLimit: data.perUserLimit ?? null,
     startsAt: data.startsAt ?? null,
     expiresAt: data.expiresAt ?? null,
   });
   return { success: true, id: Number((result as any)[0].insertId) };
 }
 
-export async function updatePromotion(id: number, data: {
-  code: string;
-  type: "percent" | "fixed";
-  value: number;
-  minOrderAmount?: number;
-  maxUses?: number;
-  active: number;
-  startsAt?: Date;
-  expiresAt?: Date;
-}) {
+export async function updatePromotion(id: number, data: PromotionWriteData & { active: number }) {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const scope = data.scope ?? "all";
+  if (scope === "category" && !data.categoryId) throw new Error("PROMOTION_CATEGORY_REQUIRED");
   await db.update(promotions).set({
     code: data.code.trim().toUpperCase(),
     type: data.type,
@@ -2675,6 +2937,9 @@ export async function updatePromotion(id: number, data: {
     minOrderAmount: data.minOrderAmount ?? null,
     maxUses: data.maxUses ?? null,
     active: data.active,
+    scope,
+    categoryId: scope === "category" ? data.categoryId ?? null : null,
+    perUserLimit: data.perUserLimit ?? null,
     startsAt: data.startsAt ?? null,
     expiresAt: data.expiresAt ?? null,
   }).where(eq(promotions.id, id));
@@ -2682,6 +2947,7 @@ export async function updatePromotion(id: number, data: {
 }
 
 export async function deletePromotion(id: number) {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.delete(promotions).where(eq(promotions.id, id));
@@ -2689,13 +2955,36 @@ export async function deletePromotion(id: number) {
 }
 
 export async function getPromotionByCode(code: string) {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) return null;
   const rows = await db.select().from(promotions).where(eq(promotions.code, code.trim().toUpperCase())).limit(1);
   return rows[0] ?? null;
 }
 
-export async function validatePromotion(code: string, orderAmount: number) {
+async function countUserPaidOrders(userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ value: count() }).from(orders).where(and(eq(orders.userId, userId), eq(orders.paymentStatus, "paid")));
+  return Number(rows[0]?.value || 0);
+}
+
+async function countUserPromotionRedemptions(promotionId: number, userId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ value: count() }).from(promotionRedemptions).where(and(eq(promotionRedemptions.promotionId, promotionId), eq(promotionRedemptions.userId, userId)));
+  return Number(rows[0]?.value || 0);
+}
+
+export type PromotionCartItem = { productId: number; price: number; quantity: number };
+
+// Validates a promo code and returns the resolved discount. When userId/cartItems are
+// provided, advanced rules (first_order, category, per-user limit) are enforced too.
+export async function validatePromotion(
+  code: string,
+  orderAmount: number,
+  opts?: { userId?: number; cartItems?: PromotionCartItem[] }
+) {
   const promotion = await getPromotionByCode(code);
   if (!promotion || !promotion.active) throw new Error("Code promo invalide ou désactivé");
   const now = Date.now();
@@ -2703,10 +2992,227 @@ export async function validatePromotion(code: string, orderAmount: number) {
   if (promotion.expiresAt && new Date(promotion.expiresAt).getTime() < now) throw new Error("Ce code promo a expiré");
   if (promotion.maxUses !== null && promotion.usedCount >= promotion.maxUses) throw new Error("La limite d'utilisation de ce code est atteinte");
   if (promotion.minOrderAmount !== null && orderAmount < promotion.minOrderAmount) throw new Error(`Montant minimum requis : ${(promotion.minOrderAmount / 100).toFixed(2)} CHF`);
+
+  if (promotion.scope === "first_order") {
+    if (!opts?.userId) throw new Error("Connectez-vous pour utiliser ce code réservé au premier achat");
+    const paidOrders = await countUserPaidOrders(opts.userId);
+    if (paidOrders > 0) throw new Error("Ce code est réservé à votre première commande");
+  }
+
+  if (promotion.perUserLimit !== null && promotion.perUserLimit > 0) {
+    if (!opts?.userId) throw new Error("Connectez-vous pour utiliser ce code");
+    const used = await countUserPromotionRedemptions(promotion.id, opts.userId);
+    if (used >= promotion.perUserLimit) throw new Error("Vous avez déjà utilisé ce code le nombre de fois autorisé");
+  }
+
+  // Determine the amount the discount applies to (whole order, or a single category's items).
+  let discountBase = orderAmount;
+  if (promotion.scope === "category" && promotion.categoryId) {
+    if (!opts?.cartItems || opts.cartItems.length === 0) throw new Error("Ce code s'applique à une catégorie précise du panier");
+    const productIds = opts.cartItems.map(item => item.productId);
+    const eligibleProductIds = new Set<number>();
+    for (const productId of productIds) {
+      const categoryIds = await getProductCategoryIds(productId);
+      if (categoryIds.includes(promotion.categoryId)) eligibleProductIds.add(productId);
+    }
+    discountBase = opts.cartItems
+      .filter(item => eligibleProductIds.has(item.productId))
+      .reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (discountBase <= 0) throw new Error("Aucun article du panier n'est éligible à ce code");
+  }
+
   const discountAmount = promotion.type === "percent"
-    ? Math.min(orderAmount, Math.floor(orderAmount * promotion.value / 100))
-    : Math.min(orderAmount, promotion.value);
+    ? Math.min(discountBase, Math.floor(discountBase * promotion.value / 100))
+    : Math.min(discountBase, promotion.value);
   return { promotion, discountAmount, totalAmount: orderAmount - discountAmount };
+}
+
+export async function recordPromotionRedemption(input: { promotionId: number; userId: number; orderId: number; discountAmount: number }) {
+  await ensurePromotionAdvancedSchema();
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.insert(promotionRedemptions).values(input);
+    await db.update(promotions).set({ usedCount: sql`${promotions.usedCount} + 1` }).where(eq(promotions.id, input.promotionId));
+  } catch (error) {
+    const message = String(error).toLowerCase();
+    if (!message.includes("duplicate")) throw error; // ignore double webhook delivery
+  }
+}
+
+// --- Abandoned carts (Lot B) ---
+export async function getAbandonedCarts(olderThanHours: number) {
+  await ensurePromotionAdvancedSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const threshold = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      cartId: carts.id,
+      userId: carts.userId,
+      updatedAt: carts.updatedAt,
+      reminderSentAt: carts.reminderSentAt,
+      userName: users.name,
+      userEmail: users.email,
+    })
+    .from(carts)
+    .innerJoin(cartItems, eq(cartItems.cartId, carts.id))
+    .leftJoin(users, eq(carts.userId, users.id))
+    .where(lt(carts.updatedAt, threshold))
+    .groupBy(carts.id, carts.userId, carts.updatedAt, carts.reminderSentAt, users.name, users.email)
+    .orderBy(desc(carts.updatedAt));
+
+  return await Promise.all(rows.map(async row => {
+    const items = await db
+      .select({ productId: cartItems.productId, quantity: cartItems.quantity, name: products.name, price: products.price })
+      .from(cartItems)
+      .leftJoin(products, eq(cartItems.productId, products.id))
+      .where(eq(cartItems.cartId, row.cartId));
+    const total = items.reduce((sum, item) => sum + Number(item.price || 0) * item.quantity, 0);
+    return { ...row, items, itemCount: items.reduce((sum, item) => sum + item.quantity, 0), total };
+  }));
+}
+
+export async function markCartReminderSent(cartId: number) {
+  await ensurePromotionAdvancedSchema();
+  const db = await getDb();
+  if (!db) return;
+  await db.update(carts).set({ reminderSentAt: new Date() }).where(eq(carts.id, cartId));
+}
+
+// --- Returns / RMA + refunds + order timeline (Lot C) ---
+let _returnsSchemaReady: Promise<void> | null = null;
+async function ensureReturnsSchema() {
+  if (_returnsSchemaReady) return _returnsSchemaReady;
+  _returnsSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `returnRequests` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `userId` int NOT NULL, `reason` varchar(1000) NOT NULL, `status` enum('requested','approved','rejected','refunded') NOT NULL DEFAULT 'requested', `resolutionNote` varchar(1000), `refundAmount` int, `actorUserId` int, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `return_requests_order_idx` (`orderId`), INDEX `return_requests_user_idx` (`userId`), INDEX `return_requests_status_idx` (`status`))"));
+  })();
+  return _returnsSchemaReady;
+}
+
+export async function createReturnRequest(input: { userId: number; orderId: number; reason: string }) {
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const order = await db.select({ id: orders.id, userId: orders.userId, paymentStatus: orders.paymentStatus, status: orders.status }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order[0] || order[0].userId !== input.userId) throw new Error("ORDER_NOT_FOUND");
+  if (order[0].paymentStatus !== "paid") throw new Error("ORDER_NOT_PAID");
+  const existing = await db.select({ id: returnRequests.id }).from(returnRequests).where(and(eq(returnRequests.orderId, input.orderId), inArray(returnRequests.status, ["requested", "approved"]))).limit(1);
+  if (existing[0]) throw new Error("RETURN_ALREADY_OPEN");
+  const result = await db.insert(returnRequests).values({ orderId: input.orderId, userId: input.userId, reason: input.reason.trim() });
+  return { id: Number((result as any)[0].insertId) };
+}
+
+export async function getUserReturnRequests(userId: number) {
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(returnRequests).where(eq(returnRequests.userId, userId)).orderBy(desc(returnRequests.createdAt));
+}
+
+export async function getAllReturnRequestsAdmin() {
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select({
+    id: returnRequests.id,
+    orderId: returnRequests.orderId,
+    userId: returnRequests.userId,
+    reason: returnRequests.reason,
+    status: returnRequests.status,
+    resolutionNote: returnRequests.resolutionNote,
+    refundAmount: returnRequests.refundAmount,
+    createdAt: returnRequests.createdAt,
+    updatedAt: returnRequests.updatedAt,
+    userName: users.name,
+    userEmail: users.email,
+    orderTotal: orders.totalAmount,
+    orderPaymentStatus: orders.paymentStatus,
+  }).from(returnRequests)
+    .leftJoin(users, eq(returnRequests.userId, users.id))
+    .leftJoin(orders, eq(returnRequests.orderId, orders.id))
+    .orderBy(desc(returnRequests.createdAt));
+}
+
+export async function updateReturnRequestStatus(input: { id: number; status: "approved" | "rejected" | "refunded"; resolutionNote?: string; refundAmount?: number; actorUserId: number }) {
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const current = await db.select().from(returnRequests).where(eq(returnRequests.id, input.id)).limit(1);
+  if (!current[0]) throw new Error("RETURN_NOT_FOUND");
+  await db.update(returnRequests).set({
+    status: input.status,
+    resolutionNote: input.resolutionNote?.trim() || current[0].resolutionNote,
+    refundAmount: input.refundAmount ?? current[0].refundAmount,
+    actorUserId: input.actorUserId,
+  }).where(eq(returnRequests.id, input.id));
+  return { success: true, orderId: current[0].orderId };
+}
+
+export async function getReturnRequestById(id: number) {
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(returnRequests).where(eq(returnRequests.id, id)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getOrderContactById(orderId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ id: orders.id, trackingNumber: orders.trackingNumber, userName: users.name, userEmail: users.email }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(eq(orders.id, orderId)).limit(1);
+  return rows[0] ?? null;
+}
+
+// Returns the Stripe session id + order snapshot needed to issue a refund.
+export async function getOrderRefundContext(orderId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ id: orders.id, stripeSessionId: orders.stripeSessionId, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  return rows[0] ?? null;
+}
+
+export async function markOrderRefunded(orderId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(orders).set({ paymentStatus: "refunded", status: "cancelled" }).where(eq(orders.id, orderId));
+  return { success: true };
+}
+
+// Builds a chronological timeline for an order from real recorded data.
+export async function getOrderTimeline(orderId: number) {
+  await ensureOrderDecisionSchema();
+  await ensureReturnsSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const orderRows = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+  const order = orderRows[0];
+  if (!order) return [];
+  const [decisions, returns] = await Promise.all([
+    db.select().from(orderDecisions).where(eq(orderDecisions.orderId, orderId)).orderBy(asc(orderDecisions.createdAt)),
+    db.select().from(returnRequests).where(eq(returnRequests.orderId, orderId)).orderBy(asc(returnRequests.createdAt)),
+  ]);
+  const events: Array<{ type: string; label: string; detail?: string; at: Date | string }> = [];
+  events.push({ type: "created", label: "Commande créée", at: order.createdAt });
+  if (order.paymentStatus === "paid" || order.paymentStatus === "refunded") {
+    events.push({ type: "paid", label: "Paiement reçu", detail: `${(order.totalAmount / 100).toFixed(2)} CHF`, at: order.createdAt });
+  }
+  for (const decision of decisions) {
+    const label = decision.action === "accepted" ? "Commande acceptée" : decision.action === "rejected" ? "Commande refusée" : "Remboursement demandé";
+    events.push({ type: `decision_${decision.action}`, label, detail: decision.reason ?? undefined, at: decision.createdAt });
+  }
+  if (order.trackingNumber) events.push({ type: "shipped", label: "Expédiée", detail: `Suivi : ${order.trackingNumber}`, at: order.updatedAt });
+  if (order.status === "delivered") events.push({ type: "delivered", label: "Livrée", at: order.updatedAt });
+  for (const ret of returns) {
+    const label = ret.status === "requested" ? "Retour demandé" : ret.status === "approved" ? "Retour approuvé" : ret.status === "rejected" ? "Retour refusé" : "Remboursée";
+    events.push({ type: `return_${ret.status}`, label, detail: ret.status === "requested" ? ret.reason : ret.resolutionNote ?? undefined, at: ret.updatedAt });
+  }
+  if (order.paymentStatus === "refunded" && !returns.some(r => r.status === "refunded")) {
+    events.push({ type: "refunded", label: "Paiement remboursé", at: order.updatedAt });
+  }
+  return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
 
 export async function getActiveBanners() {
@@ -2812,21 +3318,27 @@ export async function createStripePendingOrder(input: {
   sessionId: string;
   countryCode: string;
   totalAmount: number;
+  promotionId?: number | null;
+  discountAmount?: number;
 }) {
+  await ensurePromotionAdvancedSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const existing = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
   if (existing[0]) return existing[0];
   const cart = await getStripeCheckoutCart(input.userId, input.countryCode);
   if (cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
+  const discountAmount = Math.max(0, Math.min(cart.totalAmount, input.discountAmount ?? 0));
   const result = await db.insert(orders).values({
     userId: input.userId,
-    totalAmount: cart.totalAmount,
+    totalAmount: cart.totalAmount - discountAmount,
     shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout" }),
     billingAddress: null,
     paymentStatus: "unpaid",
     paymentMethod: "stripe_test",
     stripeSessionId: input.sessionId,
+    promotionId: input.promotionId ?? null,
+    discountAmount,
     status: "pending",
   });
   const orderId = Number((result as any)[0].insertId);
@@ -2842,10 +3354,22 @@ export async function createStripePendingOrder(input: {
 export async function markOrderPaidByStripeSession(sessionId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(orders)
+  const result = await db.update(orders)
     .set({ paymentStatus: "paid", paymentMethod: "stripe_test" })
     .where(and(eq(orders.stripeSessionId, sessionId), eq(orders.paymentStatus, "unpaid")));
-  return { success: true };
+  const affectedRows = Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
+  return { success: true, justPaid: affectedRows > 0 };
+}
+
+// Records the promotion redemption for a freshly paid Stripe order (idempotent).
+export async function finalizePaidOrderRedemption(sessionId: string) {
+  await ensurePromotionAdvancedSchema();
+  const db = await getDb();
+  if (!db) return;
+  const rows = await db.select({ id: orders.id, userId: orders.userId, promotionId: orders.promotionId, discountAmount: orders.discountAmount }).from(orders).where(eq(orders.stripeSessionId, sessionId)).limit(1);
+  const order = rows[0];
+  if (!order || !order.promotionId) return;
+  await recordPromotionRedemption({ promotionId: order.promotionId, userId: order.userId, orderId: order.id, discountAmount: order.discountAmount ?? 0 });
 }
 
 // Order snapshot used to synchronise a paid order + its customer towards Odoo.

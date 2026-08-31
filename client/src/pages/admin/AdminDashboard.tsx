@@ -29,6 +29,8 @@ import {
   ChartNoAxesCombined,
   PieChart as PieChartIcon,
   ReceiptText,
+  ShoppingCart,
+  Trophy,
 } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
@@ -182,6 +184,20 @@ export default function AdminDashboard() {
       tone: "bg-emerald-100 text-emerald-700",
     },
     {
+      title: "Panier moyen",
+      value: formatMoney(stats?.averageCart),
+      helper: "Sur commandes payées",
+      icon: ShoppingCart,
+      tone: "bg-teal-100 text-teal-700",
+    },
+    {
+      title: "CA 30 derniers jours",
+      value: formatMoney(stats?.revenueLast30Days),
+      helper: "Ventes réglées récentes",
+      icon: ChartNoAxesCombined,
+      tone: "bg-sky-100 text-sky-700",
+    },
+    {
       title: "Commandes à traiter",
       value: stats?.pendingOrders ?? 0,
       helper: `${stats?.orders ?? 0} commande(s) au total`,
@@ -207,9 +223,16 @@ export default function AdminDashboard() {
       value: stats?.unreadMessages ?? 0,
       helper: `${stats?.pendingReviews ?? 0} avis en attente`,
       icon: Mail,
-      tone: "bg-sky-100 text-sky-700",
+      tone: "bg-pink-100 text-pink-700",
     },
   ];
+
+  const topProducts = stats?.topProducts ?? [];
+  const revenueTrend = (stats?.revenueTrend ?? []).map(point => ({
+    ...point,
+    label: new Date(point.date).toLocaleDateString("fr-CH", { day: "2-digit", month: "2-digit" }),
+  }));
+  const hasRevenueTrend = revenueTrend.some(point => point.revenue > 0);
 
   return (
     <DashboardLayout>
@@ -230,8 +253,59 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {metrics.map(metric => <MetricCard key={metric.title} {...metric} loading={isLoading} />)}
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-5">
+          <Card className="xl:col-span-3 border-slate-200 shadow-sm" data-testid="revenue-trend-card">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><ChartNoAxesCombined className="h-5 w-5 text-emerald-600" /> Chiffre d'affaires — 30 derniers jours</CardTitle>
+              <CardDescription>Ventes réellement encaissées, jour par jour.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isLoading ? <Skeleton className="h-[260px] w-full" /> : hasRevenueTrend ? (
+                <div className="h-[260px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={revenueTrend} margin={{ top: 14, right: 8, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} interval={4} />
+                      <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)}`} />
+                      <Tooltip formatter={(value: number | string) => [formatMoney(value), "Ventes"]} labelStyle={{ color: "#0f172a" }} />
+                      <Line type="monotone" dataKey="revenue" name="Ventes encaissées" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : <EmptyChart icon={ChartNoAxesCombined} title="Aucune vente sur 30 jours" detail="La courbe se remplira dès qu'une commande payée sera enregistrée sur la période." />}
+            </CardContent>
+          </Card>
+
+          <Card className="xl:col-span-2 border-slate-200 shadow-sm" data-testid="top-products-card">
+            <CardHeader className="border-b border-slate-100 pb-5">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-900"><Trophy className="h-5 w-5 text-amber-500" /> Top 5 des ventes</CardTitle>
+              <CardDescription>Produits les plus vendus (commandes payées).</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              {isLoading ? (
+                <div className="space-y-3 p-5">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div>
+              ) : topProducts.length === 0 ? (
+                <EmptyChart icon={Trophy} title="Aucune vente enregistrée" detail="Le classement s'affichera dès les premières commandes payées." />
+              ) : (
+                <div className="divide-y divide-border/70">
+                  {topProducts.map((product, index) => (
+                    <div key={product.productId} className="flex items-center gap-3 px-5 py-4" data-testid={`top-product-${product.productId}`}>
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${index === 0 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>{index + 1}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-slate-900">{product.name}</p>
+                        <p className="text-xs text-muted-foreground">{product.quantitySold} vendu(s)</p>
+                      </div>
+                      <p className="ml-auto font-semibold text-emerald-700">{formatMoney(product.revenue)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-5">

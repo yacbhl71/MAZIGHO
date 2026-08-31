@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -55,6 +55,7 @@ const menuSections = [
       { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
       { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
       { icon: ShoppingBag, label: "Commandes", path: "/admin/commandes" },
+      { icon: RotateCcw, label: "Retours & SAV", path: "/admin/retours" },
     ],
   },
   {
@@ -66,12 +67,15 @@ const menuSections = [
       { icon: Layout, label: "Contenu", path: "/admin/contenu" },
       { icon: Palette, label: "Personnalisation", path: "/admin/personnalisation" },
       { icon: Percent, label: "Promotions", path: "/admin/promotions" },
+      { icon: ShoppingCart, label: "Paniers abandonnés", path: "/admin/paniers-abandonnes" },
+      { icon: Mail, label: "E-mails clients", path: "/admin/emails" },
     ],
   },
   {
     label: "Configuration",
     items: [
       { icon: Network, label: "Suivi Odoo", path: "/admin/suivi-odoo" },
+      { icon: ScrollText, label: "Journal d'audit", path: "/admin/audit" },
       { icon: SearchCheck, label: "SEO & indexation", path: "/admin/seo" },
       { icon: Scale, label: "Informations légales", path: "/admin/legal" },
       { icon: Settings, label: "Paramètres", path: "/admin/parametres" },
@@ -86,7 +90,7 @@ const menuItems = menuSections.flatMap(section => section.items);
 const STAFF_ROLES = ["admin", "catalog_editor", "order_operator"];
 const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
   catalog_editor: ["/admin/produits", "/admin/categories", "/admin/traductions"],
-  order_operator: ["/admin/commandes", "/admin/utilisateurs", "/admin/avis", "/admin/messages"],
+  order_operator: ["/admin/commandes", "/admin/retours", "/admin/utilisateurs", "/admin/avis", "/admin/messages"],
 };
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrateur",

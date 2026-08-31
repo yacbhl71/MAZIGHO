@@ -1,9 +1,13 @@
 import { Link } from "wouter";
+import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowUpRight,
@@ -56,6 +60,33 @@ const actions = [
   },
 ];
 
+function SeoSnippetPreview() {
+  const query = trpc.admin.seo.get.useQuery();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  useEffect(() => { if (query.data) { setTitle(query.data.title); setDescription(query.data.description); } }, [query.data]);
+  const save = trpc.admin.seo.save.useMutation({ onSuccess: () => toast.success("Aperçu SEO enregistré"), onError: e => toast.error(e.message) });
+  const siteUrl = query.data?.siteUrl ?? "https://www.mazigho.ch";
+  const host = siteUrl.replace(/^https?:\/\//, "");
+
+  return (
+    <Card className="shadow-sm" data-testid="seo-preview-card">
+      <CardHeader className="border-b border-border/70 pb-5"><CardTitle className="flex items-center gap-2"><SearchCheck className="h-5 w-5 text-sky-600" /> Aperçu moteur de recherche</CardTitle><CardDescription>Visualisez en direct votre extrait Google et réseaux sociaux, puis ajustez-le.</CardDescription></CardHeader>
+      <CardContent className="grid gap-6 p-5 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="space-y-2"><label className="text-sm font-medium">Titre ({title.length}/70)</label><Input value={title} maxLength={70} onChange={e => setTitle(e.target.value)} data-testid="seo-title-input" /></div>
+          <div className="space-y-2"><label className="text-sm font-medium">Méta-description ({description.length}/320)</label><Textarea rows={4} value={description} maxLength={320} onChange={e => setDescription(e.target.value)} data-testid="seo-description-input" /></div>
+          <Button className="bg-sky-600 hover:bg-sky-700" disabled={save.isPending || title.trim().length < 3 || description.trim().length < 10} onClick={() => save.mutate({ title: title.trim(), description: description.trim() })} data-testid="seo-save-button">{save.isPending ? "…" : "Enregistrer l'aperçu"}</Button>
+        </div>
+        <div className="space-y-4">
+          <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Résultat Google</p><div className="rounded-lg border border-slate-200 bg-white p-4"><p className="text-xs text-slate-600">{host}</p><p className="truncate text-lg text-[#1a0dab]">{title || "Titre de la page"}</p><p className="mt-1 line-clamp-2 text-sm text-slate-600">{description || "La méta-description apparaîtra ici."}</p></div></div>
+          <div><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partage réseaux sociaux</p><div className="overflow-hidden rounded-lg border border-slate-200 bg-white"><div className="flex h-24 items-center justify-center bg-gradient-to-r from-sky-500 to-emerald-500 text-white"><Globe2 className="h-8 w-8 opacity-80" /></div><div className="p-3"><p className="text-[10px] uppercase text-slate-400">{host}</p><p className="truncate text-sm font-semibold text-slate-900">{title || "Titre de la page"}</p><p className="line-clamp-2 text-xs text-slate-600">{description || "La méta-description apparaîtra ici."}</p></div></div></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminSEO() {
   const { data: stats, isLoading } = trpc.admin.getStats.useQuery();
   const productsWithoutDeliveryProfiles = stats?.catalogReadiness?.productsWithoutDeliveryProfiles ?? [];
@@ -105,6 +136,8 @@ export default function AdminSEO() {
             <Card key={title} className="border-slate-200 shadow-sm"><CardContent className="p-5"><div className={`w-fit rounded-xl p-2.5 ${tone}`}><Icon className="h-5 w-5" /></div><div className="mt-4 flex items-center justify-between gap-3"><h2 className="font-semibold text-slate-900">{title}</h2><Badge className="border-0 bg-emerald-100 text-emerald-800"><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> En place</Badge></div><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></CardContent></Card>
           ))}
         </section>
+
+        <SeoSnippetPreview />
 
         <section className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
           <Card className="shadow-sm">

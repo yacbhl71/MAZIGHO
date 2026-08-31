@@ -21,6 +21,12 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#039;");
 }
 
+export { escapeHtml };
+
+export function getPublicUrl(): string {
+  return getMailConfiguration().publicUrl;
+}
+
 function getMailConfiguration() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.MAZIGHO_EMAIL_FROM?.trim();
