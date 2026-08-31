@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only validation of MAZIGHO storefront focused on the two reported bugs. BUG 2 (variants on product detail) is fully fixed: /produit/240031 shows a product-options section with 2 groups (Couleur with 5 values incl. color swatches, Taille with 5 values), 10 option buttons with proper data-testid pattern (product-option-<group>-<value>), first value preselected, clicking highlights in orange. BUG 1 (products disappear on language switch) is FUNCTIONALLY FIXED — after switching to IT and DE, /boutique and product detail /produit/240031 eventually show the full 23 products with translated names (Italian/German), and untranslated fields fall back to French. HOWEVER, a severe backend performance issue was found: the batched tRPC call products.getAll,categories.getAll takes ~30-60s to return for IT/DE (measured 59s for IT, 43s for FR direct curl). During that window the shop shows '0 articoli/lieferbare Artikel' + spinner, which visually reproduces the user's original complaint even though data eventually arrives. This must be fixed before shipping.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "/api/trpc/products.getAll (locale=it|de)", "issue": "Response time 30-60 seconds. Shop and Home pages appear empty ('0 articles') for ~35s after switching language, effectively reproducing the 'products disappeared' bug from a UX standpoint. Likely N+1 query or synchronous per-product translation lookup after the French-fallback change. Recommend batching translation joins in a single SQL query or caching translated product lists per (locale, country).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Language switch on /boutique and /", "issue": "React Query invalidates products list on locale change; while the ~30-60s API call is in-flight, the page shows 'X articoli 0' and an infinite spinner. Consider: (a) keepPreviousData so previous products remain visible during refetch, (b) skeletons instead of resetting to 0, (c) an inline notice 'Traduction en cours…'.", "affected_selectors": ["#storefront-language", "a[href^='/produit/']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "HIGH PRIORITY: Fix backend performance of products.getAll/getFeatured/getByCategory for locale=it/de/en. Current 30-60s response makes the site look broken. Likely cause: per-product translation lookup done sequentially after the French-fallback fix. Batch the join or precompute a materialized translated view.",
+    "Add keepPreviousData (or placeholderData) to trpc.products.getAll.useQuery on Shop.tsx, Home.tsx, Category.tsx so the product grid does not flash to empty while a new locale is loading.",
+    "Consider an explicit loading indicator on the item counter ('… articles' instead of '0 articles') while productsQuery.isFetching."
+  ],
+  "critical_code_review_comments": [
+    "Shop.tsx passes only locale to trpc.products.getAll.useQuery(locale) but the router accepts {locale,country,limit}. Verify the router signature matches — inconsistency between the input schema described in the review request and actual call site could silently drop filters.",
+    "Header.tsx language <select> lacks a data-testid (e.g. 'language-selector'); currently tests must rely on #storefront-language id. Adding data-testid=\"language-selector\" would follow project convention.",
+    "Product cards have no data-testid=\"product-card\" attribute; tests fall back to a[href^='/produit/']. Recommend adding data-testid on <article> for stable e2e testing."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% functional (both bugs resolved), but severe perf regression on IT/DE"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend for this app runs at /app/mazigho (node server-dist/index.js on 3000 for HTML and 8001 for tRPC API). Language switch is a <select id='storefront-language'> in the header (no data-testid yet). Product cards use a[href^='/produit/']. When testing IT/DE flows, poll for up to 60 seconds after selecting the language — the tRPC batched call currently takes ~30-60s to return, and products appear as 0 during that window. This performance issue is the main outstanding item; the visible variants (BUG 2) and eventual product fallback rendering (BUG 1) both work correctly.",
+  "rca of the issue": "BUG 2 root cause was the ProductOptions component expecting a different shape than the {name, values[]} stored in DB — fixed. BUG 1 original root cause was list endpoints returning null instead of falling back to French when a translation was missing — fixed at DB layer. New issue introduced by the fix: the per-locale product listing endpoint takes 30-60 seconds, presumably due to a per-row translation resolution / lack of joined query, causing the storefront to appear empty on language switch until the slow call resolves. Mitigation: batch translation joins server-side and enable keepPreviousData on the client query."
+}

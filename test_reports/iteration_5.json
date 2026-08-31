@@ -1,0 +1,34 @@
+{
+  "summary": "Retest of MAZIGHO storefront after backend N+1 fix (batched enrichPublicProducts) and client keepPreviousData. Performance regression from iteration_4 is FIXED. Language switch FR→IT and FR→DE on /boutique now shows the first products in ~3.0s (previously 30-60s) and settles at 23 products with the correct locale-specific counter ('23 articoli'). Home page /: keepPreviousData works perfectly — min_during=5 (never dropped to 0), empty_seen=False during FR→DE switch. Product detail /produit/240031 renders fully in FR (4.3s), IT (5.4s) and DE (6.9s), with data-testid='product-options' present and 12 option buttons (Couleur swatches + Taille S/M/L/XL/2XL) visible in all three locales; first product image and full description render (2800+ body chars). Variants (BUG 2) and language switch (BUG 1) both remain functionally correct.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/trpc/products.getAll (locale=it|de)", "issue": "First product visible ~3s after language switch on Shop; warm curl reported ~1-2s. 3s is acceptable UX but there is still headroom (likely first-request DB pool warmup or React Query serialization); consider adding a small in-memory LRU per (locale,country) for the public listings."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Language switch on /boutique (Shop.tsx)", "issue": "During FR→IT and FR→DE switch, product grid briefly drops to 0 cards (min_during=0, empty_seen=True) for ~3s before repopulating to 23. On Home.tsx the same switch keeps the previous 5 products visible (min_during=5, empty_seen=False), so placeholderData is working there but NOT effective on Shop. Likely cause: Shop's product list query key includes locale AND some filter/sort/pagination state, so React Query treats it as a distinct query with no previous data to fall back to; or the products list is being replaced by [] before setQuery resolves. Recommend confirming placeholderData: (prev) => prev is applied to the exact useQuery call rendering the grid on Shop.tsx, and that the query key structure allows previous data reuse across only-locale changes.", "affected_selectors": ["#storefront-language", "a[href^='/produit/']"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "MINOR: Make placeholderData / keepPreviousData actually effective on /boutique — currently Shop still flashes empty for ~3s while Home does not. Verify the useQuery on Shop.tsx uses `placeholderData: (prev) => prev` and that the query key structure permits previous-data reuse when only locale changes.",
+    "OPTIONAL: The 'X articoli' counter reads 0 during the ~3s refetch window; show '…' or productsQuery.data?.length ?? previousData.length while isFetching to avoid the '0 articoli' flash.",
+    "OPTIONAL polish: Add data-testid='language-selector' to the header <select> and data-testid='product-card' to product <article> for stable e2e (from previous iteration; still not applied)."
+  ],
+  "critical_code_review_comments": [
+    "The Shop-vs-Home discrepancy suggests only Home's useQuery received the placeholderData patch, or Shop's query key includes additional inputs (country/limit/sort) that invalidate cache reuse. Double-check the diff really landed on all three files (Shop.tsx, Home.tsx, Category.tsx).",
+    "4 transient TRPCClientError: Failed to fetch console errors were observed during the run when rapidly switching locales. Not blocking, but consider request cancellation on locale change so stale in-flight fetches don't error out visibly."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100% functional; performance fix verified; one minor placeholderData gap on Shop"},
+  "test_credentials": "none — public storefront only",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Perf regression is fixed. Language switch is now ~3s to first product visible (was 30-60s). Home page correctly keeps previous products visible during refetch (placeholderData working). Shop page still flashes to 0 briefly (~3s) — placeholderData either not applied or query key mismatches on that route. Variants on /produit/240031 fully working in FR/IT/DE with 12 option buttons under data-testid='product-options'. Reproduction script inline in the previous test run: switch `#storefront-language` to 'it' or 'de' on /boutique and poll a[href^='/produit/'] count over 15s.",
+  "rca of the issue": "Backend N+1 fix (batched image/review/translation/category-id queries in server/db.ts, consumed by enrichPublicProducts in server/routers.ts) reduces per-listing to ~5 SQL queries — this is what unlocked the 3s response. On the client, placeholderData: (prev) => prev was intended to keep products visible during locale refetch; verified working on Home but not on Shop, so the placeholderData patch on Shop.tsx should be re-verified."
+}
