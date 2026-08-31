@@ -168,6 +168,24 @@ export const appRouter = router({
       ]);
       return { ...localizedProduct, images, reviews, averageRating };
     }),
+    submitReview: publicProcedure.input((val: unknown) => {
+      if (typeof val !== "object" || val === null) throw new Error("Invalid review payload");
+      const value = val as Record<string, unknown>;
+      const productId = typeof value.productId === "number" ? value.productId : Number(value.productId);
+      const rating = typeof value.rating === "number" ? value.rating : Number(value.rating);
+      const name = typeof value.name === "string" ? value.name.trim() : "";
+      const comment = typeof value.comment === "string" ? value.comment.trim() : "";
+      if (!Number.isInteger(productId) || productId <= 0) throw new Error("Invalid product id");
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) throw new Error("Invalid rating");
+      if (name.length < 2 || name.length > 120) throw new Error("Invalid name");
+      return { productId, rating: Math.round(rating), name, comment: comment.slice(0, 1000) };
+    }).mutation(async ({ input }) => {
+      const { createReview, getProductById } = await import("./db");
+      const product = await getProductById(input.productId);
+      if (!product) throw new Error("Produit introuvable");
+      await createReview({ productId: input.productId, authorName: input.name, rating: input.rating, comment: input.comment || null });
+      return { success: true };
+    }),
   }),
 
   // Contact

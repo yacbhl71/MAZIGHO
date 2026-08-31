@@ -2,6 +2,8 @@ import { useParams, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Star, Heart, Share2, Shield, RotateCcw } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -18,6 +20,7 @@ import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
+import { getReviewFormCopy } from "@/lib/reviewFormCopy";
 
 export default function Product() {
   const { key } = useParams<{ key?: string }>();
@@ -38,6 +41,13 @@ export default function Product() {
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
+
+  const reviewCopy = getReviewFormCopy(locale);
+  const [reviewName, setReviewName] = useState("");
+  const [reviewRating, setReviewRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const submitReview = trpc.products.submitReview.useMutation();
 
   useEffect(() => {
     if (product && !canonicalId && slug) {
@@ -121,6 +131,20 @@ export default function Product() {
     }
     await navigator.clipboard?.writeText(window.location.href);
     toast.success(copy.linkCopied);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!product) return;
+    if (reviewName.trim().length < 2) { toast.error(reviewCopy.errorName); return; }
+    if (reviewRating < 1) { toast.error(reviewCopy.errorRating); return; }
+    try {
+      await submitReview.mutateAsync({ productId: product.id, name: reviewName.trim(), rating: reviewRating, comment: reviewComment.trim() });
+      toast.success(reviewCopy.success);
+      setReviewName(""); setReviewRating(0); setHoverRating(0); setReviewComment("");
+      await productQuery.refetch();
+    } catch {
+      toast.error(reviewCopy.errorGeneric);
+    }
   };
 
   return (
@@ -375,9 +399,47 @@ export default function Product() {
               </div>
             </div>
 
-            <div className="mt-12 border-t border-gray-200 pt-8 text-center">
-              <h3 className="text-xl font-semibold text-gray-800">{copy.reviewSubmissionTitle}</h3>
-              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600">{copy.reviewSubmissionUnavailable}</p>
+            <div className="mt-12 border-t border-gray-200 pt-8">
+              <div className="mx-auto max-w-xl text-center">
+                <h3 className="text-xl font-semibold text-gray-800">{reviewCopy.title}</h3>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-600">{reviewCopy.intro}</p>
+              </div>
+              <div className="mx-auto mt-6 max-w-xl space-y-4" data-testid="review-form">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">{reviewCopy.ratingLabel}</label>
+                  <div className="flex gap-1" data-testid="review-rating">
+                    {Array.from({ length: 5 }).map((_, i) => {
+                      const value = i + 1;
+                      const active = (hoverRating || reviewRating) >= value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          data-testid={`review-star-${value}`}
+                          onMouseEnter={() => setHoverRating(value)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          onClick={() => setReviewRating(value)}
+                          className="p-1"
+                          aria-label={`${value}/5`}
+                        >
+                          <Star className={`h-7 w-7 transition-colors ${active ? "fill-orange-500 text-orange-500" : "text-gray-300 hover:text-orange-300"}`} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">{reviewCopy.nameLabel}</label>
+                  <Input data-testid="review-name" value={reviewName} onChange={(e) => setReviewName(e.target.value)} placeholder={reviewCopy.namePlaceholder} maxLength={120} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">{reviewCopy.commentLabel}</label>
+                  <Textarea data-testid="review-comment" value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} placeholder={reviewCopy.commentPlaceholder} rows={4} maxLength={1000} />
+                </div>
+                <Button data-testid="review-submit" onClick={handleSubmitReview} disabled={submitReview.isPending} className="w-full bg-orange-500 py-3 font-semibold text-white hover:bg-orange-600 sm:w-auto">
+                  {submitReview.isPending ? <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />{reviewCopy.submitting}</> : reviewCopy.submit}
+                </Button>
+              </div>
             </div>
           </div>
         </section>

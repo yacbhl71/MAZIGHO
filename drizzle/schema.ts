@@ -252,7 +252,8 @@ export type InsertCartItem = typeof cartItems.$inferInsert;
 export const reviews = mysqlTable("reviews", {
   id: int("id").autoincrement().primaryKey(),
   productId: int("productId").notNull(),
-  userId: int("userId").notNull(),
+  userId: int("userId"),
+  authorName: varchar("authorName", { length: 120 }),
   rating: int("rating").notNull(), // 1-5
   comment: text("comment"),
   status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),

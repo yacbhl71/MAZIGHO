@@ -24,6 +24,27 @@ let _publicContentTranslationSchemaReady: Promise<void> | null = null;
 let _staffRolesReady: Promise<void> | null = null;
 let _auditLogSchemaReady: Promise<void> | null = null;
 let _promotionAdvancedSchemaReady: Promise<void> | null = null;
+let _reviewsSchemaReady: Promise<void> | null = null;
+
+async function ensureReviewsSchema() {
+  if (_reviewsSchemaReady) return _reviewsSchemaReady;
+  _reviewsSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const run = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists") && !message.includes("check that column")) throw error;
+      }
+    };
+    // Guest reviews: allow a free-text author name and make the user link optional.
+    await run("ALTER TABLE `reviews` ADD COLUMN IF NOT EXISTS `authorName` varchar(120) NULL");
+    await run("ALTER TABLE `reviews` MODIFY COLUMN `userId` int NULL");
+  })();
+  return _reviewsSchemaReady;
+}
 
 async function ensurePromotionAdvancedSchema() {
   if (_promotionAdvancedSchemaReady) return _promotionAdvancedSchemaReady;
@@ -1343,25 +1364,39 @@ export async function getProductImages(productId: number) {
 
 // Reviews queries
 export async function getProductReviews(productId: number) {
+  await ensureReviewsSchema();
   const db = await getDb();
   if (!db) return [];
-  
-  
-  
   const result = await db
     .select({
       id: reviews.id,
       rating: reviews.rating,
       comment: reviews.comment,
       createdAt: reviews.createdAt,
+      authorName: reviews.authorName,
       userName: users.name,
     })
     .from(reviews)
     .leftJoin(users, eq(reviews.userId, users.id))
-    .where(eq(reviews.productId, productId))
+    .where(and(eq(reviews.productId, productId), eq(reviews.status, "approved")))
     .orderBy(desc(reviews.createdAt));
-  
-  return result;
+
+  return result.map(row => ({ id: row.id, rating: row.rating, comment: row.comment, createdAt: row.createdAt, userName: row.authorName || row.userName || "Client" }));
+}
+
+export async function createReview(input: { productId: number; authorName: string; rating: number; comment?: string | null; userId?: number | null }) {
+  await ensureReviewsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rating = Math.max(1, Math.min(5, Math.round(input.rating)));
+  await db.insert(reviews).values({
+    productId: input.productId,
+    userId: input.userId ?? null,
+    authorName: input.authorName.slice(0, 120),
+    rating,
+    comment: input.comment ? input.comment.slice(0, 1000) : null,
+    status: "approved",
+  });
 }
 
 export async function getAverageRating(productId: number) {
@@ -1410,6 +1445,7 @@ export async function getProductImagesForProducts(ids: number[]) {
 export async function getProductReviewsForProducts(ids: number[]) {
   const map = new Map<number, Array<{ id: number; rating: number; comment: string | null; createdAt: Date; userName: string | null }>>();
   if (ids.length === 0) return map;
+  await ensureReviewsSchema();
   const db = await getDb();
   if (!db) return map;
   const rows = await db.select({
@@ -1417,15 +1453,15 @@ export async function getProductReviewsForProducts(ids: number[]) {
     rating: reviews.rating,
     comment: reviews.comment,
     createdAt: reviews.createdAt,
+    authorName: reviews.authorName,
     userName: users.name,
     productId: reviews.productId,
   }).from(reviews).leftJoin(users, eq(reviews.userId, users.id))
-    .where(inArray(reviews.productId, ids))
+    .where(and(inArray(reviews.productId, ids), eq(reviews.status, "approved")))
     .orderBy(desc(reviews.createdAt));
   for (const row of rows) {
-    const { productId, ...rest } = row;
-    if (!map.has(productId)) map.set(productId, []);
-    map.get(productId)!.push(rest);
+    if (!map.has(row.productId)) map.set(row.productId, []);
+    map.get(row.productId)!.push({ id: row.id, rating: row.rating, comment: row.comment, createdAt: row.createdAt, userName: row.authorName || row.userName || "Client" });
   }
   return map;
 }
