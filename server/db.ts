@@ -1395,21 +1395,20 @@ export async function createReview(input: { productId: number; authorName: strin
     authorName: input.authorName.slice(0, 120),
     rating,
     comment: input.comment ? input.comment.slice(0, 1000) : null,
-    status: "approved",
+    status: "pending",
   });
 }
 
 export async function getAverageRating(productId: number) {
+  await ensureReviewsSchema();
   const db = await getDb();
   if (!db) return 0;
   const { reviews } = await import("../drizzle/schema");
-  
-  
   const result = await db
     .select({ average: avg(reviews.rating) })
     .from(reviews)
-    .where(eq(reviews.productId, productId));
-  
+    .where(and(eq(reviews.productId, productId), eq(reviews.status, "approved")));
+
   return result[0]?.average ? Number(result[0].average) : 0;
 }
 
@@ -2239,23 +2238,24 @@ export async function deleteUserAdmin(input: { id: number; actorId: number; conf
 }
 
 export async function getAllReviewsAdmin() {
+  await ensureReviewsSchema();
   const db = await getDb();
   if (!db) return [];
   const { reviews, products, users } = await import("../drizzle/schema");
-  
-  
-  return await db.select({
+  const rows = await db.select({
     id: reviews.id,
     rating: reviews.rating,
     comment: reviews.comment,
     status: reviews.status,
     createdAt: reviews.createdAt,
     productName: products.name,
+    authorName: reviews.authorName,
     userName: users.name,
   }).from(reviews)
     .leftJoin(products, eq(reviews.productId, products.id))
     .leftJoin(users, eq(reviews.userId, users.id))
     .orderBy(desc(reviews.createdAt));
+  return rows.map(row => ({ ...row, userName: row.authorName || row.userName || null }));
 }
 
 export async function updateReviewStatus(id: number, status: any) {

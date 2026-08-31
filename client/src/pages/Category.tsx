@@ -14,6 +14,8 @@ import { getCollectionVisual } from "@/lib/collectionVisuals";
 import { categoryT, t } from "@/lib/i18n";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import { getShopControlsCopy } from "@/lib/shopControlsCopy";
+import { isNewProduct } from "@/lib/isNewProduct";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -33,6 +35,7 @@ export default function Category() {
   const category = categoryData ? getLocalizedCategoryPresentation(locale, categoryData) : undefined;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
+  const shopControls = getShopControlsCopy(locale);
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
@@ -137,25 +140,28 @@ export default function Category() {
                 {products.map((product) => (
                   <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
-	                      {/* Product Image */}
-	                      <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden group">
-	                        {product.images && product.images.length > 0 ? (
-	                          <img 
-	                            src={product.images[0].imageUrl} 
-	                            alt={product.name}
-	                            width={640}
+                              {/* Product Image */}
+                              <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden group">
+                                {product.images && product.images.length > 0 ? (
+                                  <img 
+                                    src={product.images[0].imageUrl} 
+                                    alt={product.name}
+                                    width={640}
                             height={480}
                             loading="lazy"
                             decoding="async"
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-	                          />
-	                        ) : (
-	                          <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
-	                        )}
-	                        {product.originalPrice && (
+                                  />
+                                ) : (
+                                  <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
+                                )}
+                                {product.originalPrice && (
                           <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
                             -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
                           </div>
+                        )}
+                                {isNewProduct((product as any).createdAt) && (
+                          <span className="absolute top-3 left-3 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white" data-testid="badge-new">{shopControls.newBadge}</span>
                         )}
                       </div>
 
