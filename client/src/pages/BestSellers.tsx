@@ -22,7 +22,7 @@ export default function BestSellers() {
   const { locale } = useLocale();
   const copy = getMarketingCopy(locale).bestSellers;
   const productCopy = getProductPublicCopy(locale);
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));

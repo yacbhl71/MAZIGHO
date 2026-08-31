@@ -17,7 +17,7 @@ import { favoritesT } from "@/lib/favoritesCopy";
 
 export default function Favorites() {
   const { locale } = useLocale();
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const allProducts = productsQuery.data || [];

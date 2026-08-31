@@ -28,7 +28,7 @@ export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
   const { locale } = useLocale();
-  const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale });
+  const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale }, { placeholderData: (prev) => prev });
   const categoryData = categoryQuery.data?.category;
   const category = categoryData ? getLocalizedCategoryPresentation(locale, categoryData) : undefined;
   const { countryCode } = useDeliveryCountry();

@@ -22,7 +22,7 @@ export default function Nouveautes() {
   const { locale } = useLocale();
   const copy = getCollectionsCopy(locale).newArrivals;
   const productCopy = getProductPublicCopy(locale);
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));

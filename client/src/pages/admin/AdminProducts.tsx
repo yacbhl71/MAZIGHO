@@ -95,6 +95,7 @@ export default function AdminProducts() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft" | "archived">("all");
   const [translationFilter, setTranslationFilter] = useState<"all" | "ready" | "attention">("all");
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   const translationState = (productId: number) => {
     const overview = translationOverviewByProductId.get(productId) as any;
@@ -116,15 +117,21 @@ export default function AdminProducts() {
         || (stockFilter === "available" && product.stock > 5)
         || (stockFilter === "low" && product.stock > 0 && product.stock <= 5)
         || (stockFilter === "empty" && product.stock <= 0);
-      return matchesQuery && matchesStatus && matchesTranslation && matchesStock;
-    });
-  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, translationOverviewQuery.data]);
+      const matchesCategory = categoryFilter === "all"
+        || (Array.isArray(product.categoryIds) && product.categoryIds.length
+          ? product.categoryIds.map(String).includes(categoryFilter)
+          : String(product.categoryId) === categoryFilter);
+      return matchesQuery && matchesStatus && matchesTranslation && matchesStock && matchesCategory;
+    }).sort((a: any, b: any) =>
+      (a.categoryName || "\uffff").localeCompare(b.categoryName || "\uffff", "fr") || (a.name || "").localeCompare(b.name || "", "fr"));
+  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, categoryFilter, translationOverviewQuery.data]);
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
     setTranslationFilter("all");
     setStockFilter("all");
+    setCategoryFilter("all");
   };
 
   const translateProduct = trpc.admin.products.translate.useMutation({
@@ -410,10 +417,11 @@ export default function AdminProducts() {
               <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-orange-600" /><h2 className="font-semibold text-slate-900">Recherche et préparation</h2></div>
               <p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement du catalogue…" : `${filteredProducts.length} produit(s) affiché(s) sur ${products?.length ?? 0}`}</p>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.5fr)_1fr_1fr_1fr]">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_1fr_1fr_1fr_1fr]">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom, URL, catégorie ou fournisseur…" /></div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger data-testid="admin-products-category-filter"><SelectValue placeholder="Catégorie" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{(categories || []).map((cat: any) => (<SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>))}</SelectContent></Select>
             <Select value={statusFilter} onValueChange={value => setStatusFilter(value as typeof statusFilter)}><SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="draft">Brouillons</SelectItem><SelectItem value="archived">Archivés</SelectItem></SelectContent></Select>
             <Select value={translationFilter} onValueChange={value => setTranslationFilter(value as typeof translationFilter)}><SelectTrigger><SelectValue placeholder="Traductions" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les traductions</SelectItem><SelectItem value="ready">6 langues prêtes</SelectItem><SelectItem value="attention">À compléter / régénérer</SelectItem></SelectContent></Select>
             <Select value={stockFilter} onValueChange={value => setStockFilter(value as typeof stockFilter)}><SelectTrigger><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les stocks</SelectItem><SelectItem value="available">Plus de 5 unités</SelectItem><SelectItem value="low">1 à 5 unités</SelectItem><SelectItem value="empty">Rupture de stock</SelectItem></SelectContent></Select>

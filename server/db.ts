@@ -1266,8 +1266,8 @@ export async function getProductsByCategory(categoryId: number) {
     updatedAt: products.updatedAt,
     }).from(products)
     .where(eq(products.status, "active"));
-  const assignments = await Promise.all(rows.map(async row => ({ row, categoryIds: await getProductCategoryIds(row.id) })));
-  const filteredRows = assignments.filter(item => item.categoryIds.includes(categoryId)).map(item => item.row);
+  const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id));
+  const filteredRows = rows.filter(row => (categoryMap.get(row.id) || []).includes(categoryId));
   return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id)));
 }
 export async function getProductBySlug(slug: string) {
@@ -1390,6 +1390,77 @@ export async function getProductReviewSummary(productId: number) {
     reviewCount: Number(result[0]?.reviewCount || 0),
   };
 }
+
+// ---- Batched public-catalog helpers (avoid N+1 on storefront listings) ----
+export async function getProductImagesForProducts(ids: number[]) {
+  const map = new Map<number, Array<typeof productImages.$inferSelect>>();
+  if (ids.length === 0) return map;
+  const db = await getDb();
+  if (!db) return map;
+  const rows = await db.select().from(productImages)
+    .where(inArray(productImages.productId, ids))
+    .orderBy(asc(productImages.displayOrder));
+  for (const row of rows) {
+    if (!map.has(row.productId)) map.set(row.productId, []);
+    map.get(row.productId)!.push(row);
+  }
+  return map;
+}
+
+export async function getProductReviewsForProducts(ids: number[]) {
+  const map = new Map<number, Array<{ id: number; rating: number; comment: string | null; createdAt: Date; userName: string | null }>>();
+  if (ids.length === 0) return map;
+  const db = await getDb();
+  if (!db) return map;
+  const rows = await db.select({
+    id: reviews.id,
+    rating: reviews.rating,
+    comment: reviews.comment,
+    createdAt: reviews.createdAt,
+    userName: users.name,
+    productId: reviews.productId,
+  }).from(reviews).leftJoin(users, eq(reviews.userId, users.id))
+    .where(inArray(reviews.productId, ids))
+    .orderBy(desc(reviews.createdAt));
+  for (const row of rows) {
+    const { productId, ...rest } = row;
+    if (!map.has(productId)) map.set(productId, []);
+    map.get(productId)!.push(rest);
+  }
+  return map;
+}
+
+export async function getReadyProductTranslationsForProducts(ids: number[], locale: ProductTranslationLocale) {
+  const map = new Map<number, typeof productTranslations.$inferSelect>();
+  if (ids.length === 0) return map;
+  await ensureProductTranslationSchema();
+  const db = await getDb();
+  if (!db) return map;
+  const rows = await db.select().from(productTranslations)
+    .where(and(
+      inArray(productTranslations.productId, ids),
+      eq(productTranslations.locale, locale),
+      eq(productTranslations.status, "ready"),
+    ));
+  for (const row of rows) map.set(row.productId, row);
+  return map;
+}
+
+export async function getProductCategoryIdsForProducts(ids: number[]) {
+  const map = new Map<number, number[]>();
+  if (ids.length === 0) return map;
+  await ensureProductCategorySchema();
+  const db = await getDb();
+  if (!db) return map;
+  const rows = await db.select({ productId: productCategories.productId, categoryId: productCategories.categoryId })
+    .from(productCategories).where(inArray(productCategories.productId, ids));
+  for (const row of rows) {
+    if (!map.has(row.productId)) map.set(row.productId, []);
+    map.get(row.productId)!.push(row.categoryId);
+  }
+  return map;
+}
+
 
 // Contact message
 export async function createContactMessage(data: { name: string; email: string; subject?: string; message: string }) {

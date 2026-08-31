@@ -22,7 +22,7 @@ export default function Promos() {
   const { locale } = useLocale();
   const copy = getMarketingCopy(locale).promos;
   const productCopy = getProductPublicCopy(locale);
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => product.originalPrice && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));

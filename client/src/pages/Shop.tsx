@@ -16,8 +16,8 @@ const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700
 export default function Shop() {
   const { locale } = useLocale();
   const publicCopy = getPublicCopy(locale);
-  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const standardCategoryIds = new Set(standardCategories.map(category => category.id));

@@ -318,9 +318,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  payload.max_tokens = 32768;
+  const usingEmergentProxy = ENV.forgeApiKey.startsWith("sk-emergent-") || resolveApiBase().includes("emergentagent.com");
+  if (usingEmergentProxy) {
+    // The Emergent LLM proxy (LiteLLM) rejects the non-standard `thinking` param for OpenAI models
+    // and requires Gemini models to be prefixed with `gemini/`.
+    const currentModel = String(payload.model || "");
+    if (currentModel.startsWith("gemini-")) payload.model = `gemini/${currentModel}`;
+  } else {
+    payload.thinking = { budget_tokens: 128 };
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({

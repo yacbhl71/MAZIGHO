@@ -14,8 +14,8 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 export default function Creations() {
   const { locale } = useLocale();
   const copy = getCollectionsCopy(locale).creations;
-  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
-  const productsQuery = trpc.products.getAll.useQuery(locale);
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
 

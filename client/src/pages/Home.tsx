@@ -63,9 +63,9 @@ export default function Home() {
     editorial: useManagedPublicTranslation ? { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle } : generatedCopy.editorial,
   };
   const discoveryTiles = getDiscoveryTiles(locale);
-  const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale);
-  const catalogProductsQuery = trpc.products.getAll.useQuery(locale);
-  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
+  const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale, { placeholderData: (prev) => prev });
+  const catalogProductsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const highlightImageUrl = getOptimizedHomeImageUrl(profile.highlightImageUrl);

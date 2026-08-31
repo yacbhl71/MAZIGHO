@@ -103,7 +103,8 @@ function validatePayload(value: unknown, requestedLocales: ProductTranslationLoc
 async function chooseTranslationModel() {
   try {
     const { data } = await listLLMModels();
-    return data.find(model => model.id === "gpt-5-mini")?.id
+    return data.find(model => model.id === "gpt-4.1-mini")?.id
+      ?? data.find(model => model.id === "gpt-5-mini")?.id
       ?? data.find(model => model.id.startsWith("gpt-5-"))?.id
       ?? data[0]?.id;
   } catch {
