@@ -32,6 +32,9 @@ et écrase `main` avec la mauvaise arborescence -> build Vercel cassé (404).
   tag `restore/mazigho-validated-2026-08-24`.
 
 ## Historique
+- 2026-06-01: Déploiement roadmap P1 (commit 1d47891) via PAT fine-grained yacbhl71.
+  Note: 1er PAT fourni était Contents=Read-only (git push 403 « denied to yacbhl71 » alors que l'API repo montrait push:true — le champ permissions API = rôle utilisateur, PAS les scopes du PAT). Résolu avec un PAT Contents=Read and write.
+  Push deploy-test (Preview validé) -> force push main -> prod OK. www.mazigho.ch en ligne (Santé système, Export TVA, Aperçu brouillon, Mode maintenance, Campagnes/Countdown, Analyse conversion + correctifs UI Manus). Table `campaigns` auto-créée au runtime sur TiDB prod.
 - 2026-08-31: Incident "Save to Github" (push de l'enveloppe -> 404). Résolu par rollback Vercel (2c38505)
   puis push manuel du vrai code (commit 3245e5b, Lots A/B/C) via PAT -> branche deploy-lots-abc (Preview validé)
   -> force push main -> production OK. www.mazigho.ch en ligne avec tous les Lots A/B/C.

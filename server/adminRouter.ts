@@ -17,6 +17,7 @@ import {
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
 import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
 import { cancelOdooSaleOrder, createOdooPartner, listOdooPartners, listOdooSaleOrders, updateOdooPartner } from "./services/odoo";
+import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -231,6 +232,45 @@ export const adminRouter = router({
       title: z.string().trim().max(160).optional(),
       message: z.string().trim().max(2000).optional(),
     })).mutation(async ({ input }) => db.setMaintenance(input)),
+    conversion: adminProcedure.query(async () => {
+      const configured = isVercelAnalyticsConfigured();
+      const until = new Date();
+      const since = new Date(Date.now() - 30 * 86400000);
+      const sinceStr = since.toISOString().slice(0, 10);
+      const untilStr = until.toISOString().slice(0, 10);
+      const paidOrders = await db.getPaidOrdersBetween(since, until);
+      const ordersCount = paidOrders.length;
+      const revenue = paidOrders.reduce((acc, o) => acc + o.totalAmount, 0);
+      const base = { since: sinceStr, until: untilStr, sales: { orders: ordersCount, revenue } };
+      if (!configured) {
+        return { ...base, connected: false, visitors: null, pageviews: null, conversionRate: null, series: [] };
+      }
+      try {
+        const [count, daily] = await Promise.all([
+          getVisitsCount(sinceStr, untilStr),
+          getVisitsDaily(sinceStr, untilStr),
+        ]);
+        const salesByDay: Record<string, number> = {};
+        for (const o of paidOrders) {
+          const d = new Date(o.createdAt).toISOString().slice(0, 10);
+          salesByDay[d] = (salesByDay[d] || 0) + 1;
+        }
+        const series = daily.map(r => {
+          const d = r.timestamp.slice(0, 10);
+          const s = salesByDay[d] || 0;
+          return {
+            date: d.slice(5),
+            visiteurs: r.visitors,
+            ventes: s,
+            conversion: r.visitors > 0 ? Math.round((s / r.visitors) * 1000) / 10 : 0,
+          };
+        });
+        const conversionRate = count.visitors > 0 ? Math.round((ordersCount / count.visitors) * 1000) / 10 : null;
+        return { ...base, connected: true, visitors: count.visitors, pageviews: count.pageviews, conversionRate, series };
+      } catch (e: any) {
+        return { ...base, connected: false, error: e?.message || "Vercel Analytics indisponible", visitors: null, pageviews: null, conversionRate: null, series: [] };
+      }
+    }),
   }),
 
   // Scheduled marketing campaigns (temporal banners + FOMO countdown) — admin-only.
