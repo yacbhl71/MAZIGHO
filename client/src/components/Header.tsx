@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { CampaignBar } from "@/components/CampaignBar";
 import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard, MapPin } from "lucide-react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -64,6 +65,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm">
+      <CampaignBar />
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white">
         <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-1 text-xs font-medium md:text-sm">

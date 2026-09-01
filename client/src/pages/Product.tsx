@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Star, Heart, Share2, Shield, RotateCcw } from "lucide-react";
+import { Star, Heart, Share2, Shield, Truck } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ImageGallery from "@/components/ImageGallery";
@@ -27,16 +27,20 @@ export default function Product() {
   const [, setLocation] = useLocation();
   const canonicalId = key && /^\d+$/.test(key) ? Number(key) : undefined;
   const slug = canonicalId ? undefined : key;
-  
+  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
+
   const { locale } = useLocale();
   const copy = getProductPublicCopy(locale);
+  const previewQuery = trpc.admin.products.preview.useQuery({ key: key || "", locale }, {
+    enabled: isPreview && Boolean(key), retry: false,
+  });
   const productByIdQuery = trpc.products.getById.useQuery({ id: canonicalId || 0, locale }, {
-    enabled: Boolean(canonicalId)
+    enabled: !isPreview && Boolean(canonicalId)
   });
   const productBySlugQuery = trpc.products.getBySlug.useQuery({ slug: slug || "", locale }, {
-    enabled: !canonicalId && !!slug
+    enabled: !isPreview && !canonicalId && !!slug
   });
-  const productQuery = canonicalId ? productByIdQuery : productBySlugQuery;
+  const productQuery = isPreview ? previewQuery : (canonicalId ? productByIdQuery : productBySlugQuery);
   const product = productQuery.data;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
@@ -50,10 +54,10 @@ export default function Product() {
   const submitReview = trpc.products.submitReview.useMutation();
 
   useEffect(() => {
-    if (product && !canonicalId && slug) {
+    if (!isPreview && product && !canonicalId && slug) {
       setLocation(`/produit/${product.id}`, { replace: true });
     }
-  }, [product, canonicalId, slug, setLocation]);
+  }, [isPreview, product, canonicalId, slug, setLocation]);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId
@@ -150,6 +154,12 @@ export default function Product() {
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
+
+      {isPreview && (
+        <div className="bg-amber-500 px-4 py-2 text-center text-sm font-semibold text-amber-950" data-testid="preview-banner">
+          Mode aperçu — statut «&nbsp;{product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}&nbsp;». Cette fiche n'est visible que par l'équipe.
+        </div>
+      )}
 
       <main className="flex-1">
         {/* Breadcrumb */}
@@ -324,7 +334,7 @@ export default function Product() {
                   <p className="text-xs text-gray-600">{commerceT(locale, "noPaymentNow")}</p>
                 </div>
                 <div className="text-center">
-                  <RotateCcw className="h-6 w-6 mx-auto mb-2 text-orange-500" />
+                  <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium text-gray-800">{commerceT(locale, "orderReview")}</p>
                   <p className="text-xs text-gray-600">{commerceT(locale, "rechecked")}</p>
                 </div>

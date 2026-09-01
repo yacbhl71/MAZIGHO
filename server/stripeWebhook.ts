@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession } from "./db";
+import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, setSettingValue } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
 import { sendOrderConfirmationForStripeSession } from "./emails";
 
@@ -25,6 +25,7 @@ async function syncPaidOrderToOdoo(sessionId: string) {
     });
     if (result.synced) {
       console.log(`[Odoo] Order MAZIGHO-${order.id} synced (sale.order ${result.saleOrderId}, partner ${result.partnerId}).`);
+      setSettingValue("odoo.last_sync_at", new Date().toISOString(), "Dernière synchronisation Odoo réussie").catch(() => {});
     } else if (!result.skipped) {
       console.error(`[Odoo] Order MAZIGHO-${order.id} sync failed: ${result.reason}`);
     }

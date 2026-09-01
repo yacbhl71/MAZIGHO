@@ -56,6 +56,14 @@ export const appRouter = router({
       const { getLocalizedActiveBanners } = await import("./db");
       return await getLocalizedActiveBanners(locale);
     }),
+    getMaintenance: publicProcedure.query(async () => {
+      const { getMaintenanceStatus } = await import("./db");
+      return await getMaintenanceStatus();
+    }),
+    getActiveCampaign: publicProcedure.query(async () => {
+      const { getActiveCampaign } = await import("./db");
+      return await getActiveCampaign();
+    }),
   }),
 
   // Public visual customisation applied to the storefront

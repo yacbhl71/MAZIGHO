@@ -18,6 +18,41 @@ import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegra
 import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
 import { cancelOdooSaleOrder, createOdooPartner, listOdooPartners, listOdooSaleOrders, updateOdooPartner } from "./services/odoo";
 
+// Best-effort detection of the delivery country from a free-form shipping address.
+const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
+  CH: ["suisse", "schweiz", "svizzera", "switzerland"],
+  FR: ["france"],
+  DE: ["allemagne", "deutschland", "germany"],
+  IT: ["italie", "italia", "italy"],
+  AT: ["autriche", "österreich", "oesterreich", "austria"],
+  BE: ["belgique", "belgië", "belgie", "belgium"],
+  NL: ["pays-bas", "nederland", "netherlands"],
+  ES: ["espagne", "españa", "espana", "spain"],
+};
+function detectDeliveryCountry(address: string | null | undefined): string {
+  if (!address) return "—";
+  const lower = address.toLowerCase();
+  for (const [code, labels] of Object.entries(DELIVERY_COUNTRY_LABELS)) {
+    if (labels.some(label => lower.includes(label))) return code;
+  }
+  const codeMatch = address.match(/\b(CH|FR|DE|IT|AT|BE|NL|ES)\b/);
+  return codeMatch ? codeMatch[1] : "—";
+}
+
+const campaignInputSchema = z.object({
+  name: z.string().trim().min(2).max(200),
+  message: z.string().trim().max(300).optional().nullable(),
+  startsAt: z.coerce.date(),
+  endsAt: z.coerce.date(),
+  imageDesktopUrl: z.string().trim().max(1000).optional().nullable(),
+  imageMobileUrl: z.string().trim().max(1000).optional().nullable(),
+  linkUrl: z.string().trim().max(1000).optional().nullable(),
+  promoCode: z.string().trim().max(64).optional().nullable(),
+  showCountdown: z.boolean().default(true),
+  placement: z.enum(["announcement", "products", "both"]).default("announcement"),
+  enabled: z.boolean().default(true),
+});
+
 const deliveryProfileInput = z.object({
   countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
   supplierVariantId: z.string().trim().max(128).nullable().optional(),
@@ -163,6 +198,53 @@ export const adminRouter = router({
     cancelOrder: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => cancelOdooSaleOrder(input.id)),
   }),
 
+  // System health dashboard (admin-only): TiDB ping, last Odoo sync, site version.
+  system: router({
+    health: adminProcedure.query(async () => {
+      const [dbPing, lastOdooSync] = await Promise.all([
+        db.pingDatabase(),
+        db.getLastOdooSync(),
+      ]);
+      const odoo = getOdooStatus();
+      const env = process.env;
+      const commitSha = env.VERCEL_GIT_COMMIT_SHA || env.GIT_COMMIT_SHA || null;
+      let dbHost: string | null = null;
+      try { dbHost = new URL((env.DATABASE_URL || "").replace(/^mysql:\/\//, "http://")).host || null; } catch { dbHost = null; }
+      return {
+        checkedAt: new Date().toISOString(),
+        database: { ok: dbPing.ok, responseMs: dbPing.responseMs, host: dbHost },
+        odoo: { configured: odoo.configured, message: odoo.message, url: odoo.url, lastSyncAt: lastOdooSync },
+        site: {
+          commitSha,
+          commitShort: commitSha ? commitSha.slice(0, 7) : null,
+          commitMessage: env.VERCEL_GIT_COMMIT_MESSAGE || null,
+          branch: env.VERCEL_GIT_COMMIT_REF || null,
+          environment: env.VERCEL_ENV || env.NODE_ENV || "development",
+          deploymentUrl: env.VERCEL_URL || null,
+          deployedAt: env.VERCEL_DEPLOYMENT_CREATED_AT || null,
+        },
+      };
+    }),
+    getMaintenance: adminProcedure.query(async () => db.getMaintenanceStatus()),
+    setMaintenance: adminProcedure.input(z.object({
+      enabled: z.boolean(),
+      title: z.string().trim().max(160).optional(),
+      message: z.string().trim().max(2000).optional(),
+    })).mutation(async ({ input }) => db.setMaintenance(input)),
+  }),
+
+  // Scheduled marketing campaigns (temporal banners + FOMO countdown) — admin-only.
+  campaigns: router({
+    getAll: adminProcedure.query(async () => db.getAllCampaignsAdmin()),
+    create: adminProcedure.input(campaignInputSchema).mutation(async ({ input }) => db.createCampaign(input)),
+    update: adminProcedure.input(campaignInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      return db.updateCampaign(id, data);
+    }),
+    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => db.deleteCampaign(input.id)),
+    toggle: adminProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ input }) => db.toggleCampaign(input.id, input.enabled)),
+  }),
+
   // Dashboard Stats
   getStats: adminProcedure.query(async () => {
     return await db.getAdminStats();
@@ -197,6 +279,24 @@ export const adminRouter = router({
   products: router({
     getAll: catalogEditorProcedure.query(async () => {
       return await db.getAllProductsAdmin();
+    }),
+    preview: catalogEditorProcedure.input(z.object({
+      key: z.string().trim().min(1).max(220),
+      locale: z.enum(["fr", "de", "it", "en", "es", "nl", "ar"]).default("fr"),
+    })).query(async ({ input }) => {
+      const isId = /^\d+$/.test(input.key);
+      const product = await db.getProductForPreview(isId ? { id: Number(input.key) } : { slug: input.key });
+      if (!product) return null;
+      const translation = input.locale === "fr" ? null : await db.getReadyProductTranslation(product.id, input.locale);
+      const localized = translation
+        ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options }
+        : product;
+      const [images, reviews, averageRating] = await Promise.all([
+        db.getProductImages(product.id),
+        db.getProductReviews(product.id),
+        db.getAverageRating(product.id),
+      ]);
+      return { ...localized, images, reviews, averageRating };
     }),
     getTranslations: catalogEditorProcedure.input(z.number().int().positive()).query(async ({ input }) => {
       return await db.getProductTranslations(input);
@@ -1146,6 +1246,54 @@ export const adminRouter = router({
       const key = `accounting/${ctx.user.id}/${Date.now()}-${safeName}.${document.extension}`;
       const { key: storedKey, url } = await storagePut(key, document.buffer, document.contentType);
       return { key: storedKey, url, fileName: input.fileName };
+    }),
+    getVatConfig: adminProcedure.query(async () => db.getVatConfig()),
+    setVatConfig: adminProcedure.input(z.object({
+      enabled: z.boolean(),
+      rate: z.number().min(0).max(30),
+    })).mutation(async ({ input }) => db.setVatConfig(input)),
+    getVatReport: adminProcedure.input(z.object({
+      from: z.coerce.date(),
+      to: z.coerce.date(),
+    })).query(async ({ input }) => {
+      const [paidOrders, vat] = await Promise.all([
+        db.getPaidOrdersBetween(input.from, input.to),
+        db.getVatConfig(),
+      ]);
+      const year = new Date().getUTCFullYear();
+      const ytdSales = await db.getYearToDatePaidSales(year);
+      const rows = paidOrders.map(order => {
+        const gross = order.totalAmount;
+        const net = vat.enabled ? Math.round(gross / (1 + vat.rate / 100)) : gross;
+        const vatAmount = vat.enabled ? gross - net : 0;
+        return {
+          id: order.id,
+          date: order.createdAt,
+          reference: order.stripeSessionId || (order.paymentMethod ? `${order.paymentMethod}-${order.id}` : `MAZIGHO-${order.id}`),
+          gross,
+          vatAmount,
+          net,
+          country: detectDeliveryCountry(order.shippingAddress),
+        };
+      });
+      const totals = rows.reduce((acc, r) => ({ gross: acc.gross + r.gross, vat: acc.vat + r.vatAmount, net: acc.net + r.net }), { gross: 0, vat: 0, net: 0 });
+      const THRESHOLD = 100_000 * 100; // 100'000 CHF en centimes
+      const ALERT_AT = 80_000 * 100;
+      return {
+        rows,
+        totals,
+        vat,
+        threshold: {
+          year,
+          ytdSales,
+          target: THRESHOLD,
+          alertAt: ALERT_AT,
+          percent: Math.min(100, Math.round((ytdSales / THRESHOLD) * 100)),
+          alert: ytdSales >= ALERT_AT,
+          exceeded: ytdSales >= THRESHOLD,
+        },
+        exemptionNote: "Exonéré de TVA selon l'art. 10 LTVA",
+      };
     }),
   }),
 

@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal, Eye } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -516,6 +516,16 @@ export default function AdminProducts() {
                     <TableCell>{(() => { const translation = translationState(product.id); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : translation.stale ? "border-amber-200 bg-amber-50 text-amber-700" : translation.complete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : translation.stale ? "À régénérer" : translation.complete ? "6 / 6 prêtes" : `${translation.ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
                     <TableCell className="w-[100px]">
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          title={product.status === "active" ? "Voir la fiche en boutique" : "Aperçu du brouillon (visible admin uniquement)"}
+                          data-testid={`product-preview-${product.id}`}
+                          onClick={() => window.open(`/produit/${product.slug}?preview=1`, "_blank", "noopener")}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 

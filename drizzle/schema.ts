@@ -304,6 +304,27 @@ export const settings = mysqlTable("settings", {
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = typeof settings.$inferInsert;
 
+// Scheduled marketing campaigns (temporal banners + FOMO countdown).
+export const campaigns = mysqlTable("campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  message: varchar("message", { length: 300 }),
+  startsAt: timestamp("startsAt").notNull(),
+  endsAt: timestamp("endsAt").notNull(),
+  imageDesktopUrl: varchar("imageDesktopUrl", { length: 1000 }),
+  imageMobileUrl: varchar("imageMobileUrl", { length: 1000 }),
+  linkUrl: varchar("linkUrl", { length: 1000 }),
+  promoCode: varchar("promoCode", { length: 64 }),
+  showCountdown: int("showCountdown").default(1).notNull(),
+  placement: mysqlEnum("placement", ["announcement", "products", "both"]).default("announcement").notNull(),
+  enabled: int("enabled").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Campaign = typeof campaigns.$inferSelect;
+export type InsertCampaign = typeof campaigns.$inferInsert;
+
 // Discount codes table
 export const promotions = mysqlTable("promotions", {
   id: int("id").autoincrement().primaryKey(),

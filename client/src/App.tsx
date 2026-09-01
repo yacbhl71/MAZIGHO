@@ -7,6 +7,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
 import { LocaleProvider } from "./contexts/LocaleContext";
+import { useAuth } from "./_core/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { MaintenancePage } from "./components/MaintenancePage";
 import Home from "./pages/Home";
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
@@ -33,6 +36,11 @@ const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const AdminLegal = lazy(() => import("./pages/admin/AdminLegal"));
 const AdminCustomization = lazy(() => import("./pages/admin/AdminCustomization"));
 const AdminAccounting = lazy(() => import("./pages/admin/AdminAccounting"));
+const AdminComptabilite = lazy(() => import("./pages/admin/AdminComptabilite"));
+const AdminSystemHealth = lazy(() => import("./pages/admin/AdminSystemHealth"));
+const AdminMaintenance = lazy(() => import("./pages/admin/AdminMaintenance"));
+const AdminCampaigns = lazy(() => import("./pages/admin/AdminCampaigns"));
+const AdminConversion = lazy(() => import("./pages/admin/AdminConversion"));
 const AdminContent = lazy(() => import("./pages/admin/AdminContent"));
 const AdminPromotions = lazy(() => import("./pages/admin/AdminPromotions"));
 const AdminCreations = lazy(() => import("./pages/admin/AdminCreations"));
@@ -99,6 +107,11 @@ function BrowserTitle() {
       "/admin/traductions": "MAZIGHO Admin | Langues & traductions",
       "/admin/editeur": "MAZIGHO Admin | Éditeur simple",
       "/admin/suivi-administratif": "MAZIGHO Admin | Suivi administratif",
+      "/admin/comptabilite": "MAZIGHO Admin | Export comptable & TVA",
+      "/admin/sante": "MAZIGHO Admin | Santé du système",
+      "/admin/maintenance": "MAZIGHO Admin | Mode maintenance",
+      "/admin/campagnes": "MAZIGHO Admin | Campagnes & bannières",
+      "/admin/conversion": "MAZIGHO Admin | Taux de conversion",
       "/admin/seo": "MAZIGHO Admin | SEO & indexation",
       "/admin/audit": "MAZIGHO Admin | Journal d'audit",
       "/admin/paniers-abandonnes": "MAZIGHO Admin | Paniers abandonnés",
@@ -141,6 +154,26 @@ function BrowserTitle() {
 }
 
 function Router() {
+  const [location] = useLocation();
+  const { user } = useAuth();
+  const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
+  const path = location.split("?")[0];
+  const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
+  const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
+  const isExemptPath =
+    path.startsWith("/admin") ||
+    ["/login", "/register", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/activer-compte"].includes(path);
+  const forcePreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview_maintenance") === "1";
+
+  if (maintenance && (forcePreview || (maintenance.enabled && !isStaff && !isExemptPath))) {
+    return (
+      <>
+        <ScrollToTop />
+        <MaintenancePage title={maintenance.title} message={maintenance.message} />
+      </>
+    );
+  }
+
   return (
     <>
       <ScrollToTop />
@@ -183,6 +216,11 @@ function Router() {
         <Route path={"/admin/categories"} component={AdminCategories} />
         <Route path={"/admin/commandes"} component={AdminOrders} />
         <Route path={"/admin/suivi-administratif"} component={AdminAccounting} />
+        <Route path={"/admin/comptabilite"} component={AdminComptabilite} />
+        <Route path={"/admin/sante"} component={AdminSystemHealth} />
+        <Route path={"/admin/maintenance"} component={AdminMaintenance} />
+        <Route path={"/admin/campagnes"} component={AdminCampaigns} />
+        <Route path={"/admin/conversion"} component={AdminConversion} />
         <Route path={"/admin/utilisateurs"} component={AdminUsers} />
         <Route path={"/admin/avis"} component={AdminReviews} />
         <Route path={"/admin/contenu"} component={AdminContent} />

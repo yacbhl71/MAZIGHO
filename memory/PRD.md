@@ -101,3 +101,20 @@ d'où l'erreur `Failed query` sur la recherche `users`. Ce n'était pas un bug d
 - Variables Vercel requises pour le fonctionnement de base : `DATABASE_URL` (obligatoire), `JWT_SECRET` (recommandé),
   `NODE_ENV`. Les intégrations (Stripe, CJ, Make, OpenAI, Resend) ont leurs propres variables déjà présentes.
 - Le secret de session dérive de `DATABASE_URL` si `JWT_SECRET` absent → tout changement de mot de passe DB déconnecte les sessions.
+
+
+## 2026-06 — Phase 1 : correctifs UI (retour Manus) — build pod vérifié, à déployer
+- Bug langue : NON REPRODUIT sur le build actuel (refetch tRPC OK). Voir CHANGELOG.
+- Détails de livraison retirés des cartes catalogue (6 pages storefront).
+- Badges de confiance fiche produit refaits (7 langues) : Paiement sécurisé + Livraison suivie.
+- Mode sombre : fonds crème des cartes mappés vers surfaces sombres (index.css) → contraste OK.
+- Vérifié via Playwright (boutique clair + sombre, fiche produit, bascule FR↔AR). `yarn build` OK.
+- Roadmap 7 modules en attente : voir memory/ROADMAP.md (P1 : Santé Système → Aperçu brouillon → Export TVA → Maintenance → Bannières/Countdown → Analytics).
+
+## 2026-06 — Phase 2 : 3 modules roadmap P1 livrés (build pod vérifié, à déployer)
+- Santé du Système (/admin/sante), Export Comptable & TVA (/admin/comptabilite), Aperçu brouillon (bouton œil produits + /produit/{slug}?preview=1). Détails : voir CHANGELOG.md et ROADMAP.md.
+- Restant roadmap : Mode Maintenance (P1), Bannières temporelles + Compte à rebours (P1), Analyse conversion Vercel Analytics (P2, token requis).
+
+## 2026-06 — Phase 3 : roadmap P1 finalisée (commit 59303d2, à déployer)
+- Mode Maintenance (/admin/maintenance), Campagnes & bannières + Compte à rebours FOMO (/admin/campagnes), Analyse conversion placeholder (/admin/conversion). Détails : CHANGELOG.md / ROADMAP.md.
+- Les 6 modules de la roadmap sont livrés (Analyse conversion en placeholder : à connecter à Vercel Web Analytics quand le token sera fourni).

@@ -178,6 +178,29 @@
   background-color: oklch(0.3 0.045 55) !important;
 }
 
+/* Dark mode : surfaces crème arbitraires -> surface sombre, pour garder un contraste lisible sur les cartes produit */
+.dark .bg-\[\#fbf7f2\],
+.dark .bg-\[\#fffaf7\],
+.dark .bg-\[\#fffaf5\],
+.dark .bg-\[\#f8f8f7\],
+.dark .bg-\[\#f5f0ea\],
+.dark .bg-\[\#f2eee9\],
+.dark .bg-\[\#f3ebe2\] {
+  background-color: var(--card) !important;
+}
+
+.dark .bg-\[\#f4f0eb\],
+.dark .bg-\[\#f1ebe4\] {
+  background-color: var(--muted) !important;
+}
+
+.dark .border-\[\#eadfd2\],
+.dark .border-\[\#e5d8cb\],
+.dark .border-\[\#e0d3c3\],
+.dark .border-\[\#d9cbbc\] {
+  border-color: var(--border) !important;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .theme-surface {
     transition: background-color 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;

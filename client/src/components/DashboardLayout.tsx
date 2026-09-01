@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw, FileSpreadsheet, Activity, Construction, Megaphone, TrendingUp } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -37,6 +37,8 @@ const menuSections = [
     items: [
       { icon: LayoutDashboard, label: "Tableau de bord", path: "/admin" },
       { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
+      { icon: FileSpreadsheet, label: "Export comptable & TVA", path: "/admin/comptabilite" },
+      { icon: TrendingUp, label: "Taux de conversion", path: "/admin/conversion" },
     ],
   },
   {
@@ -67,6 +69,7 @@ const menuSections = [
       { icon: Layout, label: "Contenu", path: "/admin/contenu" },
       { icon: Palette, label: "Personnalisation", path: "/admin/personnalisation" },
       { icon: Percent, label: "Promotions", path: "/admin/promotions" },
+      { icon: Megaphone, label: "Campagnes & bannières", path: "/admin/campagnes" },
       { icon: ShoppingCart, label: "Paniers abandonnés", path: "/admin/paniers-abandonnes" },
       { icon: Mail, label: "E-mails clients", path: "/admin/emails" },
     ],
@@ -74,6 +77,8 @@ const menuSections = [
   {
     label: "Configuration",
     items: [
+      { icon: Activity, label: "Santé du système", path: "/admin/sante" },
+      { icon: Construction, label: "Mode maintenance", path: "/admin/maintenance" },
       { icon: Network, label: "Suivi Odoo", path: "/admin/suivi-odoo" },
       { icon: ScrollText, label: "Journal d'audit", path: "/admin/audit" },
       { icon: SearchCheck, label: "SEO & indexation", path: "/admin/seo" },

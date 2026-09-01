@@ -203,7 +203,6 @@ export default function Category() {
                             </span>
                           )}
                         </div>
-                        {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? categoryT(locale, "deliveryIncluded") : `${formatPrice(profile.customerShippingCost, locale)} / article`}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} ${t(locale, "days")}` : ""}</p> : isCreativeCategory ? <p className="text-xs font-medium text-amber-700">{categoryT(locale, "deliveryToConfirm", { country: countryLabel })}</p> : null; })()}
 
                         {/* Stock Status */}
                         <div className="text-xs font-semibold">

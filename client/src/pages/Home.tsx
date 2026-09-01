@@ -256,7 +256,6 @@ export default function Home() {
                               <span className="text-lg font-bold text-orange-600">{formatPrice(product.price, locale)}</span>
                               {hasDiscount && <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!, locale)}</span>}
                             </div>
-                            {(() => { const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode); return profile ? <p className="text-xs font-medium text-slate-500">{profile.customerShippingCost === 0 ? "✓" : formatPrice(profile.customerShippingCost, locale)}{profile.minDeliveryDays ? ` · ${profile.minDeliveryDays}${profile.maxDeliveryDays && profile.maxDeliveryDays !== profile.minDeliveryDays ? `–${profile.maxDeliveryDays}` : ""} ${t(locale, "days")}` : ""}</p> : null; })()}
                           </div>
                         </CardContent>
                       </Card>

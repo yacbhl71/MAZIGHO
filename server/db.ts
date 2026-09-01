@@ -1,4 +1,4 @@
-import { and, desc, asc, count, eq, gt, gte, lt, isNull, inArray, sql, sum, avg } from "drizzle-orm";
+import { and, desc, asc, count, eq, gt, gte, lt, lte, isNull, inArray, sql, sum, avg } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests } = schema;
+const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -2979,6 +2979,121 @@ export async function deleteAccountingEntry(id: number) {
   return { success: true };
 }
 
+// --- Generic settings (key/value) helpers ---
+export async function getSettingValue(key: string): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, key)).limit(1);
+  return rows.length ? rows[0].value : null;
+}
+
+export async function setSettingValue(key: string, value: string, description?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await db.select({ id: settings.id }).from(settings).where(eq(settings.key, key)).limit(1);
+  if (existing.length) {
+    await db.update(settings).set({ value }).where(eq(settings.key, key));
+  } else {
+    await db.insert(settings).values({ key, value, description: description ?? null });
+  }
+  return { success: true } as const;
+}
+
+// --- System health ---
+export async function pingDatabase(): Promise<{ ok: boolean; responseMs: number | null }> {
+  const db = await getDb();
+  if (!db) return { ok: false, responseMs: null };
+  const started = Date.now();
+  try {
+    await db.execute(sql`SELECT 1`);
+    return { ok: true, responseMs: Date.now() - started };
+  } catch {
+    return { ok: false, responseMs: null };
+  }
+}
+
+export async function getLastOdooSync(): Promise<string | null> {
+  return getSettingValue("odoo.last_sync_at");
+}
+
+// --- Swiss VAT configuration (default: franchise / disabled) ---
+const DEFAULT_VAT_RATE = 8.1;
+export async function getVatConfig(): Promise<{ enabled: boolean; rate: number }> {
+  const [enabled, rate] = await Promise.all([
+    getSettingValue("vat.enabled"),
+    getSettingValue("vat.rate"),
+  ]);
+  return {
+    enabled: enabled === "true",
+    rate: rate != null && !Number.isNaN(Number(rate)) ? Number(rate) : DEFAULT_VAT_RATE,
+  };
+}
+export async function setVatConfig(input: { enabled: boolean; rate: number }) {
+  await setSettingValue("vat.enabled", input.enabled ? "true" : "false", "Assujettissement TVA suisse (défaut désactivé : franchise art. 10 LTVA)");
+  await setSettingValue("vat.rate", String(input.rate), "Taux de TVA suisse applicable (%)");
+  return getVatConfig();
+}
+
+// --- Accounting / VAT export: paid orders on a period ---
+export async function getPaidOrdersBetween(from: Date, to: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    id: orders.id,
+    totalAmount: orders.totalAmount,
+    createdAt: orders.createdAt,
+    paymentMethod: orders.paymentMethod,
+    stripeSessionId: orders.stripeSessionId,
+    shippingAddress: orders.shippingAddress,
+  }).from(orders)
+    .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, from), lt(orders.createdAt, to)))
+    .orderBy(desc(orders.createdAt));
+  return rows.map(r => ({ ...r, totalAmount: Number(r.totalAmount) }));
+}
+
+export async function getYearToDatePaidSales(year: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const { start, end } = yearRange(year);
+  const rows = await db.select({ value: sum(orders.totalAmount) }).from(orders)
+    .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)));
+  return Number(rows[0]?.value || 0);
+}
+
+// --- Draft preview: fetch a product regardless of its status (admins only) ---
+export async function getProductForPreview(input: { id?: number; slug?: string }) {
+  await ensureCatalogSectionSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const condition = input.id != null ? eq(products.id, input.id) : input.slug ? eq(products.slug, input.slug) : null;
+  if (!condition) return undefined;
+  const result = await db.select({
+    id: products.id,
+    categoryId: products.categoryId,
+    categoryCatalogSection: categories.catalogSection,
+    name: products.name,
+    slug: products.slug,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    originalPrice: products.originalPrice,
+    stock: products.stock,
+    featured: products.featured,
+    status: products.status,
+    options: products.options,
+    createdAt: products.createdAt,
+    updatedAt: products.updatedAt,
+  }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(condition)
+    .limit(1);
+  if (result.length === 0) return undefined;
+  const product = result[0];
+  const deliveryProfiles = await getProductDeliveryProfiles([product.id]);
+  return { ...product, deliveryProfiles };
+}
+
+
 export async function getAllPromotions() {
   await ensurePromotionAdvancedSchema();
   const db = await getDb();
@@ -3516,4 +3631,146 @@ export async function getOrderForStripeSession(sessionId: string) {
     .where(eq(orderItems.orderId, order.id));
 
   return { order, items };
+}
+
+
+// ---------------------------------------------------------------------------
+// Maintenance mode (site-wide) — stored in the generic settings KV table.
+// ---------------------------------------------------------------------------
+export async function getMaintenanceStatus(): Promise<{ enabled: boolean; title: string; message: string }> {
+  const [enabled, title, message] = await Promise.all([
+    getSettingValue("maintenance.enabled"),
+    getSettingValue("maintenance.title"),
+    getSettingValue("maintenance.message"),
+  ]);
+  return {
+    enabled: enabled === "true",
+    title: title || "Revenez bientôt",
+    message: message || "Notre boutique est en cours de mise à jour. Nous revenons très vite avec de belles nouveautés.",
+  };
+}
+
+export async function setMaintenance(input: { enabled: boolean; title?: string; message?: string }) {
+  await setSettingValue("maintenance.enabled", input.enabled ? "true" : "false", "Mode maintenance du site (visiteurs)");
+  if (input.title != null) await setSettingValue("maintenance.title", input.title, "Titre de la page maintenance");
+  if (input.message != null) await setSettingValue("maintenance.message", input.message, "Message de la page maintenance");
+  return getMaintenanceStatus();
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled campaigns (temporal banners + FOMO countdown).
+// ---------------------------------------------------------------------------
+let _campaignSchemaReady: Promise<void> | null = null;
+async function ensureCampaignsSchema() {
+  if (_campaignSchemaReady) return _campaignSchemaReady;
+  _campaignSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `campaigns` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(200) NOT NULL, `message` varchar(300), `startsAt` timestamp NOT NULL, `endsAt` timestamp NOT NULL, `imageDesktopUrl` varchar(1000), `imageMobileUrl` varchar(1000), `linkUrl` varchar(1000), `promoCode` varchar(64), `showCountdown` int NOT NULL DEFAULT 1, `placement` enum('announcement','products','both') NOT NULL DEFAULT 'announcement', `enabled` int NOT NULL DEFAULT 1, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
+  })();
+  return _campaignSchemaReady;
+}
+
+export type CampaignInput = {
+  name: string;
+  message?: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  imageDesktopUrl?: string | null;
+  imageMobileUrl?: string | null;
+  linkUrl?: string | null;
+  promoCode?: string | null;
+  showCountdown: boolean;
+  placement: "announcement" | "products" | "both";
+  enabled: boolean;
+};
+
+function serializeCampaignInput(input: CampaignInput) {
+  return {
+    name: input.name.trim(),
+    message: input.message?.trim() || null,
+    startsAt: input.startsAt,
+    endsAt: input.endsAt,
+    imageDesktopUrl: input.imageDesktopUrl?.trim() || null,
+    imageMobileUrl: input.imageMobileUrl?.trim() || null,
+    linkUrl: input.linkUrl?.trim() || null,
+    promoCode: input.promoCode?.trim() || null,
+    showCountdown: input.showCountdown ? 1 : 0,
+    placement: input.placement,
+    enabled: input.enabled ? 1 : 0,
+  };
+}
+
+export async function getAllCampaignsAdmin() {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(campaigns).orderBy(desc(campaigns.startsAt));
+}
+
+export async function createCampaign(input: CampaignInput) {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(campaigns).values(serializeCampaignInput(input));
+  return { id: Number((result as any)[0]?.insertId), success: true };
+}
+
+export async function updateCampaign(id: number, input: CampaignInput) {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(campaigns).set(serializeCampaignInput(input)).where(eq(campaigns.id, id));
+  return { success: true };
+}
+
+export async function deleteCampaign(id: number) {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(campaigns).where(eq(campaigns.id, id));
+  return { success: true };
+}
+
+export async function toggleCampaign(id: number, enabled: boolean) {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(campaigns).set({ enabled: enabled ? 1 : 0 }).where(eq(campaigns.id, id));
+  return { success: true };
+}
+
+// Public: the currently active campaign (enabled and within its time window, server time).
+export async function getActiveCampaign() {
+  await ensureCampaignsSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const now = new Date();
+  const rows = await db.select().from(campaigns)
+    .where(and(eq(campaigns.enabled, 1), lte(campaigns.startsAt, now), gt(campaigns.endsAt, now)))
+    .orderBy(asc(campaigns.startsAt))
+    .limit(1);
+  if (rows.length === 0) return null;
+  const campaign = rows[0];
+  let promo: { code: string; type: string; value: number } | null = null;
+  if (campaign.promoCode) {
+    const promoRows = await db.select({ code: promotions.code, type: promotions.type, value: promotions.value, active: promotions.active })
+      .from(promotions).where(eq(promotions.code, campaign.promoCode)).limit(1);
+    if (promoRows.length && promoRows[0].active) {
+      promo = { code: promoRows[0].code, type: promoRows[0].type, value: Number(promoRows[0].value) };
+    }
+  }
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    message: campaign.message,
+    startsAt: campaign.startsAt,
+    endsAt: campaign.endsAt,
+    imageDesktopUrl: campaign.imageDesktopUrl,
+    imageMobileUrl: campaign.imageMobileUrl,
+    linkUrl: campaign.linkUrl,
+    showCountdown: campaign.showCountdown === 1,
+    placement: campaign.placement,
+    promo,
+  };
 }
