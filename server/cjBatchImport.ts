@@ -378,6 +378,60 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
   return result;
 }
 
+const FASHION_CATEGORY_NAME_TO_SLUG: Record<string, string> = {
+  "mode femme": "mode-femme",
+  "mode homme": "mode-homme",
+  "mode enfant": "mode-enfant",
+};
+
+/**
+ * Nettoie les brouillons CJ Mode créés avant l’ajout des critères de qualité.
+ * Les articles trop chers, hors univers ou mal classés sont archivés et restent
+ * traçables en administration ; ils ne sont jamais publiés ni supprimés.
+ */
+export async function curateCjFashionDrafts() {
+  const products = await db.getAllProductsAdmin();
+  const result = {
+    reviewed: 0,
+    enriched: 0,
+    archived: 0,
+    ignored: 0,
+    byCategory: [] as Array<{ category: string; enriched: number; archived: number }>,
+  };
+  const byCategory = new Map<string, { enriched: number; archived: number }>();
+
+  for (const product of products) {
+    const categorySlug = product.categoryName ? FASHION_CATEGORY_NAME_TO_SLUG[product.categoryName.trim().toLowerCase()] : undefined;
+    if (!categorySlug || product.status !== "draft" || product.supplier !== "CJdropshipping") continue;
+
+    result.reviewed += 1;
+    const categoryResult = byCategory.get(product.categoryName!) ?? { enriched: 0, archived: 0 };
+    const copy = commercialFashionCopy(categorySlug, product.name);
+    const priceCap = FASHION_PRICE_CAPS_CENTS[categorySlug];
+    const mustArchive = !copy || !isSuitableFashionProduct(categorySlug, product.name) || (priceCap != null && product.price > priceCap);
+
+    if (mustArchive) {
+      await db.updateProduct(product.id, { status: "archived" });
+      result.archived += 1;
+      categoryResult.archived += 1;
+      byCategory.set(product.categoryName!, categoryResult);
+      continue;
+    }
+
+    await db.updateProduct(product.id, {
+      name: copy.name,
+      description: copy.description,
+      longDescription: copy.longDescription,
+    });
+    result.enriched += 1;
+    categoryResult.enriched += 1;
+    byCategory.set(product.categoryName!, categoryResult);
+  }
+
+  result.byCategory = Array.from(byCategory.entries()).map(([category, counts]) => ({ category, ...counts }));
+  return result;
+}
+
 export function listCjBatchCategories() {
   return CJ_BATCH_CATEGORIES.map(({ categorySlug, categoryLabel }) => ({ categorySlug, categoryLabel, requested: TARGET_COUNT_PER_CATEGORY }));
 }

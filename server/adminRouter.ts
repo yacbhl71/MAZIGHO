@@ -5,7 +5,7 @@ import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
-import { importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
+import { curateCjFashionDrafts, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1084,6 +1084,20 @@ export const adminRouter = router({
           throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun produit non vérifié n’a été importé." });
         }
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de terminer ce lot CJ. Les brouillons déjà créés restent disponibles dans Produits." });
+      }
+    }),
+    curateCjFashionDrafts: adminProcedure.mutation(async ({ ctx }) => {
+      try {
+        const result = await curateCjFashionDrafts();
+        logAudit(ctx, {
+          action: "product.curate_cj_fashion_drafts",
+          entityType: "product",
+          summary: `Nettoyage Mode CJ : ${result.enriched} fiche(s) enrichie(s), ${result.archived} fiche(s) archivée(s)`,
+          metadata: { reviewed: result.reviewed, enriched: result.enriched, archived: result.archived },
+        });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Impossible de nettoyer les brouillons Mode CJ pour le moment. Aucun produit n’a été publié." });
       }
     }),
     prepareCjImport: adminProcedure.input(z.object({
