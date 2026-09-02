@@ -17,8 +17,9 @@ Une première étape complète d’automatisation des commandes a été ajoutée
 | `e9b7786` | Ajout du flux de préparation de commande CJ sandbox protégé, de l’outbox interne, du schéma de suivi, de l’UI Commandes, de l’idempotence Odoo et des tests. |
 | `b1b6525` | Passage explicite du pays de livraison au contrôle et au devis CJ, afin de toujours revalider une référence dans le contexte de destination. |
 | `4f816fb` | Messages administrateur explicites lorsque CJ bloque une référence, une variante, le stock, le fret ou la marge. |
+| `ccfc3ad` | Ajout du **Générateur de Sourcing CJ sur-mesure** ; critères personnalisés par pays, poids, multiplicateur de prix et transport CJPacket rapide ; anciens lots fixes repliés comme sauvegardes. |
 
-La production pointe actuellement sur **`4f816fb`**.
+La production pointe actuellement sur **`ccfc3ad`**.
 
 ## Flux métier mis en œuvre
 
@@ -107,6 +108,25 @@ La commande de test est conservée dans MAZIGHO comme preuve du parcours ; elle 
 | `client/src/pages/admin/AdminOrders.tsx` | Contrôle visuel et confirmation humaine du test CJ. |
 | `server/services/cjFulfillment.test.ts` | Test garantissant que le module est sandbox-only et ne peut débiter CJ. |
 | `cj_order_automation_research.md` | Références techniques CJ, Stripe et Odoo. |
+
+## Générateur de Sourcing CJ sur-mesure
+
+Le Hub fournisseurs contient désormais un bloc prioritaire et réservé à l’administration : **« Générateur de Sourcing CJ sur-mesure »**. Il est manuel : aucun traitement planifié, aucune commande CJ et aucune publication ne sont déclenchés sans action humaine.
+
+| Paramètre administrateur | Règle appliquée côté serveur |
+|---|---|
+| Niche / mot-clé CJ | Recherche texte libre, de 2 à 120 caractères. |
+| Catégorie MAZIGHO | Seules les catégories standard peuvent recevoir les brouillons. |
+| Pays de destination | CH, FR, DE, IT, AT, BE, NL ou ES ; stock et fret sont recalculés pour le pays précis. |
+| Nombre de produits | De 1 à 12 brouillons demandés au maximum par lancement. |
+| Limite de brouillons | De 1 à 50 produits CJ non archivés maximum dans la catégorie cible. |
+| Poids maximum | De 50 g à 10 kg ; variante rejetée sans poids connu ou au-dessus du seuil. |
+| Multiplicateur de prix | De 1,1 à 5 ; appliqué au coût produit + transport, arrondi commercialement à `.90` CHF. |
+| Transport | Méthode explicitement nommée **CJPacket**, non postale/non économique, avec un délai connu de 15 jours maximum. |
+
+Les anciens lots fixes par catégories et le lot Mode restent intégralement disponibles dans le code, mais sont visuellement repliés dans **« Outils classiques / sauvegarde »**. Ils ne sont pas supprimés, mais ne doivent plus être le parcours par défaut.
+
+Les fichiers clés sont `server/cjBatchImport.ts` pour le moteur, `server/adminRouter.ts` pour les validations et l’audit, `client/src/pages/admin/AdminSuppliers.tsx` pour l’interface, et `server/cjBatchImport.test.ts` pour le verrou du transport rapide.
 
 ## Points impératifs pour la suite
 
