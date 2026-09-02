@@ -79,6 +79,17 @@ export default function AdminProducts() {
   const [translationOptions, setTranslationOptions] = useState("");
 
   const productsQuery = trpc.admin.products.getAll.useQuery();
+  const odooStatusQuery = trpc.admin.integrations.odoo.status.useQuery();
+  const syncOdooCatalog = trpc.admin.integrations.odoo.syncCatalog.useMutation({
+    onSuccess: (result) => {
+      if (result.failed === 0) {
+        toast.success(`Catalogue Odoo synchronisé : ${result.created} créé(s), ${result.updated} mis à jour.`);
+      } else {
+        toast.warning(`Synchronisation terminée : ${result.created} créé(s), ${result.updated} mis à jour, ${result.failed} échec(s).`);
+      }
+    },
+    onError: (error) => toast.error(error.message || "La synchronisation Odoo a échoué."),
+  });
   const products = productsQuery.data;
   const isLoading = productsQuery.isLoading;
   const error = productsQuery.error;
@@ -394,6 +405,17 @@ export default function AdminProducts() {
   const currentSalePriceCents = parseChfToCents(price);
   const currentSupplierProductCostCents = supplierPrice ? parseChfToCents(supplierPrice) : null;
 
+  const handleOdooCatalogSync = () => {
+    if (!odooStatusQuery.data?.configured) {
+      toast.error("La connexion Odoo n’est pas entièrement configurée côté serveur.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Synchroniser tous les produits MAZIGHO vers Odoo ? Les produits seront créés ou mis à jour à partir de leur référence MAZIGHO. Cette action ne supprime aucun produit Odoo.",
+    );
+    if (confirmed) syncOdooCatalog.mutate();
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -404,7 +426,17 @@ export default function AdminProducts() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline"><Link href="/admin/importation"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Link></Button>
-            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleOdooCatalogSync}
+              disabled={!odooStatusQuery.data?.configured || syncOdooCatalog.isPending}
+              title={odooStatusQuery.data?.configured ? "Créer ou mettre à jour le catalogue Odoo" : "Configurez d’abord les variables Odoo côté serveur"}
+              className="border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100"
+            >
+              {syncOdooCatalog.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              Synchroniser le catalogue vers Odoo
+            </Button>
             <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => { resetForm(); setIsOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" /> Nouveau Produit
             </Button>

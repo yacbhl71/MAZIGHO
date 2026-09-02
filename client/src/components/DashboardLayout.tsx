@@ -31,9 +31,50 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import ThemeToggle from "./ThemeToggle";
 
-const menuSections = [
+type SidebarTone = "sky" | "orange" | "teal" | "violet" | "slate";
+
+const sidebarToneClasses: Record<SidebarTone, { label: string; active: string; idle: string; activeIcon: string; idleIcon: string }> = {
+  sky: {
+    label: "text-sky-300",
+    active: "bg-sky-500/20 text-sky-50 ring-1 ring-inset ring-sky-400/50",
+    idle: "text-slate-300 hover:bg-sky-500/10 hover:text-sky-100",
+    activeIcon: "text-sky-200",
+    idleIcon: "text-sky-300/80",
+  },
+  orange: {
+    label: "text-orange-300",
+    active: "bg-orange-500/20 text-orange-50 ring-1 ring-inset ring-orange-400/50",
+    idle: "text-slate-300 hover:bg-orange-500/10 hover:text-orange-100",
+    activeIcon: "text-orange-200",
+    idleIcon: "text-orange-300/80",
+  },
+  teal: {
+    label: "text-teal-300",
+    active: "bg-teal-500/20 text-teal-50 ring-1 ring-inset ring-teal-400/50",
+    idle: "text-slate-300 hover:bg-teal-500/10 hover:text-teal-100",
+    activeIcon: "text-teal-200",
+    idleIcon: "text-teal-300/80",
+  },
+  violet: {
+    label: "text-violet-300",
+    active: "bg-violet-500/20 text-violet-50 ring-1 ring-inset ring-violet-400/50",
+    idle: "text-slate-300 hover:bg-violet-500/10 hover:text-violet-100",
+    activeIcon: "text-violet-200",
+    idleIcon: "text-violet-300/80",
+  },
+  slate: {
+    label: "text-cyan-300",
+    active: "bg-cyan-500/20 text-cyan-50 ring-1 ring-inset ring-cyan-400/50",
+    idle: "text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100",
+    activeIcon: "text-cyan-200",
+    idleIcon: "text-cyan-300/80",
+  },
+};
+
+const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ icon: typeof LayoutDashboard; label: string; path: string }> }> = [
   {
     label: "Pilotage",
+    tone: "sky",
     items: [
       { icon: LayoutDashboard, label: "Tableau de bord", path: "/admin" },
       { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
@@ -43,6 +84,7 @@ const menuSections = [
   },
   {
     label: "Catalogue",
+    tone: "orange",
     items: [
       { icon: Package, label: "Produits", path: "/admin/produits" },
       { icon: FolderTree, label: "Catégories", path: "/admin/categories" },
@@ -53,6 +95,7 @@ const menuSections = [
   },
   {
     label: "Préparation",
+    tone: "teal",
     items: [
       { icon: Import, label: "Importer fournisseur", path: "/admin/importation" },
       { icon: Workflow, label: "Hub fournisseurs", path: "/admin/fournisseurs" },
@@ -62,6 +105,7 @@ const menuSections = [
   },
   {
     label: "Relation & contenu",
+    tone: "violet",
     items: [
       { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
       { icon: Star, label: "Avis clients", path: "/admin/avis" },
@@ -76,6 +120,7 @@ const menuSections = [
   },
   {
     label: "Configuration",
+    tone: "slate",
     items: [
       { icon: Activity, label: "Santé du système", path: "/admin/sante" },
       { icon: Construction, label: "Mode maintenance", path: "/admin/maintenance" },
@@ -318,27 +363,27 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0 overflow-y-auto">
             {menuSections.map(section => {
               const items = section.items.filter(item => isPathAllowed((user as any)?.role || "admin", item.path));
+              const tone = sidebarToneClasses[section.tone];
               if (items.length === 0) return null;
               return (
               <SidebarGroup key={section.label} className="shrink-0 px-2 py-1.5">
-                <SidebarGroupLabel className="px-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                <SidebarGroupLabel className={`px-2 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.label}`}>
                   {section.label}
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {items.map(item => {
                       const isActive = location === item.path;
-                      const isSimpleEditor = item.path === "/admin/editeur";
                       return (
                         <SidebarMenuItem key={item.path}>
                           <SidebarMenuButton
                             isActive={isActive}
                             onClick={() => setLocation(item.path)}
                             tooltip={item.label}
-                            className={`h-10 transition-all ${isSimpleEditor ? (isActive ? "bg-emerald-500 text-white hover:bg-emerald-600" : "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 hover:text-emerald-100") : (isActive ? "bg-orange-500/10 text-orange-500" : "text-slate-300 hover:text-white hover:bg-slate-800")}`}
+                            className={`h-10 transition-all duration-150 ${isActive ? tone.active : tone.idle}`}
                           >
-                            <item.icon className={`h-4 w-4 ${isSimpleEditor ? "text-emerald-300" : (isActive ? "text-orange-500" : "text-slate-400")}`} />
-                            <span className={isSimpleEditor ? "font-bold" : "font-medium"}>{item.label}</span>
+                            <item.icon className={`h-4 w-4 ${isActive ? tone.activeIcon : tone.idleIcon}`} />
+                            <span className={isActive ? "font-semibold" : "font-medium"}>{item.label}</span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       );

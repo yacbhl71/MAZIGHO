@@ -1,3 +1,5 @@
+import type { OdooCatalogProduct } from "../db";
+
 /**
  * Odoo integration (JSON-RPC).
  *
@@ -245,6 +247,114 @@ export async function syncOrderToOdoo(input: {
   } catch (error) {
     return { synced: false, skipped: false, reason: error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR" };
   }
+}
+
+export type OdooCatalogSyncFailure = {
+  productId: number;
+  name: string;
+  message: string;
+};
+
+export type OdooCatalogSyncResult = {
+  attempted: number;
+  created: number;
+  updated: number;
+  failed: number;
+  failures: OdooCatalogSyncFailure[];
+  stockNote: string;
+};
+
+export function getOdooCatalogSyncStatus(): { configured: boolean; mode: "json-rpc" } {
+  return { configured: isOdooConfigured(), mode: "json-rpc" };
+}
+
+async function findOrCreateOdooCategory(config: OdooConfig, uid: number, name: string, cache: Map<string, number>): Promise<number> {
+  const normalisedName = name.trim();
+  const cached = cache.get(normalisedName);
+  if (cached) return cached;
+
+  const ids = await executeKw<number[]>(config, uid, "product.category", "search", [[["name", "=", normalisedName]]], { limit: 1 });
+  const id = ids[0] ?? await executeKw<number>(config, uid, "product.category", "create", [{ name: normalisedName }]);
+  cache.set(normalisedName, id);
+  return id;
+}
+
+async function findOdooTemplateByReference(config: OdooConfig, uid: number, reference: string): Promise<number | null> {
+  const variants = await executeKw<Array<{ product_tmpl_id: [number, string] | false }>>(
+    config,
+    uid,
+    "product.product",
+    "search_read",
+    [[["default_code", "=", reference]]],
+    { fields: ["product_tmpl_id"], limit: 1 },
+  );
+  const relation = variants[0]?.product_tmpl_id;
+  return Array.isArray(relation) && typeof relation[0] === "number" ? relation[0] : null;
+}
+
+function catalogueValuesForOdoo(product: OdooCatalogProduct, categoryId: number | null): Record<string, unknown> {
+  const values: Record<string, unknown> = {
+    name: product.name,
+    default_code: `MAZIGHO-${product.id}`,
+    list_price: Number((product.price / 100).toFixed(2)),
+    description_sale: product.longDescription || product.description || "",
+    active: product.status !== "archived",
+    sale_ok: product.status === "active",
+    purchase_ok: false,
+  };
+  if (categoryId) values.categ_id = categoryId;
+  return values;
+}
+
+/**
+ * Creates or updates Odoo product templates using the immutable MAZIGHO-<id>
+ * reference. It never deletes Odoo products and intentionally excludes
+ * supplier costs, supplier URLs and delivery quotes from the transfer.
+ */
+export async function syncCatalogToOdoo(products: OdooCatalogProduct[]): Promise<OdooCatalogSyncResult> {
+  const config = readOdooConfig();
+  if (!config) throw new Error("ODOO_NOT_CONFIGURED");
+
+  const uid = await authenticate(config);
+  // Fail before the first write if this Odoo plan or user cannot access the external API.
+  await executeKw<number[]>(config, uid, "product.template", "search", [[]], { limit: 1 });
+  const categoryCache = new Map<string, number>();
+  const failures: OdooCatalogSyncFailure[] = [];
+  let created = 0;
+  let updated = 0;
+
+  for (const product of products) {
+    try {
+      const categoryId = product.categoryName
+        ? await findOrCreateOdooCategory(config, uid, product.categoryName, categoryCache)
+        : null;
+      const values = catalogueValuesForOdoo(product, categoryId);
+      const templateId = await findOdooTemplateByReference(config, uid, `MAZIGHO-${product.id}`);
+
+      if (templateId) {
+        await executeKw<boolean>(config, uid, "product.template", "write", [[templateId], values]);
+        updated += 1;
+      } else {
+        await executeKw<number>(config, uid, "product.template", "create", [values]);
+        created += 1;
+      }
+    } catch (error) {
+      failures.push({
+        productId: product.id,
+        name: product.name,
+        message: error instanceof Error ? error.message : "Odoo a refusé ce produit.",
+      });
+    }
+  }
+
+  return {
+    attempted: products.length,
+    created,
+    updated,
+    failed: failures.length,
+    failures: failures.slice(0, 10),
+    stockNote: "Le catalogue transmet les produits, prix et statut de vente. Les quantités physiques requièrent l’application Inventaire et une localisation Odoo dédiée.",
+  };
 }
 
 // ---- Admin "Suivi Odoo" panel: read + CRUD helpers (admin-only at the router) ----

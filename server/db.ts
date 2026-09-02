@@ -1702,6 +1702,45 @@ export async function getAllProductsAdmin() {
   })));
 }
 
+export type OdooCatalogProduct = {
+  id: number;
+  name: string;
+  description: string | null;
+  longDescription: string | null;
+  price: number;
+  stock: number;
+  status: "active" | "draft" | "archived";
+  categoryName: string | null;
+  images: Array<{ id: number; productId: number; imageUrl: string; displayOrder: number; createdAt: Date }>;
+};
+
+/**
+ * Returns the customer-facing catalogue data that can safely be exported to Odoo.
+ * Supplier prices, supplier URLs and delivery quotes intentionally stay out of this payload.
+ */
+export async function getProductsForOdooSync(): Promise<OdooCatalogProduct[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Base de données non disponible");
+
+  const rows = await db.select({
+    id: products.id,
+    name: products.name,
+    description: products.description,
+    longDescription: products.longDescription,
+    price: products.price,
+    stock: products.stock,
+    status: products.status,
+    categoryName: categories.name,
+  }).from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .orderBy(asc(products.id));
+
+  return await Promise.all(rows.map(async product => ({
+    ...product,
+    images: await getProductImages(product.id),
+  })));
+}
+
 export async function getCatalogCategoriesForEditor() {
   const db = await getDb();
   if (!db) return [];

@@ -15,8 +15,7 @@ import {
   previewProductInput,
 } from "./dropshipping";
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
-import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
-import { cancelOdooSaleOrder, createOdooPartner, listOdooPartners, listOdooSaleOrders, updateOdooPartner } from "./services/odoo";
+import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOdooStatus, listOdooPartners, listOdooSaleOrders, syncCatalogToOdoo, updateOdooPartner, verifyOdooConnection } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
@@ -1142,6 +1141,40 @@ export const adminRouter = router({
     make: router({
       status: adminProcedure.query(() => getMakeIntegrationStatus()),
       test: adminProcedure.mutation(() => sendMakeIntegrationTest()),
+    }),
+    odoo: router({
+      status: adminProcedure.query(() => getOdooCatalogSyncStatus()),
+      syncCatalog: adminProcedure.mutation(async () => {
+        try {
+          const products = await db.getProductsForOdooSync();
+          if (products.length === 0) {
+            return {
+              attempted: 0,
+              created: 0,
+              updated: 0,
+              failed: 0,
+              failures: [],
+              stockNote: "Aucun produit MAZIGHO n’est disponible à synchroniser.",
+            };
+          }
+          return await syncCatalogToOdoo(products);
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR";
+          if (code === "ODOO_NOT_CONFIGURED") {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La connexion Odoo doit être configurée dans les variables d’environnement serveur." });
+          }
+          if (code === "ODOO_AUTHENTICATION_FAILED") {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: "Odoo a refusé les identifiants configurés. Vérifiez les variables serveur, sans les afficher dans le panneau." });
+          }
+          if (code === "ODOO_UNREACHABLE") {
+            throw new TRPCError({ code: "TIMEOUT", message: "Odoo ne répond pas pour le moment. Réessayez plus tard." });
+          }
+          if (/external api|one app free|custom plan|access denied/i.test(code)) {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Odoo a refusé l’API externe. Une instance Odoo Online One App Free ne permet pas cette synchronisation directe ; utilisez une instance avec accès API externe." });
+          }
+          throw new TRPCError({ code: "BAD_GATEWAY", message: "Odoo a refusé la synchronisation du catalogue. Consultez l’état de connexion Odoo dans l’administration." });
+        }
+      }),
     }),
   }),
 
