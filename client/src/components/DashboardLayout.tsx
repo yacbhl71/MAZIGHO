@@ -35,39 +35,39 @@ type SidebarTone = "sky" | "orange" | "teal" | "violet" | "slate";
 
 const sidebarToneClasses: Record<SidebarTone, { label: string; active: string; idle: string; activeIcon: string; idleIcon: string }> = {
   sky: {
-    label: "text-sky-300",
+    label: "text-orange-300",
     active: "bg-sky-500/20 text-sky-50 ring-1 ring-inset ring-sky-400/50",
-    idle: "text-slate-300 hover:bg-sky-500/10 hover:text-sky-100",
+    idle: "text-sky-200 hover:bg-sky-500/10 hover:text-sky-50",
     activeIcon: "text-sky-200",
-    idleIcon: "text-sky-300/80",
+    idleIcon: "text-sky-300",
   },
   orange: {
     label: "text-orange-300",
     active: "bg-orange-500/20 text-orange-50 ring-1 ring-inset ring-orange-400/50",
-    idle: "text-slate-300 hover:bg-orange-500/10 hover:text-orange-100",
+    idle: "text-amber-200 hover:bg-orange-500/10 hover:text-orange-50",
     activeIcon: "text-orange-200",
-    idleIcon: "text-orange-300/80",
+    idleIcon: "text-amber-300",
   },
   teal: {
-    label: "text-teal-300",
+    label: "text-orange-300",
     active: "bg-teal-500/20 text-teal-50 ring-1 ring-inset ring-teal-400/50",
-    idle: "text-slate-300 hover:bg-teal-500/10 hover:text-teal-100",
+    idle: "text-teal-200 hover:bg-teal-500/10 hover:text-teal-50",
     activeIcon: "text-teal-200",
-    idleIcon: "text-teal-300/80",
+    idleIcon: "text-teal-300",
   },
   violet: {
-    label: "text-violet-300",
+    label: "text-orange-300",
     active: "bg-violet-500/20 text-violet-50 ring-1 ring-inset ring-violet-400/50",
-    idle: "text-slate-300 hover:bg-violet-500/10 hover:text-violet-100",
+    idle: "text-violet-200 hover:bg-violet-500/10 hover:text-violet-50",
     activeIcon: "text-violet-200",
-    idleIcon: "text-violet-300/80",
+    idleIcon: "text-violet-300",
   },
   slate: {
-    label: "text-cyan-300",
+    label: "text-orange-300",
     active: "bg-cyan-500/20 text-cyan-50 ring-1 ring-inset ring-cyan-400/50",
-    idle: "text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100",
+    idle: "text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-50",
     activeIcon: "text-cyan-200",
-    idleIcon: "text-cyan-300/80",
+    idleIcon: "text-cyan-300",
   },
 };
 
