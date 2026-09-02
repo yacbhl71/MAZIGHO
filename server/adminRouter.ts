@@ -5,7 +5,7 @@ import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
-import { curateCjFashionDrafts, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
+import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1130,6 +1130,51 @@ export const adminRouter = router({
     verifyOdoo: adminProcedure.mutation(() => verifyOdooConnection()),
     cjBatchCategories: adminProcedure.query(() => listCjBatchCategories()),
     cjFashionBatchCategories: adminProcedure.query(() => listCjFashionBatchCategories()),
+    cjCustomSourcingConfig: adminProcedure.query(() => ({
+      countries: CJ_CUSTOM_SOURCING_COUNTRIES,
+      limits: CJ_CUSTOM_SOURCING_LIMITS,
+    })),
+    importCjCustomDrafts: adminProcedure.input(z.object({
+      keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères pour la niche.").max(120),
+      categoryId: z.number().int().positive(),
+      countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
+      requestedProducts: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts).max(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts),
+      draftLimit: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit).max(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit),
+      maxWeightG: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minWeightG).max(CJ_CUSTOM_SOURCING_LIMITS.maxWeightG),
+      priceMultiplier: z.number().min(CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier).max(CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await importCjCustomDraftBatch(input);
+        logAudit(ctx, {
+          action: "product.import_cj_custom",
+          entityType: "category",
+          entityId: input.categoryId,
+          summary: `Sourcing CJ personnalisé « ${input.keyword} » : ${result.imported}/${result.requested} brouillon(s) créé(s) pour ${result.countryName}.`,
+          metadata: {
+            keyword: input.keyword,
+            countryCode: input.countryCode,
+            requestedProducts: input.requestedProducts,
+            draftLimit: input.draftLimit,
+            maxWeightG: input.maxWeightG,
+            priceMultiplier: input.priceMultiplier,
+            imported: result.imported,
+            skipped: result.skipped,
+            failures: result.failures.length,
+            fastTrackedOnly: true,
+          },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_CUSTOM_CATEGORY_INVALID") throw new TRPCError({ code: "NOT_FOUND", message: "Choisissez une catégorie MAZIGHO standard pour recevoir les brouillons." });
+        if (code === "CJ_CUSTOM_DESTINATION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La destination choisie n’est pas prise en charge par le sourcing CJ." });
+        if (code === "CJ_CUSTOM_WEIGHT_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le poids maximal doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minWeightG} g et ${CJ_CUSTOM_SOURCING_LIMITS.maxWeightG.toLocaleString("fr-CH")} g.` });
+        if (code === "CJ_CUSTOM_MULTIPLIER_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le multiplicateur doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier} et ${CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier}.` });
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun brouillon non vérifié n’a été créé." });
+        if (code === "CJ_AUTHENTICATION_FAILED") throw new TRPCError({ code: "UNAUTHORIZED", message: "CJ a refusé l’autorisation. Vérifiez la connexion avant de relancer le sourcing." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Le sourcing personnalisé n’a pas pu être terminé. Les brouillons déjà vérifiés restent disponibles dans Produits." });
+      }
+    }),
     importCjDraftBatch: adminProcedure.input(z.object({
       categorySlug: z.enum(["high-tech-gadgets", "maison-organisation", "beaute-bien-etre", "sport-fitness", "auto-accessoires", "mode", "mode-femme", "mode-homme", "mode-enfant"]),
     })).mutation(async ({ ctx, input }) => {

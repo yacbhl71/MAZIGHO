@@ -20,6 +20,10 @@ import {
   ClipboardPenLine,
   ImagePlus,
   X,
+  SlidersHorizontal,
+  Weight,
+  Truck,
+  BadgeDollarSign,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import SupplierAccountRegistry from "@/components/admin/SupplierAccountRegistry";
@@ -142,6 +146,39 @@ export default function AdminSuppliers() {
     onError: () => toast.error("La vérification de la connexion Odoo a échoué. Réessayez plus tard."),
   });
   const cjStatus = cjStatusQuery.data;
+  const categoriesQuery = trpc.categories.getAll.useQuery("fr");
+  const customSourcingConfigQuery = trpc.admin.suppliers.cjCustomSourcingConfig.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
+  const [customKeyword, setCustomKeyword] = useState("");
+  const [customCategoryId, setCustomCategoryId] = useState("");
+  const [customCountryCode, setCustomCountryCode] = useState("CH");
+  const [customRequestedProducts, setCustomRequestedProducts] = useState("6");
+  const [customDraftLimit, setCustomDraftLimit] = useState("20");
+  const [customMaxWeightG, setCustomMaxWeightG] = useState("400");
+  const [customPriceMultiplier, setCustomPriceMultiplier] = useState("2.5");
+  const [legacyToolsOpen, setLegacyToolsOpen] = useState(false);
+  const [customSourcingResult, setCustomSourcingResult] = useState<{
+    category: string;
+    keyword: string;
+    countryName: string;
+    requested: number;
+    imported: number;
+    skipped: number;
+    existingCount: number;
+    draftLimit: number;
+    maxWeightG: number;
+    priceMultiplier: number;
+    failures: Array<{ productId: string | null; query: string; reason: string }>;
+    products: Array<{ id: number; name: string; priceCents: number; stock: number }>;
+  } | null>(null);
+  const importCjCustomDrafts = trpc.admin.suppliers.importCjCustomDrafts.useMutation({
+    onSuccess: async (result) => {
+      setCustomSourcingResult(result);
+      await utils.admin.products.getAll.invalidate();
+      toast.success(`${result.imported} brouillon(s) CJ créé(s) pour ${result.countryName}.`);
+    },
+    onError: error => toast.error(error.message || "Le sourcing personnalisé a échoué."),
+  });
+  const standardCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "standard");
   const cjBatchCategoriesQuery = trpc.admin.suppliers.cjBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
   const cjFashionBatchCategoriesQuery = trpc.admin.suppliers.cjFashionBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
   const importCjDraftBatch = trpc.admin.suppliers.importCjDraftBatch.useMutation();
@@ -156,6 +193,48 @@ export default function AdminSuppliers() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Le nettoyage Mode n’a pas pu être terminé.");
     }
+  };
+  const runCustomSourcing = async () => {
+    const requestedProducts = Number.parseInt(customRequestedProducts, 10);
+    const draftLimit = Number.parseInt(customDraftLimit, 10);
+    const maxWeightG = Number.parseInt(customMaxWeightG, 10);
+    const priceMultiplier = Number.parseFloat(customPriceMultiplier.replace(",", "."));
+    const limits = customSourcingConfigQuery.data?.limits;
+    if (!customKeyword.trim() || customKeyword.trim().length < 2) {
+      toast.error("Saisissez une niche ou un mot-clé d’au moins 2 caractères.");
+      return;
+    }
+    if (!customCategoryId) {
+      toast.error("Choisissez la catégorie MAZIGHO qui recevra les brouillons.");
+      return;
+    }
+    if (!limits || !Number.isInteger(requestedProducts) || requestedProducts < limits.minRequestedProducts || requestedProducts > limits.maxRequestedProducts) {
+      toast.error(`Le nombre de produits doit être compris entre ${limits?.minRequestedProducts ?? 1} et ${limits?.maxRequestedProducts ?? 12}.`);
+      return;
+    }
+    if (!Number.isInteger(draftLimit) || draftLimit < limits.minDraftLimit || draftLimit > limits.maxDraftLimit) {
+      toast.error(`La limite de brouillons doit être comprise entre ${limits.minDraftLimit} et ${limits.maxDraftLimit}.`);
+      return;
+    }
+    if (!Number.isInteger(maxWeightG) || maxWeightG < limits.minWeightG || maxWeightG > limits.maxWeightG) {
+      toast.error(`Le poids maximal doit être compris entre ${limits.minWeightG} g et ${limits.maxWeightG.toLocaleString("fr-CH")} g.`);
+      return;
+    }
+    if (!Number.isFinite(priceMultiplier) || priceMultiplier < limits.minPriceMultiplier || priceMultiplier > limits.maxPriceMultiplier) {
+      toast.error(`Le multiplicateur doit être compris entre ${limits.minPriceMultiplier} et ${limits.maxPriceMultiplier}.`);
+      return;
+    }
+    const country = customSourcingConfigQuery.data?.countries.find(item => item.countryCode === customCountryCode)?.countryName || customCountryCode;
+    if (!window.confirm(`Lancer un sourcing CJ pour « ${customKeyword.trim()} » ? MAZIGHO cherchera au plus ${requestedProducts} brouillons dans la catégorie choisie, pour ${country}, sous ${maxWeightG} g, avec un prix final ×${priceMultiplier} et uniquement des méthodes CJPacket rapides. Aucun produit ne sera publié ou commandé.`)) return;
+    await importCjCustomDrafts.mutateAsync({
+      keyword: customKeyword.trim(),
+      categoryId: Number(customCategoryId),
+      countryCode: customCountryCode as "CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES",
+      requestedProducts,
+      draftLimit,
+      maxWeightG,
+      priceMultiplier,
+    });
   };
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchResults, setBatchResults] = useState<Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }>>([]);
@@ -314,7 +393,11 @@ export default function AdminSuppliers() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm md:p-6" data-testid="cj-batch-import-card">
+        <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 shadow-sm" data-testid="cj-legacy-tools-card">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 text-sm font-semibold text-slate-800"><LockKeyhole className="h-4 w-4 text-slate-600" /> Outils classiques / sauvegarde</div><p className="mt-1 text-xs leading-5 text-slate-600">Les anciens lots fixes High-Tech, Mode et catégories restent conservés, mais sont repliés afin de laisser le générateur personnalisé au premier plan.</p></div><Button type="button" variant="outline" onClick={() => setLegacyToolsOpen(current => !current)} className="border-slate-300 bg-white text-slate-800 hover:bg-slate-100">{legacyToolsOpen ? "Masquer les outils classiques" : "Afficher les outils classiques"}</Button></div>
+        </section>
+
+        {legacyToolsOpen && <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm md:p-6" data-testid="cj-batch-import-card">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-4">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><PackageCheck className="h-5 w-5" /></div>
@@ -330,9 +413,50 @@ export default function AdminSuppliers() {
           </div>
           <p className="mt-4 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 text-xs leading-5 text-emerald-950"><strong>Règles appliquées :</strong> recherche ciblée, contrôle d’un stock positif, devis de livraison CJ vers la Suisse, prix final avec livraison incluse, statut brouillon et protection contre les doublons. Les catégories de créations originales ne sont pas concernées.</p>
           {batchResults.length > 0 && <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{batchResults.map(result => <div key={result.category} className="rounded-xl border border-emerald-200 bg-white p-3 text-sm"><p className="font-semibold text-slate-900">{result.category}</p><p className="mt-1 text-emerald-800"><strong>{result.imported}/{result.requested}</strong> brouillon(s) créés</p><p className="mt-1 text-xs text-slate-500">{result.skipped} doublon(s) ou candidat(s) écarté(s) · {result.failures.length} incident(s) CJ</p></div>)}</div>}
+        </section>}
+
+        <section className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-sky-50 p-5 shadow-sm md:p-6" data-testid="cj-custom-sourcing-card">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex gap-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-100 text-violet-700"><SlidersHorizontal className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Générateur de Sourcing CJ sur-mesure</h2><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">Brouillons uniquement</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">Définissez une niche, une catégorie, le pays de vente, le volume souhaité et vos règles commerciales. MAZIGHO ne retient que les produits dont le stock, le poids, le fret et le prix final sont validés pour la destination choisie.</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="w-fit border-violet-200 bg-white text-violet-800">Contrôle humain requis</Badge>
+          </div>
+
+          <form onSubmit={event => { event.preventDefault(); void runCustomSourcing(); }} className="mt-5 grid gap-4">
+            <datalist id="cj-custom-niches">
+              <option value="Gadgets" />
+              <option value="Accessoires téléphone" />
+              <option value="Organisation maison" />
+              <option value="Fitness léger" />
+              <option value="Mode" />
+              <option value="Accessoires voiture" />
+            </datalist>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Niche / mot-clé CJ</span><input value={customKeyword} onChange={event => setCustomKeyword(event.target.value)} list="cj-custom-niches" maxLength={120} placeholder="Ex. gadgets de voyage" className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Texte libre ou suggestion.</span></label>
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Catégorie MAZIGHO</span><select value={customCategoryId} onChange={event => setCustomCategoryId(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><option value="">Choisir la catégorie</option>{standardCategories.map(category => <option key={category.id} value={String(category.id)}>{category.name}</option>)}</select><span className="text-xs text-slate-500">Destination des brouillons.</span></label>
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Pays de destination</span><select value={customCountryCode} onChange={event => setCustomCountryCode(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500">{(customSourcingConfigQuery.data?.countries || []).map(country => <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>)}</select><span className="text-xs text-slate-500">Stock et fret revalidés pour ce pays.</span></label>
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Nombre de produits à préparer</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minRequestedProducts || 1} max={customSourcingConfigQuery.data?.limits.maxRequestedProducts || 12} value={customRequestedProducts} onChange={event => setCustomRequestedProducts(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">1 à 12 candidats maximum.</span></label>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Limite de brouillons</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minDraftLimit || 1} max={customSourcingConfigQuery.data?.limits.maxDraftLimit || 50} value={customDraftLimit} onChange={event => setCustomDraftLimit(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Plafond de produits CJ non archivés dans la catégorie.</span></label>
+              <label className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Weight className="h-4 w-4 text-violet-700" /> Poids maximum (g)</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minWeightG || 50} max={customSourcingConfigQuery.data?.limits.maxWeightG || 10000} value={customMaxWeightG} onChange={event => setCustomMaxWeightG(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Les variantes sans poids connu sont rejetées.</span></label>
+              <label className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><BadgeDollarSign className="h-4 w-4 text-violet-700" /> Multiplicateur de prix</span><input type="number" inputMode="decimal" min={customSourcingConfigQuery.data?.limits.minPriceMultiplier || 1.1} max={customSourcingConfigQuery.data?.limits.maxPriceMultiplier || 5} step="0.1" value={customPriceMultiplier} onChange={event => setCustomPriceMultiplier(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Appliqué au coût produit + fret, arrondi à .90 CHF.</span></label>
+              <div className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Truck className="h-4 w-4 text-violet-700" /> Transport retenu</span><div className="flex h-11 items-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-950">CJPacket rapide avec suivi</div><span className="text-xs text-slate-500">Postal, économique, sans suivi ou &gt; 15 jours : rejetés.</span></div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-xl border border-violet-200 bg-white/80 p-4 md:flex-row md:items-center md:justify-between"><p className="max-w-3xl text-xs leading-5 text-slate-700"><strong>Règles non négociables :</strong> produit CJ unique, catégorie standard, stock positif, poids connu sous le seuil, fret chiffré pour le pays choisi, méthode CJPacket rapide, prix client final tout compris et statut brouillon. Aucun article ne sera publié, payé ou commandé chez CJ.</p><Button type="submit" disabled={!cjStatus?.configured || customSourcingConfigQuery.isLoading || importCjCustomDrafts.isPending} className="shrink-0 bg-violet-700 text-white hover:bg-violet-800">{importCjCustomDrafts.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageSearch className="mr-2 h-4 w-4" />}{importCjCustomDrafts.isPending ? "Sourcing en cours…" : "Lancer le sourcing personnalisé"}</Button></div>
+          </form>
+
+          {customSourcingResult && <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-950">Dernier sourcing : « {customSourcingResult.keyword} »</p><p className="mt-1 text-sm text-slate-600">{customSourcingResult.category} · {customSourcingResult.countryName} · {customSourcingResult.maxWeightG} g max. · prix ×{customSourcingResult.priceMultiplier}</p></div><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">{customSourcingResult.imported}/{customSourcingResult.requested} brouillon(s)</Badge></div>{customSourcingResult.products.length > 0 ? <div className="mt-3 divide-y rounded-lg border border-violet-100">{customSourcingResult.products.map(product => <div key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm"><span className="min-w-0 truncate font-medium text-slate-900">{product.name}</span><span className="shrink-0 text-violet-800">{(product.priceCents / 100).toFixed(2)} CHF</span></div>)}</div> : <p className="mt-3 text-sm text-slate-600">Aucun candidat n’a passé tous les contrôles. Aucun brouillon n’a été créé.</p>}</div><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-950"><p className="font-semibold">Synthèse du contrôle</p><p className="mt-2">{customSourcingResult.existingCount} produit(s) CJ déjà non archivé(s) dans cette catégorie · plafond {customSourcingResult.draftLimit}</p><p className="mt-1">{customSourcingResult.skipped} candidat(s) écarté(s) · {customSourcingResult.failures.length} incident(s) CJ.</p><p className="mt-3 text-xs leading-5 text-violet-900">Les incidents et candidats écartés ne créent ni produit public ni commande fournisseur.</p></div></div>}
         </section>
 
-        <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm md:p-6" data-testid="cj-fashion-batch-import-card">
+        {legacyToolsOpen && <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm md:p-6" data-testid="cj-fashion-batch-import-card">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-4">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700"><PackageCheck className="h-5 w-5" /></div>
@@ -355,7 +479,7 @@ export default function AdminSuppliers() {
           <p className="mt-4 rounded-xl border border-rose-200 bg-white/80 px-4 py-3 text-xs leading-5 text-rose-950"><strong>Règles appliquées :</strong> vêtements destinés à la catégorie choisie, contrôle du stock positif, devis de livraison Suisse, prix final tout compris, statut brouillon et prévention des doublons. Aucun produit n’est publié ni commandé.</p>
           {fashionBatchResults.length > 0 && <div className="mt-4 grid gap-3 md:grid-cols-3">{fashionBatchResults.map(result => <div key={result.category} className="rounded-xl border border-rose-200 bg-white p-3 text-sm"><p className="font-semibold text-slate-900">{result.category}</p><p className="mt-1 text-rose-800"><strong>{result.imported}/{result.requested}</strong> brouillon(s) créés</p><p className="mt-1 text-xs text-slate-500">{result.skipped} doublon(s) ou candidat(s) écarté(s) · {result.failures.length} incident(s) CJ</p></div>)}</div>}
           {fashionCurationResult && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"><strong>Contrôle qualité terminé :</strong> {fashionCurationResult.enriched} fiche(s) enrichie(s), {fashionCurationResult.archived} fiche(s) archivée(s), sur {fashionCurationResult.reviewed} brouillon(s) analysés. Aucun produit n’a été publié ni supprimé.</div>}
-        </section>
+        </section>}
 
         <section className="rounded-2xl border border-orange-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
