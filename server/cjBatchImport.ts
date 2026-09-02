@@ -5,6 +5,17 @@ const TARGET_COUNT_PER_CATEGORY = 8;
 const USD_TO_CHF = 0.9;
 const TARGET_MARGIN_PERCENT = 35;
 
+const FASHION_PRICE_CAPS_CENTS: Record<string, number> = {
+  "mode-femme": 3990,
+  "mode-homme": 3990,
+  "mode-enfant": 2990,
+};
+
+const FASHION_EXCLUSION_TERMS = ["cosplay", "wig", "perruque", "costume", "adult toy", "sexy lingerie"];
+const WOMEN_TERMS = ["women", "woman", "women's", "ladies", "lady", "female"];
+const MEN_TERMS = ["men", "men's", "male", "gentleman"];
+const CHILDREN_TERMS = ["kids", "kid", "children", "child", "boys", "boy", "girls", "girl", "toddler"];
+
 type CjBatchCategory = {
   categorySlug: string;
   categoryLabel: string;
@@ -193,6 +204,45 @@ function reasonFor(error: unknown) {
   return "Produit écarté : informations CJ incomplètes ou livraison Suisse non confirmée.";
 }
 
+function containsOne(value: string, terms: readonly string[]) {
+  return terms.some(term => new RegExp(`\\b${term.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i").test(value));
+}
+
+function isSuitableFashionProduct(categorySlug: string, rawName: string) {
+  const value = rawName.toLowerCase();
+  if (containsOne(value, FASHION_EXCLUSION_TERMS)) return false;
+  if (categorySlug === "mode-homme") return !containsOne(value, WOMEN_TERMS) && !containsOne(value, CHILDREN_TERMS);
+  if (categorySlug === "mode-femme") return !containsOne(value, MEN_TERMS) && !containsOne(value, CHILDREN_TERMS);
+  if (categorySlug === "mode-enfant") return !containsOne(value, WOMEN_TERMS) && !containsOne(value, MEN_TERMS);
+  return true;
+}
+
+type CommercialFashionCopy = { name: string; description: string; longDescription: string };
+
+function commercialFashionCopy(categorySlug: string, rawName: string): CommercialFashionCopy | null {
+  const value = rawName.toLowerCase();
+  const audience = categorySlug === "mode-femme" ? "femme" : categorySlug === "mode-homme" ? "homme" : "enfant";
+  const type = value.includes("dress") ? "Robe" : value.includes("skirt") ? "Jupe" : value.includes("jean") ? "Jean" : value.includes("trouser") || value.includes("pants") ? "Pantalon" : value.includes("short") ? "Short" : value.includes("hoodie") ? "Sweat à capuche" : value.includes("cardigan") ? "Cardigan" : value.includes("sweater") || value.includes("knit") ? "Pull" : value.includes("jacket") || value.includes("coat") ? "Veste" : value.includes("t-shirt") || value.includes("t shirt") ? "T-shirt" : value.includes("shirt") || value.includes("blouse") || value.includes("overshirt") ? "Chemise" : null;
+  if (!type) return null;
+  const details = [
+    value.includes("linen") ? "effet lin" : null,
+    value.includes("denim") ? "en denim" : null,
+    value.includes("plaid") ? "à carreaux" : null,
+    value.includes("floral") ? "à imprimé fleuri" : null,
+    value.includes("hooded") ? "à capuche" : null,
+    value.includes("wide leg") || value.includes("wide-leg") ? "coupe ample" : null,
+    value.includes("loose") || value.includes("oversize") ? "coupe décontractée" : null,
+    value.includes("long sleeve") ? "manches longues" : null,
+  ].filter((item): item is string => Boolean(item)).slice(0, 2);
+  const suffix = details.length ? ` · ${details.join(" · ")}` : "";
+  const name = `${type} ${audience}${suffix}`.slice(0, 200);
+  return {
+    name,
+    description: `${type} ${audience} sélectionné pour une silhouette facile à composer au quotidien.${details.length ? ` ${details.join(", ")}.` : ""}`.slice(0, 500),
+    longDescription: `Une pièce pensée pour compléter une tenue avec simplicité. Consultez les photos et les options disponibles avant de choisir votre modèle.`
+  };
+}
+
 /**
  * Recherche et crée au plus huit brouillons pour une catégorie. Chaque produit est
  * vérifié à nouveau sur une variante précise : stock CJ positif et tarif Suisse.
@@ -276,14 +326,23 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
           const supplierPriceCents = toChfCents(selection.supplierPriceUsd);
           const supplierShippingCost = toChfCents(selection.shippingUsd);
           const priceCents = suggestedSalePriceCents(supplierPriceCents, supplierShippingCost);
+          const isFashionCategory = categorySlug.startsWith("mode-");
+          const fashionCopy = isFashionCategory ? commercialFashionCopy(categorySlug, prepared.name) : null;
+          const maxFashionPrice = FASHION_PRICE_CAPS_CENTS[categorySlug];
+          if (isFashionCategory && (!isSuitableFashionProduct(categorySlug, prepared.name) || !fashionCopy || (maxFashionPrice != null && priceCents > maxFashionPrice))) {
+            result.skipped += 1;
+            continue;
+          }
           const deliveryDays = parseDeliveryRange(selection.delay);
-          const baseSlug = slugify(prepared.name) || "produit-cj";
+          const customerName = fashionCopy?.name ?? prepared.name.slice(0, 200);
+          const baseSlug = slugify(customerName) || "produit-cj";
           const created = await db.createProduct({
             categoryId: category.id,
             categoryIds: [category.id],
-            name: prepared.name.slice(0, 200),
+            name: customerName,
             slug: `${baseSlug}-${prepared.productId.slice(-8).toLowerCase()}`.slice(0, 190),
-            description: prepared.description?.slice(0, 10_000) || null,
+            description: (fashionCopy?.description ?? prepared.description?.slice(0, 10_000)) || null,
+            longDescription: fashionCopy?.longDescription ?? null,
             price: priceCents,
             originalPrice: null,
             stock: selection.stock,
@@ -305,7 +364,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
           });
 
           result.imported += 1;
-          result.products.push({ id: created.id, name: prepared.name, priceCents, stock: selection.stock });
+          result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock });
           importedFromQuery += 1;
         } catch (error) {
           result.failures.push({ productId: candidate.id, query, reason: reasonFor(error) });
