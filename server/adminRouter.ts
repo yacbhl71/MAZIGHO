@@ -5,7 +5,7 @@ import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
-import { importCjDraftBatchForCategory, listCjBatchCategories } from "./cjBatchImport";
+import { importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1056,8 +1056,9 @@ export const adminRouter = router({
     odooStatus: adminProcedure.query(() => getOdooStatus()),
     verifyOdoo: adminProcedure.mutation(() => verifyOdooConnection()),
     cjBatchCategories: adminProcedure.query(() => listCjBatchCategories()),
+    cjFashionBatchCategories: adminProcedure.query(() => listCjFashionBatchCategories()),
     importCjDraftBatch: adminProcedure.input(z.object({
-      categorySlug: z.enum(["high-tech-gadgets", "maison-organisation", "beaute-bien-etre", "sport-fitness", "auto-accessoires", "mode"]),
+      categorySlug: z.enum(["high-tech-gadgets", "maison-organisation", "beaute-bien-etre", "sport-fitness", "auto-accessoires", "mode", "mode-femme", "mode-homme", "mode-enfant"]),
     })).mutation(async ({ ctx, input }) => {
       try {
         const result = await importCjDraftBatchForCategory(input.categorySlug);

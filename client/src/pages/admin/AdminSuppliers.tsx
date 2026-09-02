@@ -143,6 +143,7 @@ export default function AdminSuppliers() {
   });
   const cjStatus = cjStatusQuery.data;
   const cjBatchCategoriesQuery = trpc.admin.suppliers.cjBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
+  const cjFashionBatchCategoriesQuery = trpc.admin.suppliers.cjFashionBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
   const importCjDraftBatch = trpc.admin.suppliers.importCjDraftBatch.useMutation();
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchResults, setBatchResults] = useState<Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }>>([]);
@@ -172,6 +173,36 @@ export default function AdminSuppliers() {
     setBatchRunning(false);
     const imported = results.reduce((total, item) => total + item.imported, 0);
     toast.message(`Import CJ terminé : ${imported} brouillon(s) créés. Consultez Produits avant toute activation.`);
+  };
+  const [fashionBatchRunning, setFashionBatchRunning] = useState(false);
+  const [fashionBatchResults, setFashionBatchResults] = useState<Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }>>([]);
+  const runCjFashionBatches = async () => {
+    const batches = cjFashionBatchCategoriesQuery.data || [];
+    const totalRequested = batches.reduce((total, batch) => total + batch.requested, 0);
+    if (batches.length === 0) {
+      toast.error("Les catégories Mode Femme, Homme et Enfant ne sont pas disponibles.");
+      return;
+    }
+    if (!window.confirm(`Préparer jusqu’à ${totalRequested} vêtements CJ en brouillon, répartis entre Femme, Homme et Enfant ? Chaque produit sera contrôlé pour le stock et la livraison Suisse. Aucun produit ne sera publié ni commandé.`)) return;
+    setFashionBatchRunning(true);
+    setFashionBatchResults([]);
+    const results: Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }> = [];
+    for (const batch of batches) {
+      try {
+        const result = await importCjDraftBatch.mutateAsync({ categorySlug: batch.categorySlug });
+        results.push(result);
+        setFashionBatchResults([...results]);
+        toast.success(`${result.category} : ${result.imported} vêtement(s) ajouté(s).`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Lot Mode non terminé.";
+        results.push({ category: batch.categoryLabel, requested: batch.requested, imported: 0, skipped: 0, failures: [{ productId: null, query: "lot", reason: message }] });
+        setFashionBatchResults([...results]);
+        toast.error(`${batch.categoryLabel} : ${message}`);
+      }
+    }
+    setFashionBatchRunning(false);
+    const imported = results.reduce((total, item) => total + item.imported, 0);
+    toast.message(`Import Mode terminé : ${imported} brouillon(s) créés. Consultez Produits avant toute activation.`);
   };
   const [cjKeyword, setCjKeyword] = useState("");
   const [cjCountry, setCjCountry] = useState("");
@@ -287,6 +318,24 @@ export default function AdminSuppliers() {
           </div>
           <p className="mt-4 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 text-xs leading-5 text-emerald-950"><strong>Règles appliquées :</strong> recherche ciblée, contrôle d’un stock positif, devis de livraison CJ vers la Suisse, prix final avec livraison incluse, statut brouillon et protection contre les doublons. Les catégories de créations originales ne sont pas concernées.</p>
           {batchResults.length > 0 && <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{batchResults.map(result => <div key={result.category} className="rounded-xl border border-emerald-200 bg-white p-3 text-sm"><p className="font-semibold text-slate-900">{result.category}</p><p className="mt-1 text-emerald-800"><strong>{result.imported}/{result.requested}</strong> brouillon(s) créés</p><p className="mt-1 text-xs text-slate-500">{result.skipped} doublon(s) ou candidat(s) écarté(s) · {result.failures.length} incident(s) CJ</p></div>)}</div>}
+        </section>
+
+        <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm md:p-6" data-testid="cj-fashion-batch-import-card">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex gap-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700"><PackageCheck className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Sélection CJ · Mode Femme, Homme & Enfant</h2><Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100">50 brouillons maximum</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">Prépare jusqu’à 50 vêtements, répartis en 17 modèles Femme, 17 modèles Homme et 16 modèles Enfant. Chaque article doit avoir un stock CJ positif et une livraison Suisse chiffrée. Le prix client inclut déjà le transport fournisseur.</p>
+              </div>
+            </div>
+            <Button type="button" onClick={runCjFashionBatches} disabled={!cjStatus?.configured || fashionBatchRunning || importCjDraftBatch.isPending} className="bg-rose-700 text-white hover:bg-rose-800">
+              {fashionBatchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+              {fashionBatchRunning ? `Préparation ${fashionBatchResults.length}/${cjFashionBatchCategoriesQuery.data?.length || 3}` : "Préparer les 50 vêtements CJ"}
+            </Button>
+          </div>
+          <p className="mt-4 rounded-xl border border-rose-200 bg-white/80 px-4 py-3 text-xs leading-5 text-rose-950"><strong>Règles appliquées :</strong> vêtements destinés à la catégorie choisie, contrôle du stock positif, devis de livraison Suisse, prix final tout compris, statut brouillon et prévention des doublons. Aucun produit n’est publié ni commandé.</p>
+          {fashionBatchResults.length > 0 && <div className="mt-4 grid gap-3 md:grid-cols-3">{fashionBatchResults.map(result => <div key={result.category} className="rounded-xl border border-rose-200 bg-white p-3 text-sm"><p className="font-semibold text-slate-900">{result.category}</p><p className="mt-1 text-rose-800"><strong>{result.imported}/{result.requested}</strong> brouillon(s) créés</p><p className="mt-1 text-xs text-slate-500">{result.skipped} doublon(s) ou candidat(s) écarté(s) · {result.failures.length} incident(s) CJ</p></div>)}</div>}
         </section>
 
         <section className="rounded-2xl border border-orange-200 bg-white p-5 shadow-sm md:p-6">

@@ -5,6 +5,14 @@ const TARGET_COUNT_PER_CATEGORY = 8;
 const USD_TO_CHF = 0.9;
 const TARGET_MARGIN_PERCENT = 35;
 
+type CjBatchCategory = {
+  categorySlug: string;
+  categoryLabel: string;
+  queries: readonly string[];
+  targetCount?: number;
+  maxPerQuery?: number;
+};
+
 export const CJ_BATCH_CATEGORIES = [
   {
     categorySlug: "high-tech-gadgets",
@@ -90,9 +98,49 @@ export const CJ_BATCH_CATEGORIES = [
       "crossbody phone bag",
     ],
   },
-] as const;
+] as const satisfies readonly CjBatchCategory[];
 
-type BatchCategorySlug = typeof CJ_BATCH_CATEGORIES[number]["categorySlug"];
+/**
+ * Sélections vestimentaires distinctes. La répartition 17 + 17 + 16 donne
+ * exactement cinquante brouillons au maximum, sans publier ni commander.
+ */
+export const CJ_FASHION_BATCH_CATEGORIES = [
+  {
+    categorySlug: "mode-femme",
+    categoryLabel: "Mode Femme",
+    targetCount: 17,
+    maxPerQuery: 3,
+    queries: [
+      "women casual knit sweater", "women midi dress casual", "women wide leg trousers",
+      "women linen shirt blouse", "women lightweight jacket", "women basic t shirt",
+      "women cardigan button", "women summer skirt", "women straight jeans",
+    ],
+  },
+  {
+    categorySlug: "mode-homme",
+    categoryLabel: "Mode Homme",
+    targetCount: 17,
+    maxPerQuery: 3,
+    queries: [
+      "men cotton polo shirt", "men casual overshirt", "men knit crewneck sweater",
+      "men chino trousers", "men casual jacket", "men basic t shirt",
+      "men straight jeans", "men zip hoodie", "men summer shorts",
+    ],
+  },
+  {
+    categorySlug: "mode-enfant",
+    categoryLabel: "Mode Enfant",
+    targetCount: 16,
+    maxPerQuery: 3,
+    queries: [
+      "kids cotton t shirt", "children casual hoodie", "kids jogger pants",
+      "children summer dress", "kids fleece jacket", "kids long sleeve top",
+      "children leggings pants", "kids casual shorts", "children knit sweater",
+    ],
+  },
+] as const satisfies readonly CjBatchCategory[];
+
+type BatchCategorySlug = (typeof CJ_BATCH_CATEGORIES[number] | typeof CJ_FASHION_BATCH_CATEGORIES[number])["categorySlug"];
 
 type BatchFailure = {
   productId: string | null;
@@ -147,18 +195,20 @@ function reasonFor(error: unknown) {
  * Ce service ne publie aucun produit et n'envoie aucune commande fournisseur.
  */
 export async function importCjDraftBatchForCategory(categorySlug: BatchCategorySlug): Promise<CjBatchImportResult> {
-  const source = CJ_BATCH_CATEGORIES.find(item => item.categorySlug === categorySlug);
+  const source = [...CJ_BATCH_CATEGORIES, ...CJ_FASHION_BATCH_CATEGORIES].find(item => item.categorySlug === categorySlug);
   if (!source) throw new Error("CJ_BATCH_CATEGORY_INVALID");
 
   const categories = await db.getAllCategories();
   const category = categories.find(item => item.slug === categorySlug && item.catalogSection === "standard");
   if (!category) throw new Error("CJ_BATCH_CATEGORY_NOT_FOUND");
 
+  const targetCount = source.targetCount ?? TARGET_COUNT_PER_CATEGORY;
+  const maxPerQuery = source.maxPerQuery ?? 1;
   const existingCount = await db.countProductsBySupplierInCategory("CJdropshipping", category.id);
-  const remainingCount = Math.max(0, TARGET_COUNT_PER_CATEGORY - existingCount);
+  const remainingCount = Math.max(0, targetCount - existingCount);
   const result: CjBatchImportResult = {
     category: category.name,
-    requested: TARGET_COUNT_PER_CATEGORY,
+    requested: targetCount,
     imported: 0,
     skipped: existingCount,
     failures: [],
@@ -172,10 +222,10 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
     try {
       const search = await searchCjCatalog({ keyword: query, page: 1 });
       const candidates = search.products.slice(0, 8);
-      let importedFromQuery = false;
+      let importedFromQuery = 0;
 
       for (const candidate of candidates) {
-        if (result.imported >= remainingCount || importedFromQuery || consideredIds.has(candidate.id)) continue;
+        if (result.imported >= remainingCount || importedFromQuery >= maxPerQuery || consideredIds.has(candidate.id)) continue;
         consideredIds.add(candidate.id);
 
         const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
@@ -252,7 +302,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
 
           result.imported += 1;
           result.products.push({ id: created.id, name: prepared.name, priceCents, stock: selection.stock });
-          importedFromQuery = true;
+          importedFromQuery += 1;
         } catch (error) {
           result.failures.push({ productId: candidate.id, query, reason: reasonFor(error) });
         }
@@ -267,6 +317,10 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
 
 export function listCjBatchCategories() {
   return CJ_BATCH_CATEGORIES.map(({ categorySlug, categoryLabel }) => ({ categorySlug, categoryLabel, requested: TARGET_COUNT_PER_CATEGORY }));
+}
+
+export function listCjFashionBatchCategories() {
+  return CJ_FASHION_BATCH_CATEGORIES.map(({ categorySlug, categoryLabel, targetCount }) => ({ categorySlug, categoryLabel, requested: targetCount }));
 }
 
 export type { BatchCategorySlug };
