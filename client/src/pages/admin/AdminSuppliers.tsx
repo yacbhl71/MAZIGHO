@@ -142,6 +142,37 @@ export default function AdminSuppliers() {
     onError: () => toast.error("La vérification de la connexion Odoo a échoué. Réessayez plus tard."),
   });
   const cjStatus = cjStatusQuery.data;
+  const cjBatchCategoriesQuery = trpc.admin.suppliers.cjBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
+  const importCjDraftBatch = trpc.admin.suppliers.importCjDraftBatch.useMutation();
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchResults, setBatchResults] = useState<Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }>>([]);
+  const runCjBatches = async () => {
+    const batches = cjBatchCategoriesQuery.data || [];
+    if (batches.length === 0) {
+      toast.error("Les catégories CJ à importer ne sont pas disponibles pour le moment.");
+      return;
+    }
+    if (!window.confirm(`Préparer jusqu’à ${batches.length * 8} brouillons CJ, soit 8 produits maximum par catégorie ? Chaque produit sera contrôlé pour le stock et la livraison Suisse. Aucun produit ne sera publié ni commandé.`)) return;
+    setBatchRunning(true);
+    setBatchResults([]);
+    const results: Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }> = [];
+    for (const batch of batches) {
+      try {
+        const result = await importCjDraftBatch.mutateAsync({ categorySlug: batch.categorySlug });
+        results.push(result);
+        setBatchResults([...results]);
+        toast.success(`${result.category} : ${result.imported} brouillon(s) ajouté(s).`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Lot CJ non terminé.";
+        results.push({ category: batch.categoryLabel, requested: batch.requested, imported: 0, skipped: 0, failures: [{ productId: null, query: "lot", reason: message }] });
+        setBatchResults([...results]);
+        toast.error(`${batch.categoryLabel} : ${message}`);
+      }
+    }
+    setBatchRunning(false);
+    const imported = results.reduce((total, item) => total + item.imported, 0);
+    toast.message(`Import CJ terminé : ${imported} brouillon(s) créés. Consultez Produits avant toute activation.`);
+  };
   const [cjKeyword, setCjKeyword] = useState("");
   const [cjCountry, setCjCountry] = useState("");
   const [cjFreeShippingOnly, setCjFreeShippingOnly] = useState(false);
@@ -238,6 +269,24 @@ export default function AdminSuppliers() {
             </div>
             {cjStatus?.configured ? <Button onClick={() => verifyCj.mutate()} disabled={verifyCj.isPending} className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyCj.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Vérifier la connexion</Button> : <div className="rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">La clé sera ajoutée plus tard dans les variables sécurisées Vercel, jamais dans ce formulaire.</div>}
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm md:p-6" data-testid="cj-batch-import-card">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex gap-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700"><PackageCheck className="h-5 w-5" /></div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2"><h2 className="font-semibold text-slate-950">Sélection CJ guidée par catégorie</h2><Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Brouillons uniquement</Badge></div>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">Prépare jusqu’à 8 produits par catégorie standard, soit 48 brouillons maximum. Chaque candidat doit avoir un stock CJ positif et une livraison Suisse chiffrée. Les frais fournisseur sont inclus dans le prix client ; aucun transport n’est affiché ni facturé séparément au client.</p>
+              </div>
+            </div>
+            <Button type="button" onClick={runCjBatches} disabled={!cjStatus?.configured || batchRunning || importCjDraftBatch.isPending} className="bg-emerald-700 text-white hover:bg-emerald-800">
+              {batchRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+              {batchRunning ? `Préparation ${batchResults.length}/${cjBatchCategoriesQuery.data?.length || 6}` : "Préparer les 6 lots CJ"}
+            </Button>
+          </div>
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 text-xs leading-5 text-emerald-950"><strong>Règles appliquées :</strong> recherche ciblée, contrôle d’un stock positif, devis de livraison CJ vers la Suisse, prix final avec livraison incluse, statut brouillon et protection contre les doublons. Les catégories de créations originales ne sont pas concernées.</p>
+          {batchResults.length > 0 && <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{batchResults.map(result => <div key={result.category} className="rounded-xl border border-emerald-200 bg-white p-3 text-sm"><p className="font-semibold text-slate-900">{result.category}</p><p className="mt-1 text-emerald-800"><strong>{result.imported}/{result.requested}</strong> brouillon(s) créés</p><p className="mt-1 text-xs text-slate-500">{result.skipped} doublon(s) ou candidat(s) écarté(s) · {result.failures.length} incident(s) CJ</p></div>)}</div>}
         </section>
 
         <section className="rounded-2xl border border-orange-200 bg-white p-5 shadow-sm md:p-6">

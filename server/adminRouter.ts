@@ -5,6 +5,7 @@ import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
+import { importCjDraftBatchForCategory, listCjBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1054,6 +1055,36 @@ export const adminRouter = router({
     verifyBigBuy: adminProcedure.mutation(() => verifyBigBuyPreparation()),
     odooStatus: adminProcedure.query(() => getOdooStatus()),
     verifyOdoo: adminProcedure.mutation(() => verifyOdooConnection()),
+    cjBatchCategories: adminProcedure.query(() => listCjBatchCategories()),
+    importCjDraftBatch: adminProcedure.input(z.object({
+      categorySlug: z.enum(["high-tech-gadgets", "maison-organisation", "beaute-bien-etre", "sport-fitness", "auto-accessoires", "mode"]),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await importCjDraftBatchForCategory(input.categorySlug);
+        logAudit(ctx, {
+          action: "product.import_cj_batch",
+          entityType: "category",
+          summary: `Import CJ par lot : ${result.imported}/${result.requested} brouillon(s) créé(s) dans « ${result.category} »`,
+          metadata: { categorySlug: input.categorySlug, imported: result.imported, skipped: result.skipped, failures: result.failures.length },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_BATCH_CATEGORY_INVALID" || code === "CJ_BATCH_CATEGORY_NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Cette catégorie MAZIGHO ne peut pas recevoir un lot CJ automatique." });
+        }
+        if (code === "CJ_API_KEY_NOT_CONFIGURED") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La clé CJ doit être configurée dans Vercel avant l’import par lot." });
+        }
+        if (code === "CJ_AUTHENTICATION_FAILED") {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "CJ a refusé l’autorisation. Vérifiez la connexion CJ avant de relancer le lot." });
+        }
+        if (code === "CJ_UNREACHABLE") {
+          throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun produit non vérifié n’a été importé." });
+        }
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "Impossible de terminer ce lot CJ. Les brouillons déjà créés restent disponibles dans Produits." });
+      }
+    }),
     prepareCjImport: adminProcedure.input(z.object({
       productId: z.string().trim().min(1).max(128),
       productSku: z.string().trim().max(200).optional(),
