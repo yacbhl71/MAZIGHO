@@ -1136,8 +1136,8 @@ export const adminRouter = router({
     })),
     importCjCustomDrafts: adminProcedure.input(z.object({
       keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères pour la niche.").max(120),
-      categoryId: z.number().int().positive(),
-      countryCode: z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"]),
+      categoryIds: z.array(z.number().int().positive()).min(1, "Cochez au moins une catégorie.").max(12).refine(values => new Set(values).size === values.length, "Une catégorie ne peut être sélectionnée qu’une fois."),
+      countryCodes: z.array(z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"])).min(1, "Cochez au moins un pays de destination.").max(8).refine(values => new Set(values).size === values.length, "Un pays ne peut être sélectionné qu’une fois."),
       requestedProducts: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts).max(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts),
       draftLimit: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit).max(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit),
       maxWeightG: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minWeightG).max(CJ_CUSTOM_SOURCING_LIMITS.maxWeightG),
@@ -1148,11 +1148,12 @@ export const adminRouter = router({
         logAudit(ctx, {
           action: "product.import_cj_custom",
           entityType: "category",
-          entityId: input.categoryId,
-          summary: `Sourcing CJ personnalisé « ${input.keyword} » : ${result.imported}/${result.requested} brouillon(s) créé(s) pour ${result.countryName}.`,
+          entityId: input.categoryIds[0] ?? null,
+          summary: `Sourcing CJ personnalisé « ${input.keyword} » : ${result.imported}/${result.requested} brouillon(s) créé(s) pour ${result.countryNames.join(", ")}.`,
           metadata: {
             keyword: input.keyword,
-            countryCode: input.countryCode,
+            categoryIds: input.categoryIds,
+            countryCodes: input.countryCodes,
             requestedProducts: input.requestedProducts,
             draftLimit: input.draftLimit,
             maxWeightG: input.maxWeightG,

@@ -16,7 +16,7 @@ describe("custom CJ sourcing transport guard", () => {
 
   it("keeps the manual sourcing limits bounded", () => {
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts).toBe(12);
-    expect(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit).toBe(50);
+    expect(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit).toBe(100);
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxFastDeliveryDays).toBe(15);
   });
 });

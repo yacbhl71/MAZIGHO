@@ -18,8 +18,9 @@ Une première étape complète d’automatisation des commandes a été ajoutée
 | `b1b6525` | Passage explicite du pays de livraison au contrôle et au devis CJ, afin de toujours revalider une référence dans le contexte de destination. |
 | `4f816fb` | Messages administrateur explicites lorsque CJ bloque une référence, une variante, le stock, le fret ou la marge. |
 | `ccfc3ad` | Ajout du **Générateur de Sourcing CJ sur-mesure** ; critères personnalisés par pays, poids, multiplicateur de prix et transport CJPacket rapide ; anciens lots fixes repliés comme sauvegardes. |
+| Version multi-sélections | Évolution du générateur : catégories et destinations à sélections multiples par cases à cocher ; plafond relevé à 100 brouillons par catégorie. |
 
-La production pointe actuellement sur **`ccfc3ad`**.
+La production suit la branche `main` via le déploiement Vercel habituel.
 
 ## Flux métier mis en œuvre
 
@@ -116,13 +117,15 @@ Le Hub fournisseurs contient désormais un bloc prioritaire et réservé à l’
 | Paramètre administrateur | Règle appliquée côté serveur |
 |---|---|
 | Niche / mot-clé CJ | Recherche texte libre, de 2 à 120 caractères. |
-| Catégorie MAZIGHO | Seules les catégories standard peuvent recevoir les brouillons. |
-| Pays de destination | CH, FR, DE, IT, AT, BE, NL ou ES ; stock et fret sont recalculés pour le pays précis. |
+| Catégories MAZIGHO | Une ou plusieurs catégories standard peuvent être cochées. Chaque brouillon créé y est classé simultanément. |
+| Pays de destination | Une ou plusieurs destinations parmi CH, FR, DE, IT, AT, BE, NL ou ES peuvent être cochées. La même variante doit avoir un fret rapide confirmé dans chaque pays coché. |
 | Nombre de produits | De 1 à 12 brouillons demandés au maximum par lancement. |
-| Limite de brouillons | De 1 à 50 produits CJ non archivés maximum dans la catégorie cible. |
+| Limite de brouillons | De 1 à 100 produits CJ non archivés maximum **par catégorie cochée**. La catégorie la plus proche de son plafond limite le lancement. |
 | Poids maximum | De 50 g à 10 kg ; variante rejetée sans poids connu ou au-dessus du seuil. |
 | Multiplicateur de prix | De 1,1 à 5 ; appliqué au coût produit + transport, arrondi commercialement à `.90` CHF. |
 | Transport | Méthode explicitement nommée **CJPacket**, non postale/non économique, avec un délai connu de 15 jours maximum. |
+
+Le prix final est calculé avec le fret fournisseur le plus élevé parmi les destinations cochées. Ainsi, le même prix public couvre les pays sélectionnés sans frais de livraison additionnels. Un produit qui échoue dans un seul pays coché est écarté du lancement.
 
 Les anciens lots fixes par catégories et le lot Mode restent intégralement disponibles dans le code, mais sont visuellement repliés dans **« Outils classiques / sauvegarde »**. Ils ne sont pas supprimés, mais ne doivent plus être le parcours par défaut.
 

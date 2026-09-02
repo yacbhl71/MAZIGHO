@@ -149,8 +149,8 @@ export default function AdminSuppliers() {
   const categoriesQuery = trpc.categories.getAll.useQuery("fr");
   const customSourcingConfigQuery = trpc.admin.suppliers.cjCustomSourcingConfig.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
   const [customKeyword, setCustomKeyword] = useState("");
-  const [customCategoryId, setCustomCategoryId] = useState("");
-  const [customCountryCode, setCustomCountryCode] = useState("CH");
+  const [customCategoryIds, setCustomCategoryIds] = useState<number[]>([]);
+  const [customCountryCodes, setCustomCountryCodes] = useState<Array<"CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES">>(["CH"]);
   const [customRequestedProducts, setCustomRequestedProducts] = useState("6");
   const [customDraftLimit, setCustomDraftLimit] = useState("20");
   const [customMaxWeightG, setCustomMaxWeightG] = useState("400");
@@ -159,11 +159,12 @@ export default function AdminSuppliers() {
   const [customSourcingResult, setCustomSourcingResult] = useState<{
     category: string;
     keyword: string;
-    countryName: string;
+    categoryNames: string[];
+    countryNames: string[];
     requested: number;
     imported: number;
     skipped: number;
-    existingCount: number;
+    existingCounts: Array<{ categoryId: number; categoryName: string; count: number }>;
     draftLimit: number;
     maxWeightG: number;
     priceMultiplier: number;
@@ -174,7 +175,7 @@ export default function AdminSuppliers() {
     onSuccess: async (result) => {
       setCustomSourcingResult(result);
       await utils.admin.products.getAll.invalidate();
-      toast.success(`${result.imported} brouillon(s) CJ créé(s) pour ${result.countryName}.`);
+      toast.success(`${result.imported} brouillon(s) CJ créé(s) pour ${result.countryNames.join(", ")}.`);
     },
     onError: error => toast.error(error.message || "Le sourcing personnalisé a échoué."),
   });
@@ -204,8 +205,12 @@ export default function AdminSuppliers() {
       toast.error("Saisissez une niche ou un mot-clé d’au moins 2 caractères.");
       return;
     }
-    if (!customCategoryId) {
-      toast.error("Choisissez la catégorie MAZIGHO qui recevra les brouillons.");
+    if (customCategoryIds.length === 0) {
+      toast.error("Cochez au moins une catégorie MAZIGHO qui recevra les brouillons.");
+      return;
+    }
+    if (customCountryCodes.length === 0) {
+      toast.error("Cochez au moins un pays de destination.");
       return;
     }
     if (!limits || !Number.isInteger(requestedProducts) || requestedProducts < limits.minRequestedProducts || requestedProducts > limits.maxRequestedProducts) {
@@ -224,12 +229,13 @@ export default function AdminSuppliers() {
       toast.error(`Le multiplicateur doit être compris entre ${limits.minPriceMultiplier} et ${limits.maxPriceMultiplier}.`);
       return;
     }
-    const country = customSourcingConfigQuery.data?.countries.find(item => item.countryCode === customCountryCode)?.countryName || customCountryCode;
-    if (!window.confirm(`Lancer un sourcing CJ pour « ${customKeyword.trim()} » ? MAZIGHO cherchera au plus ${requestedProducts} brouillons dans la catégorie choisie, pour ${country}, sous ${maxWeightG} g, avec un prix final ×${priceMultiplier} et uniquement des méthodes CJPacket rapides. Aucun produit ne sera publié ou commandé.`)) return;
+    const categoryNames = standardCategories.filter(category => customCategoryIds.includes(category.id)).map(category => category.name);
+    const countryNames = (customSourcingConfigQuery.data?.countries || []).filter(country => customCountryCodes.includes(country.countryCode)).map(country => country.countryName);
+    if (!window.confirm(`Lancer un sourcing CJ pour « ${customKeyword.trim()} » ? MAZIGHO cherchera au plus ${requestedProducts} brouillons classés dans ${categoryNames.join(", ")}, livrables dans ${countryNames.join(", ")}, sous ${maxWeightG} g, avec un prix final ×${priceMultiplier} et uniquement des méthodes CJPacket rapides. Un brouillon ne sera créé que si la même variante est validée dans tous les pays cochés. Aucun produit ne sera publié ou commandé.`)) return;
     await importCjCustomDrafts.mutateAsync({
       keyword: customKeyword.trim(),
-      categoryId: Number(customCategoryId),
-      countryCode: customCountryCode as "CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES",
+      categoryIds: customCategoryIds,
+      countryCodes: customCountryCodes,
       requestedProducts,
       draftLimit,
       maxWeightG,
@@ -436,15 +442,15 @@ export default function AdminSuppliers() {
               <option value="Mode" />
               <option value="Accessoires voiture" />
             </datalist>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr_1.2fr_0.8fr]">
               <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Niche / mot-clé CJ</span><input value={customKeyword} onChange={event => setCustomKeyword(event.target.value)} list="cj-custom-niches" maxLength={120} placeholder="Ex. gadgets de voyage" className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Texte libre ou suggestion.</span></label>
-              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Catégorie MAZIGHO</span><select value={customCategoryId} onChange={event => setCustomCategoryId(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><option value="">Choisir la catégorie</option>{standardCategories.map(category => <option key={category.id} value={String(category.id)}>{category.name}</option>)}</select><span className="text-xs text-slate-500">Destination des brouillons.</span></label>
-              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Pays de destination</span><select value={customCountryCode} onChange={event => setCustomCountryCode(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500">{(customSourcingConfigQuery.data?.countries || []).map(country => <option key={country.countryCode} value={country.countryCode}>{country.countryName}</option>)}</select><span className="text-xs text-slate-500">Stock et fret revalidés pour ce pays.</span></label>
+              <fieldset className="grid gap-1.5"><legend className="text-sm font-semibold text-slate-800">Catégories MAZIGHO</legend><div className="grid max-h-28 grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-violet-200 bg-white p-2">{standardCategories.map(category => <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-800 hover:bg-violet-50"><input type="checkbox" checked={customCategoryIds.includes(category.id)} onChange={event => setCustomCategoryIds(current => event.target.checked ? [...current, category.id] : current.filter(id => id !== category.id))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><span className="min-w-0 truncate">{category.name}</span></label>)}</div><span className="text-xs text-slate-500">Un brouillon est classé dans toutes les catégories cochées.</span></fieldset>
+              <fieldset className="grid gap-1.5"><legend className="text-sm font-semibold text-slate-800">Pays de destination</legend><div className="grid grid-cols-2 gap-1.5 rounded-xl border border-violet-200 bg-white p-2">{(customSourcingConfigQuery.data?.countries || []).map(country => <label key={country.countryCode} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-800 hover:bg-violet-50"><input type="checkbox" checked={customCountryCodes.includes(country.countryCode)} onChange={event => setCustomCountryCodes(current => event.target.checked ? [...current, country.countryCode] : current.filter(code => code !== country.countryCode))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><span>{country.countryName}</span></label>)}</div><span className="text-xs text-slate-500">La même variante doit être livrable dans tous les pays cochés.</span></fieldset>
               <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Nombre de produits à préparer</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minRequestedProducts || 1} max={customSourcingConfigQuery.data?.limits.maxRequestedProducts || 12} value={customRequestedProducts} onChange={event => setCustomRequestedProducts(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">1 à 12 candidats maximum.</span></label>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Limite de brouillons</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minDraftLimit || 1} max={customSourcingConfigQuery.data?.limits.maxDraftLimit || 50} value={customDraftLimit} onChange={event => setCustomDraftLimit(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Plafond de produits CJ non archivés dans la catégorie.</span></label>
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Limite de brouillons</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minDraftLimit || 1} max={customSourcingConfigQuery.data?.limits.maxDraftLimit || 100} value={customDraftLimit} onChange={event => setCustomDraftLimit(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Plafond de produits CJ non archivés par catégorie cochée, jusqu’à 100.</span></label>
               <label className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Weight className="h-4 w-4 text-violet-700" /> Poids maximum (g)</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minWeightG || 50} max={customSourcingConfigQuery.data?.limits.maxWeightG || 10000} value={customMaxWeightG} onChange={event => setCustomMaxWeightG(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Les variantes sans poids connu sont rejetées.</span></label>
               <label className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><BadgeDollarSign className="h-4 w-4 text-violet-700" /> Multiplicateur de prix</span><input type="number" inputMode="decimal" min={customSourcingConfigQuery.data?.limits.minPriceMultiplier || 1.1} max={customSourcingConfigQuery.data?.limits.maxPriceMultiplier || 5} step="0.1" value={customPriceMultiplier} onChange={event => setCustomPriceMultiplier(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Appliqué au coût produit + fret, arrondi à .90 CHF.</span></label>
               <div className="grid gap-1.5"><span className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Truck className="h-4 w-4 text-violet-700" /> Transport retenu</span><div className="flex h-11 items-center rounded-xl border border-violet-200 bg-violet-50 px-3 text-sm font-semibold text-violet-950">CJPacket rapide avec suivi</div><span className="text-xs text-slate-500">Postal, économique, sans suivi ou &gt; 15 jours : rejetés.</span></div>
@@ -453,7 +459,7 @@ export default function AdminSuppliers() {
             <div className="flex flex-col gap-3 rounded-xl border border-violet-200 bg-white/80 p-4 md:flex-row md:items-center md:justify-between"><p className="max-w-3xl text-xs leading-5 text-slate-700"><strong>Règles non négociables :</strong> produit CJ unique, catégorie standard, stock positif, poids connu sous le seuil, fret chiffré pour le pays choisi, méthode CJPacket rapide, prix client final tout compris et statut brouillon. Aucun article ne sera publié, payé ou commandé chez CJ.</p><Button type="submit" disabled={!cjStatus?.configured || customSourcingConfigQuery.isLoading || importCjCustomDrafts.isPending} className="shrink-0 bg-violet-700 text-white hover:bg-violet-800">{importCjCustomDrafts.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageSearch className="mr-2 h-4 w-4" />}{importCjCustomDrafts.isPending ? "Sourcing en cours…" : "Lancer le sourcing personnalisé"}</Button></div>
           </form>
 
-          {customSourcingResult && <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-950">Dernier sourcing : « {customSourcingResult.keyword} »</p><p className="mt-1 text-sm text-slate-600">{customSourcingResult.category} · {customSourcingResult.countryName} · {customSourcingResult.maxWeightG} g max. · prix ×{customSourcingResult.priceMultiplier}</p></div><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">{customSourcingResult.imported}/{customSourcingResult.requested} brouillon(s)</Badge></div>{customSourcingResult.products.length > 0 ? <div className="mt-3 divide-y rounded-lg border border-violet-100">{customSourcingResult.products.map(product => <div key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm"><span className="min-w-0 truncate font-medium text-slate-900">{product.name}</span><span className="shrink-0 text-violet-800">{(product.priceCents / 100).toFixed(2)} CHF</span></div>)}</div> : <p className="mt-3 text-sm text-slate-600">Aucun candidat n’a passé tous les contrôles. Aucun brouillon n’a été créé.</p>}</div><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-950"><p className="font-semibold">Synthèse du contrôle</p><p className="mt-2">{customSourcingResult.existingCount} produit(s) CJ déjà non archivé(s) dans cette catégorie · plafond {customSourcingResult.draftLimit}</p><p className="mt-1">{customSourcingResult.skipped} candidat(s) écarté(s) · {customSourcingResult.failures.length} incident(s) CJ.</p><p className="mt-3 text-xs leading-5 text-violet-900">Les incidents et candidats écartés ne créent ni produit public ni commande fournisseur.</p></div></div>}
+          {customSourcingResult && <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-950">Dernier sourcing : « {customSourcingResult.keyword} »</p><p className="mt-1 text-sm text-slate-600">{customSourcingResult.categoryNames.join(" · ")} · {customSourcingResult.countryNames.join(" · ")} · {customSourcingResult.maxWeightG} g max. · prix ×{customSourcingResult.priceMultiplier}</p></div><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">{customSourcingResult.imported}/{customSourcingResult.requested} brouillon(s)</Badge></div>{customSourcingResult.products.length > 0 ? <div className="mt-3 divide-y rounded-lg border border-violet-100">{customSourcingResult.products.map(product => <div key={product.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm"><span className="min-w-0 truncate font-medium text-slate-900">{product.name}</span><span className="shrink-0 text-violet-800">{(product.priceCents / 100).toFixed(2)} CHF</span></div>)}</div> : <p className="mt-3 text-sm text-slate-600">Aucun candidat n’a passé tous les contrôles. Aucun brouillon n’a été créé.</p>}</div><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-950"><p className="font-semibold">Synthèse du contrôle</p><p className="mt-2">{customSourcingResult.existingCounts.map(item => `${item.categoryName} : ${item.count}`).join(" · ")} · plafond {customSourcingResult.draftLimit} par catégorie</p><p className="mt-1">{customSourcingResult.skipped} candidat(s) écarté(s) · {customSourcingResult.failures.length} incident(s) CJ.</p><p className="mt-3 text-xs leading-5 text-violet-900">Les incidents et candidats écartés ne créent ni produit public ni commande fournisseur.</p></div></div>}
         </section>
 
         {legacyToolsOpen && <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm md:p-6" data-testid="cj-fashion-batch-import-card">

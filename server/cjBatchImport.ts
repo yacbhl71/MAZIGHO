@@ -25,7 +25,7 @@ export const CJ_CUSTOM_SOURCING_LIMITS = {
   minRequestedProducts: 1,
   maxRequestedProducts: 12,
   minDraftLimit: 1,
-  maxDraftLimit: 50,
+  maxDraftLimit: 100,
   minWeightG: 50,
   maxWeightG: 10_000,
   minPriceMultiplier: 1.1,
@@ -200,10 +200,12 @@ export type CjBatchImportResult = {
   products: Array<{ id: number; name: string; priceCents: number; stock: number }>;
 };
 
+export type CjCustomSourcingCountryCode = (typeof CJ_CUSTOM_SOURCING_COUNTRIES)[number]["countryCode"];
+
 export type CjCustomSourcingInput = {
   keyword: string;
-  categoryId: number;
-  countryCode: (typeof CJ_CUSTOM_SOURCING_COUNTRIES)[number]["countryCode"];
+  categoryIds: number[];
+  countryCodes: CjCustomSourcingCountryCode[];
   requestedProducts: number;
   draftLimit: number;
   maxWeightG: number;
@@ -212,10 +214,11 @@ export type CjCustomSourcingInput = {
 
 export type CjCustomSourcingResult = CjBatchImportResult & {
   keyword: string;
-  countryCode: CjCustomSourcingInput["countryCode"];
-  countryName: string;
+  categoryNames: string[];
+  countryCodes: CjCustomSourcingCountryCode[];
+  countryNames: string[];
   draftLimit: number;
-  existingCount: number;
+  existingCounts: Array<{ categoryId: number; categoryName: string; count: number }>;
   maxWeightG: number;
   priceMultiplier: number;
   fastTrackedOnly: true;
@@ -275,7 +278,7 @@ function reasonFor(error: unknown) {
   if (code === "CJ_UNREACHABLE") return "CJ ne répond pas actuellement.";
   if (code === "CJ_PRODUCT_DETAILS_FAILED") return "La fiche CJ n’est plus disponible.";
   if (code === "CJ_VARIANT_NOT_FOUND") return "Aucune variante exploitable n’a été trouvée.";
-  return "Produit écarté : informations CJ incomplètes ou livraison Suisse non confirmée.";
+  return "Produit écarté : informations CJ incomplètes ou livraison non confirmée pour toutes les destinations sélectionnées.";
 }
 
 function containsOne(value: string, terms: readonly string[]) {
@@ -318,19 +321,17 @@ function commercialFashionCopy(categorySlug: string, rawName: string): Commercia
 }
 
 /**
- * Recherche et crée au plus huit brouillons pour une catégorie. Chaque produit est
- * vérifié à nouveau sur une variante précise : stock CJ positif et tarif Suisse.
- * Ce service ne publie aucun produit et n'envoie aucune commande fournisseur.
- */
-/**
- * Sourcing manuel déclenché depuis le panneau. Les critères sont validés dans
- * le routeur, puis réappliqués ici afin que ce service reste sûr s’il est
- * utilisé ailleurs : catégorie standard, plafonnement global de brouillons,
- * poids connu, stock positif, fret au pays choisi et CJPacket rapide.
+ * Sourcing manuel déclenché depuis le panneau. Un brouillon est classé dans
+ * toutes les catégories choisies et n’est créé que si la même variante est
+ * validée dans chaque destination sélectionnée : stock, poids, transport
+ * CJPacket rapide et fret chiffré. Le prix final couvre le fret le plus élevé
+ * parmi les pays choisis, afin qu’aucun coût ne soit ajouté au client.
  */
 export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Promise<CjCustomSourcingResult> {
-  const destination = CJ_CUSTOM_SOURCING_COUNTRIES.find(item => item.countryCode === input.countryCode);
-  if (!destination) throw new Error("CJ_CUSTOM_DESTINATION_INVALID");
+  const categoryIds = Array.from(new Set(input.categoryIds));
+  const countryCodes = Array.from(new Set(input.countryCodes));
+  const destinations = countryCodes.map(code => CJ_CUSTOM_SOURCING_COUNTRIES.find(item => item.countryCode === code)).filter((item): item is typeof CJ_CUSTOM_SOURCING_COUNTRIES[number] => Boolean(item));
+  if (destinations.length !== countryCodes.length || destinations.length === 0) throw new Error("CJ_CUSTOM_DESTINATION_INVALID");
   if (!input.keyword.trim() || input.keyword.trim().length < 2) throw new Error("CJ_CUSTOM_KEYWORD_INVALID");
   if (!Number.isInteger(input.requestedProducts) || input.requestedProducts < CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts || input.requestedProducts > CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts) throw new Error("CJ_CUSTOM_REQUESTED_COUNT_INVALID");
   if (!Number.isInteger(input.draftLimit) || input.draftLimit < CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit || input.draftLimit > CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit) throw new Error("CJ_CUSTOM_DRAFT_LIMIT_INVALID");
@@ -338,24 +339,31 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   if (!Number.isFinite(input.priceMultiplier) || input.priceMultiplier < CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier || input.priceMultiplier > CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier) throw new Error("CJ_CUSTOM_MULTIPLIER_INVALID");
 
   const categories = await db.getAllCategories();
-  const category = categories.find(item => item.id === input.categoryId && item.catalogSection === "standard");
-  if (!category) throw new Error("CJ_CUSTOM_CATEGORY_INVALID");
+  const selectedCategories = categoryIds.map(id => categories.find(item => item.id === id && item.catalogSection === "standard")).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  if (selectedCategories.length !== categoryIds.length || selectedCategories.length === 0) throw new Error("CJ_CUSTOM_CATEGORY_INVALID");
 
-  const existingCount = await db.countProductsBySupplierInCategory("CJdropshipping", category.id);
-  const remainingDraftSlots = Math.max(0, input.draftLimit - existingCount);
+  const existingCounts = await Promise.all(selectedCategories.map(async category => ({
+    categoryId: category.id,
+    categoryName: category.name,
+    count: await db.countProductsBySupplierInCategory("CJdropshipping", category.id),
+  })));
+  // Un même brouillon est attaché à chaque catégorie cochée : la catégorie la
+  // plus proche de son plafond fixe donc le nombre de créations possibles.
+  const remainingDraftSlots = Math.max(0, Math.min(...existingCounts.map(item => input.draftLimit - item.count)));
   const target = Math.min(input.requestedProducts, remainingDraftSlots);
   const result: CjCustomSourcingResult = {
-    category: category.name,
+    category: selectedCategories.map(item => item.name).join(" · "),
     requested: input.requestedProducts,
     imported: 0,
-    skipped: existingCount,
+    skipped: 0,
     failures: [],
     products: [],
     keyword: input.keyword.trim(),
-    countryCode: destination.countryCode,
-    countryName: destination.countryName,
+    categoryNames: selectedCategories.map(item => item.name),
+    countryCodes: destinations.map(item => item.countryCode),
+    countryNames: destinations.map(item => item.countryName),
     draftLimit: input.draftLimit,
-    existingCount,
+    existingCounts,
     maxWeightG: input.maxWeightG,
     priceMultiplier: input.priceMultiplier,
     fastTrackedOnly: true,
@@ -364,7 +372,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
 
   const consideredIds = new Set<string>();
   // Trois pages de vingt candidats couvrent largement un sourcing de douze
-  // brouillons sans appeler CJ de manière non bornée.
+  // brouillons sans transformer une action manuelle en exploration non bornée.
   for (let page = 1; page <= 3 && result.imported < target; page += 1) {
     let search;
     try {
@@ -387,7 +395,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         const prepared = await prepareCjProductImport({
           productId: candidate.id,
           productSku: candidate.sku || undefined,
-          countryCode: destination.countryCode,
+          countryCode: destinations[0]!.countryCode,
         });
         const matchingVariants = prepared.variants
           .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0 && variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG)
@@ -397,27 +405,42 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           variantId: string;
           stock: number;
           supplierPriceUsd: number;
-          shippingUsd: number;
-          method: string;
-          delay: string | null;
+          deliveryProfiles: Array<{
+            countryCode: string;
+            supplierVariantId: string;
+            supplierShippingCost: number;
+            customerShippingCost: number;
+            deliveryMethod: string;
+            minDeliveryDays: number | null;
+            maxDeliveryDays: number | null;
+          }>;
         } | null = null;
 
         for (const variant of matchingVariants) {
           const quote = await quoteCjDelivery({
             productId: prepared.productId,
             variantId: variant.id,
-            countryCodes: [destination.countryCode],
+            countryCodes: destinations.map(item => item.countryCode),
           });
-          const option = quote.countries[0]?.options.find(item => isFastTrackedCjMethod(item.logisticName, item.delay));
           const stock = quote.stock.checked ? Math.floor(quote.stock.totalQuantity ?? 0) : 0;
-          if (option && stock > 0 && variant.supplierPriceUsd != null) {
+          const deliveryProfiles = quote.countries.map(country => {
+            const option = country.options.find(item => isFastTrackedCjMethod(item.logisticName, item.delay));
+            if (!option) return null;
+            return {
+              countryCode: country.countryCode,
+              supplierVariantId: variant.id,
+              supplierShippingCost: toChfCents(option.costUsd),
+              customerShippingCost: 0,
+              deliveryMethod: option.name,
+              ...parseDeliveryRange(option.delay),
+            };
+          });
+          if (stock > 0 && variant.supplierPriceUsd != null && deliveryProfiles.every((item): item is NonNullable<typeof item> => Boolean(item))) {
             selection = {
               variantId: variant.id,
               stock,
               supplierPriceUsd: variant.supplierPriceUsd,
-              shippingUsd: option.costUsd,
-              method: option.name,
-              delay: option.delay,
+              deliveryProfiles,
             };
             break;
           }
@@ -429,14 +452,13 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         }
 
         const supplierPriceCents = toChfCents(selection.supplierPriceUsd);
-        const supplierShippingCost = toChfCents(selection.shippingUsd);
-        const priceCents = suggestedCustomSalePriceCents(supplierPriceCents, supplierShippingCost, input.priceMultiplier);
-        const deliveryDays = parseDeliveryRange(selection.delay);
+        const maximumSupplierShippingCost = Math.max(...selection.deliveryProfiles.map(profile => profile.supplierShippingCost));
+        const priceCents = suggestedCustomSalePriceCents(supplierPriceCents, maximumSupplierShippingCost, input.priceMultiplier);
         const customerName = prepared.name.slice(0, 200);
         const baseSlug = slugify(customerName) || "produit-cj";
         const created = await db.createProduct({
-          categoryId: category.id,
-          categoryIds: [category.id],
+          categoryId: selectedCategories[0]!.id,
+          categoryIds: selectedCategories.map(category => category.id),
           name: customerName,
           slug: `${baseSlug}-${prepared.productId.slice(-8).toLowerCase()}`.slice(0, 190),
           description: prepared.description?.slice(0, 10_000) || null,
@@ -450,14 +472,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           supplier: "CJdropshipping",
           supplierProductId: prepared.productId,
           supplierPrice: supplierPriceCents,
-          deliveryProfiles: [{
-            countryCode: destination.countryCode,
-            supplierVariantId: selection.variantId,
-            supplierShippingCost,
-            customerShippingCost: 0,
-            deliveryMethod: selection.method,
-            ...deliveryDays,
-          }],
+          deliveryProfiles: selection.deliveryProfiles,
           lastSyncedAt: new Date(),
         });
         result.imported += 1;
