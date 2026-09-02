@@ -1,4 +1,4 @@
-import { and, desc, asc, count, eq, gt, gte, lt, lte, isNull, inArray, sql, sum, avg } from "drizzle-orm";
+import { and, desc, asc, count, eq, ne, gt, gte, lt, lte, isNull, inArray, sql, sum, avg } from "drizzle-orm";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
@@ -1833,7 +1833,7 @@ export async function countProductsBySupplierInCategory(supplier: string, catego
   const rows = await db.select({ value: count() })
     .from(products)
     .innerJoin(productCategories, eq(productCategories.productId, products.id))
-    .where(and(eq(products.supplier, supplier), eq(productCategories.categoryId, categoryId)));
+    .where(and(eq(products.supplier, supplier), eq(productCategories.categoryId, categoryId), ne(products.status, "archived")));
   return Number(rows[0]?.value ?? 0);
 }
 
