@@ -1826,6 +1826,17 @@ export async function deleteCatalogDraft(id: number) {
   return await deleteProduct(id);
 }
 
+export async function countProductsBySupplierInCategory(supplier: string, categoryId: number) {
+  await ensureProductCategorySchema();
+  const db = await getDb();
+  if (!db) return 0;
+  const rows = await db.select({ value: count() })
+    .from(products)
+    .innerJoin(productCategories, eq(productCategories.productId, products.id))
+    .where(and(eq(products.supplier, supplier), eq(productCategories.categoryId, categoryId)));
+  return Number(rows[0]?.value ?? 0);
+}
+
 export async function getProductBySupplierReference(supplier: string, supplierProductId: string) {
   const db = await getDb();
   if (!db) return undefined;

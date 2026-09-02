@@ -154,18 +154,20 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
   const category = categories.find(item => item.slug === categorySlug && item.catalogSection === "standard");
   if (!category) throw new Error("CJ_BATCH_CATEGORY_NOT_FOUND");
 
+  const existingCount = await db.countProductsBySupplierInCategory("CJdropshipping", category.id);
+  const remainingCount = Math.max(0, TARGET_COUNT_PER_CATEGORY - existingCount);
   const result: CjBatchImportResult = {
     category: category.name,
     requested: TARGET_COUNT_PER_CATEGORY,
     imported: 0,
-    skipped: 0,
+    skipped: existingCount,
     failures: [],
     products: [],
   };
   const consideredIds = new Set<string>();
 
   for (const query of source.queries) {
-    if (result.imported >= TARGET_COUNT_PER_CATEGORY) break;
+    if (result.imported >= remainingCount) break;
 
     try {
       const search = await searchCjCatalog({ keyword: query, page: 1 });
@@ -173,7 +175,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
       let importedFromQuery = false;
 
       for (const candidate of candidates) {
-        if (result.imported >= TARGET_COUNT_PER_CATEGORY || importedFromQuery || consideredIds.has(candidate.id)) continue;
+        if (result.imported >= remainingCount || importedFromQuery || consideredIds.has(candidate.id)) continue;
         consideredIds.add(candidate.id);
 
         const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
