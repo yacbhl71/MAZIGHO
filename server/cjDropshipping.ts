@@ -159,7 +159,10 @@ export type CjDeliveryQuote = {
     countryName: string;
     originCountries: string[];
     options: Array<{
+      /** Label for controlled admin display; never send this composed label to CJ. */
       name: string;
+      logisticName: string;
+      fromCountryCode: string;
       costUsd: number;
       delay: string | null;
     }>;
@@ -269,7 +272,7 @@ function asFiniteNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-async function getCjAccessToken(): Promise<CjAccessToken> {
+export async function getCjAccessToken(): Promise<CjAccessToken> {
   // CJ rate-limits API calls. A short in-memory cache avoids asking for a new token for every search.
   if (tokenCache && Date.now() - tokenCache.cachedAt < 10 * 60 * 1000) return tokenCache.token;
 
@@ -593,7 +596,7 @@ async function getCjVariantStock(access: CjAccessToken, variantId: string): Prom
   return { checked: true, totalQuantity: warehouses.reduce((total, item) => total + item.quantity, 0), warehouses };
 }
 
-export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[] }): Promise<CjDeliveryQuote> {
+export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[]; quantity?: number }): Promise<CjDeliveryQuote> {
   const prepared = await prepareCjProductImport({ productId: input.productId });
   const variant = prepared.variants.find(item => item.id === input.variantId);
   if (!variant) throw new Error("CJ_VARIANT_NOT_FOUND");
@@ -603,9 +606,10 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
   if (targets.length === 0) throw new Error("CJ_DELIVERY_DESTINATION_INVALID");
 
   const originCountries = (variant.originCountries.length ? variant.originCountries : ["CN"]).slice(0, 3);
+  const quantity = Number.isInteger(input.quantity) && input.quantity && input.quantity > 0 && input.quantity <= 20 ? input.quantity : 1;
   const access = await getCjAccessToken();
   const stock = await getCjVariantStock(access, variant.id);
-  let supplierTemplateOptions: Array<{ destinationCode: string | null; name: string; costUsd: number }> = [];
+  let supplierTemplateOptions: Array<{ destinationCode: string | null; name: string; logisticName: string; fromCountryCode: string; costUsd: number }> = [];
   if (prepared.sku) {
     try {
       const response = await fetch(`${CJ_API_BASE}/logistic/getSupplierLogisticsTemplate`, {
@@ -620,10 +624,12 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
           const costUsd = asFiniteNumber(item.postage);
           return costUsd == null ? null : {
             destinationCode: item.destCountryCode || null,
+            logisticName: item.logisticsName || "Transport fournisseur CJ",
+            fromCountryCode: item.startCountryCode || "CN",
             name: `${item.logisticsName || "Transport fournisseur CJ"}${item.startCountryCode ? ` · depuis ${item.startCountryCode}` : ""}`,
             costUsd,
           };
-        }).filter((item): item is { destinationCode: string | null; name: string; costUsd: number } => Boolean(item));
+        }).filter((item): item is { destinationCode: string | null; name: string; logisticName: string; fromCountryCode: string; costUsd: number } => Boolean(item));
       }
     } catch {
       // Le devis standard reste disponible si le modèle fournisseur ne répond pas.
@@ -639,7 +645,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
           body: JSON.stringify({
             startCountryCode: originCountry,
             endCountryCode: target.countryCode,
-            products: [{ quantity: 1, vid: variant.id }],
+            products: [{ quantity, vid: variant.id }],
           }),
           signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
         });
@@ -656,17 +662,19 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
       return (payload.data || []).map(item => {
         const total = asFiniteNumber(item.totalPostageFee) ?? asFiniteNumber(item.logisticPrice);
         return total == null ? null : {
+          logisticName: item.logisticName || "Transport CJ",
+          fromCountryCode: originCountry,
           name: `${item.logisticName || "Transport CJ"} · depuis ${originCountry}`,
           costUsd: total,
           delay: item.logisticAging || null,
         };
-      }).filter((item): item is { name: string; costUsd: number; delay: string | null } => Boolean(item));
+      }).filter((item): item is { name: string; logisticName: string; fromCountryCode: string; costUsd: number; delay: string | null } => Boolean(item));
     }));
     const standardOptions = responses.flatMap(result => result.status === "fulfilled" ? result.value : []);
     const templateOptions = supplierTemplateOptions
       .filter(item => !item.destinationCode || item.destinationCode === target.countryCode)
-      .map(item => ({ name: item.name, costUsd: item.costUsd, delay: null }));
-    let detailedOptions: Array<{ name: string; costUsd: number; delay: string | null }> = [];
+      .map(item => ({ name: item.name, logisticName: item.logisticName, fromCountryCode: item.fromCountryCode, costUsd: item.costUsd, delay: null }));
+    let detailedOptions: Array<{ name: string; logisticName: string; fromCountryCode: string; costUsd: number; delay: string | null }> = [];
     const variantSku = variant.sku;
     const variantWeightG = variant.weightG;
     const variantVolumeM3 = variant.volumeM3;
@@ -690,7 +698,7 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
                 freightTrialSkuList: [{
                   sku: variantSku,
                   vid: variant.id,
-                  skuQuantity: 1,
+                  skuQuantity: quantity,
                   skuWeight: variantWeightG,
                   skuVolume: variantVolumeCm3,
                 }],
@@ -712,11 +720,13 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
         return (payload.data || []).map(item => {
           const total = asFiniteNumber(item.totalPostageFee) ?? asFiniteNumber(item.wrapPostage) ?? asFiniteNumber(item.postage);
           return total == null ? null : {
+            logisticName: item.option?.enName || "Transport CJ détaillé",
+            fromCountryCode: originCountry,
             name: `${item.option?.enName || "Transport CJ détaillé"} · depuis ${originCountry}`,
             costUsd: total,
             delay: item.arrivalTime || null,
           };
-        }).filter((item): item is { name: string; costUsd: number; delay: string | null } => Boolean(item));
+        }).filter((item): item is { name: string; logisticName: string; fromCountryCode: string; costUsd: number; delay: string | null } => Boolean(item));
       }));
       detailedOptions = detailedResponses.flatMap(result => result.status === "fulfilled" ? result.value : []);
     }

@@ -21,6 +21,8 @@ import {
   XCircle,
   ShieldAlert,
   RotateCcw,
+  FlaskConical,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -47,6 +49,20 @@ const decisionMeta = {
 
 type DecisionAction = keyof typeof decisionMeta;
 
+const fulfillmentMeta: Record<string, { label: string; className: string }> = {
+  not_eligible: { label: "Hors circuit CJ", className: "border-slate-200 bg-slate-50 text-slate-700" },
+  awaiting_supplier_preparation: { label: "Prête pour test CJ", className: "border-sky-200 bg-sky-50 text-sky-800" },
+  supplier_order_draft: { label: "Test CJ préparé", className: "border-indigo-200 bg-indigo-50 text-indigo-800" },
+  supplier_payment_review: { label: "Paiement à examiner", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  supplier_payment_pending: { label: "Paiement fournisseur en attente", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  supplier_paid: { label: "Fournisseur réglé", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  supplier_exception: { label: "Exception fournisseur", className: "border-rose-200 bg-rose-50 text-rose-800" },
+  shipped: { label: "Expédition fournisseur", className: "border-purple-200 bg-purple-50 text-purple-800" },
+  delivered: { label: "Livraison fournisseur", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  cancelled: { label: "Circuit annulé", className: "border-rose-200 bg-rose-50 text-rose-800" },
+  refunded: { label: "Circuit remboursé", className: "border-rose-200 bg-rose-50 text-rose-800" },
+};
+
 const statusMeta: Record<OrderStatus, { label: string; className: string }> = {
   pending: { label: "En attente", className: "border-amber-200 bg-amber-50 text-amber-800" },
   processing: { label: "En préparation", className: "border-blue-200 bg-blue-50 text-blue-800" },
@@ -58,6 +74,11 @@ const statusMeta: Record<OrderStatus, { label: string; className: string }> = {
 function getStatusBadge(status: string) {
   const meta = statusMeta[status as OrderStatus];
   return <Badge variant="outline" className={meta?.className || "bg-slate-50 text-slate-700"}>{meta?.label || status}</Badge>;
+}
+
+function getFulfillmentBadge(status?: string | null) {
+  const meta = fulfillmentMeta[status || "not_eligible"];
+  return <Badge variant="outline" className={meta?.className || "bg-slate-50 text-slate-700"}>{meta?.label || status || "—"}</Badge>;
 }
 
 function formatDate(value: Date | string) {
@@ -78,6 +99,8 @@ export default function AdminOrders() {
   const [decisionTarget, setDecisionTarget] = useState<{ action: DecisionAction; orderId: number } | null>(null);
   const [decisionReason, setDecisionReason] = useState("");
   const [decisionConfirmation, setDecisionConfirmation] = useState("");
+  const [sandboxOrderId, setSandboxOrderId] = useState<number | null>(null);
+  const [sandboxConfirmation, setSandboxConfirmation] = useState("");
 
   const { data: orders, isLoading, refetch } = trpc.admin.orders.getAll.useQuery();
   const { data: orderItems, isLoading: isLoadingItems } = trpc.admin.orders.getItems.useQuery(
@@ -88,6 +111,11 @@ export default function AdminOrders() {
     { orderId: selectedOrder?.id ?? 0 },
     { enabled: Boolean(selectedOrder?.id && isDetailsOpen) }
   );
+  const { data: fulfillment, isLoading: isLoadingFulfillment, refetch: refetchFulfillment } = trpc.admin.orders.getFulfillment.useQuery(
+    { orderId: selectedOrder?.id ?? 0 },
+    { enabled: Boolean(selectedOrder?.id && isDetailsOpen) }
+  );
+  const { data: cjSafety } = trpc.admin.orders.getCjSafetyStatus.useQuery();
 
   const updateStatus = trpc.admin.orders.updateStatus.useMutation({
     onSuccess: async () => {
@@ -96,6 +124,16 @@ export default function AdminOrders() {
       await refetch();
     },
     onError: error => toast.error(error.message || "Mise à jour impossible."),
+  });
+
+  const prepareCjSandbox = trpc.admin.orders.prepareCjSandbox.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.prepared ? "Test CJ préparé sans débit fournisseur." : "Aucun test CJ supplémentaire n’a été exécuté.");
+      setSandboxOrderId(null);
+      setSandboxConfirmation("");
+      await Promise.all([refetch(), refetchFulfillment()]);
+    },
+    onError: error => toast.error(error.message || "Préparation CJ impossible."),
   });
 
   const decide = trpc.admin.orders.decide.useMutation({
@@ -161,6 +199,11 @@ export default function AdminOrders() {
     });
   };
 
+  const submitSandboxPreparation = () => {
+    if (!sandboxOrderId) return;
+    prepareCjSandbox.mutate({ orderId: sandboxOrderId, confirmation: sandboxConfirmation.trim() });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-8">
@@ -206,13 +249,14 @@ export default function AdminOrders() {
                   <TableHead>Date</TableHead>
                   <TableHead>Règlement</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>Fournisseur</TableHead>
                   <TableHead>Suivi</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? Array.from({ length: 5 }).map((_, index) => <TableRow key={index}>{Array.from({ length: 7 }).map((__, cell) => <TableCell key={cell}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>) : filteredOrders.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-16 text-center"><div className="mx-auto flex max-w-sm flex-col items-center"><div className="rounded-full bg-blue-50 p-4 text-blue-600"><ShoppingBag className="h-7 w-7" /></div><p className="mt-4 font-semibold text-slate-800">Aucune commande trouvée</p><p className="mt-1 text-sm text-muted-foreground">Modifiez votre recherche ou attendez les premières commandes de la boutique.</p></div></TableCell></TableRow>
+                {isLoading ? Array.from({ length: 5 }).map((_, index) => <TableRow key={index}>{Array.from({ length: 8 }).map((__, cell) => <TableCell key={cell}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>) : filteredOrders.length === 0 ? (
+                  <TableRow><TableCell colSpan={8} className="py-16 text-center"><div className="mx-auto flex max-w-sm flex-col items-center"><div className="rounded-full bg-blue-50 p-4 text-blue-600"><ShoppingBag className="h-7 w-7" /></div><p className="mt-4 font-semibold text-slate-800">Aucune commande trouvée</p><p className="mt-1 text-sm text-muted-foreground">Modifiez votre recherche ou attendez les premières commandes de la boutique.</p></div></TableCell></TableRow>
                 ) : filteredOrders.map(order => (
                   <TableRow key={order.id} className="hover:bg-slate-50/70">
                     <TableCell><div className="flex items-center gap-3"><div className="rounded-xl bg-blue-50 p-2 text-blue-700"><ShoppingBag className="h-4 w-4" /></div><div><p className="font-semibold text-slate-900">#{order.id}</p><p className="text-xs text-muted-foreground">{formatPrice(order.totalAmount)}</p></div></div></TableCell>
@@ -220,6 +264,7 @@ export default function AdminOrders() {
                     <TableCell><div className="flex items-center gap-1.5 text-sm text-slate-700"><CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />{formatDate(order.createdAt)}</div></TableCell>
                     <TableCell><Badge variant="outline" className={order.paymentStatus === "paid" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}>{order.paymentStatus === "paid" ? "Payée" : order.paymentStatus === "refunded" ? "Remboursée" : "À régler"}</Badge></TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>{getFulfillmentBadge(order.fulfillmentState)}</TableCell>
                     <TableCell className="max-w-36 truncate text-sm text-slate-600">{order.trackingNumber || "—"}</TableCell>
                     <TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => handleOpenDetails(order)}><Eye className="mr-1.5 h-4 w-4" /> Ouvrir <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button></TableCell>
                   </TableRow>
@@ -249,6 +294,14 @@ export default function AdminOrders() {
 
                 {selectedOrder.notes && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">Note interne</p><p className="mt-1 whitespace-pre-line">{selectedOrder.notes}</p></div>}
 
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><FlaskConical className="h-4 w-4 text-indigo-700" /> Préparation fournisseur CJ</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Zone interne. Le test crée uniquement une commande sandbox CJ avec <code>payType=3</code> : aucun débit, aucune commande réelle et aucune expédition ne peuvent être déclenchés.</p></div>{getFulfillmentBadge(fulfillment?.order.fulfillmentState || selectedOrder.fulfillmentState)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge variant="outline" className="border-indigo-200 bg-white text-indigo-800">{cjSafety?.sandboxOnly ? "Sandbox uniquement" : "Mode à vérifier"}</Badge><Badge variant="outline" className="border-indigo-200 bg-white text-indigo-800">Paiement CJ désactivé</Badge>{fulfillment?.order.odooSaleOrderId ? <Badge variant="outline" className="border-emerald-200 bg-white text-emerald-800">Odoo #{fulfillment.order.odooSaleOrderId}</Badge> : <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">Odoo : non synchronisé</Badge>}</div>
+                  {isLoadingFulfillment ? <Skeleton className="mt-4 h-16 w-full" /> : <><div className="mt-4 grid gap-3 sm:grid-cols-2">{fulfillment?.supplierOrders?.length ? fulfillment.supplierOrders.map(supplierOrder => { const supplierTotal = Number(supplierOrder.supplierTotalAmount || 0); const estimateChf = Math.round(supplierTotal * 0.9); const margin = Number(supplierOrder.customerSaleAmount || 0) - estimateChf; return <div key={supplierOrder.id} className="rounded-lg border border-indigo-100 bg-white p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold text-slate-900">{supplierOrder.externalReference}</p><Badge variant="outline" className="border-indigo-200 text-indigo-800">{supplierOrder.state}</Badge></div><p className="mt-1 text-xs text-slate-600">CJ #{supplierOrder.providerOrderId || "en attente"} · test sandbox</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><span className="text-slate-500">Coût CJ</span><strong className="text-right text-slate-900">${(supplierTotal / 100).toFixed(2)} USD</strong><span className="text-slate-500">Estimation CHF</span><strong className="text-right text-slate-900">{formatPrice(estimateChf)}</strong><span className="text-slate-500">Marge estimée</span><strong className={`text-right ${margin >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatPrice(margin)}</strong></div></div>; }) : <p className="text-xs text-slate-600">Aucune commande CJ n’a été créée. Les commandes existantes avant cette mise à jour restent volontairement manuelles.</p>}</div>
+                  {fulfillment?.order.fulfillmentLastError && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900"><strong>Contrôle requis :</strong> {fulfillment.order.fulfillmentLastError}</div>}
+                  {fulfillment?.jobs?.[0] && <p className="mt-3 text-xs text-slate-500">Tâche interne : {fulfillment.jobs[0].state === "queued" ? "en attente de lancement" : fulfillment.jobs[0].state === "completed" ? "terminée" : fulfillment.jobs[0].state === "failed" ? "en exception" : fulfillment.jobs[0].state}.</p>}
+                  <Button type="button" className="mt-4 border-indigo-300 bg-white text-indigo-800 hover:bg-indigo-100" variant="outline" disabled={selectedOrder.paymentStatus !== "paid" || fulfillment?.order.fulfillmentState !== "awaiting_supplier_preparation"} onClick={() => { setSandboxOrderId(selectedOrder.id); setSandboxConfirmation(""); }}><FlaskConical className="mr-2 h-4 w-4" /> Préparer chez CJ (test)</Button></>}</div>
+
                 <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><ShieldAlert className="h-4 w-4 text-blue-700" /> Validation avant fournisseur</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Aucune décision ci-dessous ne crée une commande CJ, ne transmet l’adresse client ou n’effectue un remboursement réel. Ces actions restent manuelles pendant la phase de test.</p></div><Badge variant="outline" className="border-blue-200 bg-white text-blue-800">Sas actif</Badge></div>
                   <div className="mt-4 grid gap-2 sm:grid-cols-3"><Button type="button" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={selectedOrder.status !== "pending" || selectedOrder.paymentStatus !== "paid"} onClick={() => openDecision("accepted")}><CheckCircle className="mr-2 h-4 w-4" /> Accepter</Button><Button type="button" variant="outline" className="border-rose-200 bg-white text-rose-800 hover:bg-rose-50" disabled={selectedOrder.status === "shipped" || selectedOrder.status === "delivered"} onClick={() => openDecision("rejected")}><XCircle className="mr-2 h-4 w-4" /> Refuser</Button><Button type="button" variant="outline" className="border-amber-200 bg-white text-amber-900 hover:bg-amber-50" disabled={selectedOrder.paymentStatus !== "paid" || selectedOrder.paymentStatus === "refunded"} onClick={() => openDecision("refund_requested")}><RotateCcw className="mr-2 h-4 w-4" /> Demander remboursement</Button></div>
                   {selectedOrder.paymentStatus !== "paid" && <p className="mt-3 text-xs text-slate-500">L’acceptation est disponible uniquement après la confirmation d’un paiement réel. Les paiements ne sont pas encore activés sur MAZIGHO.</p>}
@@ -264,6 +317,10 @@ export default function AdminOrders() {
               <DialogFooter><Button type="button" variant="outline" onClick={() => setIsDetailsOpen(false)}>Fermer</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={updateStatus.isPending || selectedOrder.status === "pending"}>{updateStatus.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer le suivi</Button></DialogFooter>
             </form>}
           </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(sandboxOrderId)} onOpenChange={open => { if (!open) { setSandboxOrderId(null); setSandboxConfirmation(""); } }}>
+          <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Préparer chez CJ en environnement de test</DialogTitle><DialogDescription>MAZIGHO revalidera le stock, la variante, le transport et l’adresse avant de créer une commande CJ sandbox sans débit. Aucun paiement fournisseur et aucune expédition réelle ne peuvent être déclenchés.</DialogDescription></DialogHeader><div className="grid gap-4 py-3"><div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-indigo-950"><ShieldCheck className="mr-2 inline h-4 w-4" /> Vérification humaine obligatoire avant le test.</div><div className="grid gap-2"><Label htmlFor="sandbox-confirmation">Pour confirmer, saisissez exactement :</Label><code className="rounded bg-slate-100 px-2 py-1 text-sm text-slate-900">{sandboxOrderId ? `TEST CJ #${sandboxOrderId}` : ""}</code><Input id="sandbox-confirmation" value={sandboxConfirmation} onChange={event => setSandboxConfirmation(event.target.value)} autoComplete="off" placeholder="Texte de confirmation" /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setSandboxOrderId(null)}>Annuler</Button><Button type="button" disabled={prepareCjSandbox.isPending || sandboxConfirmation !== (sandboxOrderId ? `TEST CJ #${sandboxOrderId}` : "")} className="bg-indigo-700 hover:bg-indigo-800" onClick={submitSandboxPreparation}>{prepareCjSandbox.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Lancer le test sans débit</Button></DialogFooter></DialogContent>
         </Dialog>
 
         <Dialog open={Boolean(decisionTarget)} onOpenChange={open => { if (!open) { setDecisionTarget(null); setDecisionReason(""); setDecisionConfirmation(""); } }}>

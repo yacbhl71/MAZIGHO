@@ -249,7 +249,7 @@ function commercialFashionCopy(categorySlug: string, rawName: string): Commercia
  * Ce service ne publie aucun produit et n'envoie aucune commande fournisseur.
  */
 export async function importCjDraftBatchForCategory(categorySlug: BatchCategorySlug): Promise<CjBatchImportResult> {
-  const source = [...CJ_BATCH_CATEGORIES, ...CJ_FASHION_BATCH_CATEGORIES].find(item => item.categorySlug === categorySlug);
+  const source = [...CJ_BATCH_CATEGORIES, ...CJ_FASHION_BATCH_CATEGORIES].find(item => item.categorySlug === categorySlug) as { categorySlug: BatchCategorySlug; queries: readonly string[]; targetCount?: number; maxPerQuery?: number } | undefined;
   if (!source) throw new Error("CJ_BATCH_CATEGORY_INVALID");
 
   const categories = await db.getAllCategories();

@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, setSettingValue } from "./db";
+import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
 import { sendOrderConfirmationForStripeSession } from "./emails";
 
@@ -15,7 +15,7 @@ async function syncPaidOrderToOdoo(sessionId: string) {
       orderReference: `MAZIGHO-${order.id}`,
       customer: { name: order.userName || order.userEmail || "Client MAZIGHO", email: order.userEmail },
       lines: items.map(item => ({
-        name: item.productName || "Article MAZIGHO",
+        name: item.productNameSnapshot || item.productName || "Article MAZIGHO",
         quantity: item.quantity,
         priceUnit: Math.round(item.priceAtPurchase) / 100,
         reference: item.productId ? `MAZIGHO-${item.productId}` : null,
@@ -24,7 +24,8 @@ async function syncPaidOrderToOdoo(sessionId: string) {
       note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
     });
     if (result.synced) {
-      console.log(`[Odoo] Order MAZIGHO-${order.id} synced (sale.order ${result.saleOrderId}, partner ${result.partnerId}).`);
+      if (result.saleOrderId) await storeOdooSaleOrderId(order.id, result.saleOrderId);
+      console.log(`[Odoo] Order MAZIGHO-${order.id} synced (sale.order ${result.saleOrderId ?? "existing"}, partner ${result.partnerId ?? "existing"}).`);
       setSettingValue("odoo.last_sync_at", new Date().toISOString(), "Dernière synchronisation Odoo réussie").catch(() => {});
     } else if (!result.skipped) {
       console.error(`[Odoo] Order MAZIGHO-${order.id} sync failed: ${result.reason}`);
@@ -32,6 +33,40 @@ async function syncPaidOrderToOdoo(sessionId: string) {
   } catch (error) {
     console.error("[Odoo] Unexpected sync error", error);
   }
+}
+
+function extractStripeShippingAddress(session: Stripe.Checkout.Session) {
+  const legacyDetails = (session as Stripe.Checkout.Session & { shipping_details?: { name?: string | null; address?: Stripe.Address | null } | null }).shipping_details;
+  const details = session.collected_information?.shipping_details ?? legacyDetails ?? null;
+  const address = details?.address;
+  return {
+    name: details?.name ?? null,
+    phone: session.customer_details?.phone ?? null,
+    email: session.customer_details?.email ?? session.customer_email ?? null,
+    line1: address?.line1 ?? null,
+    line2: address?.line2 ?? null,
+    city: address?.city ?? null,
+    state: address?.state ?? null,
+    postalCode: address?.postal_code ?? null,
+    countryCode: address?.country ?? null,
+  };
+}
+
+export async function completePaidStripeOrder(session: Stripe.Checkout.Session) {
+  // Address capture is local and precedes Odoo/CJ handoff. If it fails, the
+  // subsequent preparation is allowed to surface a visible exception instead
+  // of guessing a delivery address.
+  await storeStripeShippingAddress(session.id, extractStripeShippingAddress(session));
+  const tasks = [
+    finalizePaidOrderRedemption(session.id),
+    syncPaidOrderToOdoo(session.id),
+    queueCjSandboxPreparationForPaidOrder(session.id),
+  ];
+  const results = await Promise.allSettled(tasks);
+  results.forEach((result, index) => {
+    if (result.status === "rejected") console.error(`[Stripe] downstream task ${index + 1} failed`, result.reason);
+  });
+  sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
 }
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
@@ -59,14 +94,16 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       if (session.mode === "payment" && session.payment_status === "paid") {
         const paid = await markOrderPaidByStripeSession(session.id);
         if (paid.justPaid) {
-          await finalizePaidOrderRedemption(session.id);
-          await syncPaidOrderToOdoo(session.id);
-          sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
+          // The payment record is already durable. Secondary failures must not
+          // turn a successful payment into a Stripe retry loop.
+          await completePaidStripeOrder(session);
         }
       }
     }
     return res.json({ received: true });
   } catch (error) {
+    // A failure before the paid transition is durable must remain retriable by
+    // Stripe. Failures in Odoo/CJ are already contained in completePaidStripeOrder.
     console.error("Stripe webhook processing error", error);
     return res.status(500).json({ error: "Webhook non traité" });
   }

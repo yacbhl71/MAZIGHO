@@ -167,6 +167,11 @@ export const orders = mysqlTable("orders", {
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   trackingNumber: varchar("trackingNumber", { length: 100 }),
+  // Internal fulfillment state. It is intentionally separate from the customer-facing order status.
+  fulfillmentState: mysqlEnum("fulfillmentState", ["not_eligible", "awaiting_supplier_preparation", "supplier_order_draft", "supplier_payment_review", "supplier_payment_pending", "supplier_paid", "supplier_exception", "shipped", "delivered", "cancelled", "refunded"]).default("not_eligible").notNull(),
+  odooSaleOrderId: int("odooSaleOrderId"),
+  fulfillmentLastError: varchar("fulfillmentLastError", { length: 1000 }),
+  fulfillmentUpdatedAt: timestamp("fulfillmentUpdatedAt"),
   promotionId: int("promotionId"),
   discountAmount: int("discountAmount").default(0).notNull(),
   notes: text("notes"),
@@ -197,11 +202,85 @@ export const orderItems = mysqlTable("orderItems", {
   productId: int("productId").notNull(),
   quantity: int("quantity").notNull(),
   priceAtPurchase: int("priceAtPurchase").notNull(), // Price in cents
+  // Immutable snapshots captured before Stripe Checkout. They avoid rebuilding a supplier order from mutable catalogue fields.
+  productNameSnapshot: varchar("productNameSnapshot", { length: 255 }),
+  selectedOptions: text("selectedOptions"),
+  supplierSnapshot: text("supplierSnapshot"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
+
+// Durable internal outbox. A paid order can be retried safely without recreating a supplier order.
+export const orderFulfillmentJobs = mysqlTable("orderFulfillmentJobs", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  jobType: mysqlEnum("jobType", ["prepare_cj_sandbox", "prepare_cj_live", "process_cj_event"]).notNull(),
+  state: mysqlEnum("state", ["queued", "running", "completed", "failed", "cancelled"]).default("queued").notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull().unique(),
+  attempts: int("attempts").default(0).notNull(),
+  lastError: varchar("lastError", { length: 1000 }),
+  availableAt: timestamp("availableAt").defaultNow().notNull(),
+  lockedAt: timestamp("lockedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OrderFulfillmentJob = typeof orderFulfillmentJobs.$inferSelect;
+
+// One MAZIGHO order can create several CJ orders if the supplier splits fulfillment.
+export const orderSupplierOrders = mysqlTable("orderSupplierOrders", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  mode: mysqlEnum("mode", ["sandbox", "live"]).notNull(),
+  externalReference: varchar("externalReference", { length: 128 }).notNull().unique(),
+  providerOrderId: varchar("providerOrderId", { length: 200 }),
+  providerOrderNumber: varchar("providerOrderNumber", { length: 200 }),
+  providerShipmentOrderId: varchar("providerShipmentOrderId", { length: 200 }),
+  state: mysqlEnum("state", ["draft", "payment_review", "payment_pending", "paid", "exception", "shipped", "delivered", "cancelled"]).default("draft").notNull(),
+  paymentMode: mysqlEnum("paymentMode", ["none", "page", "balance"]).default("none").notNull(),
+  paymentUrl: varchar("paymentUrl", { length: 1000 }),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }).default("USD").notNull(),
+  supplierProductAmount: int("supplierProductAmount"),
+  supplierShippingAmount: int("supplierShippingAmount"),
+  supplierTaxAmount: int("supplierTaxAmount"),
+  supplierTotalAmount: int("supplierTotalAmount"),
+  exchangeRateChf: decimal("exchangeRateChf", { precision: 10, scale: 6 }),
+  customerSaleAmount: int("customerSaleAmount").notNull(),
+  quoteSnapshot: text("quoteSnapshot"),
+  orderSnapshot: text("orderSnapshot"),
+  approvalActorUserId: int("approvalActorUserId"),
+  approvedAt: timestamp("approvedAt"),
+  paidAt: timestamp("paidAt"),
+  trackingNumber: varchar("trackingNumber", { length: 200 }),
+  trackingProvider: varchar("trackingProvider", { length: 200 }),
+  trackingUrl: varchar("trackingUrl", { length: 1000 }),
+  trackingStatus: varchar("trackingStatus", { length: 80 }),
+  lastError: varchar("lastError", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type OrderSupplierOrder = typeof orderSupplierOrders.$inferSelect;
+
+// Minimal, deduplicated receipt of supplier notifications. No address data is written here.
+export const supplierWebhookEvents = mysqlTable("supplierWebhookEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  messageId: varchar("messageId", { length: 200 }).notNull().unique(),
+  eventType: varchar("eventType", { length: 40 }).notNull(),
+  messageType: varchar("messageType", { length: 40 }).notNull(),
+  providerOrderId: varchar("providerOrderId", { length: 200 }),
+  externalReference: varchar("externalReference", { length: 200 }),
+  payload: text("payload"),
+  processingState: mysqlEnum("processingState", ["received", "processed", "ignored", "failed"]).default("received").notNull(),
+  processingError: varchar("processingError", { length: 1000 }),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+});
+export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;
 
 // Administrative records. Customer sales remain the paid orders recorded above;
 // this table contains purchases, operating costs and refunds with their evidence.

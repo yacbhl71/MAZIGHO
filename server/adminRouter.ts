@@ -16,6 +16,7 @@ import {
   previewProductInput,
 } from "./dropshipping";
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
+import { getCjFulfillmentSafetyStatus, prepareCjSandboxOrder } from "./services/cjFulfillment";
 import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOdooStatus, listOdooPartners, listOdooSaleOrders, syncCatalogToOdoo, updateOdooPartner, verifyOdooConnection } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 
@@ -691,6 +692,54 @@ export const adminRouter = router({
     }),
     getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderDecisionsAdmin(input.orderId);
+    }),
+    getFulfillment: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
+      return await db.getOrderFulfillmentAdmin(input.orderId);
+    }),
+    getCjSafetyStatus: orderOperatorProcedure.query(() => getCjFulfillmentSafetyStatus()),
+    prepareCjSandbox: orderOperatorProcedure.input(z.object({
+      orderId: z.number().int().positive(),
+      confirmation: z.string().trim().max(80),
+    })).mutation(async ({ input, ctx }) => {
+      const expected = `TEST CJ #${input.orderId}`;
+      if (input.confirmation !== expected) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Pour lancer le test sans débit, saisissez exactement : ${expected}` });
+      }
+      try {
+        const result = await prepareCjSandboxOrder(input.orderId);
+        logAudit(ctx, {
+          action: "order.cj_sandbox_prepare",
+          entityType: "order",
+          entityId: input.orderId,
+          summary: result.prepared ? `Commande CJ sandbox préparée pour la commande #${input.orderId}.` : `Préparation CJ sandbox non exécutée pour la commande #${input.orderId} : ${result.reason}.`,
+          metadata: { sandbox: true, prepared: result.prepared, supplierOrderCount: result.supplierOrders.length },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "CJ_PREPARATION_FAILED";
+        logAudit(ctx, {
+          action: "order.cj_sandbox_exception",
+          entityType: "order",
+          entityId: input.orderId,
+          summary: `Préparation CJ sandbox interrompue pour la commande #${input.orderId} : ${code.slice(0, 180)}.`,
+          metadata: { sandbox: true, error: code.slice(0, 400) },
+        });
+        const messages: Record<string, string> = {
+          CJ_PREPARATION_NOT_QUEUED: "Cette commande n’a pas de préparation CJ en attente. Les commandes antérieures à cette mise à jour restent manuelles.",
+          CJ_PREPARATION_IN_PROGRESS: "Une préparation CJ est déjà en cours pour cette commande.",
+          CJ_PREPARATION_ALREADY_COMPLETED: "Le test CJ a déjà été préparé pour cette commande.",
+          CJ_PREPARATION_REQUIRES_REVIEW: "Cette préparation CJ est en exception et doit être vérifiée avant toute nouvelle tentative.",
+          CJ_MAPPING_INCOMPLETE: "La variante CJ n’est pas suffisamment mappée pour une préparation sûre.",
+          CJ_VARIANT_OPTIONS_UNMAPPED: "Les options choisies n’ont pas de correspondance CJ vérifiée.",
+          CJ_ADDRESS_INCOMPLETE: "L’adresse collectée dans Stripe est incomplète pour CJ.",
+          CJ_DELIVERY_NOT_AVAILABLE: "CJ ne confirme plus de transport pour cette destination.",
+          CJ_OUT_OF_STOCK: "Le stock CJ n’est plus suffisant au moment de la vérification.",
+          CJ_MARGIN_BELOW_SAFETY_THRESHOLD: "Le coût fournisseur laisse une marge inférieure au seuil de sécurité.",
+          CJ_ORDER_INTERCEPTED: "CJ a signalé une anomalie sur cette commande sandbox.",
+        };
+        const prefix = code.split(":")[0];
+        throw new TRPCError({ code: "BAD_REQUEST", message: messages[prefix] || "La préparation CJ sandbox n’a pas abouti. Aucune commande CJ payante n’a été créée." });
+      }
     }),
     decide: orderOperatorProcedure.input(z.object({
       orderId: z.number(),

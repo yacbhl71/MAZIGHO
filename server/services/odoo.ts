@@ -191,7 +191,8 @@ async function findOrCreateProduct(
 }
 
 /**
- * Synchronises a paid order and its customer to Odoo as a confirmed sale order.
+ * Synchronises a paid order and its customer to Odoo as a draft sale order.
+ * It first looks up the immutable MAZIGHO reference to remain idempotent.
  * Never throws to the caller: failures are reported in the returned result so
  * the Stripe webhook stays resilient.
  */
@@ -207,6 +208,13 @@ export async function syncOrderToOdoo(input: {
 
   try {
     const uid = await authenticate(config);
+    const existingOrderIds = await executeKw<number[]>(config, uid, "sale.order", "search", [[[
+      "client_order_ref", "=", input.orderReference,
+    ]]], { limit: 1 });
+    if (existingOrderIds[0]) {
+      return { synced: true, skipped: false, saleOrderId: existingOrderIds[0] };
+    }
+
     const partnerId = await findOrCreatePartner(config, uid, input.customer);
 
     const summary = input.lines

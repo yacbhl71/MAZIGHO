@@ -7,7 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 
-const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -25,6 +25,7 @@ let _staffRolesReady: Promise<void> | null = null;
 let _auditLogSchemaReady: Promise<void> | null = null;
 let _promotionAdvancedSchemaReady: Promise<void> | null = null;
 let _reviewsSchemaReady: Promise<void> | null = null;
+let _fulfillmentSchemaReady: Promise<void> | null = null;
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -339,6 +340,42 @@ async function ensureOrderDecisionSchema() {
   })();
 
   return _orderDecisionSchemaReady;
+}
+
+/**
+ * Idempotent TiDB-compatible schema extension for supplier fulfillment. Supplier
+ * payment is never triggered here; these fields only persist internal state,
+ * snapshots and retriable work.
+ */
+async function ensureFulfillmentSchema() {
+  if (_fulfillmentSchemaReady) return _fulfillmentSchemaReady;
+
+  _fulfillmentSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const addColumn = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+      }
+    };
+
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `fulfillmentState` enum('not_eligible','awaiting_supplier_preparation','supplier_order_draft','supplier_payment_review','supplier_payment_pending','supplier_paid','supplier_exception','shipped','delivered','cancelled','refunded') NOT NULL DEFAULT 'not_eligible'");
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `odooSaleOrderId` int NULL");
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `fulfillmentLastError` varchar(1000) NULL");
+    await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `fulfillmentUpdatedAt` timestamp NULL DEFAULT NULL");
+    await addColumn("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `productNameSnapshot` varchar(255) NULL");
+    await addColumn("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `selectedOptions` text NULL");
+    await addColumn("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `supplierSnapshot` text NULL");
+
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderFulfillmentJobs` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `jobType` enum('prepare_cj_sandbox','prepare_cj_live','process_cj_event') NOT NULL, `state` enum('queued','running','completed','failed','cancelled') NOT NULL DEFAULT 'queued', `idempotencyKey` varchar(255) NOT NULL, `attempts` int NOT NULL DEFAULT 0, `lastError` varchar(1000), `availableAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `lockedAt` timestamp NULL, `completedAt` timestamp NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_fulfillment_jobs_idempotency_unique` (`idempotencyKey`), INDEX `order_fulfillment_jobs_order_idx` (`orderId`), INDEX `order_fulfillment_jobs_state_idx` (`state`, `availableAt`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderSupplierOrders` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `mode` enum('sandbox','live') NOT NULL, `externalReference` varchar(128) NOT NULL, `providerOrderId` varchar(200), `providerOrderNumber` varchar(200), `providerShipmentOrderId` varchar(200), `state` enum('draft','payment_review','payment_pending','paid','exception','shipped','delivered','cancelled') NOT NULL DEFAULT 'draft', `paymentMode` enum('none','page','balance') NOT NULL DEFAULT 'none', `paymentUrl` varchar(1000), `supplierCurrency` varchar(3) NOT NULL DEFAULT 'USD', `supplierProductAmount` int, `supplierShippingAmount` int, `supplierTaxAmount` int, `supplierTotalAmount` int, `exchangeRateChf` decimal(10,6), `customerSaleAmount` int NOT NULL, `quoteSnapshot` text, `orderSnapshot` text, `approvalActorUserId` int, `approvedAt` timestamp NULL, `paidAt` timestamp NULL, `trackingNumber` varchar(200), `trackingProvider` varchar(200), `trackingUrl` varchar(1000), `trackingStatus` varchar(80), `lastError` varchar(1000), `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_supplier_orders_reference_unique` (`externalReference`), INDEX `order_supplier_orders_order_idx` (`orderId`), INDEX `order_supplier_orders_provider_order_idx` (`provider`, `providerOrderId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `supplierWebhookEvents` (`id` int AUTO_INCREMENT PRIMARY KEY, `provider` varchar(40) NOT NULL, `messageId` varchar(200) NOT NULL, `eventType` varchar(40) NOT NULL, `messageType` varchar(40) NOT NULL, `providerOrderId` varchar(200), `externalReference` varchar(200), `payload` text, `processingState` enum('received','processed','ignored','failed') NOT NULL DEFAULT 'received', `processingError` varchar(1000), `receivedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `processedAt` timestamp NULL, UNIQUE KEY `supplier_webhook_events_message_unique` (`messageId`), INDEX `supplier_webhook_events_provider_order_idx` (`provider`, `providerOrderId`))"));
+  })();
+
+  return _fulfillmentSchemaReady;
 }
 
 async function ensurePasswordHashColumn() {
@@ -2012,6 +2049,7 @@ export async function deleteCategory(id: number) {
 }
 
 export async function getAllOrdersAdmin() {
+  await ensureFulfillmentSchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -2024,6 +2062,9 @@ export async function getAllOrdersAdmin() {
     shippingAddress: orders.shippingAddress,
     billingAddress: orders.billingAddress,
     trackingNumber: orders.trackingNumber,
+    fulfillmentState: orders.fulfillmentState,
+    fulfillmentLastError: orders.fulfillmentLastError,
+    odooSaleOrderId: orders.odooSaleOrderId,
     notes: orders.notes,
     createdAt: orders.createdAt,
     updatedAt: orders.updatedAt,
@@ -2076,6 +2117,7 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
 }
 
 export async function getOrderItemsAdmin(orderId: number) {
+  await ensureFulfillmentSchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -2084,6 +2126,9 @@ export async function getOrderItemsAdmin(orderId: number) {
       id: orderItems.id,
       quantity: orderItems.quantity,
       priceAtPurchase: orderItems.priceAtPurchase,
+      productNameSnapshot: orderItems.productNameSnapshot,
+      selectedOptions: orderItems.selectedOptions,
+      supplierSnapshot: orderItems.supplierSnapshot,
       productName: products.name,
     })
     .from(orderItems)
@@ -3611,36 +3656,126 @@ export async function createAdminUser(data: { name: string; email: string; role:
 }
 
 
-export async function getStripeCheckoutCart(userId: number, countryCode: string) {
+export type StripeCheckoutCartLine = {
+  productId: number;
+  quantity: number;
+  selectedOptions?: Record<string, string>;
+};
+
+type StripeCheckoutVerifiedItem = {
+  productId: number;
+  name: string;
+  quantity: number;
+  unitAmount: number;
+  shippingAmount: number;
+  selectedOptions: Record<string, string>;
+  supplierSnapshot: Record<string, unknown>;
+};
+
+function sanitizeSelectedOptions(value: Record<string, string> | undefined, productOptions: string | null): Record<string, string> {
+  const selected = Object.entries(value ?? {}).reduce<Record<string, string>>((result, [key, option]) => {
+    const safeKey = key.trim().slice(0, 80);
+    const safeValue = option.trim().slice(0, 120);
+    if (safeKey && safeValue) result[safeKey] = safeValue;
+    return result;
+  }, {});
+  if (Object.keys(selected).length > 8) throw new Error("CHECKOUT_OPTIONS_INVALID");
+
+  let groups: Array<{ name: string; values: string[] }> = [];
+  try {
+    const parsed = productOptions ? JSON.parse(productOptions) : [];
+    if (Array.isArray(parsed)) {
+      groups = parsed.filter((group): group is { name: string; values: string[] } => Boolean(
+        group && typeof group.name === "string" && Array.isArray(group.values)
+      ));
+    }
+  } catch {
+    // A legacy malformed option payload cannot be interpreted as a supplier variant.
+    throw new Error("CHECKOUT_OPTIONS_INVALID");
+  }
+
+  if (groups.length === 0) return selected;
+  if (Object.keys(selected).length !== groups.length) throw new Error("CHECKOUT_OPTIONS_REQUIRED");
+  for (const group of groups) {
+    const choice = selected[group.name];
+    if (!choice || !group.values.includes(choice)) throw new Error("CHECKOUT_OPTIONS_INVALID");
+  }
+  return selected;
+}
+
+/**
+ * Revalidates the client-side basket against the database immediately before
+ * Stripe Checkout. Supplier mapping values are captured as immutable order
+ * snapshots but are never sent to the browser or Stripe.
+ */
+export async function getStripeCheckoutCart(userId: number, countryCode: string, clientItems?: StripeCheckoutCartLine[]) {
+  await ensureDeliveryProfileSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const cart = await getCart(userId);
-  if (!cart || cart.items.length === 0) throw new Error("CART_EMPTY");
   const normalizedCountry = countryCode.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(normalizedCountry)) throw new Error("INVALID_COUNTRY");
 
-  const verifiedItems = [] as Array<{
-    productId: number;
-    name: string;
-    quantity: number;
-    unitAmount: number;
-    shippingAmount: number;
-  }>;
-  for (const item of cart.items) {
-    const profile = await db.select({
-      customerShippingCost: productDeliveryProfiles.customerShippingCost,
-    }).from(productDeliveryProfiles)
-      .where(and(eq(productDeliveryProfiles.productId, item.productId), eq(productDeliveryProfiles.countryCode, normalizedCountry)))
-      .limit(1);
-    if (!profile[0]) throw new Error("DELIVERY_NOT_AVAILABLE");
+  const fallbackCart = !clientItems?.length ? await getCart(userId) : null;
+  const requestedItems = clientItems?.length
+    ? clientItems
+    : (fallbackCart?.items ?? []).map(item => ({ productId: item.productId, quantity: item.quantity, selectedOptions: {} }));
+  if (requestedItems.length === 0 || requestedItems.length > 30) throw new Error("CART_EMPTY");
+
+  const normalizedItems = requestedItems.map(item => ({
+    productId: Number(item.productId),
+    quantity: Number(item.quantity),
+    selectedOptions: item.selectedOptions ?? {},
+  }));
+  if (normalizedItems.some(item => !Number.isInteger(item.productId) || item.productId <= 0 || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 20)) {
+    throw new Error("CART_INVALID");
+  }
+
+  const productIds = Array.from(new Set(normalizedItems.map(item => item.productId)));
+  const [productRows, profileRows] = await Promise.all([
+    db.select({
+      id: products.id,
+      name: products.name,
+      price: products.price,
+      stock: products.stock,
+      status: products.status,
+      options: products.options,
+      supplier: products.supplier,
+      supplierProductId: products.supplierProductId,
+    }).from(products).where(inArray(products.id, productIds)),
+    db.select().from(productDeliveryProfiles).where(and(inArray(productDeliveryProfiles.productId, productIds), eq(productDeliveryProfiles.countryCode, normalizedCountry))),
+  ]);
+  const productById = new Map(productRows.map(product => [product.id, product]));
+  const profileByProductId = new Map(profileRows.map(profile => [profile.productId, profile]));
+  const verifiedItems: StripeCheckoutVerifiedItem[] = [];
+
+  for (const item of normalizedItems) {
+    const product = productById.get(item.productId);
+    if (!product || product.status !== "active") throw new Error("PRODUCT_NOT_AVAILABLE");
+    if (product.stock <= 0) throw new Error("OUT_OF_STOCK");
+    const profile = profileByProductId.get(item.productId);
+    if (!profile) throw new Error("DELIVERY_NOT_AVAILABLE");
+    const selectedOptions = sanitizeSelectedOptions(item.selectedOptions, product.options);
+    const supplierSnapshot = {
+      version: 1,
+      provider: product.supplier || null,
+      supplierProductId: product.supplierProductId || null,
+      supplierVariantId: profile.supplierVariantId || null,
+      countryCode: normalizedCountry,
+      deliveryMethod: profile.deliveryMethod || null,
+      supplierShippingCostChf: profile.supplierShippingCost,
+      quotedAt: profile.quotedAt.toISOString(),
+    };
     verifiedItems.push({
-      productId: item.productId,
-      name: item.name,
+      productId: product.id,
+      name: product.name,
       quantity: item.quantity,
-      unitAmount: item.price,
-      shippingAmount: profile[0].customerShippingCost,
+      unitAmount: product.price,
+      shippingAmount: profile.customerShippingCost,
+      selectedOptions,
+      supplierSnapshot,
     });
   }
+
   return {
     items: verifiedItems,
     totalAmount: verifiedItems.reduce((sum, item) => sum + (item.unitAmount + item.shippingAmount) * item.quantity, 0),
@@ -3652,21 +3787,22 @@ export async function createStripePendingOrder(input: {
   sessionId: string;
   countryCode: string;
   totalAmount: number;
+  cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number };
   promotionId?: number | null;
   discountAmount?: number;
 }) {
   await ensurePromotionAdvancedSchema();
+  await ensureFulfillmentSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const existing = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
   if (existing[0]) return existing[0];
-  const cart = await getStripeCheckoutCart(input.userId, input.countryCode);
-  if (cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
-  const discountAmount = Math.max(0, Math.min(cart.totalAmount, input.discountAmount ?? 0));
+  if (input.cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
+  const discountAmount = Math.max(0, Math.min(input.cart.totalAmount, input.discountAmount ?? 0));
   const result = await db.insert(orders).values({
     userId: input.userId,
-    totalAmount: cart.totalAmount - discountAmount,
-    shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout" }),
+    totalAmount: input.cart.totalAmount - discountAmount,
+    shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
     billingAddress: null,
     paymentStatus: "unpaid",
     paymentMethod: "stripe_test",
@@ -3674,13 +3810,17 @@ export async function createStripePendingOrder(input: {
     promotionId: input.promotionId ?? null,
     discountAmount,
     status: "pending",
+    fulfillmentState: "not_eligible",
   });
   const orderId = Number((result as any)[0].insertId);
-  await db.insert(orderItems).values(cart.items.map(item => ({
+  await db.insert(orderItems).values(input.cart.items.map(item => ({
     orderId,
     productId: item.productId,
     quantity: item.quantity,
     priceAtPurchase: item.unitAmount + item.shippingAmount,
+    productNameSnapshot: item.name.slice(0, 255),
+    selectedOptions: JSON.stringify(item.selectedOptions),
+    supplierSnapshot: JSON.stringify(item.supplierSnapshot),
   })));
   return { id: orderId };
 }
@@ -3718,6 +3858,8 @@ export async function getOrderForStripeSession(sessionId: string) {
       status: orders.status,
       paymentStatus: orders.paymentStatus,
       shippingAddress: orders.shippingAddress,
+      fulfillmentState: orders.fulfillmentState,
+      odooSaleOrderId: orders.odooSaleOrderId,
       createdAt: orders.createdAt,
       userId: orders.userId,
       userName: users.name,
@@ -3737,12 +3879,274 @@ export async function getOrderForStripeSession(sessionId: string) {
       quantity: orderItems.quantity,
       priceAtPurchase: orderItems.priceAtPurchase,
       productName: products.name,
+      productNameSnapshot: orderItems.productNameSnapshot,
+      selectedOptions: orderItems.selectedOptions,
+      supplierSnapshot: orderItems.supplierSnapshot,
     })
     .from(orderItems)
     .leftJoin(products, eq(orderItems.productId, products.id))
     .where(eq(orderItems.orderId, order.id));
 
   return { order, items };
+}
+
+export type StripeShippingAddressInput = {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  countryCode?: string | null;
+};
+
+/** Stores the minimum delivery record collected by Stripe Checkout for a paid order. */
+export async function storeStripeShippingAddress(sessionId: string, input: StripeShippingAddressInput) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const countryCode = input.countryCode?.trim().toUpperCase() || null;
+  const shippingAddress = JSON.stringify({
+    source: "stripe_checkout",
+    name: input.name?.trim() || null,
+    phone: input.phone?.trim() || null,
+    email: input.email?.trim() || null,
+    line1: input.line1?.trim() || null,
+    line2: input.line2?.trim() || null,
+    city: input.city?.trim() || null,
+    state: input.state?.trim() || null,
+    postalCode: input.postalCode?.trim() || null,
+    countryCode: countryCode && /^[A-Z]{2}$/.test(countryCode) ? countryCode : null,
+  });
+  await db.update(orders).set({ shippingAddress }).where(eq(orders.stripeSessionId, sessionId));
+}
+
+export async function storeOdooSaleOrderId(orderId: number, saleOrderId: number) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db || !Number.isInteger(saleOrderId) || saleOrderId <= 0) return;
+  await db.update(orders).set({ odooSaleOrderId: saleOrderId }).where(eq(orders.id, orderId));
+}
+
+type FulfillmentState = "not_eligible" | "awaiting_supplier_preparation" | "supplier_order_draft" | "supplier_payment_review" | "supplier_payment_pending" | "supplier_paid" | "supplier_exception" | "shipped" | "delivered" | "cancelled" | "refunded";
+
+type CjSupplierSnapshot = {
+  version: number;
+  provider: string | null;
+  supplierProductId: string | null;
+  supplierVariantId: string | null;
+  countryCode: string;
+  deliveryMethod: string | null;
+  supplierShippingCostChf: number;
+  quotedAt: string;
+};
+
+function parseCjSupplierSnapshot(value: string | null): CjSupplierSnapshot | null {
+  try {
+    const parsed = JSON.parse(value || "") as Partial<CjSupplierSnapshot>;
+    if (parsed.provider !== "CJdropshipping" || !parsed.supplierProductId || !parsed.supplierVariantId || !parsed.countryCode) return null;
+    return {
+      version: Number(parsed.version) || 1,
+      provider: parsed.provider,
+      supplierProductId: String(parsed.supplierProductId),
+      supplierVariantId: String(parsed.supplierVariantId),
+      countryCode: String(parsed.countryCode).toUpperCase(),
+      deliveryMethod: parsed.deliveryMethod ? String(parsed.deliveryMethod) : null,
+      supplierShippingCostChf: Number(parsed.supplierShippingCostChf) || 0,
+      quotedAt: String(parsed.quotedAt || ""),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Creates a durable but dormant CJ sandbox preparation job after payment. It
+ * never calls CJ: an authorised operator must explicitly start it in admin.
+ */
+export async function queueCjSandboxPreparationForPaidOrder(sessionId: string) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const orderRows = await db.select({ id: orders.id, paymentStatus: orders.paymentStatus, status: orders.status })
+    .from(orders).where(eq(orders.stripeSessionId, sessionId)).limit(1);
+  const order = orderRows[0];
+  if (!order) return { queued: false, reason: "ORDER_NOT_FOUND" as const };
+  if (order.paymentStatus !== "paid" || order.status === "cancelled") return { queued: false, reason: "ORDER_NOT_ELIGIBLE" as const };
+
+  const itemRows = await db.select({ selectedOptions: orderItems.selectedOptions, supplierSnapshot: orderItems.supplierSnapshot })
+    .from(orderItems).where(eq(orderItems.orderId, order.id));
+  const mappings = itemRows.map(item => ({ item, snapshot: parseCjSupplierSnapshot(item.supplierSnapshot) }));
+  const optionsMapped = mappings.every(({ item }) => {
+    try { return Object.keys(JSON.parse(item.selectedOptions || "{}") as Record<string, string>).length === 0; } catch { return false; }
+  });
+  const eligible = mappings.length > 0 && mappings.every(mapping => Boolean(mapping.snapshot)) && optionsMapped;
+  const error = eligible ? null : "Préparation CJ bloquée : variante fournisseur ou options de commande non mappées de manière sûre.";
+  const nextState: FulfillmentState = eligible ? "awaiting_supplier_preparation" : "supplier_exception";
+  await db.update(orders).set({ fulfillmentState: nextState, fulfillmentLastError: error, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, order.id));
+  if (!eligible) return { queued: false, orderId: order.id, reason: "CJ_MAPPING_INCOMPLETE" as const };
+
+  const idempotencyKey = `cj:sandbox:prepare:order:${order.id}`;
+  const existing = await db.select({ id: orderFulfillmentJobs.id, state: orderFulfillmentJobs.state })
+    .from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.idempotencyKey, idempotencyKey)).limit(1);
+  if (!existing[0]) {
+    await db.insert(orderFulfillmentJobs).values({
+      orderId: order.id,
+      provider: "CJdropshipping",
+      jobType: "prepare_cj_sandbox",
+      state: "queued",
+      idempotencyKey,
+    });
+  }
+  return { queued: true, orderId: order.id, alreadyQueued: Boolean(existing[0]) };
+}
+
+export async function getOrderFulfillmentAdmin(orderId: number) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const orderRows = await db.select({
+    id: orders.id,
+    totalAmount: orders.totalAmount,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    fulfillmentState: orders.fulfillmentState,
+    fulfillmentLastError: orders.fulfillmentLastError,
+    fulfillmentUpdatedAt: orders.fulfillmentUpdatedAt,
+    odooSaleOrderId: orders.odooSaleOrderId,
+  }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  if (!orderRows[0]) return null;
+  const [supplierOrders, jobs] = await Promise.all([
+    db.select().from(orderSupplierOrders).where(eq(orderSupplierOrders.orderId, orderId)).orderBy(desc(orderSupplierOrders.createdAt)),
+    db.select().from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.orderId, orderId)).orderBy(desc(orderFulfillmentJobs.createdAt)),
+  ]);
+  return { order: orderRows[0], supplierOrders, jobs };
+}
+
+export type CjSandboxPreparationInput = {
+  order: {
+    id: number;
+    totalAmount: number;
+    status: string;
+    paymentStatus: string;
+    shippingAddress: string;
+    fulfillmentState: FulfillmentState;
+  };
+  items: Array<{
+    id: number;
+    productId: number;
+    quantity: number;
+    priceAtPurchase: number;
+    productNameSnapshot: string | null;
+    selectedOptions: string | null;
+    supplierSnapshot: string | null;
+  }>;
+};
+
+export async function claimCjSandboxPreparation(orderId: number): Promise<{ claimed: boolean; input?: CjSandboxPreparationInput; reason?: string }> {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const jobKey = `cj:sandbox:prepare:order:${orderId}`;
+  const jobRows = await db.select({ id: orderFulfillmentJobs.id, state: orderFulfillmentJobs.state })
+    .from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.idempotencyKey, jobKey)).limit(1);
+  const job = jobRows[0];
+  if (!job) return { claimed: false, reason: "CJ_PREPARATION_NOT_QUEUED" };
+  if (job.state === "running") return { claimed: false, reason: "CJ_PREPARATION_IN_PROGRESS" };
+  if (job.state === "completed") return { claimed: false, reason: "CJ_PREPARATION_ALREADY_COMPLETED" };
+  if (job.state !== "queued") return { claimed: false, reason: "CJ_PREPARATION_REQUIRES_REVIEW" };
+
+  const claim = await db.update(orderFulfillmentJobs).set({ state: "running", lockedAt: new Date(), attempts: sql`${orderFulfillmentJobs.attempts} + 1`, lastError: null })
+    .where(and(eq(orderFulfillmentJobs.id, job.id), eq(orderFulfillmentJobs.state, "queued")));
+  const affected = Number((claim as any)?.[0]?.affectedRows ?? (claim as any)?.affectedRows ?? 0);
+  if (affected === 0) return { claimed: false, reason: "CJ_PREPARATION_IN_PROGRESS" };
+
+  const orderRows = await db.select({
+    id: orders.id,
+    totalAmount: orders.totalAmount,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    shippingAddress: orders.shippingAddress,
+    fulfillmentState: orders.fulfillmentState,
+  }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  const order = orderRows[0];
+  if (!order || order.paymentStatus !== "paid" || order.status === "cancelled") {
+    await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: "Commande non éligible à la préparation CJ.", completedAt: new Date() }).where(eq(orderFulfillmentJobs.id, job.id));
+    return { claimed: false, reason: "ORDER_NOT_ELIGIBLE" };
+  }
+  const priorSupplierOrders = await db.select({ id: orderSupplierOrders.id }).from(orderSupplierOrders)
+    .where(and(eq(orderSupplierOrders.orderId, orderId), eq(orderSupplierOrders.provider, "CJdropshipping"), eq(orderSupplierOrders.mode, "sandbox"))).limit(1);
+  if (priorSupplierOrders[0]) {
+    await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date() }).where(eq(orderFulfillmentJobs.id, job.id));
+    return { claimed: false, reason: "CJ_SANDBOX_ORDER_EXISTS" };
+  }
+  const items = await db.select({
+    id: orderItems.id,
+    productId: orderItems.productId,
+    quantity: orderItems.quantity,
+    priceAtPurchase: orderItems.priceAtPurchase,
+    productNameSnapshot: orderItems.productNameSnapshot,
+    selectedOptions: orderItems.selectedOptions,
+    supplierSnapshot: orderItems.supplierSnapshot,
+  }).from(orderItems).where(eq(orderItems.orderId, orderId));
+  return { claimed: true, input: { order, items } };
+}
+
+export type CjSandboxSupplierOrderRecord = {
+  orderId: number;
+  externalReference: string;
+  providerOrderId: string | null;
+  providerOrderNumber: string | null;
+  providerShipmentOrderId: string | null;
+  supplierProductAmount: number | null;
+  supplierShippingAmount: number | null;
+  supplierTaxAmount: number | null;
+  supplierTotalAmount: number | null;
+  customerSaleAmount: number;
+  quoteSnapshot: Record<string, unknown>;
+  orderSnapshot: Record<string, unknown>;
+};
+
+export async function completeCjSandboxPreparation(records: CjSandboxSupplierOrderRecord[]) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db || records.length === 0) throw new Error("CJ_SANDBOX_RESULT_EMPTY");
+  const orderId = records[0].orderId;
+  if (records.some(record => record.orderId !== orderId)) throw new Error("CJ_SANDBOX_ORDER_MISMATCH");
+  for (const record of records) {
+    await db.insert(orderSupplierOrders).values({
+      orderId,
+      provider: "CJdropshipping",
+      mode: "sandbox",
+      externalReference: record.externalReference,
+      providerOrderId: record.providerOrderId,
+      providerOrderNumber: record.providerOrderNumber,
+      providerShipmentOrderId: record.providerShipmentOrderId,
+      state: "draft",
+      paymentMode: "none",
+      supplierCurrency: "USD",
+      supplierProductAmount: record.supplierProductAmount,
+      supplierShippingAmount: record.supplierShippingAmount,
+      supplierTaxAmount: record.supplierTaxAmount,
+      supplierTotalAmount: record.supplierTotalAmount,
+      customerSaleAmount: record.customerSaleAmount,
+      quoteSnapshot: JSON.stringify(record.quoteSnapshot),
+      orderSnapshot: JSON.stringify(record.orderSnapshot),
+    });
+  }
+  await db.update(orders).set({ fulfillmentState: "supplier_order_draft", fulfillmentLastError: null, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, orderId));
+  await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date(), lastError: null }).where(eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`));
+}
+
+export async function failCjSandboxPreparation(orderId: number, error: string) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const message = error.replace(/\s+/g, " ").trim().slice(0, 1000) || "Préparation CJ impossible.";
+  await db.update(orders).set({ fulfillmentState: "supplier_exception", fulfillmentLastError: message, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, orderId));
+  await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: message, completedAt: new Date() }).where(eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`));
 }
 
 

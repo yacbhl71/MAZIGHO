@@ -12,6 +12,7 @@ export default function AdminConversion() {
   const data = query.data;
   const connected = Boolean(data?.connected);
   const hasTraffic = (data?.visitors ?? 0) > 0;
+  const analyticsError = data && "error" in data && typeof data.error === "string" ? data.error : null;
 
   return (
     <DashboardLayout>
@@ -33,7 +34,7 @@ export default function AdminConversion() {
             <div>
               <p className="font-semibold">Vercel Web Analytics non connecté</p>
               <p className="mt-1 leading-6">
-                {data?.error ? `Erreur : ${data.error}. ` : ""}
+                {analyticsError ? `Erreur : ${analyticsError}. ` : ""}
                 Vérifiez que les variables <span className="font-mono">VERCEL_ANALYTICS_TOKEN</span>, <span className="font-mono">VERCEL_PROJECT_ID</span> et <span className="font-mono">VERCEL_TEAM_ID</span> sont définies sur Vercel.
               </p>
             </div>

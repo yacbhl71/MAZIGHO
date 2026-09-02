@@ -2,8 +2,8 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
-import { createStripePendingOrder, finalizePaidOrderRedemption, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
-import { sendOrderConfirmationForStripeSession } from "./emails";
+import { createStripePendingOrder, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
+import { completePaidStripeOrder } from "./stripeWebhook";
 
 function getStripeTestClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -19,12 +19,20 @@ function stripeUnavailable(operation: "create" | "retrieve") {
 
 export const stripeCheckoutRouter = router({
   createSession: protectedProcedure
-    .input(z.object({ countryCode: z.string().length(2).regex(/^[A-Za-z]{2}$/), promoCode: z.string().trim().min(2).max(64).optional() }))
+    .input(z.object({
+      countryCode: z.string().length(2).regex(/^[A-Za-z]{2}$/),
+      promoCode: z.string().trim().min(2).max(64).optional(),
+      items: z.array(z.object({
+        productId: z.number().int().positive(),
+        quantity: z.number().int().min(1).max(20),
+        selectedOptions: z.record(z.string().max(80), z.string().max(120)).optional(),
+      })).min(1).max(30),
+    }))
     .mutation(async ({ input, ctx }) => {
       const stripe = getStripeTestClient();
       if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: stripeUnavailable("create") });
       try {
-        const cart = await getStripeCheckoutCart(ctx.user.id, input.countryCode);
+        const cart = await getStripeCheckoutCart(ctx.user.id, input.countryCode, input.items);
         // Resolve promo (optional). Discount applies to the product subtotal, never to shipping.
         let promotionId: number | null = null;
         let discountAmount = 0;
@@ -69,6 +77,10 @@ export const stripeCheckoutRouter = router({
           mode: "payment",
           payment_method_types: ["card", "twint"],
           line_items: lineItems,
+          shipping_address_collection: {
+            allowed_countries: [input.countryCode.toUpperCase() as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry],
+          },
+          phone_number_collection: { enabled: true },
           customer_email: ctx.user.email || undefined,
           client_reference_id: String(ctx.user.id),
           success_url: `${origin}/commandes?stripe_session_id={CHECKOUT_SESSION_ID}`,
@@ -91,6 +103,7 @@ export const stripeCheckoutRouter = router({
           sessionId: session.id,
           countryCode: input.countryCode,
           totalAmount: cart.totalAmount,
+          cart,
           promotionId,
           discountAmount,
         });
@@ -115,8 +128,7 @@ export const stripeCheckoutRouter = router({
         if (session.payment_status === "paid") {
           const paid = await markOrderPaidByStripeSession(input.sessionId);
           if (paid.justPaid) {
-            await finalizePaidOrderRedemption(input.sessionId);
-            sendOrderConfirmationForStripeSession(input.sessionId).catch(err => console.error("[email:order-confirmation]", err));
+            await completePaidStripeOrder(session);
           }
         }
         return { status: session.payment_status, total: session.amount_total, email: session.customer_email };
