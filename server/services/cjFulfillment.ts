@@ -148,7 +148,13 @@ async function preflightLine(item: db.CjSandboxPreparationInput["items"][number]
   const snapshot = parseCjSupplierSnapshot(item.supplierSnapshot);
   if (snapshot.countryCode !== expectedCountry) throw new Error("CJ_DELIVERY_COUNTRY_CHANGED");
 
-  const prepared = await prepareCjProductImport({ productId: snapshot.supplierProductId });
+  // La fiche CJ peut dépendre du marché de destination. Utiliser le même
+  // contexte que l’adresse finale évite de considérer à tort un produit
+  // comme indisponible avant le calcul de livraison.
+  const prepared = await prepareCjProductImport({
+    productId: snapshot.supplierProductId,
+    countryCode: expectedCountry,
+  });
   const variant = prepared.variants.find(candidate => candidate.id === snapshot.supplierVariantId);
   if (!variant || !variant.supplierPriceUsd || variant.supplierPriceUsd <= 0) throw new Error("CJ_VARIANT_NOT_AVAILABLE");
 

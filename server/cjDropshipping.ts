@@ -597,11 +597,17 @@ async function getCjVariantStock(access: CjAccessToken, variantId: string): Prom
 }
 
 export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[]; quantity?: number }): Promise<CjDeliveryQuote> {
-  const prepared = await prepareCjProductImport({ productId: input.productId });
+  const requestedCodes = input.countryCodes?.length ? input.countryCodes : cjDeliveryMarkets.map(item => item.countryCode);
+  // L’API CJ peut retourner une fiche différente selon le marché interrogé.
+  // Le premier pays demandé est le contexte sûr pour sélectionner la variante.
+  const prepared = await prepareCjProductImport({
+    productId: input.productId,
+    countryCode: requestedCodes[0],
+  });
   const variant = prepared.variants.find(item => item.id === input.variantId);
   if (!variant) throw new Error("CJ_VARIANT_NOT_FOUND");
 
-  const requestedCodes = input.countryCodes?.length ? input.countryCodes : cjDeliveryMarkets.map(item => item.countryCode);
+
   const targets = requestedCodes.map(code => cjDeliveryMarkets.find(item => item.countryCode === code)).filter((item): item is typeof cjDeliveryMarkets[number] => Boolean(item));
   if (targets.length === 0) throw new Error("CJ_DELIVERY_DESTINATION_INVALID");
 
