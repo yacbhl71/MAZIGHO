@@ -1873,6 +1873,68 @@ export async function createProduct(data: any) {
   return { id: productId };
 }
 
+export async function getProductAdminStatusById(productId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select({ id: products.id, status: products.status, name: products.name })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+  return rows[0];
+}
+
+export type DraftSeoUpdate = {
+  id: number;
+  name?: string;
+  description?: string;
+  longDescription?: string;
+  archive?: boolean;
+};
+
+/**
+ * Applies editorial changes only if the product remains a draft at write time.
+ * This intentionally bypasses automatic translation: French source content is
+ * reviewed first, then translations can be generated as a separate operation.
+ */
+export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de données non disponible");
+
+  const uniqueUpdates = Array.from(new Map(updates.map(update => [update.id, update])).values());
+  if (uniqueUpdates.length === 0) return { updated: 0, archived: 0, skipped: 0 };
+
+  const existing = await db.select({ id: products.id, status: products.status })
+    .from(products)
+    .where(inArray(products.id, uniqueUpdates.map(update => update.id)));
+  const statusById = new Map(existing.map(product => [product.id, product.status]));
+
+  let updated = 0;
+  let archived = 0;
+  let skipped = 0;
+  for (const update of uniqueUpdates) {
+    if (statusById.get(update.id) !== "draft") {
+      skipped += 1;
+      continue;
+    }
+    if (update.archive) {
+      await db.update(products).set({ status: "archived" }).where(and(eq(products.id, update.id), eq(products.status, "draft")));
+      archived += 1;
+      continue;
+    }
+    if (!update.name || !update.description || !update.longDescription) {
+      skipped += 1;
+      continue;
+    }
+    await db.update(products).set({
+      name: update.name.trim(),
+      description: update.description.trim(),
+      longDescription: update.longDescription.trim(),
+    }).where(and(eq(products.id, update.id), eq(products.status, "draft")));
+    updated += 1;
+  }
+  return { updated, archived, skipped };
+}
+
 export async function updateProduct(id: number, data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

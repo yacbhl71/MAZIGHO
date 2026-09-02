@@ -58,6 +58,19 @@ export default function Product() {
       setLocation(`/produit/${product.id}`, { replace: true });
     }
   }, [isPreview, product, canonicalId, slug, setLocation]);
+
+  useEffect(() => {
+    if (!product || typeof document === "undefined") return;
+    document.title = `${product.name} | MAZIGHO`;
+    const metaDescription = product.description?.replace(/\s+/g, " ").trim() || product.name;
+    let descriptionTag = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    if (!descriptionTag) {
+      descriptionTag = document.createElement("meta");
+      descriptionTag.name = "description";
+      document.head.appendChild(descriptionTag);
+    }
+    descriptionTag.content = metaDescription.slice(0, 160);
+  }, [product?.id, product?.name, product?.description]);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId

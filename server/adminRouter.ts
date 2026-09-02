@@ -344,6 +344,30 @@ export const adminRouter = router({
     getTranslationOverview: catalogEditorProcedure.query(async () => {
       return await db.getProductTranslationOverview();
     }),
+    applyDraftSeoBatch: catalogEditorProcedure.input(z.object({
+      updates: z.array(z.object({
+        id: z.number().int().positive(),
+        name: z.string().trim().min(28).max(200).optional(),
+        description: z.string().trim().min(90).max(1000).optional(),
+        longDescription: z.string().trim().min(350).max(10000).optional(),
+        archive: z.boolean().optional(),
+      }).superRefine((update, context) => {
+        if (update.archive) return;
+        if (!update.name || !update.description || !update.longDescription) {
+          context.addIssue({ code: z.ZodIssueCode.custom, message: "Une fiche SEO doit contenir un titre, une accroche et une description détaillée." });
+        }
+      })).min(1).max(20),
+    })).mutation(async ({ ctx, input }) => {
+      const result = await db.applyDraftSeoUpdates(input.updates);
+      logAudit(ctx, {
+        action: "product.seo_batch_apply",
+        entityType: "product",
+        entityId: null,
+        summary: `Optimisation SEO des brouillons : ${result.updated} enrichi(s), ${result.archived} archivé(s), ${result.skipped} ignoré(s).`,
+        metadata: result,
+      });
+      return result;
+    }),
     translate: catalogEditorProcedure.input(z.object({
       productId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
