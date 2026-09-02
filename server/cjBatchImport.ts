@@ -125,6 +125,8 @@ export const CJ_FASHION_BATCH_CATEGORIES = [
       "men cotton polo shirt", "men casual overshirt", "men knit crewneck sweater",
       "men chino trousers", "men casual jacket", "men basic t shirt",
       "men straight jeans", "men zip hoodie", "men summer shorts",
+      "men button down casual shirt", "men cargo trousers", "men lightweight windbreaker",
+      "men long sleeve henley shirt", "men casual tracksuit set",
     ],
   },
   {
@@ -136,6 +138,8 @@ export const CJ_FASHION_BATCH_CATEGORIES = [
       "kids cotton t shirt", "children casual hoodie", "kids jogger pants",
       "children summer dress", "kids fleece jacket", "kids long sleeve top",
       "children leggings pants", "kids casual shorts", "children knit sweater",
+      "boys cotton t shirt", "girls casual cotton dress", "kids two piece tracksuit",
+      "children denim jacket", "kids rain jacket lightweight",
     ],
   },
 ] as const satisfies readonly CjBatchCategory[];
