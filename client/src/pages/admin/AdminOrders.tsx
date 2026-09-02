@@ -81,6 +81,20 @@ function getFulfillmentBadge(status?: string | null) {
   return <Badge variant="outline" className={meta?.className || "bg-slate-50 text-slate-700"}>{meta?.label || status || "—"}</Badge>;
 }
 
+const cjFulfillmentErrorCopy: Record<string, string> = {
+  CJ_PRODUCT_DETAILS_FAILED: "La fiche CJ ne répond pas dans le contexte de livraison sélectionné. Vérifiez ou remplacez le produit avant toute commande fournisseur.",
+  CJ_VARIANT_NOT_AVAILABLE: "La variante CJ enregistrée n’est plus disponible. Aucune commande fournisseur n’a été créée.",
+  CJ_VARIANT_OPTIONS_UNMAPPED: "Les options choisies ne sont pas encore reliées à une variante CJ exacte. Aucune commande fournisseur n’a été créée.",
+  CJ_OUT_OF_STOCK: "Le stock CJ revalidé est insuffisant. Aucune commande fournisseur n’a été créée.",
+  CJ_DELIVERY_NOT_AVAILABLE: "Aucun transport CJ n’a pu être revalidé pour cette destination. Aucune commande fournisseur n’a été créée.",
+  CJ_MARGIN_BELOW_SAFETY_THRESHOLD: "La marge recalculée passe sous le seuil de sécurité. Examinez le prix avant toute commande fournisseur.",
+};
+
+function formatCjFulfillmentError(error?: string | null) {
+  if (!error) return null;
+  return cjFulfillmentErrorCopy[error] || "La prévalidation CJ a été interrompue. Consultez la référence produit et réessayez uniquement après correction.";
+}
+
 function formatDate(value: Date | string) {
   return new Date(value).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
 }
@@ -298,7 +312,7 @@ export default function AdminOrders() {
                   <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><FlaskConical className="h-4 w-4 text-indigo-700" /> Préparation fournisseur CJ</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Zone interne. Le test crée uniquement une commande sandbox CJ avec <code>payType=3</code> : aucun débit, aucune commande réelle et aucune expédition ne peuvent être déclenchés.</p></div>{getFulfillmentBadge(fulfillment?.order.fulfillmentState || selectedOrder.fulfillmentState)}</div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs"><Badge variant="outline" className="border-indigo-200 bg-white text-indigo-800">{cjSafety?.sandboxOnly ? "Sandbox uniquement" : "Mode à vérifier"}</Badge><Badge variant="outline" className="border-indigo-200 bg-white text-indigo-800">Paiement CJ désactivé</Badge>{fulfillment?.order.odooSaleOrderId ? <Badge variant="outline" className="border-emerald-200 bg-white text-emerald-800">Odoo #{fulfillment.order.odooSaleOrderId}</Badge> : <Badge variant="outline" className="border-slate-200 bg-white text-slate-700">Odoo : non synchronisé</Badge>}</div>
                   {isLoadingFulfillment ? <Skeleton className="mt-4 h-16 w-full" /> : <><div className="mt-4 grid gap-3 sm:grid-cols-2">{fulfillment?.supplierOrders?.length ? fulfillment.supplierOrders.map(supplierOrder => { const supplierTotal = Number(supplierOrder.supplierTotalAmount || 0); const estimateChf = Math.round(supplierTotal * 0.9); const margin = Number(supplierOrder.customerSaleAmount || 0) - estimateChf; return <div key={supplierOrder.id} className="rounded-lg border border-indigo-100 bg-white p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold text-slate-900">{supplierOrder.externalReference}</p><Badge variant="outline" className="border-indigo-200 text-indigo-800">{supplierOrder.state}</Badge></div><p className="mt-1 text-xs text-slate-600">CJ #{supplierOrder.providerOrderId || "en attente"} · test sandbox</p><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><span className="text-slate-500">Coût CJ</span><strong className="text-right text-slate-900">${(supplierTotal / 100).toFixed(2)} USD</strong><span className="text-slate-500">Estimation CHF</span><strong className="text-right text-slate-900">{formatPrice(estimateChf)}</strong><span className="text-slate-500">Marge estimée</span><strong className={`text-right ${margin >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatPrice(margin)}</strong></div></div>; }) : <p className="text-xs text-slate-600">Aucune commande CJ n’a été créée. Les commandes existantes avant cette mise à jour restent volontairement manuelles.</p>}</div>
-                  {fulfillment?.order.fulfillmentLastError && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900"><strong>Contrôle requis :</strong> {fulfillment.order.fulfillmentLastError}</div>}
+                  {fulfillment?.order.fulfillmentLastError && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900"><strong>Contrôle requis :</strong> {formatCjFulfillmentError(fulfillment.order.fulfillmentLastError)}</div>}
                   {fulfillment?.jobs?.[0] && <p className="mt-3 text-xs text-slate-500">Tâche interne : {fulfillment.jobs[0].state === "queued" ? "en attente de lancement" : fulfillment.jobs[0].state === "completed" ? "terminée" : fulfillment.jobs[0].state === "failed" ? "en exception" : fulfillment.jobs[0].state}.</p>}
                   <Button type="button" className="mt-4 border-indigo-300 bg-white text-indigo-800 hover:bg-indigo-100" variant="outline" disabled={selectedOrder.paymentStatus !== "paid" || fulfillment?.order.fulfillmentState !== "awaiting_supplier_preparation"} onClick={() => { setSandboxOrderId(selectedOrder.id); setSandboxConfirmation(""); }}><FlaskConical className="mr-2 h-4 w-4" /> Préparer chez CJ (test)</Button></>}</div>
 
