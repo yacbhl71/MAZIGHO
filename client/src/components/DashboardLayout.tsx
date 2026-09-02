@@ -35,39 +35,39 @@ type SidebarTone = "sky" | "orange" | "teal" | "violet" | "slate";
 
 const sidebarToneClasses: Record<SidebarTone, { label: string; active: string; idle: string; activeIcon: string; idleIcon: string }> = {
   sky: {
-    label: "text-orange-300",
-    active: "bg-sky-500/20 text-sky-50 ring-1 ring-inset ring-sky-400/50",
-    idle: "text-sky-200 hover:bg-sky-500/10 hover:text-sky-50",
-    activeIcon: "text-sky-200",
-    idleIcon: "text-sky-300",
+    label: "text-[#FF8100]",
+    active: "bg-[#FFCC98]/20 text-[#FFCC98] ring-1 ring-inset ring-[#FFCC98]/55",
+    idle: "text-[#FFCC98] hover:bg-[#FFCC98]/10 hover:text-[#FFF7D9]",
+    activeIcon: "text-[#FFCC98]",
+    idleIcon: "text-[#FFCC98]/85",
   },
   orange: {
-    label: "text-orange-300",
-    active: "bg-orange-500/20 text-orange-50 ring-1 ring-inset ring-orange-400/50",
-    idle: "text-amber-200 hover:bg-orange-500/10 hover:text-orange-50",
-    activeIcon: "text-orange-200",
-    idleIcon: "text-amber-300",
+    label: "text-[#FF8100]",
+    active: "bg-[#FF8100]/20 text-[#FFF7D9] ring-1 ring-inset ring-[#FF8100]/55",
+    idle: "text-[#FFD49A] hover:bg-[#FF8100]/10 hover:text-[#FFF7D9]",
+    activeIcon: "text-[#FFF7D9]",
+    idleIcon: "text-[#FFB65C]",
   },
   teal: {
-    label: "text-orange-300",
-    active: "bg-teal-500/20 text-teal-50 ring-1 ring-inset ring-teal-400/50",
-    idle: "text-teal-200 hover:bg-teal-500/10 hover:text-teal-50",
-    activeIcon: "text-teal-200",
-    idleIcon: "text-teal-300",
+    label: "text-[#FF8100]",
+    active: "bg-[#214A3E]/70 text-[#E4F0D7] ring-1 ring-inset ring-[#6FA78C]/65",
+    idle: "text-[#A8D1B8] hover:bg-[#214A3E]/45 hover:text-[#E4F0D7]",
+    activeIcon: "text-[#C5E3C7]",
+    idleIcon: "text-[#86B89D]",
   },
   violet: {
-    label: "text-orange-300",
-    active: "bg-violet-500/20 text-violet-50 ring-1 ring-inset ring-violet-400/50",
-    idle: "text-violet-200 hover:bg-violet-500/10 hover:text-violet-50",
-    activeIcon: "text-violet-200",
-    idleIcon: "text-violet-300",
+    label: "text-[#FF8100]",
+    active: "bg-[#B44B31]/35 text-[#FFF1DF] ring-1 ring-inset ring-[#D98263]/65",
+    idle: "text-[#E9A38D] hover:bg-[#B44B31]/20 hover:text-[#FFF1DF]",
+    activeIcon: "text-[#FFC2A8]",
+    idleIcon: "text-[#D98263]",
   },
   slate: {
-    label: "text-orange-300",
-    active: "bg-cyan-500/20 text-cyan-50 ring-1 ring-inset ring-cyan-400/50",
-    idle: "text-cyan-200 hover:bg-cyan-500/10 hover:text-cyan-50",
-    activeIcon: "text-cyan-200",
-    idleIcon: "text-cyan-300",
+    label: "text-[#FF8100]",
+    active: "bg-[#FF5A6F]/20 text-[#FFE6B6] ring-1 ring-inset ring-[#FF5A6F]/55",
+    idle: "text-[#FF9AA7] hover:bg-[#FF5A6F]/10 hover:text-[#FFE6B6]",
+    activeIcon: "text-[#FFE6B6]",
+    idleIcon: "text-[#FF7B8C]",
   },
 };
 
@@ -313,9 +313,9 @@ function DashboardLayoutContent({
       <div className="relative" ref={sidebarRef}>
           <Sidebar
             collapsible="icon"
-            className="border-r-0 bg-slate-950 text-slate-200"
+            className="border-r-0 bg-[#07364D] text-[#FFF7D9]"
             disableTransition={isResizing}
-            style={{ backgroundColor: '#020617', color: '#e2e8f0' }}
+            style={{ backgroundColor: '#07364D', color: '#FFF7D9' }}
           >
           <SidebarHeader className="h-16 justify-center">
             <div className="flex items-center gap-3 pl-2 group-data-[collapsible=icon]:px-0 transition-all w-full">
@@ -367,7 +367,7 @@ function DashboardLayoutContent({
               if (items.length === 0) return null;
               return (
               <SidebarGroup key={section.label} className="shrink-0 px-2 py-1.5">
-                <SidebarGroupLabel className={`px-2 text-[10px] font-bold uppercase tracking-[0.14em] ${tone.label}`}>
+                <SidebarGroupLabel className={`px-2 text-[10px] font-extrabold uppercase tracking-[0.14em] ${tone.label}`}>
                   {section.label}
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
