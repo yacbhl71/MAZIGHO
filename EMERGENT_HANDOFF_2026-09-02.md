@@ -118,14 +118,14 @@ Le Hub fournisseurs contient désormais un bloc prioritaire et réservé à l’
 |---|---|
 | Niche / mot-clé CJ | Recherche texte libre, de 2 à 120 caractères. |
 | Catégories MAZIGHO | Une ou plusieurs catégories standard peuvent être cochées. Chaque brouillon créé y est classé simultanément. |
-| Pays de destination | Une ou plusieurs destinations parmi CH, FR, DE, IT, AT, BE, NL ou ES peuvent être cochées. La même variante doit avoir un fret rapide confirmé dans chaque pays coché. |
+| Pays de destination | Une ou plusieurs destinations parmi CH, FR, DE, IT, AT, BE, NL ou ES peuvent être cochées. Chaque produit conserve uniquement les profils de livraison rapides effectivement confirmés, pays par pays. |
 | Nombre de produits | De 1 à 12 brouillons demandés au maximum par lancement. |
 | Limite de brouillons | De 1 à 100 produits CJ non archivés maximum **par catégorie cochée**. La catégorie la plus proche de son plafond limite le lancement. |
 | Poids maximum | De 50 g à 10 kg ; variante rejetée sans poids connu ou au-dessus du seuil. |
 | Multiplicateur de prix | De 1,1 à 5 ; appliqué au coût produit + transport, arrondi commercialement à `.90` CHF. |
 | Transport | Méthode explicitement nommée **CJPacket**, non postale/non économique, avec un délai connu de 15 jours maximum. |
 
-Le prix final est calculé avec le fret fournisseur le plus élevé parmi les destinations cochées. Ainsi, le même prix public couvre les pays sélectionnés sans frais de livraison additionnels. Un produit qui échoue dans un seul pays coché est écarté du lancement.
+Le prix final est calculé avec le fret fournisseur le plus élevé parmi les **profils effectivement validés**. Ainsi, le même prix public couvre les pays où le produit est visible, sans frais de livraison additionnels. Un produit sans profil de livraison validé pour un pays reste caché dans ce pays, mais peut être importé et visible dans les autres pays validés.
 
 Les anciens lots fixes par catégories et le lot Mode restent intégralement disponibles dans le code, mais sont visuellement repliés dans **« Outils classiques / sauvegarde »**. Ils ne sont pas supprimés, mais ne doivent plus être le parcours par défaut.
 

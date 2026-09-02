@@ -222,6 +222,7 @@ export type CjCustomSourcingResult = CjBatchImportResult & {
   maxWeightG: number;
   priceMultiplier: number;
   fastTrackedOnly: true;
+  products: Array<{ id: number; name: string; priceCents: number; stock: number; countryCodes: CjCustomSourcingCountryCode[] }>;
 };
 
 function slugify(value: string) {
@@ -278,7 +279,7 @@ function reasonFor(error: unknown) {
   if (code === "CJ_UNREACHABLE") return "CJ ne répond pas actuellement.";
   if (code === "CJ_PRODUCT_DETAILS_FAILED") return "La fiche CJ n’est plus disponible.";
   if (code === "CJ_VARIANT_NOT_FOUND") return "Aucune variante exploitable n’a été trouvée.";
-  return "Produit écarté : informations CJ incomplètes ou livraison non confirmée pour toutes les destinations sélectionnées.";
+  return "Produit écarté : informations CJ incomplètes ou aucune livraison confirmée pour les destinations sélectionnées.";
 }
 
 function containsOne(value: string, terms: readonly string[]) {
@@ -322,10 +323,11 @@ function commercialFashionCopy(categorySlug: string, rawName: string): Commercia
 
 /**
  * Sourcing manuel déclenché depuis le panneau. Un brouillon est classé dans
- * toutes les catégories choisies et n’est créé que si la même variante est
- * validée dans chaque destination sélectionnée : stock, poids, transport
- * CJPacket rapide et fret chiffré. Le prix final couvre le fret le plus élevé
- * parmi les pays choisis, afin qu’aucun coût ne soit ajouté au client.
+ * toutes les catégories choisies et n’est créé que si au moins une destination
+ * sélectionnée confirme stock, poids, transport CJPacket rapide et fret chiffré.
+ * Les profils valides sont conservés pays par pays ; les autres pays restent
+ * naturellement invisibles pour ce produit. Le prix final couvre le fret le plus
+ * élevé parmi les profils validés, afin qu’aucun coût ne soit ajouté au client.
  */
 export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Promise<CjCustomSourcingResult> {
   const categoryIds = Array.from(new Set(input.categoryIds));
@@ -423,19 +425,19 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
             countryCodes: destinations.map(item => item.countryCode),
           });
           const stock = quote.stock.checked ? Math.floor(quote.stock.totalQuantity ?? 0) : 0;
-          const deliveryProfiles = quote.countries.map(country => {
+          const deliveryProfiles = quote.countries.flatMap(country => {
             const option = country.options.find(item => isFastTrackedCjMethod(item.logisticName, item.delay));
-            if (!option) return null;
-            return {
+            if (!option) return [];
+            return [{
               countryCode: country.countryCode,
               supplierVariantId: variant.id,
               supplierShippingCost: toChfCents(option.costUsd),
               customerShippingCost: 0,
               deliveryMethod: option.name,
               ...parseDeliveryRange(option.delay),
-            };
+            }];
           });
-          if (stock > 0 && variant.supplierPriceUsd != null && deliveryProfiles.every((item): item is NonNullable<typeof item> => Boolean(item))) {
+          if (stock > 0 && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
             selection = {
               variantId: variant.id,
               stock,
@@ -476,7 +478,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           lastSyncedAt: new Date(),
         });
         result.imported += 1;
-        result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock });
+        result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock, countryCodes: selection.deliveryProfiles.map(profile => profile.countryCode as CjCustomSourcingCountryCode) });
       } catch (error) {
         result.failures.push({ productId: candidate.id, query: input.keyword.trim(), reason: reasonFor(error) });
       }
