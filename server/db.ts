@@ -1863,12 +1863,18 @@ export async function deleteCatalogDraft(id: number) {
   return await deleteProduct(id);
 }
 
-const MAX_BULK_CATALOG_DRAFTS = 100;
+const MAX_BULK_CATALOG_PRODUCTS = 100;
 
-async function ensureEditableCatalogDrafts(ids: number[]) {
+type BulkCatalogProductStatus = "active" | "draft" | "archived";
+
+/**
+ * Les actions en lot s'appliquent aux trois statuts. Les opérations irréversibles
+ * conservent toutefois leur garde-fou propre (suppression seulement après archivage).
+ */
+async function ensureEditableCatalogProducts(ids: number[]) {
   const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0)));
   if (uniqueIds.length === 0) throw new Error("PRODUCT_SELECTION_EMPTY");
-  if (uniqueIds.length > MAX_BULK_CATALOG_DRAFTS) throw new Error("PRODUCT_SELECTION_TOO_LARGE");
+  if (uniqueIds.length > MAX_BULK_CATALOG_PRODUCTS) throw new Error("PRODUCT_SELECTION_TOO_LARGE");
 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1876,8 +1882,7 @@ async function ensureEditableCatalogDrafts(ids: number[]) {
     .from(products)
     .where(inArray(products.id, uniqueIds));
   if (rows.length !== uniqueIds.length) throw new Error("PRODUCT_NOT_FOUND");
-  if (rows.some(product => product.status !== "draft")) throw new Error("PRODUCT_NOT_DRAFT");
-  return { db, ids: uniqueIds, rows };
+  return { db, ids: uniqueIds, rows: rows as Array<{ id: number; name: string; status: BulkCatalogProductStatus; price: number }> };
 }
 
 async function ensureCatalogCategory(categoryId: number) {
@@ -1887,37 +1892,42 @@ async function ensureCatalogCategory(categoryId: number) {
   if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
 }
 
-/**
- * Actions groupées du catalogue : seules les fiches encore à l’état brouillon
- * sont admissibles. Ce verrou empêche une sélection filtrée de modifier par
- * inadvertance un produit public ou déjà archivé.
- */
-export async function archiveCatalogDraftsBulk(ids: number[]) {
-  const { db, ids: selectedIds } = await ensureEditableCatalogDrafts(ids);
-  await db.update(products).set({ status: "archived" }).where(and(inArray(products.id, selectedIds), eq(products.status, "draft")));
-  return { updated: selectedIds.length, ids: selectedIds };
+/** Archive les brouillons ou produits actifs ; les éléments déjà archivés sont laissés intacts. */
+export async function archiveCatalogProductsBulk(ids: number[]) {
+  const { db, rows } = await ensureEditableCatalogProducts(ids);
+  const eligibleIds = rows.filter(product => product.status !== "archived").map(product => product.id);
+  if (eligibleIds.length > 0) {
+    await db.update(products).set({ status: "archived" }).where(inArray(products.id, eligibleIds));
+  }
+  return { updated: eligibleIds.length, ids: eligibleIds };
 }
 
-export async function activateCatalogDraftsBulk(ids: number[]) {
-  const { db, ids: selectedIds, rows } = await ensureEditableCatalogDrafts(ids);
+/** Active ou réactive seulement les produits commercialement prêts. */
+export async function activateCatalogProductsBulk(ids: number[]) {
+  const { db, rows } = await ensureEditableCatalogProducts(ids);
+  const eligibleRows = rows.filter(product => product.status !== "active");
+  if (eligibleRows.length === 0) return { updated: 0, ids: [] as number[] };
+
   await ensureDeliveryProfileSchema();
+  const eligibleIds = eligibleRows.map(product => product.id);
   const profiles = await db.select({ productId: productDeliveryProfiles.productId })
     .from(productDeliveryProfiles)
-    .where(inArray(productDeliveryProfiles.productId, selectedIds));
+    .where(inArray(productDeliveryProfiles.productId, eligibleIds));
   const productIdsWithDelivery = new Set(profiles.map(profile => profile.productId));
-  const notReadyIds = rows
+  const notReadyIds = eligibleRows
     .filter(product => product.price <= 0 || !productIdsWithDelivery.has(product.id))
     .map(product => product.id);
-  if (notReadyIds.length > 0) throw new Error(`CATALOG_DRAFT_NOT_READY_FOR_ACTIVATION:${notReadyIds.join(",")}`);
+  if (notReadyIds.length > 0) throw new Error(`CATALOG_PRODUCT_NOT_READY_FOR_ACTIVATION:${notReadyIds.join(",")}`);
 
-  await db.update(products).set({ status: "active" }).where(and(inArray(products.id, selectedIds), eq(products.status, "draft")));
-  return { updated: selectedIds.length, ids: selectedIds };
+  await db.update(products).set({ status: "active" }).where(inArray(products.id, eligibleIds));
+  return { updated: eligibleIds.length, ids: eligibleIds };
 }
 
-export async function updateCatalogDraftsBulk(input: { ids: number[]; categoryId?: number; price?: number; stock?: number }) {
+/** Modifie les attributs autorisés de brouillons, actifs ou archivés. */
+export async function updateCatalogProductsBulk(input: { ids: number[]; categoryId?: number; price?: number; stock?: number }) {
   const hasUpdate = input.categoryId != null || input.price != null || input.stock != null;
   if (!hasUpdate) throw new Error("BULK_UPDATE_EMPTY");
-  const { ids: selectedIds } = await ensureEditableCatalogDrafts(input.ids);
+  const { ids: selectedIds } = await ensureEditableCatalogProducts(input.ids);
   if (input.categoryId != null) await ensureCatalogCategory(input.categoryId);
 
   for (const id of selectedIds) {
@@ -1930,9 +1940,13 @@ export async function updateCatalogDraftsBulk(input: { ids: number[]; categoryId
   return { updated: selectedIds.length, ids: selectedIds };
 }
 
-export async function deleteCatalogDraftsBulk(ids: number[]) {
-  const { ids: selectedIds } = await ensureEditableCatalogDrafts(ids);
-  for (const id of selectedIds) await deleteCatalogDraft(id);
+/** Une suppression définitive nécessite un archivage préalable, même en lot. */
+export async function deleteCatalogArchivedProductsBulk(ids: number[]) {
+  const { rows } = await ensureEditableCatalogProducts(ids);
+  const nonArchivedIds = rows.filter(product => product.status !== "archived").map(product => product.id);
+  if (nonArchivedIds.length > 0) throw new Error(`CATALOG_PRODUCT_MUST_BE_ARCHIVED:${nonArchivedIds.join(",")}`);
+  const selectedIds = rows.map(product => product.id);
+  for (const id of selectedIds) await deleteProduct(id);
   return { deleted: selectedIds.length, ids: selectedIds };
 }
 

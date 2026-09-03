@@ -112,7 +112,7 @@ export default function AdminProducts() {
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"created_desc" | "created_asc" | "updated_desc" | "name_asc">("created_desc");
-  const [selectedDraftIds, setSelectedDraftIds] = useState<number[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkCategoryId, setBulkCategoryId] = useState("__keep__");
   const [bulkPrice, setBulkPrice] = useState("");
@@ -210,21 +210,21 @@ export default function AdminProducts() {
     },
     onError: (error) => toast.error(`Erreur : ${error.message}`),
   });
-  const clearBulkSelection = () => setSelectedDraftIds([]);
-  const bulkArchiveDrafts = trpc.admin.products.bulkArchiveDrafts.useMutation({
-    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) archivé(s).`); clearBulkSelection(); refetch(); },
+  const clearBulkSelection = () => setSelectedProductIds([]);
+  const bulkArchiveProducts = trpc.admin.products.bulkArchive.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} produit(s) archivé(s).`); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
   });
-  const bulkActivateDrafts = trpc.admin.products.bulkActivateDrafts.useMutation({
-    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) activé(s).`); clearBulkSelection(); refetch(); },
+  const bulkActivateProducts = trpc.admin.products.bulkActivate.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} produit(s) activé(s) ou réactivé(s).`); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
   });
-  const bulkUpdateDrafts = trpc.admin.products.bulkUpdateDrafts.useMutation({
-    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) modifié(s).`); setBulkEditOpen(false); setBulkCategoryId("__keep__"); setBulkPrice(""); setBulkStock(""); clearBulkSelection(); refetch(); },
+  const bulkUpdateProducts = trpc.admin.products.bulkUpdate.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} produit(s) modifié(s).`); setBulkEditOpen(false); setBulkCategoryId("__keep__"); setBulkPrice(""); setBulkStock(""); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
   });
-  const bulkDeleteDrafts = trpc.admin.products.bulkDeleteDrafts.useMutation({
-    onSuccess: (result) => { toast.success(`${result.deleted} brouillon(s) supprimé(s) définitivement.`); clearBulkSelection(); refetch(); },
+  const bulkDeleteArchivedProducts = trpc.admin.products.bulkDeleteArchived.useMutation({
+    onSuccess: (result) => { toast.success(`${result.deleted} produit(s) archivé(s) supprimé(s) définitivement.`); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
   });
 
@@ -427,13 +427,22 @@ export default function AdminProducts() {
     }
   };
 
-  const visibleDraftIds = filteredProducts.filter((product: any) => product.status === "draft").map((product: any) => product.id);
-  const allVisibleDraftsSelected = visibleDraftIds.length > 0 && visibleDraftIds.every((id: number) => selectedDraftIds.includes(id));
-  const toggleVisibleDrafts = (checked: boolean) => setSelectedDraftIds(current => checked
-    ? Array.from(new Set([...current, ...visibleDraftIds]))
-    : current.filter(id => !visibleDraftIds.includes(id)));
-  const toggleDraftSelection = (id: number, checked: boolean) => setSelectedDraftIds(current => checked
-    ? Array.from(new Set([...current, id]))
+  const visibleProductIds = filteredProducts.map((product: any) => product.id);
+  const allVisibleProductsSelected = visibleProductIds.length > 0 && visibleProductIds.every((id: number) => selectedProductIds.includes(id));
+  const selectedProducts = (products || []).filter((product: any) => selectedProductIds.includes(product.id));
+  const selectedStatusLabel = Array.from(new Set(selectedProducts.map((product: any) => product.status))).map(status => status === "active" ? "actif" : status === "archived" ? "archivé" : "brouillon").join(", ");
+  const canBulkDelete = selectedProducts.length > 0 && selectedProducts.every((product: any) => product.status === "archived");
+  const addSelection = (current: number[], ids: number[]) => {
+    const merged = Array.from(new Set([...current, ...ids]));
+    if (merged.length <= 100) return merged;
+    toast.warning("La sélection groupée est limitée à 100 produits.");
+    return merged.slice(0, 100);
+  };
+  const toggleVisibleProducts = (checked: boolean) => setSelectedProductIds(current => checked
+    ? addSelection(current, visibleProductIds)
+    : current.filter(id => !visibleProductIds.includes(id)));
+  const toggleProductSelection = (id: number, checked: boolean) => setSelectedProductIds(current => checked
+    ? addSelection(current, [id])
     : current.filter(currentId => currentId !== id));
   const applyBulkEdit = () => {
     const parsedPrice = bulkPrice.trim() ? parseChfToCents(bulkPrice) : undefined;
@@ -442,7 +451,7 @@ export default function AdminProducts() {
     if (parsedStock !== undefined && (!Number.isInteger(parsedStock) || parsedStock < 0)) { toast.error("Le stock groupé doit être un nombre entier positif ou nul."); return; }
     const categoryId = bulkCategoryId === "__keep__" ? undefined : Number(bulkCategoryId);
     if (categoryId === undefined && parsedPrice === undefined && parsedStock === undefined) { toast.error("Choisissez au moins une valeur à modifier."); return; }
-    bulkUpdateDrafts.mutate({ ids: selectedDraftIds, categoryId, price: parsedPrice ?? undefined, stock: parsedStock });
+    bulkUpdateProducts.mutate({ ids: selectedProductIds, categoryId, price: parsedPrice ?? undefined, stock: parsedStock });
   };
 
   const generateSlug = (val: string) => {
@@ -511,14 +520,14 @@ export default function AdminProducts() {
           </div>
         </section>
 
-        {selectedDraftIds.length > 0 && (
+        {selectedProductIds.length > 0 && (
           <section className="flex flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-3"><ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><div><h2 className="font-semibold text-orange-950">{selectedDraftIds.length} brouillon(s) sélectionné(s)</h2><p className="mt-1 text-sm text-orange-800">Les actions s’appliquent uniquement aux brouillons encore présents dans cette sélection.</p></div></div>
+            <div className="flex items-start gap-3"><ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><div><h2 className="font-semibold text-orange-950">{selectedProductIds.length} produit(s) sélectionné(s)</h2><p className="mt-1 text-sm text-orange-800">Statuts présents : {selectedStatusLabel}. Modifiez, activez ou archivez toute la sélection ; la suppression exige un archivage préalable.</p></div></div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="outline" className="border-sky-200 bg-white text-sky-800 hover:bg-sky-50" onClick={() => setBulkEditOpen(true)}><Save className="mr-2 h-4 w-4" />Modifier</Button>
-              <Button type="button" size="sm" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={bulkActivateDrafts.isPending} onClick={() => { if (confirm(`Activer ${selectedDraftIds.length} brouillon(s) ? Ils deviendront visibles uniquement s’ils ont un prix et un profil de livraison validé.`)) bulkActivateDrafts.mutate({ ids: selectedDraftIds }); }}><CheckCircle2 className="mr-2 h-4 w-4" />Activer</Button>
-              <Button type="button" size="sm" variant="outline" className="border-amber-200 bg-white text-amber-800 hover:bg-amber-50" disabled={bulkArchiveDrafts.isPending} onClick={() => { if (confirm(`Archiver ${selectedDraftIds.length} brouillon(s) ? Ils ne seront plus visibles en boutique.`)) bulkArchiveDrafts.mutate({ ids: selectedDraftIds }); }}><Archive className="mr-2 h-4 w-4" />Archiver</Button>
-              <Button type="button" size="sm" variant="destructive" disabled={bulkDeleteDrafts.isPending} onClick={() => { if (confirm(`Supprimer définitivement ${selectedDraftIds.length} brouillon(s) ? Cette action est irréversible.`)) bulkDeleteDrafts.mutate({ ids: selectedDraftIds }); }}><Trash className="mr-2 h-4 w-4" />Supprimer</Button>
+              <Button type="button" size="sm" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={bulkActivateProducts.isPending} onClick={() => { if (confirm(`Activer ou réactiver ${selectedProductIds.length} produit(s) ? Chaque produit à changer doit avoir un prix et un profil de livraison validé.`)) bulkActivateProducts.mutate({ ids: selectedProductIds }); }}><CheckCircle2 className="mr-2 h-4 w-4" />Activer</Button>
+              <Button type="button" size="sm" variant="outline" className="border-amber-200 bg-white text-amber-800 hover:bg-amber-50" disabled={bulkArchiveProducts.isPending} onClick={() => { if (confirm(`Archiver ${selectedProductIds.length} produit(s) ? Ils ne seront plus visibles en boutique.`)) bulkArchiveProducts.mutate({ ids: selectedProductIds }); }}><Archive className="mr-2 h-4 w-4" />Archiver</Button>
+              <Button type="button" size="sm" variant="destructive" title={canBulkDelete ? "Supprimer définitivement les produits archivés sélectionnés" : "Archivez d’abord tous les produits sélectionnés pour autoriser la suppression définitive"} disabled={!canBulkDelete || bulkDeleteArchivedProducts.isPending} onClick={() => { if (confirm(`Supprimer définitivement ${selectedProductIds.length} produit(s) archivé(s) ? Cette action est irréversible.`)) bulkDeleteArchivedProducts.mutate({ ids: selectedProductIds }); }}><Trash className="mr-2 h-4 w-4" />Supprimer</Button>
               <Button type="button" size="sm" variant="ghost" className="text-slate-700" onClick={clearBulkSelection}>Désélectionner</Button>
             </div>
           </section>
@@ -528,7 +537,7 @@ export default function AdminProducts() {
           <Table className="min-w-[1020px]">
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12"><input type="checkbox" aria-label="Sélectionner tous les brouillons visibles" checked={allVisibleDraftsSelected} disabled={visibleDraftIds.length === 0} onChange={event => toggleVisibleDrafts(event.target.checked)} className="h-4 w-4 accent-orange-500" /></TableHead>
+                <TableHead className="w-12"><input type="checkbox" aria-label="Sélectionner tous les produits visibles" checked={allVisibleProductsSelected} disabled={visibleProductIds.length === 0} onChange={event => toggleVisibleProducts(event.target.checked)} className="h-4 w-4 accent-orange-500" /></TableHead>
                 <TableHead>Produit</TableHead>
                 <TableHead>Catégorie</TableHead>
                 <TableHead>Prix</TableHead>
@@ -575,8 +584,8 @@ export default function AdminProducts() {
                 </TableRow>
               ) : (
                 filteredProducts.map((product: any) => (
-                  <TableRow key={product.id} className={selectedDraftIds.includes(product.id) ? "bg-orange-50/60" : undefined}>
-                    <TableCell><input type="checkbox" aria-label={`Sélectionner ${product.name}`} checked={selectedDraftIds.includes(product.id)} disabled={product.status !== "draft"} onChange={event => toggleDraftSelection(product.id, event.target.checked)} className="h-4 w-4 accent-orange-500 disabled:cursor-not-allowed disabled:opacity-35" /></TableCell>
+                  <TableRow key={product.id} className={selectedProductIds.includes(product.id) ? "bg-orange-50/60" : undefined}>
+                    <TableCell><input type="checkbox" aria-label={`Sélectionner ${product.name}`} checked={selectedProductIds.includes(product.id)} onChange={event => toggleProductSelection(product.id, event.target.checked)} className="h-4 w-4 accent-orange-500" /></TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
@@ -948,16 +957,16 @@ export default function AdminProducts() {
       <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Modifier {selectedDraftIds.length} brouillon(s)</DialogTitle>
-            <DialogDescription>Ne renseignez que les champs à changer. Les valeurs laissées vides restent inchangées. Cette action ne modifie jamais un produit actif ou archivé.</DialogDescription>
+            <DialogTitle>Modifier {selectedProductIds.length} produit(s)</DialogTitle>
+            <DialogDescription>Ne renseignez que les champs à changer. Les valeurs laissées vides restent inchangées. Cette action peut s’appliquer aux produits actifs, brouillons et archivés.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-3">
             <div className="grid gap-2"><Label htmlFor="bulk-category">Catégorie principale</Label><Select value={bulkCategoryId} onValueChange={setBulkCategoryId}><SelectTrigger id="bulk-category"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__keep__">Conserver les catégories actuelles</SelectItem>{(categories || []).map((category: any) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="grid gap-2"><Label htmlFor="bulk-price">Prix de vente unique (CHF)</Label><Input id="bulk-price" value={bulkPrice} onChange={event => setBulkPrice(event.target.value)} inputMode="decimal" placeholder="Ex. 24,90 — laisser vide pour conserver" /></div>
             <div className="grid gap-2"><Label htmlFor="bulk-stock">Stock unique</Label><Input id="bulk-stock" value={bulkStock} onChange={event => setBulkStock(event.target.value)} type="number" min="0" step="1" placeholder="Ex. 12 — laisser vide pour conserver" /></div>
-            <p className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">La modification par lot est faite sur les brouillons sélectionnés uniquement. Pour changer le titre, la description, les images ou les profils de livraison, utilisez l’édition individuelle.</p>
+            <p className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">La modification par lot peut s’appliquer à tous les statuts. Pour changer le titre, la description, les images ou les profils de livraison, utilisez l’édition individuelle.</p>
           </div>
-          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Annuler</Button><Button type="button" className="bg-orange-500 hover:bg-orange-600" disabled={bulkUpdateDrafts.isPending} onClick={applyBulkEdit}>{bulkUpdateDrafts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Appliquer aux brouillons</Button></DialogFooter>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Annuler</Button><Button type="button" className="bg-orange-500 hover:bg-orange-600" disabled={bulkUpdateProducts.isPending} onClick={applyBulkEdit}>{bulkUpdateProducts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Appliquer aux produits</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

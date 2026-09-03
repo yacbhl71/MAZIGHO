@@ -202,3 +202,17 @@ Le générateur sur-mesure ne doit plus appliquer un ensemble opaque de filtres.
 Les éléments suivants restent toujours impératifs et ne doivent pas devenir des interrupteurs : référence CJ exploitable, absence de doublon MAZIGHO, prix fournisseur strictement positif, devis de fret chiffré vers au moins un pays client, calcul d’un prix client final tout compris, création au statut `draft`, absence de publication et absence de commande/paiement fournisseur.
 
 Le résultat du sourcing retourne désormais `rejections` avec les compteurs de doublons, variantes écartées par les règles de prix/poids, rejets stock/livraison et absence d’images. Lorsque zéro brouillon est créé, l’interface indique ces compteurs afin que l’opérateur sache quelle règle assouplir.
+
+
+## Gestion groupée des produits à tous les statuts
+
+La sélection par cases de la page **Administration → Produits** couvre maintenant les produits `draft`, `active` et `archived`, dans la limite de 100 éléments par opération. Les procédures correspondantes sont `admin.products.bulkArchive`, `bulkActivate`, `bulkUpdate` et `bulkDeleteArchived`.
+
+| Action | Statuts pris en charge | Garde-fou serveur |
+|---|---|---|
+| Modifier | Brouillon, actif, archivé | Modification limitée à catégorie principale, prix et stock. |
+| Activer / réactiver | Brouillon, archivé | Un prix strictement positif et au moins un profil de livraison validé restent obligatoires. |
+| Archiver | Brouillon, actif | Les produits déjà archivés sont ignorés. |
+| Supprimer définitivement | Archivé uniquement | L’archivage préalable est obligatoire ; la procédure refuse tout produit actif ou brouillon. |
+
+L’interface affiche les statuts présents dans la sélection et désactive visuellement le bouton de suppression tant que toute la sélection n’est pas déjà archivée. Cette règle doit être conservée : elle permet la gestion des actifs et archivés sans faciliter une suppression définitive accidentelle.
