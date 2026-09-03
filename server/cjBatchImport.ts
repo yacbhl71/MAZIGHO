@@ -30,6 +30,7 @@ export const CJ_CUSTOM_SOURCING_LIMITS = {
   maxWeightG: 10_000,
   minPriceMultiplier: 1.1,
   maxPriceMultiplier: 5,
+  maxDeliveryDays: 60,
   maxFastDeliveryDays: 15,
 } as const;
 
@@ -45,6 +46,24 @@ export const CJ_CUSTOM_SOURCING_SHIPPING_METHODS = [
 ] as const;
 
 export type CjCustomSourcingShippingMethodId = (typeof CJ_CUSTOM_SOURCING_SHIPPING_METHODS)[number]["id"];
+
+/** Règles explicites visibles dans le Hub ; les identifiants/prix/fret/doublons et le statut brouillon restent impératifs. */
+export const CJ_CUSTOM_SOURCING_RULES = [
+  { id: "requireVerifiedPositiveStock", label: "Stock positif vérifié", description: "Écarte les variantes sans quantité CJ confirmée ou en rupture.", defaultEnabled: true },
+  { id: "enforceMaxWeight", label: "Poids maximal", description: "Applique le seuil de poids indiqué. Désactivez-le pour examiner aussi les produits lourds ou sans poids renseigné.", defaultEnabled: true },
+  { id: "requireProductImages", label: "Au moins une image", description: "Écarte les fiches CJ sans image. Désactivez-le pour créer un brouillon à compléter manuellement.", defaultEnabled: true },
+  { id: "enforceSelectedShippingMethods", label: "Modes de livraison sélectionnés", description: "Limite le résultat aux familles de transport cochées ci-dessous.", defaultEnabled: true },
+  { id: "enforceMaxDeliveryDays", label: "Délai maximal", description: "Écarte les devis dont le délai annoncé dépasse le plafond choisi.", defaultEnabled: true },
+] as const;
+
+export type CjCustomSourcingRules = {
+  requireVerifiedPositiveStock: boolean;
+  enforceMaxWeight: boolean;
+  requireProductImages: boolean;
+  enforceSelectedShippingMethods: boolean;
+  enforceMaxDeliveryDays: boolean;
+  maxDeliveryDays: number;
+};
 
 const FASHION_PRICE_CAPS_CENTS: Record<string, number> = {
   "mode-femme": 3990,
@@ -227,6 +246,7 @@ export type CjCustomSourcingInput = {
   draftLimit: number;
   maxWeightG: number;
   priceMultiplier: number;
+  rules: CjCustomSourcingRules;
 };
 
 export type CjCustomSourcingResult = CjBatchImportResult & {
@@ -241,6 +261,8 @@ export type CjCustomSourcingResult = CjBatchImportResult & {
   warehouseCountryCodes: string[];
   shippingMethodIds: CjCustomSourcingShippingMethodId[];
   shippingMethodLabels: string[];
+  rules: CjCustomSourcingRules;
+  rejections: { duplicates: number; variantRules: number; stockOrDelivery: number; images: number };
   products: Array<{ id: number; name: string; priceCents: number; stock: number; countryCodes: CjCustomSourcingCountryCode[] }>;
 };
 
@@ -286,15 +308,13 @@ function maxDaysFromDelay(delay: string | null) {
  * canaux explicitement nommés CJPacket, hors variantes postales/économiques,
  * et avec un délai maximal connu inférieur ou égal au seuil MAZIGHO.
  */
-export function isAllowedCjCustomShippingMethod(logisticName: string, delay: string | null, allowedMethodIds: readonly CjCustomSourcingShippingMethodId[]) {
+export function isAllowedCjCustomShippingMethod(logisticName: string, delay: string | null, allowedMethodIds: readonly CjCustomSourcingShippingMethodId[], maxDeliveryDays: number = CJ_CUSTOM_SOURCING_LIMITS.maxFastDeliveryDays) {
   const value = logisticName.toLowerCase();
   const normalized = value.replace(/[\s_-]+/g, "");
   const excluded = /postal|ordinary|economy|economic|untracked|surface|simple/.test(value);
   const maxDays = maxDaysFromDelay(delay);
-  if (excluded || maxDays == null) return false;
+  if (excluded || maxDays == null || maxDays > maxDeliveryDays) return false;
   return allowedMethodIds.some(methodId => {
-    const method = CJ_CUSTOM_SOURCING_SHIPPING_METHODS.find(item => item.id === methodId);
-    if (!method || maxDays > method.maxDeliveryDays) return false;
     if (methodId === "cjpacket_fast") return normalized.includes("cjpacket");
     if (methodId === "express") return /\b(dhl|ups|fedex|dpd|gls|aramex|tnt)\b/.test(value);
     return /yunexpress|4px|yanwen/.test(normalized);
@@ -356,7 +376,7 @@ function commercialFashionCopy(categorySlug: string, rawName: string): Commercia
 /**
  * Sourcing manuel déclenché depuis le panneau. Un brouillon est classé dans
  * toutes les catégories choisies et n’est créé que si au moins une destination
- * sélectionnée confirme stock, poids, transport CJPacket rapide et fret chiffré.
+ * sélectionnée confirme les règles activées, ainsi qu’un fret chiffré.
  * Les profils valides sont conservés pays par pays ; les autres pays restent
  * naturellement invisibles pour ce produit. Le prix final couvre le fret le plus
  * élevé parmi les profils validés, afin qu’aucun coût ne soit ajouté au client.
@@ -366,9 +386,12 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   const countryCodes = Array.from(new Set(input.countryCodes));
   const warehouseCountryCodes = Array.from(new Set(input.warehouseCountryCodes.map(code => code.trim().toUpperCase()).filter(code => /^[A-Z]{2}$/.test(code))));
   const shippingMethodIds = Array.from(new Set(input.shippingMethodIds));
+  const rules = input.rules;
   const destinations = countryCodes.map(code => CJ_CUSTOM_SOURCING_COUNTRIES.find(item => item.countryCode === code)).filter((item): item is typeof CJ_CUSTOM_SOURCING_COUNTRIES[number] => Boolean(item));
   if (destinations.length !== countryCodes.length || destinations.length === 0) throw new Error("CJ_CUSTOM_DESTINATION_INVALID");
-  if (shippingMethodIds.length === 0 || shippingMethodIds.length !== input.shippingMethodIds.length || shippingMethodIds.some(id => !CJ_CUSTOM_SOURCING_SHIPPING_METHODS.some(method => method.id === id))) throw new Error("CJ_CUSTOM_SHIPPING_METHOD_INVALID");
+  if (shippingMethodIds.length !== input.shippingMethodIds.length || shippingMethodIds.some(id => !CJ_CUSTOM_SOURCING_SHIPPING_METHODS.some(method => method.id === id))) throw new Error("CJ_CUSTOM_SHIPPING_METHOD_INVALID");
+  if (rules.enforceSelectedShippingMethods && shippingMethodIds.length === 0) throw new Error("CJ_CUSTOM_SHIPPING_METHOD_INVALID");
+  if (!Number.isInteger(rules.maxDeliveryDays) || rules.maxDeliveryDays < 1 || rules.maxDeliveryDays > CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays) throw new Error("CJ_CUSTOM_DELIVERY_DAYS_INVALID");
   if (warehouseCountryCodes.length !== input.warehouseCountryCodes.length) throw new Error("CJ_CUSTOM_WAREHOUSE_INVALID");
   if (!input.keyword.trim() || input.keyword.trim().length < 2) throw new Error("CJ_CUSTOM_KEYWORD_INVALID");
   if (!Number.isInteger(input.requestedProducts) || input.requestedProducts < CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts || input.requestedProducts > CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts) throw new Error("CJ_CUSTOM_REQUESTED_COUNT_INVALID");
@@ -406,7 +429,11 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
     priceMultiplier: input.priceMultiplier,
     warehouseCountryCodes,
     shippingMethodIds,
-    shippingMethodLabels: shippingMethodIds.map(id => CJ_CUSTOM_SOURCING_SHIPPING_METHODS.find(method => method.id === id)?.label || id),
+    shippingMethodLabels: rules.enforceSelectedShippingMethods
+      ? shippingMethodIds.map(id => CJ_CUSTOM_SOURCING_SHIPPING_METHODS.find(method => method.id === id)?.label || id)
+      : [],
+    rules,
+    rejections: { duplicates: 0, variantRules: 0, stockOrDelivery: 0, images: 0 },
   };
   if (target === 0) return result;
 
@@ -428,6 +455,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
       const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
       if (existing) {
         result.skipped += 1;
+        result.rejections.duplicates += 1;
         continue;
       }
 
@@ -439,9 +467,15 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           productSku: candidate.sku || undefined,
         });
         const matchingVariants = prepared.variants
-          .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0 && variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG)
+          .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0)
+          .filter(variant => !rules.enforceMaxWeight || (variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG))
           .sort((first, second) => (first.weightG ?? Number.MAX_SAFE_INTEGER) - (second.weightG ?? Number.MAX_SAFE_INTEGER))
           .slice(0, 5);
+        if (matchingVariants.length === 0) {
+          result.skipped += 1;
+          result.rejections.variantRules += 1;
+          continue;
+        }
         let selection: {
           variantId: string;
           stock: number;
@@ -473,7 +507,16 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
               ? Math.floor(variant.stock ?? 0)
               : 0;
           const deliveryProfiles = quote.countries.flatMap(country => {
-            const option = country.options.find(item => isAllowedCjCustomShippingMethod(item.logisticName, item.delay, shippingMethodIds));
+            const option = country.options.find(item => {
+              if (rules.enforceSelectedShippingMethods) {
+                return isAllowedCjCustomShippingMethod(item.logisticName, item.delay, shippingMethodIds, rules.enforceMaxDeliveryDays ? rules.maxDeliveryDays : CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays);
+              }
+              if (rules.enforceMaxDeliveryDays) {
+                const maxDays = maxDaysFromDelay(item.delay);
+                return maxDays != null && maxDays <= rules.maxDeliveryDays;
+              }
+              return Number.isFinite(item.costUsd) && item.costUsd >= 0;
+            });
             if (!option) return [];
             return [{
               countryCode: country.countryCode,
@@ -484,7 +527,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
               ...parseDeliveryRange(option.delay),
             }];
           });
-          if (stock > 0 && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
+          if ((!rules.requireVerifiedPositiveStock || stock > 0) && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
             selection = {
               variantId: variant.id,
               stock,
@@ -495,8 +538,14 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           }
         }
 
-        if (!selection || prepared.images.length === 0) {
+        if (!selection) {
           result.skipped += 1;
+          result.rejections.stockOrDelivery += 1;
+          continue;
+        }
+        if (rules.requireProductImages && prepared.images.length === 0) {
+          result.skipped += 1;
+          result.rejections.images += 1;
           continue;
         }
 

@@ -5,7 +5,7 @@ import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
 import { checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
-import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, CJ_CUSTOM_SOURCING_SHIPPING_METHODS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
+import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, CJ_CUSTOM_SOURCING_RULES, CJ_CUSTOM_SOURCING_SHIPPING_METHODS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1189,6 +1189,7 @@ export const adminRouter = router({
     cjCustomSourcingConfig: adminProcedure.query(() => ({
       countries: CJ_CUSTOM_SOURCING_COUNTRIES,
       shippingMethods: CJ_CUSTOM_SOURCING_SHIPPING_METHODS,
+      rules: CJ_CUSTOM_SOURCING_RULES,
       limits: CJ_CUSTOM_SOURCING_LIMITS,
     })),
     cjGlobalWarehouses: adminProcedure.query(async () => {
@@ -1205,11 +1206,19 @@ export const adminRouter = router({
       categoryIds: z.array(z.number().int().positive()).min(1, "Cochez au moins une catégorie.").max(12).refine(values => new Set(values).size === values.length, "Une catégorie ne peut être sélectionnée qu’une fois."),
       countryCodes: z.array(z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"])).min(1, "Cochez au moins un pays de destination.").max(8).refine(values => new Set(values).size === values.length, "Un pays ne peut être sélectionné qu’une fois."),
       warehouseCountryCodes: z.array(z.string().trim().regex(/^[A-Z]{2}$/, "Utilisez un code d’entrepôt à deux lettres.")).max(12).refine(values => new Set(values).size === values.length, "Un entrepôt ne peut être sélectionné qu’une fois."),
-      shippingMethodIds: z.array(z.enum(["cjpacket_fast", "express", "tracked_network"])).min(1, "Cochez au moins une famille de transport.").max(3).refine(values => new Set(values).size === values.length, "Une famille de transport ne peut être sélectionnée qu’une fois."),
+      shippingMethodIds: z.array(z.enum(["cjpacket_fast", "express", "tracked_network"])).max(3).refine(values => new Set(values).size === values.length, "Une famille de transport ne peut être sélectionnée qu’une fois."),
       requestedProducts: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts).max(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts),
       draftLimit: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit).max(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit),
       maxWeightG: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minWeightG).max(CJ_CUSTOM_SOURCING_LIMITS.maxWeightG),
       priceMultiplier: z.number().min(CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier).max(CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier),
+      rules: z.object({
+        requireVerifiedPositiveStock: z.boolean(),
+        enforceMaxWeight: z.boolean(),
+        requireProductImages: z.boolean(),
+        enforceSelectedShippingMethods: z.boolean(),
+        enforceMaxDeliveryDays: z.boolean(),
+        maxDeliveryDays: z.number().int().min(1).max(CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays),
+      }),
     })).mutation(async ({ ctx, input }) => {
       try {
         const result = await importCjCustomDraftBatch(input);
@@ -1228,6 +1237,7 @@ export const adminRouter = router({
             draftLimit: input.draftLimit,
             maxWeightG: input.maxWeightG,
             priceMultiplier: input.priceMultiplier,
+            rules: input.rules,
             imported: result.imported,
             skipped: result.skipped,
             failures: result.failures.length,
@@ -1243,6 +1253,7 @@ export const adminRouter = router({
         if (code === "CJ_CUSTOM_SHIPPING_METHOD_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez au moins une famille de transport autorisée." });
         if (code === "CJ_CUSTOM_WEIGHT_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le poids maximal doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minWeightG} g et ${CJ_CUSTOM_SOURCING_LIMITS.maxWeightG.toLocaleString("fr-CH")} g.` });
         if (code === "CJ_CUSTOM_MULTIPLIER_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le multiplicateur doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier} et ${CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier}.` });
+        if (code === "CJ_CUSTOM_DELIVERY_DAYS_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le délai maximal doit être compris entre 1 et ${CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays} jours.` });
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun brouillon non vérifié n’a été créé." });
         if (code === "CJ_AUTHENTICATION_FAILED") throw new TRPCError({ code: "UNAUTHORIZED", message: "CJ a refusé l’autorisation. Vérifiez la connexion avant de relancer le sourcing." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Le sourcing personnalisé n’a pas pu être terminé. Les brouillons déjà vérifiés restent disponibles dans Produits." });

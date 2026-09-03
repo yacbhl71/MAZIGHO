@@ -23,6 +23,11 @@ describe("custom CJ sourcing transport guard", () => {
     expect(isAllowedCjCustomShippingMethod("YunExpress Special Line", "9-18", ["tracked_network"])).toBe(false);
   });
 
+  it("applies an administrator-selected delivery ceiling without allowing postal methods", () => {
+    expect(isAllowedCjCustomShippingMethod("CJPacket Fast Line", "16-20", ["cjpacket_fast"], 30)).toBe(true);
+    expect(isAllowedCjCustomShippingMethod("CJPacket Postal", "16-20", ["cjpacket_fast"], 30)).toBe(false);
+  });
+
   it("keeps the manual sourcing limits bounded", () => {
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts).toBe(12);
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit).toBe(100);

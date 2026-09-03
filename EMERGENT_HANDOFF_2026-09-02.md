@@ -185,3 +185,20 @@ Le générateur sur-mesure accepte désormais des préférences supplémentaires
 Les entrepôts sont lus côté serveur via `getCjGlobalWarehouses()` avec cache de 30 minutes ; aucun jeton CJ n’est renvoyé au navigateur. La préférence est ensuite transmise uniquement à `quoteCjDelivery(..., originCountryCodes)` qui filtre les pays d’origine de la variante avant le calcul de fret. Les fichiers clés sont `server/cjDropshipping.ts`, `server/cjBatchImport.ts`, `server/adminRouter.ts` et `client/src/pages/admin/AdminSuppliers.tsx`.
 
 > Ne jamais réintroduire un filtre d’entrepôt à partir du pays de destination client. Ce comportement est la cause connue des recherches CJ à zéro.
+
+
+## Règles de sourcing CJ activables
+
+Le générateur sur-mesure ne doit plus appliquer un ensemble opaque de filtres. Chaque sourcing contient désormais une structure `rules`, affichée dans le Hub fournisseurs, validée côté serveur et enregistrée dans l’audit. Les règles ci-dessous sont activées par défaut, mais l’administrateur peut les décocher pour un lancement donné :
+
+| Règle | Effet lorsqu’elle est active | Effet lorsqu’elle est désactivée |
+|---|---|---|
+| `requireVerifiedPositiveStock` | Accepte uniquement une variante dont le stock CJ est explicitement positif. | Un brouillon peut être créé avec un stock nul ou non confirmé ; il restera naturellement non achetable tant que le stock n’est pas régularisé. |
+| `enforceMaxWeight` | Écarte les variantes sans poids ou au-dessus du seuil configuré. | Le poids n’écarte aucun candidat. |
+| `requireProductImages` | Écarte les fiches sans image CJ. | Un brouillon sans image peut être créé afin d’être complété manuellement. |
+| `enforceSelectedShippingMethods` | Limite les devis aux familles de transport cochées. | Toute ligne disposant d’un devis peut être retenue, sous réserve du filtre de délai s’il est actif. |
+| `enforceMaxDeliveryDays` | Écarte les délais au-dessus du seuil saisi, de 1 à 60 jours. | Aucun plafond de délai n’est appliqué. |
+
+Les éléments suivants restent toujours impératifs et ne doivent pas devenir des interrupteurs : référence CJ exploitable, absence de doublon MAZIGHO, prix fournisseur strictement positif, devis de fret chiffré vers au moins un pays client, calcul d’un prix client final tout compris, création au statut `draft`, absence de publication et absence de commande/paiement fournisseur.
+
+Le résultat du sourcing retourne désormais `rejections` avec les compteurs de doublons, variantes écartées par les règles de prix/poids, rejets stock/livraison et absence d’images. Lorsque zéro brouillon est créé, l’interface indique ces compteurs afin que l’opérateur sache quelle règle assouplir.
