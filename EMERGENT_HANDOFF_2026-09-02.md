@@ -169,3 +169,19 @@ La page **Administration → Produits** permet désormais de sélectionner plusi
 Toutes ces mutations sont protégées par `catalogEditorProcedure`, limitées à 100 identifiants et vérifient côté serveur que **tous** les éléments sélectionnés sont toujours à l’état `draft`. Elles créent une trace d’audit contenant l’opération et les identifiants concernés. Les procédures sont dans `server/adminRouter.ts`, les protections de données dans `server/db.ts`, et l’interface dans `client/src/pages/admin/AdminProducts.tsx`.
 
 La liste Produits affiche également une colonne **« Créé le »** et un tri au choix : création récente ou ancienne, dernière modification, ou nom de A à Z. Le tri par création récente est le réglage par défaut.
+
+
+## Préférences d’entrepôt et de transport du sourcing CJ
+
+Le générateur sur-mesure accepte désormais des préférences supplémentaires, toujours appliquées **après** la recherche catalogue mondiale et au moment du devis par variante :
+
+| Paramètre | Comportement sécurisé |
+|---|---|
+| Entrepôt CJ d’origine | L’administrateur peut conserver **tous les entrepôts compatibles** (valeur par défaut) ou cocher un ou plusieurs entrepôts renvoyés par CJ. Le moteur conserve seulement les variantes dont le pays d’origine confirmé correspond à la préférence. Cette sélection n’est jamais envoyée comme pays de destination à `product/listV2`. |
+| Destination client | Les pays commerciaux cochés restent traités séparément. Un profil de livraison n’est créé que pour les pays où le devis CJ est réellement validé. |
+| Modes de livraison | L’administrateur choisit une ou plusieurs familles : `CJPacket rapide`, `Express international` ou `Réseaux suivis rapides`. Le moteur compare toujours le nom et le délai reçus dans le devis réel ; les noms postaux, économiques, ordinaires ou explicitement non suivis sont exclus. |
+| Suivi | L’API de devis CJ simple ne fournit pas de booléen de suivi universel. L’interface décrit donc ces choix comme des **familles de canaux nommés avec délai vérifié** ; elle ne doit pas promettre formellement le suivi client tant que CJ ne l’atteste pas dans les données reçues. |
+
+Les entrepôts sont lus côté serveur via `getCjGlobalWarehouses()` avec cache de 30 minutes ; aucun jeton CJ n’est renvoyé au navigateur. La préférence est ensuite transmise uniquement à `quoteCjDelivery(..., originCountryCodes)` qui filtre les pays d’origine de la variante avant le calcul de fret. Les fichiers clés sont `server/cjDropshipping.ts`, `server/cjBatchImport.ts`, `server/adminRouter.ts` et `client/src/pages/admin/AdminSuppliers.tsx`.
+
+> Ne jamais réintroduire un filtre d’entrepôt à partir du pays de destination client. Ce comportement est la cause connue des recherches CJ à zéro.

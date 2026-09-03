@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CJ_CUSTOM_SOURCING_LIMITS, isFastTrackedCjMethod } from "./cjBatchImport";
+import { CJ_CUSTOM_SOURCING_LIMITS, isAllowedCjCustomShippingMethod, isFastTrackedCjMethod } from "./cjBatchImport";
 
 describe("custom CJ sourcing transport guard", () => {
   it("accepts only an explicitly named fast CJPacket option", () => {
@@ -12,6 +12,15 @@ describe("custom CJ sourcing transport guard", () => {
     expect(isFastTrackedCjMethod("CJ Packet Fast Line", "12-20")).toBe(false);
     expect(isFastTrackedCjMethod("DHL Express", "2-5")).toBe(false);
     expect(isFastTrackedCjMethod("CJPacket Fast Line", null)).toBe(false);
+  });
+
+  it("allows only explicitly selected fast delivery families", () => {
+    expect(isAllowedCjCustomShippingMethod("DHL Express Worldwide", "2-5", ["express"])).toBe(true);
+    expect(isAllowedCjCustomShippingMethod("YunExpress Special Line", "7-15", ["tracked_network"])).toBe(true);
+    expect(isAllowedCjCustomShippingMethod("4PX Standard", "8-14", ["tracked_network"])).toBe(true);
+    expect(isAllowedCjCustomShippingMethod("DHL Express Worldwide", "2-5", ["cjpacket_fast"])).toBe(false);
+    expect(isAllowedCjCustomShippingMethod("CJPacket Postal", "5-12", ["cjpacket_fast", "express", "tracked_network"])).toBe(false);
+    expect(isAllowedCjCustomShippingMethod("YunExpress Special Line", "9-18", ["tracked_network"])).toBe(false);
   });
 
   it("keeps the manual sourcing limits bounded", () => {

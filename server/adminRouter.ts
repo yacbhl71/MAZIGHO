@@ -4,8 +4,8 @@ import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, router 
 import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { checkCjSwissDelivery, getCjConnectionStatus, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
-import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
+import { checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
+import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, CJ_CUSTOM_SOURCING_SHIPPING_METHODS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
 import {
@@ -1188,12 +1188,24 @@ export const adminRouter = router({
     cjFashionBatchCategories: adminProcedure.query(() => listCjFashionBatchCategories()),
     cjCustomSourcingConfig: adminProcedure.query(() => ({
       countries: CJ_CUSTOM_SOURCING_COUNTRIES,
+      shippingMethods: CJ_CUSTOM_SOURCING_SHIPPING_METHODS,
       limits: CJ_CUSTOM_SOURCING_LIMITS,
     })),
+    cjGlobalWarehouses: adminProcedure.query(async () => {
+      try {
+        return await getCjGlobalWarehouses();
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour la liste des entrepôts. Vous pouvez garder « tous entrepôts compatibles » et réessayer plus tard." });
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "La liste des entrepôts CJ est momentanément indisponible. Le sourcing sans préférence d’entrepôt reste disponible." });
+      }
+    }),
     importCjCustomDrafts: adminProcedure.input(z.object({
       keyword: z.string().trim().min(2, "Saisissez au moins 2 caractères pour la niche.").max(120),
       categoryIds: z.array(z.number().int().positive()).min(1, "Cochez au moins une catégorie.").max(12).refine(values => new Set(values).size === values.length, "Une catégorie ne peut être sélectionnée qu’une fois."),
       countryCodes: z.array(z.enum(["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES"])).min(1, "Cochez au moins un pays de destination.").max(8).refine(values => new Set(values).size === values.length, "Un pays ne peut être sélectionné qu’une fois."),
+      warehouseCountryCodes: z.array(z.string().trim().regex(/^[A-Z]{2}$/, "Utilisez un code d’entrepôt à deux lettres.")).max(12).refine(values => new Set(values).size === values.length, "Un entrepôt ne peut être sélectionné qu’une fois."),
+      shippingMethodIds: z.array(z.enum(["cjpacket_fast", "express", "tracked_network"])).min(1, "Cochez au moins une famille de transport.").max(3).refine(values => new Set(values).size === values.length, "Une famille de transport ne peut être sélectionnée qu’une fois."),
       requestedProducts: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minRequestedProducts).max(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts),
       draftLimit: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit).max(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit),
       maxWeightG: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minWeightG).max(CJ_CUSTOM_SOURCING_LIMITS.maxWeightG),
@@ -1210,6 +1222,8 @@ export const adminRouter = router({
             keyword: input.keyword,
             categoryIds: input.categoryIds,
             countryCodes: input.countryCodes,
+            warehouseCountryCodes: input.warehouseCountryCodes,
+            shippingMethodIds: input.shippingMethodIds,
             requestedProducts: input.requestedProducts,
             draftLimit: input.draftLimit,
             maxWeightG: input.maxWeightG,
@@ -1217,7 +1231,7 @@ export const adminRouter = router({
             imported: result.imported,
             skipped: result.skipped,
             failures: result.failures.length,
-            fastTrackedOnly: true,
+            shippingMethods: result.shippingMethodLabels,
           },
         });
         return result;
@@ -1225,6 +1239,8 @@ export const adminRouter = router({
         const code = error instanceof Error ? error.message : "";
         if (code === "CJ_CUSTOM_CATEGORY_INVALID") throw new TRPCError({ code: "NOT_FOUND", message: "Choisissez une catégorie MAZIGHO standard pour recevoir les brouillons." });
         if (code === "CJ_CUSTOM_DESTINATION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La destination choisie n’est pas prise en charge par le sourcing CJ." });
+        if (code === "CJ_CUSTOM_WAREHOUSE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La préférence d’entrepôt est invalide. Choisissez uniquement les entrepôts proposés par CJ." });
+        if (code === "CJ_CUSTOM_SHIPPING_METHOD_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez au moins une famille de transport autorisée." });
         if (code === "CJ_CUSTOM_WEIGHT_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le poids maximal doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minWeightG} g et ${CJ_CUSTOM_SOURCING_LIMITS.maxWeightG.toLocaleString("fr-CH")} g.` });
         if (code === "CJ_CUSTOM_MULTIPLIER_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le multiplicateur doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier} et ${CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier}.` });
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun brouillon non vérifié n’a été créé." });

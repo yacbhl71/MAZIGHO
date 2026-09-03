@@ -232,6 +232,27 @@ type CjFreightResponse = {
   }> | null;
 };
 
+type CjGlobalWarehouseResponse = {
+  success?: boolean;
+  message?: string;
+  data?: Array<{
+    id?: string | number;
+    areaId?: string | number;
+    countryCode?: string;
+    nameEn?: string;
+    areaEn?: string;
+    fr?: string;
+    disabled?: boolean;
+  }> | null;
+};
+
+export type CjGlobalWarehouse = {
+  id: string;
+  areaId: number | null;
+  countryCode: string;
+  label: string;
+};
+
 type CjCatalogSearch = {
   keyword: string;
   page: number;
@@ -240,6 +261,7 @@ type CjCatalogSearch = {
 };
 
 let tokenCache: { token: CjAccessToken; cachedAt: number } | null = null;
+let globalWarehouseCache: { warehouses: CjGlobalWarehouse[]; cachedAt: number } | null = null;
 
 const cjImageAnalysisSchema = {
   name: "cj_product_photo_analysis",
@@ -319,6 +341,39 @@ export function getCjConnectionStatus(): CjConnectionStatus {
       ? "Clé CJ configurée. Vérifiez la connexion depuis le Hub fournisseurs."
       : "En attente de la clé API CJ enregistrée dans les variables sécurisées Vercel.",
   };
+}
+
+/** Lit la liste d’entrepôts publiquement proposée par CJ, sans exposer de jeton au navigateur. */
+export async function getCjGlobalWarehouses(): Promise<CjGlobalWarehouse[]> {
+  if (globalWarehouseCache && Date.now() - globalWarehouseCache.cachedAt < 30 * 60 * 1000) return globalWarehouseCache.warehouses;
+  const access = await getCjAccessToken();
+  let response: Response;
+  try {
+    response = await fetch(`${CJ_API_BASE}/product/globalWarehouseList`, {
+      headers: { "CJ-Access-Token": access.token },
+      signal: AbortSignal.timeout(CJ_REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error("CJ_UNREACHABLE");
+  }
+  let payload: CjGlobalWarehouseResponse | null = null;
+  try {
+    payload = await response.json() as CjGlobalWarehouseResponse;
+  } catch {
+    throw new Error("CJ_INVALID_RESPONSE");
+  }
+  if (!response.ok || !payload?.success) throw new Error("CJ_WAREHOUSE_LIST_FAILED");
+  const seenCountries = new Set<string>();
+  const warehouses = (payload.data || []).flatMap(item => {
+    const countryCode = item.countryCode?.trim().toUpperCase();
+    if (!countryCode || !/^[A-Z]{2}$/.test(countryCode) || item.disabled || seenCountries.has(countryCode)) return [];
+    seenCountries.add(countryCode);
+    const label = item.fr?.trim() || item.areaEn?.trim() || item.nameEn?.trim() || `Entrepôt ${countryCode}`;
+    const areaId = asFiniteNumber(item.areaId);
+    return [{ id: String(item.id ?? item.areaId ?? countryCode), areaId: areaId == null ? null : Math.floor(areaId), countryCode, label }];
+  }).sort((first, second) => first.label.localeCompare(second.label, "fr"));
+  globalWarehouseCache = { warehouses, cachedAt: Date.now() };
+  return warehouses;
 }
 
 /** Vérifie la clé CJ sans conserver ni renvoyer le token d’accès au navigateur. */
@@ -604,7 +659,7 @@ async function getCjVariantStock(access: CjAccessToken, variantId: string): Prom
   return { checked: true, totalQuantity: warehouses.reduce((total, item) => total + item.quantity, 0), warehouses };
 }
 
-export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[]; quantity?: number }): Promise<CjDeliveryQuote> {
+export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[]; originCountryCodes?: string[]; quantity?: number }): Promise<CjDeliveryQuote> {
   const requestedCodes = input.countryCodes?.length ? input.countryCodes : cjDeliveryMarkets.map(item => item.countryCode);
   // Une destination de vente ne doit jamais être traitée comme un filtre
   // d’entrepôt. CJ peut alors masquer des variantes pourtant expédiables depuis
@@ -617,7 +672,13 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
   const targets = requestedCodes.map(code => cjDeliveryMarkets.find(item => item.countryCode === code)).filter((item): item is typeof cjDeliveryMarkets[number] => Boolean(item));
   if (targets.length === 0) throw new Error("CJ_DELIVERY_DESTINATION_INVALID");
 
-  const originCountries = (variant.originCountries.length ? variant.originCountries : ["CN"]).slice(0, 3);
+  const availableOriginCountries = Array.from(new Set((variant.originCountries.length ? variant.originCountries : ["CN"]).map(code => code.toUpperCase()))).slice(0, 8);
+  const requestedOriginCountries = Array.from(new Set((input.originCountryCodes || []).map(code => code.trim().toUpperCase()).filter(code => /^[A-Z]{2}$/.test(code))));
+  // Une préférence d’entrepôt est appliquée ici, sur les pays d’origine réellement
+  // déclarés par la variante. Elle ne modifie jamais le pays commercial de destination.
+  const originCountries = requestedOriginCountries.length
+    ? availableOriginCountries.filter(code => requestedOriginCountries.includes(code))
+    : availableOriginCountries;
   const quantity = Number.isInteger(input.quantity) && input.quantity && input.quantity > 0 && input.quantity <= 20 ? input.quantity : 1;
   const access = await getCjAccessToken();
   const stock = await getCjVariantStock(access, variant.id);
@@ -750,7 +811,9 @@ export async function quoteCjDelivery(input: { productId: string; variantId: str
       countryName: target.countryName,
       originCountries,
       options,
-      message: options.length ? null : "CJ n’a pas confirmé de tarif par ses calculateurs API pour cette destination et cette variante. Vérifiez le calculateur CJ avant de l’exclure.",
+      message: options.length ? null : (requestedOriginCountries.length && originCountries.length === 0
+        ? "Cette variante n’est pas stockée dans l’entrepôt CJ sélectionné."
+        : "CJ n’a pas confirmé de tarif par ses calculateurs API pour cette destination et cette variante. Vérifiez le calculateur CJ avant de l’exclure."),
     };
   }));
 
