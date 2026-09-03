@@ -425,7 +425,14 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
             variantId: variant.id,
             countryCodes: destinations.map(item => item.countryCode),
           });
-          const stock = quote.stock.checked ? Math.floor(quote.stock.totalQuantity ?? 0) : 0;
+          // `stock/queryByVid` peut être momentanément indisponible. Une quantité
+          // explicitement confirmée sur la variante dans `product/query` reste
+          // exploitable ; en l’absence de l’un ou l’autre, le produit est rejeté.
+          const stock = quote.stock.checked
+            ? Math.floor(quote.stock.totalQuantity ?? 0)
+            : variant.stockChecked
+              ? Math.floor(variant.stock ?? 0)
+              : 0;
           const deliveryProfiles = quote.countries.flatMap(country => {
             const option = country.options.find(item => isFastTrackedCjMethod(item.logisticName, item.delay));
             if (!option) return [];

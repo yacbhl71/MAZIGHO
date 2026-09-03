@@ -489,20 +489,28 @@ export async function prepareCjProductImport(input: { productId: string; product
   const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantKey).filter(Boolean))).slice(0, 8).join(" · ") || null;
   const preparedVariants = variants
     .filter((variant): variant is typeof variant & { vid: string } => Boolean(variant.vid))
-    .map(variant => ({
-      id: variant.vid,
-      label: variant.variantKeyEn || variant.variantKey || variant.variantSku || `Variante ${variant.vid.slice(-6)}`,
-      sku: variant.variantSku || null,
-      supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
-      weightG: asFiniteNumber(variant.variantWeight) ?? asFiniteNumber(product.packingWeight),
-      volumeM3: asFiniteNumber(variant.variantVolume) == null ? null : (asFiniteNumber(variant.variantVolume)! / 1_000_000_000),
-      originCountries: Array.from(new Set((variant.inventories || [])
-        .filter(inventory => typeof inventory.totalInventory !== "number" || inventory.totalInventory > 0)
-        .map(inventory => inventory.countryCode)
-        .filter((countryCode): countryCode is string => Boolean(countryCode)))),
-      stock: null as number | null,
-      stockChecked: false,
-    }));
+    .map(variant => {
+      const variantInventories = (variant.inventories || []).filter(inventory =>
+        (!input.countryCode || inventory.countryCode === input.countryCode) && typeof inventory.totalInventory === "number",
+      );
+      const verifiedVariantStock = variantInventories.length
+        ? variantInventories.reduce((total, inventory) => total + (inventory.totalInventory || 0), 0)
+        : null;
+      return {
+        id: variant.vid,
+        label: variant.variantKeyEn || variant.variantKey || variant.variantSku || `Variante ${variant.vid.slice(-6)}`,
+        sku: variant.variantSku || null,
+        supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
+        weightG: asFiniteNumber(variant.variantWeight) ?? asFiniteNumber(product.packingWeight),
+        volumeM3: asFiniteNumber(variant.variantVolume) == null ? null : (asFiniteNumber(variant.variantVolume)! / 1_000_000_000),
+        originCountries: Array.from(new Set((variant.inventories || [])
+          .filter(inventory => typeof inventory.totalInventory !== "number" || inventory.totalInventory > 0)
+          .map(inventory => inventory.countryCode)
+          .filter((countryCode): countryCode is string => Boolean(countryCode)))),
+        stock: verifiedVariantStock,
+        stockChecked: verifiedVariantStock != null,
+      };
+    });
 
   // product/query n'expose pas toujours les inventaires ; dans ce cas on lit le
   // stock réel de chaque variante par son VID (stock/queryByVid) pour afficher la
