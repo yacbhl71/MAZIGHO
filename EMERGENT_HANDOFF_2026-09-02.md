@@ -19,6 +19,7 @@ Une première étape complète d’automatisation des commandes a été ajoutée
 | `4f816fb` | Messages administrateur explicites lorsque CJ bloque une référence, une variante, le stock, le fret ou la marge. |
 | `ccfc3ad` | Ajout du **Générateur de Sourcing CJ sur-mesure** ; critères personnalisés par pays, poids, multiplicateur de prix et transport CJPacket rapide ; anciens lots fixes repliés comme sauvegardes. |
 | Version multi-sélections | Évolution du générateur : catégories et destinations à sélections multiples par cases à cocher ; plafond relevé à 100 brouillons par catégorie. |
+| Correctif de recherche CJ | La destination client n’est plus envoyée à `product/listV2` ou `product/query` comme un filtre d’entrepôt CJ. Les candidats et variantes sont lus globalement ; seul le devis de fret décide ensuite, pays par pays, où le produit est livrable. |
 
 La production suit la branche `main` via le déploiement Vercel habituel.
 
@@ -104,7 +105,7 @@ La commande de test est conservée dans MAZIGHO comme preuve du parcours ; elle 
 | `drizzle/schema.ts` | Structures Drizzle des nouveaux champs et tables. |
 | `server/services/odoo.ts` | Recherche Odoo par `client_order_ref`, création idempotente et lien local. |
 | `server/services/cjFulfillment.ts` | Client CJ distinct du catalogue ; prévalidation puis création sandbox uniquement. |
-| `server/cjDropshipping.ts` | Token CJ, fiche produit, stock, fret et devis ; le pays est désormais transmis au contexte de vérification. |
+| `server/cjDropshipping.ts` | Token CJ, fiche produit, stock, fret et devis. La destination client ne doit jamais filtrer la fiche ou la variante comme un entrepôt CJ ; elle est appliquée uniquement au devis de fret. |
 | `server/adminRouter.ts` | Procédures protégées `admin.orders.getFulfillment`, `getCjSafetyStatus` et `prepareCjSandbox`. |
 | `client/src/pages/admin/AdminOrders.tsx` | Contrôle visuel et confirmation humaine du test CJ. |
 | `server/services/cjFulfillment.test.ts` | Test garantissant que le module est sandbox-only et ne peut débiter CJ. |
@@ -130,6 +131,8 @@ Le prix final est calculé avec le fret fournisseur le plus élevé parmi les **
 Les anciens lots fixes par catégories et le lot Mode restent intégralement disponibles dans le code, mais sont visuellement repliés dans **« Outils classiques / sauvegarde »**. Ils ne sont pas supprimés, mais ne doivent plus être le parcours par défaut.
 
 Les fichiers clés sont `server/cjBatchImport.ts` pour le moteur, `server/adminRouter.ts` pour les validations et l’audit, `client/src/pages/admin/AdminSuppliers.tsx` pour l’interface, et `server/cjBatchImport.test.ts` pour le verrou du transport rapide.
+
+> **Diagnostic important du 3 septembre 2026 :** un `countryCode` donné à `product/listV2` sert à filtrer le stock physique d’un entrepôt CJ, et non à vérifier qu’un produit peut être livré à un client de ce pays. Pour la Suisse, cette contrainte ramenait souvent le catalogue à zéro. La recherche doit être mondiale, puis chaque variante doit passer le calcul de fret vers les destinations cochées. Ne pas réintroduire ce filtre au stade de la recherche ou de la lecture de fiche.
 
 ## Points impératifs pour la suite
 

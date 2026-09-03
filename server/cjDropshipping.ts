@@ -598,12 +598,10 @@ async function getCjVariantStock(access: CjAccessToken, variantId: string): Prom
 
 export async function quoteCjDelivery(input: { productId: string; variantId: string; countryCodes?: string[]; quantity?: number }): Promise<CjDeliveryQuote> {
   const requestedCodes = input.countryCodes?.length ? input.countryCodes : cjDeliveryMarkets.map(item => item.countryCode);
-  // L’API CJ peut retourner une fiche différente selon le marché interrogé.
-  // Le premier pays demandé est le contexte sûr pour sélectionner la variante.
-  const prepared = await prepareCjProductImport({
-    productId: input.productId,
-    countryCode: requestedCodes[0],
-  });
+  // Une destination de vente ne doit jamais être traitée comme un filtre
+  // d’entrepôt. CJ peut alors masquer des variantes pourtant expédiables depuis
+  // un autre pays. On lit la fiche globale puis on valide le fret par destination.
+  const prepared = await prepareCjProductImport({ productId: input.productId });
   const variant = prepared.variants.find(item => item.id === input.variantId);
   if (!variant) throw new Error("CJ_VARIANT_NOT_FOUND");
 

@@ -394,10 +394,11 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
       }
 
       try {
+        // La destination de vente est validée au devis ci-dessous. La passer ici
+        // filtrerait à tort les variantes selon l’entrepôt CJ local.
         const prepared = await prepareCjProductImport({
           productId: candidate.id,
           productSku: candidate.sku || undefined,
-          countryCode: destinations[0]!.countryCode,
         });
         const matchingVariants = prepared.variants
           .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0 && variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG)
