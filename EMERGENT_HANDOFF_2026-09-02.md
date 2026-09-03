@@ -153,3 +153,19 @@ Les fichiers clés sont `server/cjBatchImport.ts` pour le moteur, `server/adminR
 Commencer par une tâche dédiée de **remappage/révalidation CJ** : sélectionner un petit groupe de produits actifs, rafraîchir depuis CJ la variante et le fret suisse, puis exécuter un nouveau test Stripe Test → CJ sandbox sur une variante fraîchement confirmée. Cette étape doit rester sans paiement fournisseur et sans publication automatique.
 
 Une fois au moins un brouillon CJ sandbox réellement créé avec succès, ajouter la réception de tracking CJ signée. Le paiement fournisseur réel ne devrait être étudié qu’après ce second jalon et une confirmation écrite séparée.
+
+
+## Gestion groupée des brouillons et tri chronologique
+
+La page **Administration → Produits** permet désormais de sélectionner plusieurs **brouillons** à l’aide d’une case à cocher en début de ligne. La case de l’en-tête sélectionne ou désélectionne tous les brouillons visibles après application des filtres. Les produits actifs et archivés restent visibles dans la liste, mais leurs cases sont désactivées afin de ne jamais les inclure accidentellement dans une action par lot.
+
+| Action | Règle serveur obligatoire |
+|---|---|
+| Modifier | La modification groupée peut appliquer une catégorie principale, un prix de vente ou un stock. Les champs laissés vides restent inchangés. Les titres, descriptions, images, traductions et profils de livraison restent réservés à l’édition individuelle. |
+| Activer | L’activation exige qu’un brouillon ait un prix supérieur à zéro et au moins un profil de livraison validé. La procédure échoue entièrement si une fiche sélectionnée ne satisfait pas ces conditions. |
+| Archiver | Les brouillons sélectionnés deviennent archivés et ne sont plus visibles dans la boutique. |
+| Supprimer | Une confirmation explicite est requise côté interface. La suppression est définitive et nettoie les images, traductions, profils de livraison, associations de catégories et avis liés au brouillon. |
+
+Toutes ces mutations sont protégées par `catalogEditorProcedure`, limitées à 100 identifiants et vérifient côté serveur que **tous** les éléments sélectionnés sont toujours à l’état `draft`. Elles créent une trace d’audit contenant l’opération et les identifiants concernés. Les procédures sont dans `server/adminRouter.ts`, les protections de données dans `server/db.ts`, et l’interface dans `client/src/pages/admin/AdminProducts.tsx`.
+
+La liste Produits affiche également une colonne **« Créé le »** et un tri au choix : création récente ou ancienne, dernière modification, ou nom de A à Z. Le tri par création récente est le réglage par défaut.

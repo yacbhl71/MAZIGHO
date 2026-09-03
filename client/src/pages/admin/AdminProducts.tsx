@@ -3,7 +3,7 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal, Eye } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal, Eye, Archive, CheckCircle2, CalendarDays, ListChecks, Save } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
@@ -41,6 +41,10 @@ const parseChfToCents = (raw: string): number | null => {
 const centsToChfInput = (cents: unknown): string => {
   const amount = Number(cents || 0) / 100;
   return amount.toFixed(2).replace(".", ",");
+};
+const formatProductDate = (value: unknown) => {
+  const date = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("fr-CH", { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 
 export default function AdminProducts() {
@@ -107,6 +111,12 @@ export default function AdminProducts() {
   const [translationFilter, setTranslationFilter] = useState<"all" | "ready" | "attention">("all");
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"created_desc" | "created_asc" | "updated_desc" | "name_asc">("created_desc");
+  const [selectedDraftIds, setSelectedDraftIds] = useState<number[]>([]);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [bulkCategoryId, setBulkCategoryId] = useState("__keep__");
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkStock, setBulkStock] = useState("");
 
   const translationState = (productId: number) => {
     const overview = translationOverviewByProductId.get(productId) as any;
@@ -133,9 +143,13 @@ export default function AdminProducts() {
           ? product.categoryIds.map(String).includes(categoryFilter)
           : String(product.categoryId) === categoryFilter);
       return matchesQuery && matchesStatus && matchesTranslation && matchesStock && matchesCategory;
-    }).sort((a: any, b: any) =>
-      (a.categoryName || "\uffff").localeCompare(b.categoryName || "\uffff", "fr") || (a.name || "").localeCompare(b.name || "", "fr"));
-  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, categoryFilter, translationOverviewQuery.data]);
+    }).sort((a: any, b: any) => {
+      if (sortOrder === "name_asc") return (a.name || "").localeCompare(b.name || "", "fr");
+      const left = new Date(String(sortOrder === "updated_desc" ? a.updatedAt : a.createdAt)).getTime();
+      const right = new Date(String(sortOrder === "updated_desc" ? b.updatedAt : b.createdAt)).getTime();
+      return sortOrder === "created_asc" ? left - right : right - left;
+    });
+  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, categoryFilter, sortOrder, translationOverviewQuery.data]);
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -143,6 +157,7 @@ export default function AdminProducts() {
     setTranslationFilter("all");
     setStockFilter("all");
     setCategoryFilter("all");
+    setSortOrder("created_desc");
   };
 
   const translateProduct = trpc.admin.products.translate.useMutation({
@@ -194,6 +209,23 @@ export default function AdminProducts() {
       refetch();
     },
     onError: (error) => toast.error(`Erreur : ${error.message}`),
+  });
+  const clearBulkSelection = () => setSelectedDraftIds([]);
+  const bulkArchiveDrafts = trpc.admin.products.bulkArchiveDrafts.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) archivé(s).`); clearBulkSelection(); refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const bulkActivateDrafts = trpc.admin.products.bulkActivateDrafts.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) activé(s).`); clearBulkSelection(); refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const bulkUpdateDrafts = trpc.admin.products.bulkUpdateDrafts.useMutation({
+    onSuccess: (result) => { toast.success(`${result.updated} brouillon(s) modifié(s).`); setBulkEditOpen(false); setBulkCategoryId("__keep__"); setBulkPrice(""); setBulkStock(""); clearBulkSelection(); refetch(); },
+    onError: (error) => toast.error(error.message),
+  });
+  const bulkDeleteDrafts = trpc.admin.products.bulkDeleteDrafts.useMutation({
+    onSuccess: (result) => { toast.success(`${result.deleted} brouillon(s) supprimé(s) définitivement.`); clearBulkSelection(); refetch(); },
+    onError: (error) => toast.error(error.message),
   });
 
   const resetForm = () => {
@@ -395,6 +427,24 @@ export default function AdminProducts() {
     }
   };
 
+  const visibleDraftIds = filteredProducts.filter((product: any) => product.status === "draft").map((product: any) => product.id);
+  const allVisibleDraftsSelected = visibleDraftIds.length > 0 && visibleDraftIds.every((id: number) => selectedDraftIds.includes(id));
+  const toggleVisibleDrafts = (checked: boolean) => setSelectedDraftIds(current => checked
+    ? Array.from(new Set([...current, ...visibleDraftIds]))
+    : current.filter(id => !visibleDraftIds.includes(id)));
+  const toggleDraftSelection = (id: number, checked: boolean) => setSelectedDraftIds(current => checked
+    ? Array.from(new Set([...current, id]))
+    : current.filter(currentId => currentId !== id));
+  const applyBulkEdit = () => {
+    const parsedPrice = bulkPrice.trim() ? parseChfToCents(bulkPrice) : undefined;
+    const parsedStock = bulkStock.trim() ? Number.parseInt(bulkStock, 10) : undefined;
+    if (parsedPrice !== undefined && (parsedPrice == null || parsedPrice <= 0)) { toast.error("Le prix groupé doit être supérieur à 0 CHF."); return; }
+    if (parsedStock !== undefined && (!Number.isInteger(parsedStock) || parsedStock < 0)) { toast.error("Le stock groupé doit être un nombre entier positif ou nul."); return; }
+    const categoryId = bulkCategoryId === "__keep__" ? undefined : Number(bulkCategoryId);
+    if (categoryId === undefined && parsedPrice === undefined && parsedStock === undefined) { toast.error("Choisissez au moins une valeur à modifier."); return; }
+    bulkUpdateDrafts.mutate({ ids: selectedDraftIds, categoryId, price: parsedPrice ?? undefined, stock: parsedStock });
+  };
+
   const generateSlug = (val: string) => {
     setName(val);
     if (!editingProduct) {
@@ -449,26 +499,42 @@ export default function AdminProducts() {
               <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-orange-600" /><h2 className="font-semibold text-slate-900">Recherche et préparation</h2></div>
               <p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement du catalogue…" : `${filteredProducts.length} produit(s) affiché(s) sur ${products?.length ?? 0}`}</p>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(200px,1.5fr)_1fr_1fr_1fr_1fr]">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom, URL, catégorie ou fournisseur…" /></div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger data-testid="admin-products-category-filter"><SelectValue placeholder="Catégorie" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{(categories || []).map((cat: any) => (<SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>))}</SelectContent></Select>
             <Select value={statusFilter} onValueChange={value => setStatusFilter(value as typeof statusFilter)}><SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="draft">Brouillons</SelectItem><SelectItem value="archived">Archivés</SelectItem></SelectContent></Select>
             <Select value={translationFilter} onValueChange={value => setTranslationFilter(value as typeof translationFilter)}><SelectTrigger><SelectValue placeholder="Traductions" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les traductions</SelectItem><SelectItem value="ready">6 langues prêtes</SelectItem><SelectItem value="attention">À compléter / régénérer</SelectItem></SelectContent></Select>
             <Select value={stockFilter} onValueChange={value => setStockFilter(value as typeof stockFilter)}><SelectTrigger><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les stocks</SelectItem><SelectItem value="available">Plus de 5 unités</SelectItem><SelectItem value="low">1 à 5 unités</SelectItem><SelectItem value="empty">Rupture de stock</SelectItem></SelectContent></Select>
+            <Select value={sortOrder} onValueChange={value => setSortOrder(value as typeof sortOrder)}><SelectTrigger><SelectValue placeholder="Tri" /></SelectTrigger><SelectContent><SelectItem value="created_desc">Création : récent d’abord</SelectItem><SelectItem value="created_asc">Création : ancien d’abord</SelectItem><SelectItem value="updated_desc">Modification : récent d’abord</SelectItem><SelectItem value="name_asc">Nom : A à Z</SelectItem></SelectContent></Select>
           </div>
         </section>
 
+        {selectedDraftIds.length > 0 && (
+          <section className="flex flex-col gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-3"><ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><div><h2 className="font-semibold text-orange-950">{selectedDraftIds.length} brouillon(s) sélectionné(s)</h2><p className="mt-1 text-sm text-orange-800">Les actions s’appliquent uniquement aux brouillons encore présents dans cette sélection.</p></div></div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" className="border-sky-200 bg-white text-sky-800 hover:bg-sky-50" onClick={() => setBulkEditOpen(true)}><Save className="mr-2 h-4 w-4" />Modifier</Button>
+              <Button type="button" size="sm" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={bulkActivateDrafts.isPending} onClick={() => { if (confirm(`Activer ${selectedDraftIds.length} brouillon(s) ? Ils deviendront visibles uniquement s’ils ont un prix et un profil de livraison validé.`)) bulkActivateDrafts.mutate({ ids: selectedDraftIds }); }}><CheckCircle2 className="mr-2 h-4 w-4" />Activer</Button>
+              <Button type="button" size="sm" variant="outline" className="border-amber-200 bg-white text-amber-800 hover:bg-amber-50" disabled={bulkArchiveDrafts.isPending} onClick={() => { if (confirm(`Archiver ${selectedDraftIds.length} brouillon(s) ? Ils ne seront plus visibles en boutique.`)) bulkArchiveDrafts.mutate({ ids: selectedDraftIds }); }}><Archive className="mr-2 h-4 w-4" />Archiver</Button>
+              <Button type="button" size="sm" variant="destructive" disabled={bulkDeleteDrafts.isPending} onClick={() => { if (confirm(`Supprimer définitivement ${selectedDraftIds.length} brouillon(s) ? Cette action est irréversible.`)) bulkDeleteDrafts.mutate({ ids: selectedDraftIds }); }}><Trash className="mr-2 h-4 w-4" />Supprimer</Button>
+              <Button type="button" size="sm" variant="ghost" className="text-slate-700" onClick={clearBulkSelection}>Désélectionner</Button>
+            </div>
+          </section>
+        )}
+
         <div className="border rounded-lg bg-white overflow-x-auto">
-          <Table className="min-w-[800px]">
+          <Table className="min-w-[1020px]">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"><input type="checkbox" aria-label="Sélectionner tous les brouillons visibles" checked={allVisibleDraftsSelected} disabled={visibleDraftIds.length === 0} onChange={event => toggleVisibleDrafts(event.target.checked)} className="h-4 w-4 accent-orange-500" /></TableHead>
                 <TableHead>Produit</TableHead>
                 <TableHead>Catégorie</TableHead>
                 <TableHead>Prix</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead><span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Créé le</span></TableHead>
                 <TableHead>Langues</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
@@ -477,18 +543,20 @@ export default function AdminProducts() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={9} className="text-center py-10 text-red-500">
                     <div className="flex flex-col items-center gap-2">
                       <p>Erreur lors du chargement des produits</p>
                       <p className="text-xs font-mono">{error.message}</p>
@@ -498,7 +566,7 @@ export default function AdminProducts() {
                 </TableRow>
               ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <p>{products?.length === 0 ? "Aucun produit trouvé." : "Aucun produit ne correspond à ces filtres."}</p>
                       {products?.length === 0 ? <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button> : <Button variant="outline" size="sm" onClick={clearFilters}>Effacer les filtres</Button>}
@@ -507,7 +575,8 @@ export default function AdminProducts() {
                 </TableRow>
               ) : (
                 filteredProducts.map((product: any) => (
-                  <TableRow key={product.id}>
+                  <TableRow key={product.id} className={selectedDraftIds.includes(product.id) ? "bg-orange-50/60" : undefined}>
+                    <TableCell><input type="checkbox" aria-label={`Sélectionner ${product.name}`} checked={selectedDraftIds.includes(product.id)} disabled={product.status !== "draft"} onChange={event => toggleDraftSelection(product.id, event.target.checked)} className="h-4 w-4 accent-orange-500 disabled:cursor-not-allowed disabled:opacity-35" /></TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
@@ -545,6 +614,7 @@ export default function AdminProducts() {
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
                       </Badge>
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-slate-600">{formatProductDate(product.createdAt)}</TableCell>
                     <TableCell>{(() => { const translation = translationState(product.id); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : translation.stale ? "border-amber-200 bg-amber-50 text-amber-700" : translation.complete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : translation.stale ? "À régénérer" : translation.complete ? "6 / 6 prêtes" : `${translation.ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
                     <TableCell className="w-[100px]">
                       <div className="flex items-center gap-2">
@@ -872,6 +942,22 @@ export default function AdminProducts() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkEditOpen} onOpenChange={setBulkEditOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Modifier {selectedDraftIds.length} brouillon(s)</DialogTitle>
+            <DialogDescription>Ne renseignez que les champs à changer. Les valeurs laissées vides restent inchangées. Cette action ne modifie jamais un produit actif ou archivé.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-3">
+            <div className="grid gap-2"><Label htmlFor="bulk-category">Catégorie principale</Label><Select value={bulkCategoryId} onValueChange={setBulkCategoryId}><SelectTrigger id="bulk-category"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__keep__">Conserver les catégories actuelles</SelectItem>{(categories || []).map((category: any) => <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid gap-2"><Label htmlFor="bulk-price">Prix de vente unique (CHF)</Label><Input id="bulk-price" value={bulkPrice} onChange={event => setBulkPrice(event.target.value)} inputMode="decimal" placeholder="Ex. 24,90 — laisser vide pour conserver" /></div>
+            <div className="grid gap-2"><Label htmlFor="bulk-stock">Stock unique</Label><Input id="bulk-stock" value={bulkStock} onChange={event => setBulkStock(event.target.value)} type="number" min="0" step="1" placeholder="Ex. 12 — laisser vide pour conserver" /></div>
+            <p className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-900">La modification par lot est faite sur les brouillons sélectionnés uniquement. Pour changer le titre, la description, les images ou les profils de livraison, utilisez l’édition individuelle.</p>
+          </div>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkEditOpen(false)}>Annuler</Button><Button type="button" className="bg-orange-500 hover:bg-orange-600" disabled={bulkUpdateDrafts.isPending} onClick={applyBulkEdit}>{bulkUpdateDrafts.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Appliquer aux brouillons</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

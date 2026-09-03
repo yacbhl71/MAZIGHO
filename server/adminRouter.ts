@@ -470,6 +470,62 @@ export const adminRouter = router({
       logAudit(ctx, { action: "product.delete", entityType: "product", entityId: input, summary: `Produit supprimé : « ${name} »` });
       return result;
     }),
+    bulkArchiveDrafts: catalogEditorProcedure.input(z.object({
+      ids: z.array(z.number().int().positive()).min(1).max(100),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.archiveCatalogDraftsBulk(input.ids);
+        logAudit(ctx, { action: "product.bulk_archive_drafts", entityType: "product", entityId: null, summary: `${result.updated} brouillon(s) archivé(s)`, metadata: { productIds: result.ids } });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible d’archiver cette sélection. Seuls les brouillons existants peuvent être traités par lot." });
+      }
+    }),
+    bulkActivateDrafts: catalogEditorProcedure.input(z.object({
+      ids: z.array(z.number().int().positive()).min(1).max(100),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.activateCatalogDraftsBulk(input.ids);
+        logAudit(ctx, { action: "product.bulk_activate_drafts", entityType: "product", entityId: null, summary: `${result.updated} brouillon(s) activé(s)`, metadata: { productIds: result.ids } });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code.startsWith("CATALOG_DRAFT_NOT_READY_FOR_ACTIVATION")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Activation refusée : chaque brouillon doit disposer d’un prix positif et d’au moins un profil de livraison validé." });
+        }
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible d’activer cette sélection. Seuls les brouillons existants peuvent être traités par lot." });
+      }
+    }),
+    bulkUpdateDrafts: catalogEditorProcedure.input(z.object({
+      ids: z.array(z.number().int().positive()).min(1).max(100),
+      categoryId: z.number().int().positive().optional(),
+      price: z.number().int().positive().max(1_000_000).optional(),
+      stock: z.number().int().min(0).max(1_000_000).optional(),
+    }).superRefine((input, context) => {
+      if (input.categoryId == null && input.price == null && input.stock == null) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Indiquez au moins une valeur à modifier." });
+      }
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.updateCatalogDraftsBulk(input);
+        const changes = [input.categoryId != null ? "catégorie" : null, input.price != null ? "prix" : null, input.stock != null ? "stock" : null].filter(Boolean);
+        logAudit(ctx, { action: "product.bulk_update_drafts", entityType: "product", entityId: null, summary: `${result.updated} brouillon(s) modifié(s) : ${changes.join(", ")}`, metadata: { productIds: result.ids, categoryId: input.categoryId, price: input.price, stock: input.stock } });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible de modifier cette sélection. Vérifiez que tous les produits sont encore des brouillons et que la catégorie existe." });
+      }
+    }),
+    bulkDeleteDrafts: catalogEditorProcedure.input(z.object({
+      ids: z.array(z.number().int().positive()).min(1).max(100),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.deleteCatalogDraftsBulk(input.ids);
+        logAudit(ctx, { action: "product.bulk_delete_drafts", entityType: "product", entityId: null, summary: `${result.deleted} brouillon(s) supprimé(s) définitivement`, metadata: { productIds: result.ids } });
+        return result;
+      } catch (error) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible de supprimer cette sélection. Seuls les brouillons existants peuvent être supprimés par lot." });
+      }
+    }),
     previewImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ input }) => {
       if (input.rawHtml && input.rawHtml.trim().length > 0) {
         return await previewSupplierProductFromHtml(input.rawHtml, input.url);

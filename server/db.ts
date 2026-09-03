@@ -1863,6 +1863,79 @@ export async function deleteCatalogDraft(id: number) {
   return await deleteProduct(id);
 }
 
+const MAX_BULK_CATALOG_DRAFTS = 100;
+
+async function ensureEditableCatalogDrafts(ids: number[]) {
+  const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0)));
+  if (uniqueIds.length === 0) throw new Error("PRODUCT_SELECTION_EMPTY");
+  if (uniqueIds.length > MAX_BULK_CATALOG_DRAFTS) throw new Error("PRODUCT_SELECTION_TOO_LARGE");
+
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ id: products.id, name: products.name, status: products.status, price: products.price })
+    .from(products)
+    .where(inArray(products.id, uniqueIds));
+  if (rows.length !== uniqueIds.length) throw new Error("PRODUCT_NOT_FOUND");
+  if (rows.some(product => product.status !== "draft")) throw new Error("PRODUCT_NOT_DRAFT");
+  return { db, ids: uniqueIds, rows };
+}
+
+async function ensureCatalogCategory(categoryId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const category = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId)).limit(1);
+  if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
+}
+
+/**
+ * Actions groupées du catalogue : seules les fiches encore à l’état brouillon
+ * sont admissibles. Ce verrou empêche une sélection filtrée de modifier par
+ * inadvertance un produit public ou déjà archivé.
+ */
+export async function archiveCatalogDraftsBulk(ids: number[]) {
+  const { db, ids: selectedIds } = await ensureEditableCatalogDrafts(ids);
+  await db.update(products).set({ status: "archived" }).where(and(inArray(products.id, selectedIds), eq(products.status, "draft")));
+  return { updated: selectedIds.length, ids: selectedIds };
+}
+
+export async function activateCatalogDraftsBulk(ids: number[]) {
+  const { db, ids: selectedIds, rows } = await ensureEditableCatalogDrafts(ids);
+  await ensureDeliveryProfileSchema();
+  const profiles = await db.select({ productId: productDeliveryProfiles.productId })
+    .from(productDeliveryProfiles)
+    .where(inArray(productDeliveryProfiles.productId, selectedIds));
+  const productIdsWithDelivery = new Set(profiles.map(profile => profile.productId));
+  const notReadyIds = rows
+    .filter(product => product.price <= 0 || !productIdsWithDelivery.has(product.id))
+    .map(product => product.id);
+  if (notReadyIds.length > 0) throw new Error(`CATALOG_DRAFT_NOT_READY_FOR_ACTIVATION:${notReadyIds.join(",")}`);
+
+  await db.update(products).set({ status: "active" }).where(and(inArray(products.id, selectedIds), eq(products.status, "draft")));
+  return { updated: selectedIds.length, ids: selectedIds };
+}
+
+export async function updateCatalogDraftsBulk(input: { ids: number[]; categoryId?: number; price?: number; stock?: number }) {
+  const hasUpdate = input.categoryId != null || input.price != null || input.stock != null;
+  if (!hasUpdate) throw new Error("BULK_UPDATE_EMPTY");
+  const { ids: selectedIds } = await ensureEditableCatalogDrafts(input.ids);
+  if (input.categoryId != null) await ensureCatalogCategory(input.categoryId);
+
+  for (const id of selectedIds) {
+    await updateProduct(id, {
+      ...(input.categoryId != null ? { categoryId: input.categoryId, categoryIds: [input.categoryId] } : {}),
+      ...(input.price != null ? { price: input.price } : {}),
+      ...(input.stock != null ? { stock: input.stock } : {}),
+    });
+  }
+  return { updated: selectedIds.length, ids: selectedIds };
+}
+
+export async function deleteCatalogDraftsBulk(ids: number[]) {
+  const { ids: selectedIds } = await ensureEditableCatalogDrafts(ids);
+  for (const id of selectedIds) await deleteCatalogDraft(id);
+  return { deleted: selectedIds.length, ids: selectedIds };
+}
+
 export async function countProductsBySupplierInCategory(supplier: string, categoryId: number) {
   await ensureProductCategorySchema();
   const db = await getDb();
@@ -2004,10 +2077,13 @@ export async function updateProduct(id: number, data: any) {
 export async function deleteProduct(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { products, productImages, reviews } = await import("../drizzle/schema");
-  
+  const { products, productImages, productTranslations, productDeliveryProfiles, productCategories, reviews } = await import("../drizzle/schema");
+
   await Promise.all([
     db.delete(productImages).where(eq(productImages.productId, id)),
+    db.delete(productTranslations).where(eq(productTranslations.productId, id)),
+    db.delete(productDeliveryProfiles).where(eq(productDeliveryProfiles.productId, id)),
+    db.delete(productCategories).where(eq(productCategories.productId, id)),
     db.delete(reviews).where(eq(reviews.productId, id)),
     db.delete(products).where(eq(products.id, id)),
   ]);
