@@ -839,12 +839,13 @@ export async function checkCjSwissDelivery(productId: string, productSku?: strin
   return { productId: prepared.productId, deliverable: false, variantLabel: null, costUsd: null, delay: null, message: "La livraison Suisse n’est pas confirmée par les calculateurs CJ pour les premières variantes vérifiées." };
 }
 
-export async function searchCjCatalog(input: { keyword: string; page?: number; countryCode?: string; freeShippingOnly?: boolean }): Promise<CjCatalogSearch> {
+export async function searchCjCatalog(input: { keyword: string; page?: number; size?: number; countryCode?: string; freeShippingOnly?: boolean }): Promise<CjCatalogSearch> {
   const access = await getCjAccessToken();
+  const size = Number.isInteger(input.size) ? Math.min(100, Math.max(1, input.size!)) : 20;
   const params = new URLSearchParams({
     keyWord: input.keyword.trim(),
     page: String(input.page ?? 1),
-    size: "20",
+    size: String(size),
     features: "enable_category",
     orderBy: "0",
     sort: "desc",

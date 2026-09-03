@@ -1215,6 +1215,8 @@ export const adminRouter = router({
       draftLimit: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minDraftLimit).max(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit),
       maxWeightG: z.number().int().min(CJ_CUSTOM_SOURCING_LIMITS.minWeightG).max(CJ_CUSTOM_SOURCING_LIMITS.maxWeightG),
       priceMultiplier: z.number().min(CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier).max(CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier),
+      searchPage: z.number().int().min(1).max(Math.ceil(CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates / CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize)).optional(),
+      candidateOffset: z.number().int().min(0).max(CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize - 1).optional(),
       rules: z.object({
         requireVerifiedPositiveStock: z.boolean(),
         enforceMaxWeight: z.boolean(),
@@ -1238,6 +1240,8 @@ export const adminRouter = router({
             warehouseCountryCodes: input.warehouseCountryCodes,
             shippingMethodIds: input.shippingMethodIds,
             requestedProducts: input.requestedProducts,
+            searchPage: input.searchPage ?? 1,
+            candidateOffset: input.candidateOffset ?? 0,
             draftLimit: input.draftLimit,
             maxWeightG: input.maxWeightG,
             priceMultiplier: input.priceMultiplier,
@@ -1258,6 +1262,7 @@ export const adminRouter = router({
         if (code === "CJ_CUSTOM_WEIGHT_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le poids maximal doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minWeightG} g et ${CJ_CUSTOM_SOURCING_LIMITS.maxWeightG.toLocaleString("fr-CH")} g.` });
         if (code === "CJ_CUSTOM_MULTIPLIER_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le multiplicateur doit être compris entre ${CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier} et ${CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier}.` });
         if (code === "CJ_CUSTOM_DELIVERY_DAYS_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: `Le délai maximal doit être compris entre 1 et ${CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays} jours.` });
+        if (code === "CJ_CUSTOM_SCAN_CURSOR_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La progression du sourcing est invalide. Relancez une nouvelle recherche." });
         if (code === "CJ_UNREACHABLE") throw new TRPCError({ code: "TIMEOUT", message: "CJ ne répond pas pour le moment. Aucun brouillon non vérifié n’a été créé." });
         if (code === "CJ_AUTHENTICATION_FAILED") throw new TRPCError({ code: "UNAUTHORIZED", message: "CJ a refusé l’autorisation. Vérifiez la connexion avant de relancer le sourcing." });
         throw new TRPCError({ code: "BAD_GATEWAY", message: "Le sourcing personnalisé n’a pas pu être terminé. Les brouillons déjà vérifiés restent disponibles dans Produits." });

@@ -43,6 +43,43 @@ type CustomSourcingRules = {
   maxDeliveryDays: number;
 };
 
+type CustomSourcingInput = {
+  keyword: string;
+  categoryIds: number[];
+  countryCodes: Array<"CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES">;
+  warehouseCountryCodes: string[];
+  shippingMethodIds: Array<"cjpacket_fast" | "express" | "tracked_network">;
+  requestedProducts: number;
+  draftLimit: number;
+  maxWeightG: number;
+  priceMultiplier: number;
+  rules: CustomSourcingRules;
+};
+
+type CustomSourcingResult = {
+  category: string;
+  keyword: string;
+  categoryNames: string[];
+  countryNames: string[];
+  requested: number;
+  imported: number;
+  skipped: number;
+  existingCounts: Array<{ categoryId: number; categoryName: string; count: number }>;
+  draftLimit: number;
+  maxWeightG: number;
+  priceMultiplier: number;
+  warehouseCountryCodes: string[];
+  shippingMethodIds: Array<"cjpacket_fast" | "express" | "tracked_network">;
+  shippingMethodLabels: string[];
+  rules: CustomSourcingRules;
+  rejections: { duplicates: number; variantRules: number; stockOrDelivery: number; images: number };
+  failures: Array<{ productId: string | null; query: string; reason: string }>;
+  products: Array<{ id: number; name: string; priceCents: number; stock: number; countryCodes: Array<"CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES"> }>;
+  progress: { scannedInWave: number; scannedTotal: number; maximumScanned: number; nextPage: number | null; nextCandidateOffset: number | null; hasMore: boolean };
+};
+
+type CustomSourcingResume = { input: CustomSourcingInput; page: number; offset: number; result: CustomSourcingResult };
+
 const DEFAULT_CUSTOM_SOURCING_RULES: CustomSourcingRules = {
   requireVerifiedPositiveStock: true,
   enforceMaxWeight: true,
@@ -173,40 +210,16 @@ export default function AdminSuppliers() {
   const [customCountryCodes, setCustomCountryCodes] = useState<Array<"CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES">>(["CH"]);
   const [customWarehouseCountryCodes, setCustomWarehouseCountryCodes] = useState<string[]>([]);
   const [customShippingMethodIds, setCustomShippingMethodIds] = useState<Array<"cjpacket_fast" | "express" | "tracked_network">>(["cjpacket_fast"]);
-  const [customRequestedProducts, setCustomRequestedProducts] = useState("6");
-  const [customDraftLimit, setCustomDraftLimit] = useState("20");
+  const [customRequestedProducts, setCustomRequestedProducts] = useState("40");
+  const [customDraftLimit, setCustomDraftLimit] = useState("100");
   const [customMaxWeightG, setCustomMaxWeightG] = useState("400");
   const [customPriceMultiplier, setCustomPriceMultiplier] = useState("2.5");
   const [customRules, setCustomRules] = useState<CustomSourcingRules>(DEFAULT_CUSTOM_SOURCING_RULES);
   const [legacyToolsOpen, setLegacyToolsOpen] = useState(false);
-  const [customSourcingResult, setCustomSourcingResult] = useState<{
-    category: string;
-    keyword: string;
-    categoryNames: string[];
-    countryNames: string[];
-    requested: number;
-    imported: number;
-    skipped: number;
-    existingCounts: Array<{ categoryId: number; categoryName: string; count: number }>;
-    draftLimit: number;
-    maxWeightG: number;
-    priceMultiplier: number;
-    warehouseCountryCodes: string[];
-    shippingMethodIds: Array<"cjpacket_fast" | "express" | "tracked_network">;
-    shippingMethodLabels: string[];
-    rules: CustomSourcingRules;
-    rejections: { duplicates: number; variantRules: number; stockOrDelivery: number; images: number };
-    failures: Array<{ productId: string | null; query: string; reason: string }>;
-    products: Array<{ id: number; name: string; priceCents: number; stock: number; countryCodes: Array<"CH" | "FR" | "DE" | "IT" | "AT" | "BE" | "NL" | "ES"> }> ;
-  } | null>(null);
-  const importCjCustomDrafts = trpc.admin.suppliers.importCjCustomDrafts.useMutation({
-    onSuccess: async (result) => {
-      setCustomSourcingResult(result);
-      await utils.admin.products.getAll.invalidate();
-      toast.success(`${result.imported} brouillon(s) CJ créé(s) pour ${result.countryNames.join(", ")}.`);
-    },
-    onError: error => toast.error(error.message || "Le sourcing personnalisé a échoué."),
-  });
+  const [customSourcingResult, setCustomSourcingResult] = useState<CustomSourcingResult | null>(null);
+  const [customSourcingRunning, setCustomSourcingRunning] = useState(false);
+  const [customSourcingResume, setCustomSourcingResume] = useState<CustomSourcingResume | null>(null);
+  const importCjCustomDrafts = trpc.admin.suppliers.importCjCustomDrafts.useMutation();
   const standardCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "standard");
   const cjBatchCategoriesQuery = trpc.admin.suppliers.cjBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
   const cjFashionBatchCategoriesQuery = trpc.admin.suppliers.cjFashionBatchCategories.useQuery(undefined, { enabled: Boolean(cjStatus?.configured) });
@@ -223,6 +236,57 @@ export default function AdminSuppliers() {
       toast.error(error instanceof Error ? error.message : "Le nettoyage Mode n’a pas pu être terminé.");
     }
   };
+  const mergeCustomSourcingResults = (previous: CustomSourcingResult | null, wave: CustomSourcingResult): CustomSourcingResult => {
+    if (!previous) return wave;
+    return {
+      ...previous,
+      imported: previous.imported + wave.imported,
+      skipped: previous.skipped + wave.skipped,
+      failures: [...previous.failures, ...wave.failures],
+      products: [...previous.products, ...wave.products],
+      rejections: {
+        duplicates: previous.rejections.duplicates + wave.rejections.duplicates,
+        variantRules: previous.rejections.variantRules + wave.rejections.variantRules,
+        stockOrDelivery: previous.rejections.stockOrDelivery + wave.rejections.stockOrDelivery,
+        images: previous.rejections.images + wave.rejections.images,
+      },
+      progress: wave.progress,
+    };
+  };
+
+  const executeCustomSourcingWaves = async (input: CustomSourcingInput, resume?: CustomSourcingResume) => {
+    let page = resume?.page ?? 1;
+    let offset = resume?.offset ?? 0;
+    let aggregate = resume?.result ?? null;
+    setCustomSourcingRunning(true);
+    setCustomSourcingResume(null);
+    try {
+      while ((aggregate?.imported ?? 0) < input.requestedProducts) {
+        const wave = await importCjCustomDrafts.mutateAsync({ ...input, searchPage: page, candidateOffset: offset }) as CustomSourcingResult;
+        aggregate = mergeCustomSourcingResults(aggregate, wave);
+        setCustomSourcingResult(aggregate);
+        if (wave.imported > 0) await utils.admin.products.getAll.invalidate();
+        if (!wave.progress.hasMore || aggregate.imported >= input.requestedProducts || wave.progress.nextPage == null || wave.progress.nextCandidateOffset == null) break;
+        page = wave.progress.nextPage;
+        offset = wave.progress.nextCandidateOffset;
+      }
+      if (aggregate) {
+        const reachedTarget = aggregate.imported >= input.requestedProducts;
+        toast.success(reachedTarget
+          ? `Objectif atteint : ${aggregate.imported} brouillon(s) CJ qualifié(s) créé(s).`
+          : `Sourcing terminé : ${aggregate.imported} brouillon(s) créé(s) après ${aggregate.progress.scannedTotal}/${aggregate.progress.maximumScanned} candidats analysés.`);
+      }
+    } catch (error) {
+      if (aggregate) {
+        setCustomSourcingResult(aggregate);
+        setCustomSourcingResume({ input, page, offset, result: aggregate });
+      }
+      toast.error(error instanceof Error ? `${error.message} Les brouillons déjà qualifiés sont conservés ; vous pouvez reprendre le scan.` : "Le sourcing a été interrompu. Les brouillons déjà qualifiés sont conservés ; vous pouvez reprendre le scan.");
+    } finally {
+      setCustomSourcingRunning(false);
+    }
+  };
+
   const runCustomSourcing = async () => {
     const requestedProducts = Number.parseInt(customRequestedProducts, 10);
     const draftLimit = Number.parseInt(customDraftLimit, 10);
@@ -246,7 +310,7 @@ export default function AdminSuppliers() {
       return;
     }
     if (!limits || !Number.isInteger(requestedProducts) || requestedProducts < limits.minRequestedProducts || requestedProducts > limits.maxRequestedProducts) {
-      toast.error(`Le nombre de produits doit être compris entre ${limits?.minRequestedProducts ?? 1} et ${limits?.maxRequestedProducts ?? 12}.`);
+      toast.error(`Le nombre de produits doit être compris entre ${limits?.minRequestedProducts ?? 1} et ${limits?.maxRequestedProducts ?? 40}.`);
       return;
     }
     if (!Number.isInteger(draftLimit) || draftLimit < limits.minDraftLimit || draftLimit > limits.maxDraftLimit) {
@@ -265,17 +329,7 @@ export default function AdminSuppliers() {
       toast.error(`Le multiplicateur doit être compris entre ${limits.minPriceMultiplier} et ${limits.maxPriceMultiplier}.`);
       return;
     }
-    const categoryNames = standardCategories.filter(category => customCategoryIds.includes(category.id)).map(category => category.name);
-    const countryNames = (customSourcingConfigQuery.data?.countries || []).filter(country => customCountryCodes.includes(country.countryCode)).map(country => country.countryName);
-    const warehouseLabels = customWarehouseCountryCodes.length
-      ? (cjGlobalWarehousesQuery.data || []).filter(warehouse => customWarehouseCountryCodes.includes(warehouse.countryCode)).map(warehouse => warehouse.label)
-      : ["tous entrepôts CJ compatibles"];
-    const shippingLabels = customRules.enforceSelectedShippingMethods
-      ? (customSourcingConfigQuery.data?.shippingMethods || []).filter(method => customShippingMethodIds.includes(method.id)).map(method => method.label)
-      : ["toutes méthodes avec devis"];
-    const activeRules = (customSourcingConfigQuery.data?.rules || []).filter(rule => customRules[rule.id]).map(rule => rule.label);
-    if (!window.confirm(`Lancer un sourcing CJ pour « ${customKeyword.trim()} » ? MAZIGHO cherchera au plus ${requestedProducts} brouillons classés dans ${categoryNames.join(", ")}, contrôlés pour ${countryNames.join(", ")}, depuis ${warehouseLabels.join(", ")}, avec ${shippingLabels.join(" · ")}. Règles actives : ${activeRules.join(" · ") || "aucun filtre optionnel"}. Chaque brouillon conservera uniquement les pays où sa livraison est réellement validée ; il restera masqué dans les autres pays. Aucun produit ne sera publié ou commandé.`)) return;
-    await importCjCustomDrafts.mutateAsync({
+    const input: CustomSourcingInput = {
       keyword: customKeyword.trim(),
       categoryIds: customCategoryIds,
       countryCodes: customCountryCodes,
@@ -286,7 +340,19 @@ export default function AdminSuppliers() {
       maxWeightG,
       priceMultiplier,
       rules: customRules,
-    });
+    };
+    const categoryNames = standardCategories.filter(category => customCategoryIds.includes(category.id)).map(category => category.name);
+    const countryNames = (customSourcingConfigQuery.data?.countries || []).filter(country => customCountryCodes.includes(country.countryCode)).map(country => country.countryName);
+    const warehouseLabels = customWarehouseCountryCodes.length
+      ? (cjGlobalWarehousesQuery.data || []).filter(warehouse => customWarehouseCountryCodes.includes(warehouse.countryCode)).map(warehouse => warehouse.label)
+      : ["tous entrepôts CJ compatibles"];
+    const shippingLabels = customRules.enforceSelectedShippingMethods
+      ? (customSourcingConfigQuery.data?.shippingMethods || []).filter(method => customShippingMethodIds.includes(method.id)).map(method => method.label)
+      : ["toutes méthodes avec devis"];
+    const activeRules = (customSourcingConfigQuery.data?.rules || []).filter(rule => customRules[rule.id]).map(rule => rule.label);
+    if (!window.confirm(`Lancer un sourcing CJ renforcé pour « ${input.keyword} » ? MAZIGHO analysera au plus 500 candidats CJ par vagues courtes, jusqu’à ${requestedProducts} brouillons qualifiés, classés dans ${categoryNames.join(", ")} et contrôlés pour ${countryNames.join(", ")}, depuis ${warehouseLabels.join(", ")}, avec ${shippingLabels.join(" · ")}. Règles actives : ${activeRules.join(" · ") || "aucun filtre optionnel"}. Gardez cette page ouverte pendant l’analyse. Chaque brouillon restera visible uniquement dans les pays où la livraison est confirmée. Aucun produit ne sera publié ou commandé.`)) return;
+    setCustomSourcingResult(null);
+    await executeCustomSourcingWaves(input);
   };
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchResults, setBatchResults] = useState<Array<{ category: string; requested: number; imported: number; skipped: number; failures: Array<{ productId: string | null; query: string; reason: string }> }>>([]);
@@ -492,7 +558,7 @@ export default function AdminSuppliers() {
               <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Niche / mot-clé CJ</span><input value={customKeyword} onChange={event => setCustomKeyword(event.target.value)} list="cj-custom-niches" maxLength={120} placeholder="Ex. gadgets de voyage" className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Texte libre ou suggestion.</span></label>
               <fieldset className="grid gap-1.5"><legend className="text-sm font-semibold text-slate-800">Catégories MAZIGHO</legend><div className="grid max-h-28 grid-cols-2 gap-1.5 overflow-y-auto rounded-xl border border-violet-200 bg-white p-2">{standardCategories.map(category => <label key={category.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-800 hover:bg-violet-50"><input type="checkbox" checked={customCategoryIds.includes(category.id)} onChange={event => setCustomCategoryIds(current => event.target.checked ? [...current, category.id] : current.filter(id => id !== category.id))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><span className="min-w-0 truncate">{category.name}</span></label>)}</div><span className="text-xs text-slate-500">Un brouillon est classé dans toutes les catégories cochées.</span></fieldset>
               <fieldset className="grid gap-1.5"><legend className="text-sm font-semibold text-slate-800">Pays de destination</legend><div className="grid grid-cols-2 gap-1.5 rounded-xl border border-violet-200 bg-white p-2">{(customSourcingConfigQuery.data?.countries || []).map(country => <label key={country.countryCode} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-800 hover:bg-violet-50"><input type="checkbox" checked={customCountryCodes.includes(country.countryCode)} onChange={event => setCustomCountryCodes(current => event.target.checked ? [...current, country.countryCode] : current.filter(code => code !== country.countryCode))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><span>{country.countryName}</span></label>)}</div><span className="text-xs text-slate-500">Le produit sera visible uniquement dans les pays où CJ confirme sa livraison.</span></fieldset>
-              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Nombre de produits à préparer</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minRequestedProducts || 1} max={customSourcingConfigQuery.data?.limits.maxRequestedProducts || 12} value={customRequestedProducts} onChange={event => setCustomRequestedProducts(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">1 à 12 candidats maximum.</span></label>
+              <label className="grid gap-1.5"><span className="text-sm font-semibold text-slate-800">Objectif de brouillons qualifiés</span><input type="number" inputMode="numeric" min={customSourcingConfigQuery.data?.limits.minRequestedProducts || 1} max={customSourcingConfigQuery.data?.limits.maxRequestedProducts || 40} value={customRequestedProducts} onChange={event => setCustomRequestedProducts(event.target.value)} className="h-11 rounded-xl border border-violet-200 bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-violet-500" /><span className="text-xs text-slate-500">Jusqu’à 40 brouillons ; le robot analyse au plus 500 candidats CJ.</span></label>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -506,10 +572,10 @@ export default function AdminSuppliers() {
               <fieldset className={`grid gap-1.5 ${customRules.enforceSelectedShippingMethods ? "" : "opacity-55"}`}><legend className="flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Truck className="h-4 w-4 text-violet-700" /> Modes de livraison admis</legend><div className="grid gap-1.5 rounded-xl border border-violet-200 bg-white p-2">{(customSourcingConfigQuery.data?.shippingMethods || []).map(method => <label key={method.id} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-800 hover:bg-violet-50"><input type="checkbox" disabled={!customRules.enforceSelectedShippingMethods} checked={customShippingMethodIds.includes(method.id)} onChange={event => setCustomShippingMethodIds(current => event.target.checked ? [...current, method.id] : current.filter(id => id !== method.id))} className="mt-0.5 h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500 disabled:cursor-not-allowed" /><span><span className="block font-medium">{method.label}</span><span className="block text-xs text-slate-500">{method.description}</span></span></label>)}</div><span className="text-xs text-slate-500">{customRules.enforceSelectedShippingMethods ? "Seules les familles cochées sont retenues." : "Filtre désactivé : toute méthode avec devis peut être retenue, sous réserve du délai si celui-ci reste actif."}</span></fieldset>
             </div>
 
-            <div className="grid gap-4 rounded-xl border border-violet-200 bg-white/80 p-4 xl:grid-cols-[1fr_0.9fr]"><div><p className="text-sm font-semibold text-slate-950">Règles de sélection activables</p><p className="mt-1 text-xs leading-5 text-slate-600">Décochez une règle pour l’assouplir sur ce lancement. Les réglages sont confirmés avant l’exécution et conservés dans le journal administratif.</p><div className="mt-3 grid divide-y rounded-lg border border-violet-100 bg-white">{(customSourcingConfigQuery.data?.rules || []).map(rule => <div key={rule.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-violet-50"><input id={`cj-rule-${rule.id}`} type="checkbox" checked={customRules[rule.id]} onChange={event => setCustomRules(current => ({ ...current, [rule.id]: event.target.checked }))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><label htmlFor={`cj-rule-${rule.id}`} className="min-w-0 flex-1 cursor-pointer"><span className="block text-sm font-medium text-slate-900">{rule.label}</span><span className="block text-xs text-slate-500">{rule.description}</span></label>{rule.id === "enforceMaxDeliveryDays" && <label className={`flex shrink-0 items-center gap-1 text-xs text-slate-600 ${customRules.enforceMaxDeliveryDays ? "" : "opacity-55"}`}>Max.<input type="number" disabled={!customRules.enforceMaxDeliveryDays} min={1} max={customSourcingConfigQuery.data?.limits.maxDeliveryDays || 60} value={customRules.maxDeliveryDays} onChange={event => setCustomRules(current => ({ ...current, maxDeliveryDays: Number.parseInt(event.target.value, 10) || 0 }))} className="h-8 w-16 rounded-md border border-violet-200 bg-white px-2 text-center outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:cursor-not-allowed disabled:bg-slate-100" />j</label>}</div>)}</div></div><div className="flex flex-col justify-between gap-3"><p className="text-xs leading-5 text-slate-700"><strong>Protections toujours actives :</strong> identifiant CJ unique, absence de doublon, prix fournisseur positif, devis de fret chiffré pour au moins un pays, prix public final tout compris et création en brouillon. Aucun article ne sera publié, payé ou commandé chez CJ.</p><Button type="submit" disabled={!cjStatus?.configured || customSourcingConfigQuery.isLoading || importCjCustomDrafts.isPending} className="shrink-0 bg-violet-700 text-white hover:bg-violet-800">{importCjCustomDrafts.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageSearch className="mr-2 h-4 w-4" />}{importCjCustomDrafts.isPending ? "Sourcing en cours…" : "Lancer le sourcing personnalisé"}</Button></div></div>
+            <div className="grid gap-4 rounded-xl border border-violet-200 bg-white/80 p-4 xl:grid-cols-[1fr_0.9fr]"><div><p className="text-sm font-semibold text-slate-950">Règles de sélection activables</p><p className="mt-1 text-xs leading-5 text-slate-600">Décochez une règle pour l’assouplir sur ce lancement. Les réglages sont confirmés avant l’exécution et conservés dans le journal administratif.</p><div className="mt-3 grid divide-y rounded-lg border border-violet-100 bg-white">{(customSourcingConfigQuery.data?.rules || []).map(rule => <div key={rule.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-violet-50"><input id={`cj-rule-${rule.id}`} type="checkbox" checked={customRules[rule.id]} onChange={event => setCustomRules(current => ({ ...current, [rule.id]: event.target.checked }))} className="h-4 w-4 rounded border-violet-300 text-violet-700 focus:ring-violet-500" /><label htmlFor={`cj-rule-${rule.id}`} className="min-w-0 flex-1 cursor-pointer"><span className="block text-sm font-medium text-slate-900">{rule.label}</span><span className="block text-xs text-slate-500">{rule.description}</span></label>{rule.id === "enforceMaxDeliveryDays" && <label className={`flex shrink-0 items-center gap-1 text-xs text-slate-600 ${customRules.enforceMaxDeliveryDays ? "" : "opacity-55"}`}>Max.<input type="number" disabled={!customRules.enforceMaxDeliveryDays} min={1} max={customSourcingConfigQuery.data?.limits.maxDeliveryDays || 60} value={customRules.maxDeliveryDays} onChange={event => setCustomRules(current => ({ ...current, maxDeliveryDays: Number.parseInt(event.target.value, 10) || 0 }))} className="h-8 w-16 rounded-md border border-violet-200 bg-white px-2 text-center outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:cursor-not-allowed disabled:bg-slate-100" /></label>}</div>)}</div></div><div className="flex flex-col justify-between gap-3"><p className="text-xs leading-5 text-slate-700"><strong>Protections toujours actives :</strong> identifiant CJ unique, absence de doublon, prix fournisseur positif, devis de fret chiffré pour au moins un pays, prix public final tout compris et création en brouillon. Aucun article ne sera publié, payé ou commandé chez CJ.</p><div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" disabled={!customSourcingResume || customSourcingRunning} onClick={() => { if (customSourcingResume) void executeCustomSourcingWaves(customSourcingResume.input, customSourcingResume); }} className="border-violet-300 bg-white text-violet-800 hover:bg-violet-50">Reprendre le scan</Button><Button type="submit" disabled={!cjStatus?.configured || customSourcingConfigQuery.isLoading || customSourcingRunning} className="shrink-0 bg-violet-700 text-white hover:bg-violet-800">{customSourcingRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageSearch className="mr-2 h-4 w-4" />}{customSourcingRunning ? "Analyse CJ en cours…" : "Lancer le sourcing renforcé"}</Button></div></div></div>
           </form>
 
-          {customSourcingResult && <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-950">Dernier sourcing : « {customSourcingResult.keyword} »</p><p className="mt-1 text-sm text-slate-600">{customSourcingResult.categoryNames.join(" · ")} · {customSourcingResult.countryNames.join(" · ")} · {customSourcingResult.warehouseCountryCodes.length ? customSourcingResult.warehouseCountryCodes.join(" · ") : "tous entrepôts compatibles"} · {customSourcingResult.shippingMethodLabels.join(" · ") || "toutes méthodes avec devis"} · prix ×{customSourcingResult.priceMultiplier}</p><p className="mt-1 text-xs text-violet-800">Règles actives : {(customSourcingConfigQuery.data?.rules || []).filter(rule => customSourcingResult.rules[rule.id]).map(rule => rule.label).join(" · ") || "aucun filtre optionnel"}</p></div><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">{customSourcingResult.imported}/{customSourcingResult.requested} brouillon(s)</Badge></div>{customSourcingResult.products.length > 0 ? <div className="mt-3 divide-y rounded-lg border border-violet-100">{customSourcingResult.products.map(product => <div key={product.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"><div className="min-w-0"><span className="block truncate font-medium text-slate-900">{product.name}</span><span className="text-xs text-slate-500">Visible : {product.countryCodes.map(code => customSourcingConfigQuery.data?.countries.find(country => country.countryCode === code)?.countryName || code).join(" · ")}</span></div><span className="shrink-0 text-violet-800">{(product.priceCents / 100).toFixed(2)} CHF</span></div>)}</div> : <p className="mt-3 text-sm text-slate-600">Aucun candidat n’a passé tous les contrôles. Aucun brouillon n’a été créé.</p>}</div><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-950"><p className="font-semibold">Synthèse du contrôle</p><p className="mt-2">{customSourcingResult.existingCounts.map(item => `${item.categoryName} : ${item.count}`).join(" · ")} · plafond {customSourcingResult.draftLimit} par catégorie</p><p className="mt-1">{customSourcingResult.skipped} candidat(s) écarté(s) · {customSourcingResult.failures.length} incident(s) CJ.</p>{customSourcingResult.imported === 0 && <div className="mt-3 rounded-lg border border-violet-200 bg-white/80 p-3 text-xs leading-5 text-violet-950"><p className="font-semibold">Pourquoi aucun brouillon ?</p><p className="mt-1">{customSourcingResult.rejections.duplicates} doublon(s) · {customSourcingResult.rejections.variantRules} variante(s) écartée(s) par le prix ou le poids · {customSourcingResult.rejections.stockOrDelivery} écartée(s) par le stock ou la livraison · {customSourcingResult.rejections.images} sans image.</p><p className="mt-2">Vous pouvez relancer en décochant la règle correspondant au plus grand nombre, tout en conservant obligatoirement un prix fournisseur et un devis de fret chiffré.</p></div>}<p className="mt-3 text-xs leading-5 text-violet-900">Les incidents et candidats écartés ne créent ni produit public ni commande fournisseur.</p></div></div>}
+          {customSourcingResult && <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-xl border border-violet-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-slate-950">Dernier sourcing : « {customSourcingResult.keyword} »</p><p className="mt-1 text-sm text-slate-600">{customSourcingResult.categoryNames.join(" · ")} · {customSourcingResult.countryNames.join(" · ")} · {customSourcingResult.warehouseCountryCodes.length ? customSourcingResult.warehouseCountryCodes.join(" · ") : "tous entrepôts compatibles"} · {customSourcingResult.shippingMethodLabels.join(" · ") || "toutes méthodes avec devis"} · prix ×{customSourcingResult.priceMultiplier}</p><p className="mt-1 text-xs text-violet-800">Règles actives : {(customSourcingConfigQuery.data?.rules || []).filter(rule => customSourcingResult.rules[rule.id]).map(rule => rule.label).join(" · ") || "aucun filtre optionnel"}</p></div><Badge className="bg-violet-100 text-violet-800 hover:bg-violet-100">{customSourcingResult.imported}/{customSourcingResult.requested} brouillon(s)</Badge></div><div className="mt-3"><div className="flex items-center justify-between gap-3 text-xs text-slate-600"><span>{customSourcingRunning ? "Analyse en cours par vagues courtes…" : customSourcingResult.progress.hasMore ? "Scan interrompu avant la fin : vous pouvez le reprendre." : "Scan terminé."}</span><span>{customSourcingResult.progress.scannedTotal}/{customSourcingResult.progress.maximumScanned} candidats analysés</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-violet-100"><div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.min(100, Math.round((customSourcingResult.progress.scannedTotal / customSourcingResult.progress.maximumScanned) * 100))}%` }} /></div></div>{customSourcingResult.products.length > 0 ? <div className="mt-3 divide-y rounded-lg border border-violet-100">{customSourcingResult.products.map(product => <div key={product.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"><div className="min-w-0"><span className="block truncate font-medium text-slate-900">{product.name}</span><span className="text-xs text-slate-500">Visible : {product.countryCodes.map(code => customSourcingConfigQuery.data?.countries.find(country => country.countryCode === code)?.countryName || code).join(" · ")}</span></div><span className="shrink-0 text-violet-800">{(product.priceCents / 100).toFixed(2)} CHF</span></div>)}</div> : <p className="mt-3 text-sm text-slate-600">Aucun candidat n’a passé tous les contrôles. Aucun brouillon n’a été créé.</p>}</div><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 text-sm text-violet-950"><p className="font-semibold">Synthèse du contrôle</p><p className="mt-2">{customSourcingResult.existingCounts.map(item => `${item.categoryName} : ${item.count}`).join(" · ")} · plafond {customSourcingResult.draftLimit} par catégorie</p><p className="mt-1">{customSourcingResult.skipped} candidat(s) écarté(s) · {customSourcingResult.failures.length} incident(s) CJ.</p>{customSourcingResult.imported === 0 && <div className="mt-3 rounded-lg border border-violet-200 bg-white/80 p-3 text-xs leading-5 text-violet-950"><p className="font-semibold">Pourquoi aucun brouillon ?</p><p className="mt-1">{customSourcingResult.rejections.duplicates} doublon(s) · {customSourcingResult.rejections.variantRules} variante(s) écartée(s) par le prix ou le poids · {customSourcingResult.rejections.stockOrDelivery} écartée(s) par le stock ou la livraison · {customSourcingResult.rejections.images} sans image.</p><p className="mt-2">Vous pouvez relancer en décochant la règle correspondant au plus grand nombre, tout en conservant obligatoirement un prix fournisseur et un devis de fret chiffré.</p></div>}<p className="mt-3 text-xs leading-5 text-violet-900">Les incidents et candidats écartés ne créent ni produit public ni commande fournisseur.</p></div></div>}
         </section>
 
         {legacyToolsOpen && <section className="rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm md:p-6" data-testid="cj-fashion-batch-import-card">

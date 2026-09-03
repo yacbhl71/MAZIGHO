@@ -34,3 +34,9 @@ Après suppression du filtre `countryCode=CH` de la requête catalogue de diagno
 À l’inverse, lorsqu’un pays de destination est transmis à l’étape de lecture de la fiche ou de calcul de fret, CJ peut renvoyer une variante absente dans ce contexte. Le flux corrigé doit donc réutiliser la fiche globale pour identifier la variante, puis évaluer le fret sans réinterpréter la destination comme un entrepôt.
 
 La tentative de devis sur une variante en utilisant l’ancienne logique a échoué `CJ_VARIANT_NOT_FOUND`, confirmant que ce comportement bloquait avant même l’évaluation du transport CJPacket. Le filtre de transport n’est donc pas la cause principale des zéros actuels ; aucun assouplissement n’est appliqué à ce stade.
+
+## Pagination renforcée — vérification officielle
+
+La documentation CJ Product List V2 indique que `page` accepte les valeurs de 1 à 1000 et que `size` accepte les valeurs de 1 à 100. Le nombre total retourné est plafonné par CJ à 6000. Le générateur MAZIGHO utilise donc des pages de 50 candidats, sous le plafond officiel, et limite explicitement un sourcing manuel à 500 candidats. Les détails et devis sont ensuite traités en sous-vagues séparées afin que chaque requête d’administration reste brève.
+
+Source : https://developers.cjdropshipping.cn/en/api/api2/api/product.html

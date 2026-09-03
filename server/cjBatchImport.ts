@@ -23,7 +23,7 @@ export const CJ_CUSTOM_SOURCING_COUNTRIES = [
 
 export const CJ_CUSTOM_SOURCING_LIMITS = {
   minRequestedProducts: 1,
-  maxRequestedProducts: 12,
+  maxRequestedProducts: 40,
   minDraftLimit: 1,
   maxDraftLimit: 100,
   minWeightG: 50,
@@ -32,6 +32,11 @@ export const CJ_CUSTOM_SOURCING_LIMITS = {
   maxPriceMultiplier: 5,
   maxDeliveryDays: 60,
   maxFastDeliveryDays: 15,
+  /** Le catalogue est lu par pages CJ de 50 candidats, jusqu’à 500 candidats par sourcing. */
+  catalogPageSize: 50,
+  maxScannedCandidates: 500,
+  /** Une invocation Vercel traite cinq candidats détaillés au maximum avant de rendre la main. */
+  verificationWaveSize: 5,
 } as const;
 
 /**
@@ -247,6 +252,9 @@ export type CjCustomSourcingInput = {
   maxWeightG: number;
   priceMultiplier: number;
   rules: CjCustomSourcingRules;
+  /** Curseur stateless contrôlé par l’interface : une vague ne vérifie que cinq candidats. */
+  searchPage?: number;
+  candidateOffset?: number;
 };
 
 export type CjCustomSourcingResult = CjBatchImportResult & {
@@ -264,6 +272,15 @@ export type CjCustomSourcingResult = CjBatchImportResult & {
   rules: CjCustomSourcingRules;
   rejections: { duplicates: number; variantRules: number; stockOrDelivery: number; images: number };
   products: Array<{ id: number; name: string; priceCents: number; stock: number; countryCodes: CjCustomSourcingCountryCode[] }>;
+  /** Avancement d’une vague ; l’interface appelle la suivante seulement si hasMore est vrai. */
+  progress: {
+    scannedInWave: number;
+    scannedTotal: number;
+    maximumScanned: number;
+    nextPage: number | null;
+    nextCandidateOffset: number | null;
+    hasMore: boolean;
+  };
 };
 
 function slugify(value: string) {
@@ -412,6 +429,12 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   // plus proche de son plafond fixe donc le nombre de créations possibles.
   const remainingDraftSlots = Math.max(0, Math.min(...existingCounts.map(item => input.draftLimit - item.count)));
   const target = Math.min(input.requestedProducts, remainingDraftSlots);
+  const searchPage = input.searchPage ?? 1;
+  const candidateOffset = input.candidateOffset ?? 0;
+  const maxSearchPage = Math.ceil(CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates / CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize);
+  if (!Number.isInteger(searchPage) || searchPage < 1 || searchPage > maxSearchPage) throw new Error("CJ_CUSTOM_SCAN_CURSOR_INVALID");
+  if (!Number.isInteger(candidateOffset) || candidateOffset < 0 || candidateOffset >= CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize) throw new Error("CJ_CUSTOM_SCAN_CURSOR_INVALID");
+  const scannedBefore = (searchPage - 1) * CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize + candidateOffset;
   const result: CjCustomSourcingResult = {
     category: selectedCategories.map(item => item.name).join(" · "),
     requested: input.requestedProducts,
@@ -434,155 +457,172 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
       : [],
     rules,
     rejections: { duplicates: 0, variantRules: 0, stockOrDelivery: 0, images: 0 },
+    progress: {
+      scannedInWave: 0,
+      scannedTotal: Math.min(scannedBefore, CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates),
+      maximumScanned: CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates,
+      nextPage: null,
+      nextCandidateOffset: null,
+      hasMore: false,
+    },
   };
-  if (target === 0) return result;
+  if (target === 0 || scannedBefore >= CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates) return result;
 
-  const consideredIds = new Set<string>();
-  // Trois pages de vingt candidats couvrent largement un sourcing de douze
-  // brouillons sans transformer une action manuelle en exploration non bornée.
-  for (let page = 1; page <= 3 && result.imported < target; page += 1) {
-    let search;
-    try {
-      search = await searchCjCatalog({ keyword: input.keyword.trim(), page });
-    } catch (error) {
-      result.failures.push({ productId: null, query: input.keyword.trim(), reason: reasonFor(error) });
-      break;
+  let search;
+  try {
+    search = await searchCjCatalog({
+      keyword: input.keyword.trim(),
+      page: searchPage,
+      size: CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize,
+    });
+  } catch (error) {
+    result.failures.push({ productId: null, query: input.keyword.trim(), reason: reasonFor(error) });
+    return result;
+  }
+
+  // Chaque invocation ne vérifie que cinq candidats. La liste CJ de cinquante est
+  // réutilisée par le curseur afin que la fonction réponde rapidement à Vercel.
+  const candidates = search.products.slice(candidateOffset, candidateOffset + CJ_CUSTOM_SOURCING_LIMITS.verificationWaveSize);
+  for (const candidate of candidates) {
+    if (result.imported >= target) break;
+    const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
+    if (existing) {
+      result.skipped += 1;
+      result.rejections.duplicates += 1;
+      continue;
     }
 
-    for (const candidate of search.products) {
-      if (result.imported >= target || consideredIds.has(candidate.id)) continue;
-      consideredIds.add(candidate.id);
-      const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
-      if (existing) {
+    try {
+      // La destination de vente est validée au devis ci-dessous. La passer ici
+      // filtrerait à tort les variantes selon l’entrepôt CJ local.
+      const prepared = await prepareCjProductImport({
+        productId: candidate.id,
+        productSku: candidate.sku || undefined,
+      });
+      const matchingVariants = prepared.variants
+        .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0)
+        .filter(variant => !rules.enforceMaxWeight || (variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG))
+        .sort((first, second) => (first.weightG ?? Number.MAX_SAFE_INTEGER) - (second.weightG ?? Number.MAX_SAFE_INTEGER))
+        .slice(0, 5);
+      if (matchingVariants.length === 0) {
         result.skipped += 1;
-        result.rejections.duplicates += 1;
+        result.rejections.variantRules += 1;
+        continue;
+      }
+      let selection: {
+        variantId: string;
+        stock: number;
+        supplierPriceUsd: number;
+        deliveryProfiles: Array<{
+          countryCode: string;
+          supplierVariantId: string;
+          supplierShippingCost: number;
+          customerShippingCost: number;
+          deliveryMethod: string;
+          minDeliveryDays: number | null;
+          maxDeliveryDays: number | null;
+        }>;
+      } | null = null;
+
+      for (const variant of matchingVariants) {
+        const quote = await quoteCjDelivery({
+          productId: prepared.productId,
+          variantId: variant.id,
+          countryCodes: destinations.map(item => item.countryCode),
+          originCountryCodes: warehouseCountryCodes,
+        });
+        // `stock/queryByVid` peut être momentanément indisponible. Une quantité
+        // explicitement confirmée sur la variante dans `product/query` reste
+        // exploitable ; en l’absence de l’un ou l’autre, le produit est rejeté.
+        const stock = quote.stock.checked
+          ? Math.floor(quote.stock.totalQuantity ?? 0)
+          : variant.stockChecked
+            ? Math.floor(variant.stock ?? 0)
+            : 0;
+        const deliveryProfiles = quote.countries.flatMap(country => {
+          const option = country.options.find(item => {
+            if (rules.enforceSelectedShippingMethods) {
+              return isAllowedCjCustomShippingMethod(item.logisticName, item.delay, shippingMethodIds, rules.enforceMaxDeliveryDays ? rules.maxDeliveryDays : CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays);
+            }
+            if (rules.enforceMaxDeliveryDays) {
+              const maxDays = maxDaysFromDelay(item.delay);
+              return maxDays != null && maxDays <= rules.maxDeliveryDays;
+            }
+            return Number.isFinite(item.costUsd) && item.costUsd >= 0;
+          });
+          if (!option) return [];
+          return [{
+            countryCode: country.countryCode,
+            supplierVariantId: variant.id,
+            supplierShippingCost: toChfCents(option.costUsd),
+            customerShippingCost: 0,
+            deliveryMethod: option.name,
+            ...parseDeliveryRange(option.delay),
+          }];
+        });
+        if ((!rules.requireVerifiedPositiveStock || stock > 0) && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
+          selection = { variantId: variant.id, stock, supplierPriceUsd: variant.supplierPriceUsd, deliveryProfiles };
+          break;
+        }
+      }
+
+      if (!selection) {
+        result.skipped += 1;
+        result.rejections.stockOrDelivery += 1;
+        continue;
+      }
+      if (rules.requireProductImages && prepared.images.length === 0) {
+        result.skipped += 1;
+        result.rejections.images += 1;
         continue;
       }
 
-      try {
-        // La destination de vente est validée au devis ci-dessous. La passer ici
-        // filtrerait à tort les variantes selon l’entrepôt CJ local.
-        const prepared = await prepareCjProductImport({
-          productId: candidate.id,
-          productSku: candidate.sku || undefined,
-        });
-        const matchingVariants = prepared.variants
-          .filter(variant => variant.supplierPriceUsd != null && variant.supplierPriceUsd > 0)
-          .filter(variant => !rules.enforceMaxWeight || (variant.weightG != null && variant.weightG > 0 && variant.weightG <= input.maxWeightG))
-          .sort((first, second) => (first.weightG ?? Number.MAX_SAFE_INTEGER) - (second.weightG ?? Number.MAX_SAFE_INTEGER))
-          .slice(0, 5);
-        if (matchingVariants.length === 0) {
-          result.skipped += 1;
-          result.rejections.variantRules += 1;
-          continue;
-        }
-        let selection: {
-          variantId: string;
-          stock: number;
-          supplierPriceUsd: number;
-          deliveryProfiles: Array<{
-            countryCode: string;
-            supplierVariantId: string;
-            supplierShippingCost: number;
-            customerShippingCost: number;
-            deliveryMethod: string;
-            minDeliveryDays: number | null;
-            maxDeliveryDays: number | null;
-          }>;
-        } | null = null;
-
-        for (const variant of matchingVariants) {
-          const quote = await quoteCjDelivery({
-            productId: prepared.productId,
-            variantId: variant.id,
-            countryCodes: destinations.map(item => item.countryCode),
-            originCountryCodes: warehouseCountryCodes,
-          });
-          // `stock/queryByVid` peut être momentanément indisponible. Une quantité
-          // explicitement confirmée sur la variante dans `product/query` reste
-          // exploitable ; en l’absence de l’un ou l’autre, le produit est rejeté.
-          const stock = quote.stock.checked
-            ? Math.floor(quote.stock.totalQuantity ?? 0)
-            : variant.stockChecked
-              ? Math.floor(variant.stock ?? 0)
-              : 0;
-          const deliveryProfiles = quote.countries.flatMap(country => {
-            const option = country.options.find(item => {
-              if (rules.enforceSelectedShippingMethods) {
-                return isAllowedCjCustomShippingMethod(item.logisticName, item.delay, shippingMethodIds, rules.enforceMaxDeliveryDays ? rules.maxDeliveryDays : CJ_CUSTOM_SOURCING_LIMITS.maxDeliveryDays);
-              }
-              if (rules.enforceMaxDeliveryDays) {
-                const maxDays = maxDaysFromDelay(item.delay);
-                return maxDays != null && maxDays <= rules.maxDeliveryDays;
-              }
-              return Number.isFinite(item.costUsd) && item.costUsd >= 0;
-            });
-            if (!option) return [];
-            return [{
-              countryCode: country.countryCode,
-              supplierVariantId: variant.id,
-              supplierShippingCost: toChfCents(option.costUsd),
-              customerShippingCost: 0,
-              deliveryMethod: option.name,
-              ...parseDeliveryRange(option.delay),
-            }];
-          });
-          if ((!rules.requireVerifiedPositiveStock || stock > 0) && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
-            selection = {
-              variantId: variant.id,
-              stock,
-              supplierPriceUsd: variant.supplierPriceUsd,
-              deliveryProfiles,
-            };
-            break;
-          }
-        }
-
-        if (!selection) {
-          result.skipped += 1;
-          result.rejections.stockOrDelivery += 1;
-          continue;
-        }
-        if (rules.requireProductImages && prepared.images.length === 0) {
-          result.skipped += 1;
-          result.rejections.images += 1;
-          continue;
-        }
-
-        const supplierPriceCents = toChfCents(selection.supplierPriceUsd);
-        const maximumSupplierShippingCost = Math.max(...selection.deliveryProfiles.map(profile => profile.supplierShippingCost));
-        const priceCents = suggestedCustomSalePriceCents(supplierPriceCents, maximumSupplierShippingCost, input.priceMultiplier);
-        const customerName = prepared.name.slice(0, 200);
-        const baseSlug = slugify(customerName) || "produit-cj";
-        const created = await db.createProduct({
-          categoryId: selectedCategories[0]!.id,
-          categoryIds: selectedCategories.map(category => category.id),
-          name: customerName,
-          slug: `${baseSlug}-${prepared.productId.slice(-8).toLowerCase()}`.slice(0, 190),
-          description: prepared.description?.slice(0, 10_000) || null,
-          longDescription: null,
-          price: priceCents,
-          originalPrice: null,
-          stock: selection.stock,
-          featured: 0,
-          status: "draft" as const,
-          images: prepared.images.slice(0, 12),
-          supplier: "CJdropshipping",
-          supplierProductId: prepared.productId,
-          supplierPrice: supplierPriceCents,
-          deliveryProfiles: selection.deliveryProfiles,
-          lastSyncedAt: new Date(),
-        });
-        result.imported += 1;
-        result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock, countryCodes: selection.deliveryProfiles.map(profile => profile.countryCode as CjCustomSourcingCountryCode) });
-      } catch (error) {
-        result.failures.push({ productId: candidate.id, query: input.keyword.trim(), reason: reasonFor(error) });
-      }
+      const supplierPriceCents = toChfCents(selection.supplierPriceUsd);
+      const maximumSupplierShippingCost = Math.max(...selection.deliveryProfiles.map(profile => profile.supplierShippingCost));
+      const priceCents = suggestedCustomSalePriceCents(supplierPriceCents, maximumSupplierShippingCost, input.priceMultiplier);
+      const customerName = prepared.name.slice(0, 200);
+      const baseSlug = slugify(customerName) || "produit-cj";
+      const created = await db.createProduct({
+        categoryId: selectedCategories[0]!.id,
+        categoryIds: selectedCategories.map(category => category.id),
+        name: customerName,
+        slug: `${baseSlug}-${prepared.productId.slice(-8).toLowerCase()}`.slice(0, 190),
+        description: prepared.description?.slice(0, 10_000) || null,
+        longDescription: null,
+        price: priceCents,
+        originalPrice: null,
+        stock: selection.stock,
+        featured: 0,
+        status: "draft" as const,
+        images: prepared.images.slice(0, 12),
+        supplier: "CJdropshipping",
+        supplierProductId: prepared.productId,
+        supplierPrice: supplierPriceCents,
+        deliveryProfiles: selection.deliveryProfiles,
+        lastSyncedAt: new Date(),
+      });
+      result.imported += 1;
+      result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock, countryCodes: selection.deliveryProfiles.map(profile => profile.countryCode as CjCustomSourcingCountryCode) });
+    } catch (error) {
+      result.failures.push({ productId: candidate.id, query: input.keyword.trim(), reason: reasonFor(error) });
     }
-
-    if (search.products.length === 0) break;
   }
 
+  const scannedInWave = candidates.length;
+  const scannedTotal = Math.min(CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates, scannedBefore + scannedInWave);
+  const nextOffset = candidateOffset + scannedInWave;
+  const totalSearchable = Math.min(search.total, CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates);
+  const hasCurrentPageCandidates = nextOffset < search.products.length;
+  const hasFollowingPage = (searchPage * CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize) < totalSearchable;
+  const hasMore = scannedInWave > 0 && scannedTotal < CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates && (hasCurrentPageCandidates || hasFollowingPage);
+  result.progress = {
+    scannedInWave,
+    scannedTotal,
+    maximumScanned: CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates,
+    nextPage: hasMore ? (hasCurrentPageCandidates ? searchPage : searchPage + 1) : null,
+    nextCandidateOffset: hasMore ? (hasCurrentPageCandidates ? nextOffset : 0) : null,
+    hasMore,
+  };
   return result;
 }
 

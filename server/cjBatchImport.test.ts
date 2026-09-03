@@ -28,9 +28,12 @@ describe("custom CJ sourcing transport guard", () => {
     expect(isAllowedCjCustomShippingMethod("CJPacket Postal", "16-20", ["cjpacket_fast"], 30)).toBe(false);
   });
 
-  it("keeps the manual sourcing limits bounded", () => {
-    expect(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts).toBe(12);
+  it("keeps the strengthened manual sourcing limits bounded", () => {
+    expect(CJ_CUSTOM_SOURCING_LIMITS.maxRequestedProducts).toBe(40);
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxDraftLimit).toBe(100);
+    expect(CJ_CUSTOM_SOURCING_LIMITS.catalogPageSize).toBe(50);
+    expect(CJ_CUSTOM_SOURCING_LIMITS.maxScannedCandidates).toBe(500);
+    expect(CJ_CUSTOM_SOURCING_LIMITS.verificationWaveSize).toBe(5);
     expect(CJ_CUSTOM_SOURCING_LIMITS.maxFastDeliveryDays).toBe(15);
   });
 });

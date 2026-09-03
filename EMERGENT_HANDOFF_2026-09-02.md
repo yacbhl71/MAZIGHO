@@ -216,3 +216,22 @@ La sélection par cases de la page **Administration → Produits** couvre mainte
 | Supprimer définitivement | Archivé uniquement | L’archivage préalable est obligatoire ; la procédure refuse tout produit actif ou brouillon. |
 
 L’interface affiche les statuts présents dans la sélection et désactive visuellement le bouton de suppression tant que toute la sélection n’est pas déjà archivée. Cette règle doit être conservée : elle permet la gestion des actifs et archivés sans faciliter une suppression définitive accidentelle.
+
+
+## Sourcing CJ renforcé par vagues
+
+Le générateur personnalisé peut désormais viser jusqu’à **40 brouillons qualifiés** par lancement, tout en limitant l’exploration à **500 candidats CJ**. Cette capacité ne correspond pas à une requête serveur unique : le catalogue `product/listV2` est lu par pages de 50 candidats, puis l’interface fait traiter les candidats en sous-vagues strictement séquentielles de 5 fiches/dévis. Une vague retourne rapidement afin d’éviter une fonction longue et fragile sur Vercel.
+
+| Élément | Limite et comportement |
+|---|---|
+| Objectif de brouillons | 1 à 40, réglable dans le Hub fournisseurs. |
+| Exploration catalogue | Au plus 500 candidats par sourcing manuel. |
+| Pagination CJ | Pages de 50 candidats, alors que CJ autorise jusqu’à 100 éléments par page. |
+| Vérification détaillée | Cinq candidats au maximum par appel administratif ; aucune exécution parallèle agressive. |
+| Arrêt | Dès que l’objectif est atteint, que CJ ne renvoie plus de candidat ou que le plafond de 500 est atteint. |
+| Progression | Le Hub affiche les candidats analysés sur 500, les brouillons créés sur l’objectif et une jauge. |
+| Reprise | Si une vague échoue après un résultat partiel, le bouton « Reprendre le scan » relance au curseur de la dernière vague réussie ; les doublons empêchent toute recréation. |
+
+Ce mode reste manuel : la page doit rester ouverte pendant le scan. Il ne crée que des brouillons et continue de respecter les catégories, destinations, entrepôts, transports et règles activables choisis par l’administrateur. Aucun produit n’est activé, aucune commande fournisseur n’est créée et aucun paiement CJ n’est possible.
+
+Fichiers principaux : `server/cjDropshipping.ts` (taille de page CJ bornée), `server/cjBatchImport.ts` (curseur et sous-vagues), `server/adminRouter.ts` (validation du curseur) et `client/src/pages/admin/AdminSuppliers.tsx` (enchaînement, jauge et reprise).
