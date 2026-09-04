@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 export interface ProductOptionGroup {
   name: string;
   values: string[];
+  /** Public value combinations, without supplier SKU or VID. Present on CJ-imported variants. */
+  combinations?: Array<Record<string, string>>;
 }
 
 interface ProductOptionsProps {
@@ -56,19 +58,38 @@ export default function ProductOptions({ options, onSelectOptions }: ProductOpti
   const groups = (options || []).filter((group) => group && group.name && Array.isArray(group.values) && group.values.length > 0);
   const [selected, setSelected] = useState<Record<string, string>>({});
 
-  // Présélectionne la première valeur de chaque groupe pour que le panier reçoive toujours un choix cohérent.
+  const combinations = groups.find(group => Array.isArray(group.combinations) && group.combinations.length > 0)?.combinations ?? [];
+
+  // Pré-sélectionne une combinaison CJ existante afin que le panier ne reçoive jamais
+  // un mélange taille/couleur qui n’existe pas chez le fournisseur.
   useEffect(() => {
     const initial: Record<string, string> = {};
-    groups.forEach((group) => { initial[group.name] = group.values[0]; });
+    const firstCombination = combinations[0];
+    groups.forEach((group) => { initial[group.name] = firstCombination?.[group.name] || group.values[0]; });
     setSelected(initial);
     onSelectOptions(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(groups.map((group) => [group.name, group.values]))]);
+  }, [JSON.stringify(groups.map((group) => [group.name, group.values, group.combinations]))]);
 
   if (groups.length === 0) return null;
 
   const handleSelect = (groupName: string, value: string) => {
-    const next = { ...selected, [groupName]: value };
+    if (combinations.length === 0) {
+      const next = { ...selected, [groupName]: value };
+      setSelected(next);
+      onSelectOptions(next);
+      return;
+    }
+
+    const candidates = combinations.filter(combination => combination[groupName] === value);
+    const compatible = candidates.find(combination => Object.entries(selected)
+      .filter(([name]) => name !== groupName)
+      .every(([name, selectedValue]) => combination[name] === selectedValue)) ?? candidates[0];
+    if (!compatible) return;
+    const next = groups.reduce<Record<string, string>>((result, group) => {
+      result[group.name] = compatible[group.name] || selected[group.name] || group.values[0];
+      return result;
+    }, {});
     setSelected(next);
     onSelectOptions(next);
   };

@@ -76,12 +76,23 @@ type CjProductDetailResponse = {
     supplierName?: string;
     productKeyEn?: string;
     productProEnSet?: string[];
+    /** CJ returns dimension names at product level, e.g. ["Color", "Size"]. */
+    variantKey?: unknown;
+    variantKeyEn?: unknown;
+    variantkey?: unknown;
+    variantkeyen?: unknown;
     packingWeight?: string | number;
     variants?: Array<{
       vid?: string;
+      /** CJ returns this variant's selected value combination, e.g. Black-XL. */
       variantKey?: string;
       variantKeyEn?: string;
+      variantkey?: string;
+      variantkeyen?: string;
       variantSku?: string;
+      variantsku?: string;
+      variantImage?: string;
+      variantimage?: string;
       variantSellPrice?: string | number;
       variantLength?: string | number;
       variantWidth?: string | number;
@@ -124,10 +135,14 @@ export type CjImportPreparation = {
   stockConfirmed: boolean;
   variantsLabel: string | null;
   logisticsProperties: string[];
+  /** Option groups shown on the product page; values contain no supplier identifiers. */
+  optionGroups: Array<{ name: string; values: string[] }>;
   variants: Array<{
     id: string;
     label: string;
     sku: string | null;
+    imageUrl: string | null;
+    selectedOptions: Record<string, string>;
     supplierPriceUsd: number | null;
     originCountries: string[];
     weightG: number | null;
@@ -292,6 +307,56 @@ function assertCjApiKey() {
 function asFiniteNumber(value: unknown) {
   const parsed = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizedCjStrings(value: unknown): string[] {
+  const direct = Array.isArray(value) ? value : (() => {
+    if (typeof value !== "string") return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [value];
+    } catch {
+      return [value];
+    }
+  })();
+  return direct.flatMap(item => typeof item === "string" ? item.split(/[,|]/) : [])
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+/** CJ returns names and selected values separately. Do not guess if their dimensions do not align. */
+function normalizedCjDimensionNames(value: unknown): string[] {
+  return normalizedCjStrings(value)
+    .flatMap(item => item.split("-"))
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
+function parseCjVariantSelection(dimensionNames: string[], value: unknown): Record<string, string> {
+  if (!dimensionNames.length || typeof value !== "string") return {};
+  const values = value.split("-").map(part => part.trim()).filter(Boolean);
+  if (values.length !== dimensionNames.length) return {};
+  return Object.fromEntries(dimensionNames.map((name, index) => [name, values[index]!])) as Record<string, string>;
+}
+
+/** Converts CJ's public dimension/value data to safe storefront options plus a private VID mapping. */
+export function buildCjVariantStoreData(variants: Array<{ id: string; selectedOptions: Record<string, string> }>) {
+  const mapped = variants.filter(variant => Object.keys(variant.selectedOptions).length > 0);
+  if (!mapped.length) return { options: null as string | null, mappings: null as string | null };
+  const names = Object.keys(mapped[0]!.selectedOptions);
+  const compatible = mapped.filter(variant => names.every(name => Boolean(variant.selectedOptions[name])));
+  if (!compatible.length) return { options: null as string | null, mappings: null as string | null };
+
+  const combinations = compatible.map(variant => ({ ...variant.selectedOptions }));
+  const optionGroups = names.map((name, index) => ({
+    name,
+    values: Array.from(new Set(compatible.map(variant => variant.selectedOptions[name]).filter((value): value is string => Boolean(value)))).slice(0, 40),
+    ...(index === 0 ? { combinations } : {}),
+  }));
+  const mappings = compatible.map(variant => ({ supplierVariantId: variant.id, selectedOptions: variant.selectedOptions }));
+  return { options: JSON.stringify(optionGroups), mappings: JSON.stringify({ version: 1, mappings }) };
 }
 
 export async function getCjAccessToken(): Promise<CjAccessToken> {
@@ -497,7 +562,7 @@ export async function searchCjCatalogByImage(input: { imageDataUrl: string; coun
   };
 }
 
-export async function prepareCjProductImport(input: { productId: string; productSku?: string; countryCode?: string }): Promise<CjImportPreparation> {
+export async function prepareCjProductImport(input: { productId: string; productSku?: string; countryCode?: string; skipStockLookup?: boolean }): Promise<CjImportPreparation> {
   const access = await getCjAccessToken();
   const lookups: Array<Record<string, string>> = [
     { pid: input.productId.trim() },
@@ -530,9 +595,11 @@ export async function prepareCjProductImport(input: { productId: string; product
     throw new Error("CJ_PRODUCT_DETAILS_FAILED");
   }
 
-  const images = Array.from(new Set([product.bigImage, ...(product.productImageSet || [])]
-    .filter(isPublicImageUrl))).slice(0, 12);
   const variants = product.variants || [];
+  const dimensionNames = normalizedCjDimensionNames(product.variantKeyEn ?? product.variantkeyen ?? product.variantKey ?? product.variantkey)
+    .map(name => name.slice(0, 80));
+  const images = Array.from(new Set([product.bigImage, ...(product.productImageSet || []), ...variants.map(variant => variant.variantImage ?? variant.variantimage)]
+    .filter(isPublicImageUrl))).slice(0, 12);
   const inlineInventories = variants.flatMap(variant => (variant.inventories || []).filter(inventory =>
     (!input.countryCode || inventory.countryCode === input.countryCode) && typeof inventory.totalInventory === "number",
   ));
@@ -541,7 +608,7 @@ export async function prepareCjProductImport(input: { productId: string; product
   const reportedStock = variants.length === 0 || inlineInventories.length === 0
     ? null
     : inlineInventories.reduce((total, inventory) => total + (inventory.totalInventory || 0), 0);
-  const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantKey).filter(Boolean))).slice(0, 8).join(" · ") || null;
+  const variantsLabel = Array.from(new Set(variants.map(variant => variant.variantKeyEn || variant.variantkeyen || variant.variantKey || variant.variantkey).filter(Boolean))).slice(0, 8).join(" · ") || null;
   const preparedVariants = variants
     .filter((variant): variant is typeof variant & { vid: string } => Boolean(variant.vid))
     .map(variant => {
@@ -553,8 +620,10 @@ export async function prepareCjProductImport(input: { productId: string; product
         : null;
       return {
         id: variant.vid,
-        label: variant.variantKeyEn || variant.variantKey || variant.variantSku || `Variante ${variant.vid.slice(-6)}`,
-        sku: variant.variantSku || null,
+        label: variant.variantKeyEn || variant.variantkeyen || variant.variantKey || variant.variantkey || variant.variantSku || variant.variantsku || `Variante ${variant.vid.slice(-6)}`,
+        sku: variant.variantSku || variant.variantsku || null,
+        imageUrl: isPublicImageUrl(variant.variantImage ?? variant.variantimage) ? (variant.variantImage ?? variant.variantimage)! : null,
+        selectedOptions: parseCjVariantSelection(dimensionNames, variant.variantKey || variant.variantkey || variant.variantKeyEn || variant.variantkeyen),
         supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
         weightG: asFiniteNumber(variant.variantWeight) ?? asFiniteNumber(product.packingWeight),
         volumeM3: asFiniteNumber(variant.variantVolume) == null ? null : (asFiniteNumber(variant.variantVolume)! / 1_000_000_000),
@@ -572,7 +641,7 @@ export async function prepareCjProductImport(input: { productId: string; product
   // vraie quantité disponible au lieu de rester bloqué sur « À confirmer ».
   let stockConfirmed = inlineInventories.length > 0;
   let aggregateReportedStock = reportedStock;
-  if (!stockConfirmed && preparedVariants.length > 0) {
+  if (!input.skipStockLookup && !stockConfirmed && preparedVariants.length > 0) {
     const sampledVariants = preparedVariants.slice(0, 6);
     const stockResults = await Promise.allSettled(
       sampledVariants.map(variant => getCjVariantStock(access, variant.id)),
@@ -610,6 +679,10 @@ export async function prepareCjProductImport(input: { productId: string; product
     reportedStock: aggregateReportedStock,
     stockConfirmed,
     variantsLabel,
+    optionGroups: (() => {
+      const stored = buildCjVariantStoreData(preparedVariants);
+      try { return stored.options ? JSON.parse(stored.options) as Array<{ name: string; values: string[] }> : []; } catch { return []; }
+    })(),
     logisticsProperties: (product.productProEnSet || []).filter(Boolean),
     variants: preparedVariants,
   };

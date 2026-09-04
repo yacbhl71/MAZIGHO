@@ -4,7 +4,7 @@ import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, router 
 import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
-import { checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
+import { buildCjVariantStoreData, checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, CJ_CUSTOM_SOURCING_RULES, CJ_CUSTOM_SOURCING_SHIPPING_METHODS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
 import { getAliExpressConnectionStatus, verifyAliExpressPreparation } from "./aliExpress";
 import { getBigBuyConnectionStatus, verifyBigBuyPreparation } from "./bigBuy";
@@ -398,6 +398,44 @@ export const adminRouter = router({
         entityId: null,
         summary: `Import CSV éditorial : ${result.updated} brouillon(s) mis à jour, ${result.missing + result.skippedNotDraft + result.skippedEmpty} ignoré(s).`,
         metadata: { importedSkus: input.updates.map(update => update.sku), ...result },
+      });
+      return result;
+    }),
+    syncCjDraftVariants: catalogEditorProcedure.input(z.object({
+      productIds: z.array(z.number().int().positive()).min(1).max(10),
+    })).mutation(async ({ ctx, input }) => {
+      const candidates = await db.getCjDraftVariantSyncCandidates(input.productIds);
+      let updated = 0;
+      let noVariants = 0;
+      let skipped = input.productIds.length - candidates.length;
+      const failed: number[] = [];
+      for (const candidate of candidates) {
+        try {
+          // No stock or shipping request is needed here: this action only restores
+          // the option labels and private CJ VID mapping for an existing draft.
+          const prepared = await prepareCjProductImport({ productId: candidate.supplierProductId, skipStockLookup: true });
+          const variantData = buildCjVariantStoreData(prepared.variants);
+          if (!variantData.options || !variantData.mappings) {
+            noVariants += 1;
+            continue;
+          }
+          const wrote = await db.updateCjDraftVariantData(candidate.id, {
+            options: variantData.options,
+            supplierVariantMappings: variantData.mappings,
+          });
+          if (wrote) updated += 1;
+          else skipped += 1;
+        } catch {
+          failed.push(candidate.id);
+        }
+      }
+      const result = { updated, noVariants, skipped, failedIds: failed };
+      logAudit(ctx, {
+        action: "product.cj_variants_sync",
+        entityType: "product",
+        entityId: null,
+        summary: `Synchronisation CJ des variantes : ${updated} brouillon(s) enrichi(s), ${noVariants + skipped + failed.length} ignoré(s).`,
+        metadata: { requestedIds: input.productIds, ...result },
       });
       return result;
     }),

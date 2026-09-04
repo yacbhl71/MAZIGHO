@@ -1,5 +1,5 @@
 import * as db from "./db";
-import { prepareCjProductImport, quoteCjDelivery, searchCjCatalog } from "./cjDropshipping";
+import { buildCjVariantStoreData, prepareCjProductImport, quoteCjDelivery, searchCjCatalog } from "./cjDropshipping";
 
 const TARGET_COUNT_PER_CATEGORY = 8;
 const USD_TO_CHF = 0.9;
@@ -583,6 +583,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
       const priceCents = suggestedCustomSalePriceCents(supplierPriceCents, maximumSupplierShippingCost, input.priceMultiplier);
       const customerName = prepared.name.slice(0, 200);
       const baseSlug = slugify(customerName) || "produit-cj";
+      const variantStoreData = buildCjVariantStoreData(prepared.variants);
       const created = await db.createProduct({
         categoryId: selectedCategories[0]!.id,
         categoryIds: selectedCategories.map(category => category.id),
@@ -600,6 +601,8 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         supplierProductId: prepared.productId,
         supplierPrice: supplierPriceCents,
         supplierWeightG: selection.weightG != null && selection.weightG > 0 ? Math.round(selection.weightG) : null,
+        options: variantStoreData.options,
+        supplierVariantMappings: variantStoreData.mappings,
         deliveryProfiles: selection.deliveryProfiles,
         lastSyncedAt: new Date(),
       });
@@ -716,6 +719,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
           const deliveryDays = parseDeliveryRange(selection.delay);
           const customerName = fashionCopy?.name ?? prepared.name.slice(0, 200);
           const baseSlug = slugify(customerName) || "produit-cj";
+          const variantStoreData = buildCjVariantStoreData(prepared.variants);
           const created = await db.createProduct({
             categoryId: category.id,
             categoryIds: [category.id],
@@ -732,6 +736,8 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
             supplier: "CJdropshipping",
             supplierProductId: prepared.productId,
             supplierPrice: supplierPriceCents,
+            options: variantStoreData.options,
+            supplierVariantMappings: variantStoreData.mappings,
             deliveryProfiles: [{
               countryCode: "CH",
               supplierVariantId: selection.variantId,

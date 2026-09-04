@@ -70,6 +70,8 @@ export const products = mysqlTable("products", {
   supplierUrl: varchar("supplierUrl", { length: 1000 }),
   supplierPrice: int("supplierPrice"), // Supplier price in cents
   supplierWeightG: int("supplierWeightG"), // Verified supplier variant weight in grams, internal only
+  /** Internal CJ mapping: option combination -> supplier variant. Never exposed in public product queries. */
+  supplierVariantMappings: text("supplierVariantMappings"),
   options: text("options"), // JSON string for product options
   lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

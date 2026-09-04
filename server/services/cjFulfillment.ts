@@ -138,14 +138,16 @@ function parseCjSupplierSnapshot(value: string | null): CjSupplierSnapshot {
   return { provider: "CJdropshipping", supplierProductId, supplierVariantId, countryCode };
 }
 
-function assertNoUnmappedOptions(value: string | null) {
+function assertSelectedOptionsResolved(value: string | null, snapshot: CjSupplierSnapshot) {
   const options = parseJsonObject(value);
-  if (options && Object.keys(options).length > 0) throw new Error("CJ_VARIANT_OPTIONS_UNMAPPED");
+  if (options && Object.keys(options).length > 0 && !snapshot.supplierVariantId) {
+    throw new Error("CJ_VARIANT_OPTIONS_UNMAPPED");
+  }
 }
 
 async function preflightLine(item: db.CjSandboxPreparationInput["items"][number], expectedCountry: string): Promise<PreparedLine> {
-  assertNoUnmappedOptions(item.selectedOptions);
   const snapshot = parseCjSupplierSnapshot(item.supplierSnapshot);
+  assertSelectedOptionsResolved(item.selectedOptions, snapshot);
   if (snapshot.countryCode !== expectedCountry) throw new Error("CJ_DELIVERY_COUNTRY_CHANGED");
 
   // La fiche CJ peut dépendre du marché de destination. Utiliser le même

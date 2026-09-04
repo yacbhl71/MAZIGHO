@@ -27,6 +27,7 @@ let _promotionAdvancedSchemaReady: Promise<void> | null = null;
 let _reviewsSchemaReady: Promise<void> | null = null;
 let _fulfillmentSchemaReady: Promise<void> | null = null;
 let _supplierWeightSchemaReady: Promise<void> | null = null;
+let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -274,6 +275,22 @@ async function ensureSupplierWeightSchema() {
     }
   })();
   return _supplierWeightSchemaReady;
+}
+
+/** Stores the private option-combination to CJ VID mapping; public queries never select this column. */
+async function ensureSupplierVariantMappingsSchema() {
+  if (_supplierVariantMappingsSchemaReady) return _supplierVariantMappingsSchemaReady;
+  _supplierVariantMappingsSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    try {
+      await db.execute(sql.raw("ALTER TABLE `products` ADD COLUMN IF NOT EXISTS `supplierVariantMappings` text NULL"));
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+    }
+  })();
+  return _supplierVariantMappingsSchemaReady;
 }
 
 async function ensureProductCategorySchema() {
@@ -1715,10 +1732,41 @@ export async function getAdminStats() {
   };
 }
 
+export type CjDraftVariantSyncCandidate = { id: number; supplierProductId: string };
+
+/** Returns only draft CJ products explicitly chosen by an administrator for a bounded variant refresh. */
+export async function getCjDraftVariantSyncCandidates(ids: number[]): Promise<CjDraftVariantSyncCandidate[]> {
+  await ensureSupplierVariantMappingsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Base de données non disponible");
+  const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0))).slice(0, 10);
+  if (!uniqueIds.length) return [];
+  return await db.select({ id: products.id, supplierProductId: products.supplierProductId })
+    .from(products)
+    .where(and(inArray(products.id, uniqueIds), eq(products.status, "draft"), eq(products.supplier, "CJdropshipping")))
+    .then(rows => rows.flatMap(row => row.supplierProductId ? [{ id: row.id, supplierProductId: row.supplierProductId }] : []));
+}
+
+/** Writes public option labels and the private CJ VID mapping only while the product is still a draft. */
+export async function updateCjDraftVariantData(id: number, data: { options: string; supplierVariantMappings: string }) {
+  await ensureSupplierVariantMappingsSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Base de données non disponible");
+  const result = await db.update(products).set({
+    options: data.options,
+    supplierVariantMappings: data.supplierVariantMappings,
+    lastSyncedAt: new Date(),
+  }).where(and(eq(products.id, id), eq(products.status, "draft"), eq(products.supplier, "CJdropshipping")));
+  const affected = Number((result as any)?.[0]?.affectedRows ?? 0);
+  if (affected > 0) await markProductTranslationsStale(id);
+  return affected > 0;
+}
+
 export async function getAllProductsAdmin() {
   await ensureProductCategorySchema();
   await ensureDeliveryProfileSchema();
   await ensureSupplierWeightSchema();
+  await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
   const { products, categories } = await import("../drizzle/schema");
@@ -1992,6 +2040,7 @@ export async function getProductBySupplierReference(supplier: string, supplierPr
 
 export async function createProduct(data: any) {
   await ensureSupplierWeightSchema();
+  await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
@@ -2140,6 +2189,7 @@ export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUp
 }
 
 export async function updateProduct(id: number, data: any) {
+  await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");
@@ -3842,6 +3892,26 @@ type StripeCheckoutVerifiedItem = {
   supplierSnapshot: Record<string, unknown>;
 };
 
+function resolveSupplierVariantForOptions(selectedOptions: Record<string, string>, rawMappings: string | null, fallbackVariantId: string | null) {
+  if (Object.keys(selectedOptions).length === 0) return fallbackVariantId;
+  try {
+    const parsed = rawMappings ? JSON.parse(rawMappings) as { mappings?: unknown } : null;
+    const mappings = Array.isArray(parsed?.mappings) ? parsed.mappings : [];
+    const matching = mappings.find((item): item is { supplierVariantId: string; selectedOptions: Record<string, string> } => {
+      if (!item || typeof item !== "object") return false;
+      const candidate = item as { supplierVariantId?: unknown; selectedOptions?: unknown };
+      if (typeof candidate.supplierVariantId !== "string" || !candidate.supplierVariantId.trim() || !candidate.selectedOptions || typeof candidate.selectedOptions !== "object") return false;
+      const values = candidate.selectedOptions as Record<string, unknown>;
+      const names = Object.keys(selectedOptions);
+      return names.length === Object.keys(values).length && names.every(name => values[name] === selectedOptions[name]);
+    });
+    if (matching) return matching.supplierVariantId.trim();
+  } catch {
+    // A malformed private mapping must never cause an arbitrary CJ variant to be ordered.
+  }
+  throw new Error("CHECKOUT_VARIANT_UNAVAILABLE");
+}
+
 function sanitizeSelectedOptions(value: Record<string, string> | undefined, productOptions: string | null): Record<string, string> {
   const selected = Object.entries(value ?? {}).reduce<Record<string, string>>((result, [key, option]) => {
     const safeKey = key.trim().slice(0, 80);
@@ -3880,6 +3950,7 @@ function sanitizeSelectedOptions(value: Record<string, string> | undefined, prod
  */
 export async function getStripeCheckoutCart(userId: number, countryCode: string, clientItems?: StripeCheckoutCartLine[]) {
   await ensureDeliveryProfileSchema();
+  await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const normalizedCountry = countryCode.trim().toUpperCase();
@@ -3911,6 +3982,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       options: products.options,
       supplier: products.supplier,
       supplierProductId: products.supplierProductId,
+      supplierVariantMappings: products.supplierVariantMappings,
     }).from(products).where(inArray(products.id, productIds)),
     db.select().from(productDeliveryProfiles).where(and(inArray(productDeliveryProfiles.productId, productIds), eq(productDeliveryProfiles.countryCode, normalizedCountry))),
   ]);
@@ -3925,11 +3997,12 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
     const profile = profileByProductId.get(item.productId);
     if (!profile) throw new Error("DELIVERY_NOT_AVAILABLE");
     const selectedOptions = sanitizeSelectedOptions(item.selectedOptions, product.options);
+    const supplierVariantId = resolveSupplierVariantForOptions(selectedOptions, product.supplierVariantMappings, profile.supplierVariantId);
     const supplierSnapshot = {
       version: 1,
       provider: product.supplier || null,
       supplierProductId: product.supplierProductId || null,
-      supplierVariantId: profile.supplierVariantId || null,
+      supplierVariantId: supplierVariantId || null,
       countryCode: normalizedCountry,
       deliveryMethod: profile.deliveryMethod || null,
       supplierShippingCostChf: profile.supplierShippingCost,

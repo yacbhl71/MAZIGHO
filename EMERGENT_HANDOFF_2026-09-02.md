@@ -271,3 +271,12 @@ Le fichier attendu est le CSV exporté par MAZIGHO, encodé en UTF-8 avec ou san
 | Confirmation | L’interface affiche le nombre de brouillons à modifier et demande confirmation avant tout appel d’écriture. |
 
 Les fichiers clés sont `client/src/lib/draftCsvImport.ts`, `client/src/pages/admin/AdminProducts.tsx`, `server/adminRouter.ts`, `server/db.ts` et `server/draftCsvImport.test.ts`.
+
+
+## Variantes CJ : tailles, couleurs et combinaisons
+
+Les nouveaux imports CJ conservent désormais les groupes d’options visibles dans `products.options` et une correspondance privée `supplierVariantMappings` reliant chaque combinaison de valeurs au VID CJ exact. Les VID, SKU, coûts et autres données fournisseur ne doivent jamais être exposés dans les réponses publiques. Le composant `ProductOptions` utilise les combinaisons publiques pour présélectionner une taille/couleur existante et ajuste les autres valeurs lorsqu’une combinaison est choisie.
+
+Les brouillons CJ antérieurs peuvent être complétés depuis **Administration → Produits** : sélectionner jusqu’à dix brouillons CJ puis choisir **Variantes CJ**. L’action `admin.products.syncCjDraftVariants` ne modifie que les brouillons CJ explicitement sélectionnés ; elle n’importe aucun produit et ne publie rien. Au checkout, une combinaison sélectionnée doit être résolue vers le mapping privé ; toute combinaison absente est refusée plutôt que de risquer une variante fournisseur erronée.
+
+Les variantes restent revalidées avec le stock et le fret lors de la préparation CJ sandbox, avant toute opération fournisseur.
