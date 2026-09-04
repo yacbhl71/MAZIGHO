@@ -369,6 +369,38 @@ export const adminRouter = router({
       });
       return result;
     }),
+    importDraftCsv: catalogEditorProcedure.input(z.object({
+      updates: z.array(z.object({
+        sku: z.string().trim().regex(/^MAZIGHO-[1-9]\d*$/, "Le SKU doit respecter le format MAZIGHO-<id>."),
+        name: z.string().trim().max(200).optional(),
+        description: z.string().trim().max(1000).optional(),
+        longDescription: z.string().trim().max(10000).optional(),
+      })).min(1).max(100),
+    }).superRefine((input, context) => {
+      const seenSkus = new Set<string>();
+      input.updates.forEach((update, index) => {
+        if (seenSkus.has(update.sku)) {
+          context.addIssue({ code: z.ZodIssueCode.custom, path: ["updates", index, "sku"], message: "Chaque SKU ne peut apparaître qu’une fois dans le fichier." });
+        }
+        seenSkus.add(update.sku);
+      });
+    })).mutation(async ({ ctx, input }) => {
+      const updates = input.updates.map(update => ({
+        id: Number(update.sku.slice("MAZIGHO-".length)),
+        name: update.name,
+        description: update.description,
+        longDescription: update.longDescription,
+      }));
+      const result = await db.applyDraftCsvEditorialUpdates(updates);
+      logAudit(ctx, {
+        action: "product.draft_csv_import",
+        entityType: "product",
+        entityId: null,
+        summary: `Import CSV éditorial : ${result.updated} brouillon(s) mis à jour, ${result.missing + result.skippedNotDraft + result.skippedEmpty} ignoré(s).`,
+        metadata: { importedSkus: input.updates.map(update => update.sku), ...result },
+      });
+      return result;
+    }),
     translate: catalogEditorProcedure.input(z.object({
       productId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),

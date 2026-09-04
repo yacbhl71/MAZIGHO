@@ -253,3 +253,21 @@ Le fichier est nommé `mazigho_brouillons_cj_YYYY-MM-DD.csv`, encodé en **UTF-8
 | `Poids_Grammes` | Poids de variante CJ conservé dans `products.supplierWeightG` pour les nouveaux brouillons ; `0` pour les fiches importées avant cette évolution sans poids historique. |
 
 Le CSV échappe les guillemets et préfixe les cellules susceptibles d’être interprétées comme des formules Excel, afin que les descriptions et titres CJ restent des données texte. Les fichiers clés sont `client/src/lib/draftCsvExport.ts`, `client/src/pages/admin/AdminProducts.tsx`, `server/db.ts`, `drizzle/schema.ts` et `server/draftCsvExport.test.ts`.
+
+
+## Import CSV éditorial des brouillons
+
+La page **Administration → Produits** propose également le bouton **« Importer / Mettre à jour via CSV »**, placé à côté de l’export. Il ouvre un sélecteur local et utilise exclusivement la mutation tRPC `admin.products.importDraftCsv` ; il n’existe pas de route REST publique d’import.
+
+Le fichier attendu est le CSV exporté par MAZIGHO, encodé en UTF-8 avec ou sans BOM. Les colonnes obligatoires sont `SKU`, `Nouveau_Titre_Epure`, `Accroche_SEO` et `Description_Detaillee`. Le lecteur CSV gère les champs entre guillemets, les virgules et les retours à la ligne présents dans les descriptions. Les correspondances sont : `Nouveau_Titre_Epure` → `products.name`, `Accroche_SEO` → `products.description` et `Description_Detaillee` → `products.longDescription`.
+
+| Garde-fou | Comportement |
+|---|---|
+| Clé de rapprochement | Seul un SKU au format `MAZIGHO-<id>` est accepté. Un SKU dupliqué dans le même fichier bloque l’import pour supprimer toute ambiguïté. |
+| Taille | Maximum 2 Mo et 100 lignes réellement importables par fichier. |
+| Portée | La mise à jour s’applique uniquement si le produit est encore au statut `draft` au moment de l’écriture. Les actifs et archivés ne sont jamais modifiés par cet import. |
+| Cellules vides | Elles conservent la donnée existante ; l’import ne supprime pas de texte par inadvertance. |
+| Traductions | Toute fiche modifiée est marquée comme nécessitant une régénération de ses traductions. L’import ne déclenche pas automatiquement de génération. |
+| Confirmation | L’interface affiche le nombre de brouillons à modifier et demande confirmation avant tout appel d’écriture. |
+
+Les fichiers clés sont `client/src/lib/draftCsvImport.ts`, `client/src/pages/admin/AdminProducts.tsx`, `server/adminRouter.ts`, `server/db.ts` et `server/draftCsvImport.test.ts`.

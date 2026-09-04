@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { formatPrice } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { downloadDraftCsv } from "@/lib/draftCsvExport";
+import { parseDraftCsvImport } from "@/lib/draftCsvImport";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +119,7 @@ export default function AdminProducts() {
   const [bulkCategoryId, setBulkCategoryId] = useState("__keep__");
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkStock, setBulkStock] = useState("");
+  const draftCsvFileInputRef = useRef<HTMLInputElement>(null);
 
   const translationState = (productId: number) => {
     const overview = translationOverviewByProductId.get(productId) as any;
@@ -227,6 +229,19 @@ export default function AdminProducts() {
   const bulkDeleteArchivedProducts = trpc.admin.products.bulkDeleteArchived.useMutation({
     onSuccess: (result) => { toast.success(`${result.deleted} produit(s) archivé(s) supprimé(s) définitivement.`); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
+  });
+  const importDraftCsv = trpc.admin.products.importDraftCsv.useMutation({
+    onSuccess: (result) => {
+      const ignored = result.missing + result.skippedNotDraft + result.skippedEmpty;
+      if (ignored > 0) {
+        toast.warning(`${result.updated} brouillon(s) mis à jour ; ${ignored} ligne(s) ignorée(s). Consultez les détails ci-dessous.`);
+      } else {
+        toast.success(`${result.updated} brouillon(s) mis à jour avec succès.`);
+      }
+      refetch();
+      translationOverviewQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message || "L’import CSV a échoué."),
   });
 
   const resetForm = () => {
@@ -438,6 +453,30 @@ export default function AdminProducts() {
     toast.success(`${visibleDraftProducts.length} brouillon(s) exporté(s) dans un fichier CSV compatible Excel.`);
   };
 
+  const handleDraftCsvImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Le fichier CSV est trop volumineux (maximum 2 Mo). Divisez-le en plusieurs lots.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = parseDraftCsvImport(String(reader.result || ""));
+        const confirmation = `Importer ${parsed.updates.length} brouillon(s) depuis « ${file.name} » ?\n\nSeuls les brouillons dont le SKU correspond seront modifiés. Les produits actifs ou archivés, les SKU inconnus et les lignes sans texte seront ignorés. Les cellules vides ne supprimeront aucun texte existant.`;
+        if (window.confirm(confirmation)) {
+          importDraftCsv.mutate({ updates: parsed.updates });
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Impossible de lire ce fichier CSV.");
+      }
+    };
+    reader.onerror = () => toast.error("Impossible de lire ce fichier CSV.");
+    reader.readAsText(file, "UTF-8");
+  };
+
   const visibleProductIds = filteredProducts.map((product: any) => product.id);
   const allVisibleProductsSelected = visibleProductIds.length > 0 && visibleProductIds.every((id: number) => selectedProductIds.includes(id));
   const selectedProducts = (products || []).filter((product: any) => selectedProductIds.includes(product.id));
@@ -521,7 +560,9 @@ export default function AdminProducts() {
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
               <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-800">{visibleDraftProducts.length} brouillon(s) visible(s)</Badge>
+              <input ref={draftCsvFileInputRef} type="file" accept=".csv,text/csv" className="sr-only" aria-label="Choisir un fichier CSV de brouillons" onChange={handleDraftCsvImport} />
               <Button type="button" variant="outline" size="sm" onClick={exportVisibleDraftsToCsv} disabled={visibleDraftProducts.length === 0} className="border-violet-300 bg-white text-violet-800 hover:bg-violet-50"><Download className="mr-2 h-4 w-4" />Exporter les brouillons en CSV</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => draftCsvFileInputRef.current?.click()} disabled={importDraftCsv.isPending} className="border-teal-300 bg-white text-teal-800 hover:bg-teal-50">{importDraftCsv.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}Importer / Mettre à jour via CSV</Button>
               <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="text-slate-600 hover:bg-slate-100"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
             </div>
           </div>

@@ -2079,6 +2079,66 @@ export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[]) {
   return { updated, archived, skipped };
 }
 
+export type DraftCsvEditorialUpdate = {
+  id: number;
+  name?: string;
+  description?: string;
+  longDescription?: string;
+};
+
+/**
+ * Applies CSV editorial content only to products that are still drafts.
+ * Missing cells never erase existing content; each selected field is updated
+ * atomically against the draft status to prevent an import from touching an
+ * item that was activated or archived meanwhile.
+ */
+export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUpdate[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Base de données non disponible");
+
+  const uniqueUpdates = Array.from(new Map(updates.map(update => [update.id, update])).values());
+  if (uniqueUpdates.length === 0) {
+    return { updated: 0, missing: 0, skippedNotDraft: 0, skippedEmpty: 0 };
+  }
+
+  const existing = await db.select({ id: products.id, status: products.status })
+    .from(products)
+    .where(inArray(products.id, uniqueUpdates.map(update => update.id)));
+  const statusById = new Map(existing.map(product => [product.id, product.status]));
+
+  let updated = 0;
+  let missing = 0;
+  let skippedNotDraft = 0;
+  let skippedEmpty = 0;
+
+  for (const update of uniqueUpdates) {
+    const patch: { name?: string; description?: string; longDescription?: string } = {};
+    if (update.name?.trim()) patch.name = update.name.trim();
+    if (update.description?.trim()) patch.description = update.description.trim();
+    if (update.longDescription?.trim()) patch.longDescription = update.longDescription.trim();
+
+    if (Object.keys(patch).length === 0) {
+      skippedEmpty += 1;
+      continue;
+    }
+    const currentStatus = statusById.get(update.id);
+    if (currentStatus == null) {
+      missing += 1;
+      continue;
+    }
+    if (currentStatus !== "draft") {
+      skippedNotDraft += 1;
+      continue;
+    }
+
+    await db.update(products).set(patch).where(and(eq(products.id, update.id), eq(products.status, "draft")));
+    await markProductTranslationsStale(update.id);
+    updated += 1;
+  }
+
+  return { updated, missing, skippedNotDraft, skippedEmpty };
+}
+
 export async function updateProduct(id: number, data: any) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
