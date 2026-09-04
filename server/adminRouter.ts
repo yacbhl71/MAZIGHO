@@ -413,7 +413,19 @@ export const adminRouter = router({
         try {
           // No stock or shipping request is needed here: this action only restores
           // the option labels and private CJ VID mapping for an existing draft.
-          const prepared = await prepareCjProductImport({ productId: candidate.supplierProductId, skipStockLookup: true });
+          // CJ may occasionally return a transient gateway response when several
+          // product details are read in sequence, so a single bounded retry avoids
+          // leaving a valid draft without its selectable options.
+          let prepared: Awaited<ReturnType<typeof prepareCjProductImport>> | null = null;
+          for (let attempt = 0; attempt < 2 && !prepared; attempt += 1) {
+            try {
+              prepared = await prepareCjProductImport({ productId: candidate.supplierProductId, skipStockLookup: true });
+            } catch (error) {
+              if (attempt === 1) throw error;
+              await new Promise(resolve => setTimeout(resolve, 750));
+            }
+          }
+          if (!prepared) throw new Error("CJ_VARIANT_SYNC_UNAVAILABLE");
           const variantData = buildCjVariantStoreData(prepared.variants);
           if (!variantData.options || !variantData.mappings) {
             noVariants += 1;
