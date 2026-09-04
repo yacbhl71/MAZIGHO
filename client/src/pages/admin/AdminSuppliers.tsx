@@ -262,7 +262,11 @@ export default function AdminSuppliers() {
     setCustomSourcingResume(null);
     try {
       while ((aggregate?.imported ?? 0) < input.requestedProducts) {
-        const wave = await importCjCustomDrafts.mutateAsync({ ...input, searchPage: page, candidateOffset: offset }) as CustomSourcingResult;
+        // Le serveur plafonne chaque vague au champ requestedProducts. Transmettre
+        // uniquement le reliquat empêche la dernière vague de dépasser l’objectif
+        // global lorsqu’une série de candidats est qualifiée en même temps.
+        const remainingRequestedProducts = Math.max(1, input.requestedProducts - (aggregate?.imported ?? 0));
+        const wave = await importCjCustomDrafts.mutateAsync({ ...input, requestedProducts: remainingRequestedProducts, searchPage: page, candidateOffset: offset }) as CustomSourcingResult;
         aggregate = mergeCustomSourcingResults(aggregate, wave);
         setCustomSourcingResult(aggregate);
         if (wave.imported > 0) await utils.admin.products.getAll.invalidate();
