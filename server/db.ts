@@ -4068,6 +4068,18 @@ export async function createStripePendingOrder(input: {
   return { id: orderId };
 }
 
+export async function getStripeSessionIdForOrder(orderId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ stripeSessionId: orders.stripeSessionId, paymentMethod: orders.paymentMethod })
+    .from(orders).where(eq(orders.id, orderId)).limit(1);
+  const order = rows[0];
+  // The manual reconciliation route is deliberately limited to locally-created
+  // Stripe Test sessions. A payment method label alone never proves payment.
+  if (!order || order.paymentMethod !== "stripe_test" || !order.stripeSessionId) return null;
+  return order.stripeSessionId;
+}
+
 export async function markOrderPaidByStripeSession(sessionId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -52,7 +52,13 @@ function extractStripeShippingAddress(session: Stripe.Checkout.Session) {
   };
 }
 
-export async function completePaidStripeOrder(session: Stripe.Checkout.Session) {
+export function isVerifiedPaidStripeTestSession(session: Stripe.Checkout.Session): boolean {
+  // The MAZIGHO checkout is intentionally limited to Stripe Test Mode. Never
+  // trust a client flag: Stripe itself must confirm a non-live payment session.
+  return session.livemode === false && session.mode === "payment" && session.payment_status === "paid";
+}
+
+export async function completePaidStripeOrder(session: Stripe.Checkout.Session, options: { sendCustomerEmail?: boolean } = {}) {
   // Address capture is local and precedes Odoo/CJ handoff. If it fails, the
   // subsequent preparation is allowed to surface a visible exception instead
   // of guessing a delivery address.
@@ -66,7 +72,12 @@ export async function completePaidStripeOrder(session: Stripe.Checkout.Session) 
   results.forEach((result, index) => {
     if (result.status === "rejected") console.error(`[Stripe] downstream task ${index + 1} failed`, result.reason);
   });
-  sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
+  // Reconciliation may be retried by the webhook, the checkout return route,
+  // or an authorised test operator. The customer confirmation is sent only
+  // on the first durable payment transition.
+  if (options.sendCustomerEmail) {
+    sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
+  }
 }
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
@@ -91,13 +102,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.mode === "payment" && session.payment_status === "paid") {
+      if (isVerifiedPaidStripeTestSession(session)) {
         const paid = await markOrderPaidByStripeSession(session.id);
-        if (paid.justPaid) {
-          // The payment record is already durable. Secondary failures must not
-          // turn a successful payment into a Stripe retry loop.
-          await completePaidStripeOrder(session);
-        }
+        // Re-run the idempotent downstream handoff even after a Stripe retry:
+        // an earlier Odoo or CJ queue failure must not leave a paid test order
+        // stranded. Only the first durable transition sends an e-mail.
+        await completePaidStripeOrder(session, { sendCustomerEmail: paid.justPaid });
       }
     }
     return res.json({ received: true });

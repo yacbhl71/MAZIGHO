@@ -3,7 +3,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
 import { createStripePendingOrder, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
-import { completePaidStripeOrder } from "./stripeWebhook";
+import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 
 function getStripeTestClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -125,11 +125,11 @@ export const stripeCheckoutRouter = router({
         if (session.metadata?.user_id !== String(ctx.user.id)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Session Stripe non autorisée." });
         }
-        if (session.payment_status === "paid") {
+        if (isVerifiedPaidStripeTestSession(session)) {
           const paid = await markOrderPaidByStripeSession(input.sessionId);
-          if (paid.justPaid) {
-            await completePaidStripeOrder(session);
-          }
+          // The browser return path is a safe recovery route when Stripe has
+          // delivered a webhook before Odoo or the CJ test queue was available.
+          await completePaidStripeOrder(session, { sendCustomerEmail: paid.justPaid });
         }
         return { status: session.payment_status, total: session.amount_total, email: session.customer_email };
       } catch (error) {

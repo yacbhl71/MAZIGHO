@@ -294,3 +294,12 @@ Affichage MAZIGHO : Option → Photo Color-56x6x1.5cm ou Photo Color-43x6x1.5cm
 ```
 
 Ce comportement complète les groupes structurés déjà pris en charge, tels que `Couleur`, `Taille`, `Modèle` ou `Capacité`.
+
+
+## Réconciliation Stripe Test, Odoo et CJ sandbox
+
+Le flux de paiement utilise l’état local `paymentStatus: "paid"`, et non un champ `source` inexistant. Le webhook `POST /api/stripe/webhook` conserve la vérification cryptographique de signature sur corps brut. Une session est acceptée seulement si Stripe confirme simultanément `livemode === false`, `mode === "payment"` et `payment_status === "paid"`. Toute réception valide exécute de manière idempotente la capture d’adresse, la synchronisation Odoo par `client_order_ref` et la mise en file d’une préparation CJ sandbox. L’e-mail client reste réservé à la première transition durable vers `paid`.
+
+Dans **Administration → Commandes**, une commande `stripe_test` encore affichée `unpaid` peut utiliser **« Vérifier & accepter (test) »**. Cette action ne fait jamais confiance à un indicateur navigateur : elle interroge Stripe côté serveur avec une clé `sk_test_`, refuse si Stripe ne confirme pas la session, puis marque la commande comme réglée, relance Odoo et la mise en file CJ sandbox, avant d’enregistrer l’acceptation. Aucun paiement CJ, aucune commande CJ réelle et aucune expédition ne peuvent être déclenchés.
+
+La commande #60001 doit être réconciliée avec cette action. L’absence persistante de `odooSaleOrderId` après celle-ci signale une indisponibilité ou une configuration Odoo à investiguer, sans remettre en cause le paiement Stripe local ni la signature du webhook.

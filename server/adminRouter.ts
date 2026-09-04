@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import Stripe from "stripe";
 import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
@@ -17,6 +18,7 @@ import {
 } from "./dropshipping";
 import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegration";
 import { getCjFulfillmentSafetyStatus, prepareCjSandboxOrder } from "./services/cjFulfillment";
+import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOdooStatus, listOdooPartners, listOdooSaleOrders, syncCatalogToOdoo, updateOdooPartner, verifyOdooConnection } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 
@@ -826,6 +828,47 @@ export const adminRouter = router({
 
   // Orders Management
   orders: router({
+    reconcileStripeTestAndAccept: orderOperatorProcedure.input(z.object({
+      orderId: z.number().int().positive(),
+    })).mutation(async ({ input, ctx }) => {
+      const sessionId = await db.getStripeSessionIdForOrder(input.orderId);
+      if (!sessionId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande n’est pas une session Stripe Test réconciliable." });
+      }
+      const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
+      if (!secretKey?.startsWith("sk_test_")) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe Test n’est pas configuré sur le serveur." });
+      }
+
+      let session: Stripe.Checkout.Session;
+      try {
+        session = await new Stripe(secretKey).checkout.sessions.retrieve(sessionId);
+      } catch {
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "La session Stripe Test n’a pas pu être vérifiée." });
+      }
+      if (!isVerifiedPaidStripeTestSession(session)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Stripe Test ne confirme pas encore ce paiement. La commande reste en attente." });
+      }
+
+      const paid = await db.markOrderPaidByStripeSession(session.id);
+      // This completion is idempotent: it stores the Stripe address, retries Odoo
+      // and queues only a dormant CJ sandbox preparation. It never pays CJ.
+      await completePaidStripeOrder(session, { sendCustomerEmail: paid.justPaid });
+      const decision = await db.recordOrderDecision({
+        orderId: input.orderId,
+        action: "accepted",
+        actorUserId: ctx.user.id,
+        reason: "Commande Stripe Test vérifiée côté Stripe et acceptée pour validation sandbox.",
+      });
+      logAudit(ctx, {
+        action: "order.stripe_test_reconciled_and_accepted",
+        entityType: "order",
+        entityId: input.orderId,
+        summary: `Commande Stripe Test #${input.orderId} vérifiée puis acceptée ; synchronisation Odoo et préparation CJ sandbox relancées.`,
+        metadata: { stripeSessionId: session.id, justMarkedPaid: paid.justPaid, livemode: session.livemode },
+      });
+      return { ...decision, paymentReconciled: true, justMarkedPaid: paid.justPaid };
+    }),
     getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllOrdersAdmin();
     }),
