@@ -280,3 +280,17 @@ Les nouveaux imports CJ conservent désormais les groupes d’options visibles d
 Les brouillons CJ antérieurs peuvent être complétés depuis **Administration → Produits** : sélectionner jusqu’à dix brouillons CJ puis choisir **Variantes CJ**. L’action `admin.products.syncCjDraftVariants` ne modifie que les brouillons CJ explicitement sélectionnés ; elle n’importe aucun produit et ne publie rien. Au checkout, une combinaison sélectionnée doit être résolue vers le mapping privé ; toute combinaison absente est refusée plutôt que de risquer une variante fournisseur erronée.
 
 Les variantes restent revalidées avec le stock et le fret lors de la préparation CJ sandbox, avant toute opération fournisseur.
+
+
+## Variantes CJ non structurées : repli public sûr
+
+Certaines fiches CJ renvoient plusieurs variantes avec des valeurs distinctes, mais sans liste séparée de dimensions au niveau du produit. Dans ce cas, MAZIGHO ne doit ni masquer les déclinaisons ni deviner qu’il s’agit d’une taille ou d’une couleur. Le normaliseur les expose sous un groupe public générique `Option`, tout en conservant uniquement côté serveur la correspondance vers le VID CJ. Ce repli permet au client de sélectionner la valeur réelle fournie par CJ et maintient le contrôle exact de variante au checkout.
+
+Les produits simples — ou les fiches qui ne fournissent qu’une seule valeur identique — ne reçoivent pas ce sélecteur inutilement.
+
+```text
+Exemple CJ : Photo Color-56x6x1.5cm / Photo Color-43x6x1.5cm
+Affichage MAZIGHO : Option → Photo Color-56x6x1.5cm ou Photo Color-43x6x1.5cm
+```
+
+Ce comportement complète les groupes structurés déjà pris en charge, tels que `Couleur`, `Taille`, `Modèle` ou `Capacité`.

@@ -598,6 +598,15 @@ export async function prepareCjProductImport(input: { productId: string; product
   const variants = product.variants || [];
   const dimensionNames = normalizedCjDimensionNames(product.variantKeyEn ?? product.variantkeyen ?? product.variantKey ?? product.variantkey)
     .map(name => name.slice(0, 80));
+  // Certaines fiches CJ renvoient plusieurs VID avec une valeur de variante, mais
+  // sans liste séparée de dimensions au niveau du produit. Dans ce cas, on expose
+  // la valeur exacte comme une « Option » plutôt que de perdre la déclinaison ou
+  // d’inventer un type (taille, couleur, modèle…).
+  const rawVariantKeys = variants
+    .map(variant => variant.variantKeyEn ?? variant.variantkeyen ?? variant.variantKey ?? variant.variantkey)
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map(value => value.trim().slice(0, 120));
+  const useGenericVariantOption = dimensionNames.length === 0 && new Set(rawVariantKeys).size > 1;
   const images = Array.from(new Set([product.bigImage, ...(product.productImageSet || []), ...variants.map(variant => variant.variantImage ?? variant.variantimage)]
     .filter(isPublicImageUrl))).slice(0, 12);
   const inlineInventories = variants.flatMap(variant => (variant.inventories || []).filter(inventory =>
@@ -618,12 +627,19 @@ export async function prepareCjProductImport(input: { productId: string; product
       const verifiedVariantStock = variantInventories.length
         ? variantInventories.reduce((total, inventory) => total + (inventory.totalInventory || 0), 0)
         : null;
+      const rawVariantKey = variant.variantKeyEn ?? variant.variantkeyen ?? variant.variantKey ?? variant.variantkey;
+      const parsedOptions = parseCjVariantSelection(dimensionNames, rawVariantKey);
+      const selectedOptions = Object.keys(parsedOptions).length > 0
+        ? parsedOptions
+        : useGenericVariantOption && typeof rawVariantKey === "string" && rawVariantKey.trim()
+          ? { Option: rawVariantKey.trim().slice(0, 120) }
+          : {};
       return {
         id: variant.vid,
         label: variant.variantKeyEn || variant.variantkeyen || variant.variantKey || variant.variantkey || variant.variantSku || variant.variantsku || `Variante ${variant.vid.slice(-6)}`,
         sku: variant.variantSku || variant.variantsku || null,
         imageUrl: isPublicImageUrl(variant.variantImage ?? variant.variantimage) ? (variant.variantImage ?? variant.variantimage)! : null,
-        selectedOptions: parseCjVariantSelection(dimensionNames, variant.variantKey || variant.variantkey || variant.variantKeyEn || variant.variantkeyen),
+        selectedOptions,
         supplierPriceUsd: asFiniteNumber(variant.variantSellPrice),
         weightG: asFiniteNumber(variant.variantWeight) ?? asFiniteNumber(product.packingWeight),
         volumeM3: asFiniteNumber(variant.variantVolume) == null ? null : (asFiniteNumber(variant.variantVolume)! / 1_000_000_000),

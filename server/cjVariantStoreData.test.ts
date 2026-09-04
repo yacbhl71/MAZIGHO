@@ -29,6 +29,26 @@ describe("buildCjVariantStoreData", () => {
     ]);
   });
 
+  it("préserve des valeurs CJ non structurées sous un choix générique", () => {
+    const result = buildCjVariantStoreData([
+      { id: "CJ-DIVIDER-56", selectedOptions: { Option: "Photo Color-56x6x1.5cm" } },
+      { id: "CJ-DIVIDER-43", selectedOptions: { Option: "Photo Color-43x6x1.5cm" } },
+    ]);
+
+    expect(JSON.parse(result.options || "[]")).toEqual([
+      {
+        name: "Option",
+        values: ["Photo Color-56x6x1.5cm", "Photo Color-43x6x1.5cm"],
+        combinations: [
+          { Option: "Photo Color-56x6x1.5cm" },
+          { Option: "Photo Color-43x6x1.5cm" },
+        ],
+      },
+    ]);
+    expect(result.options).not.toContain("CJ-DIVIDER-56");
+    expect(JSON.parse(result.mappings || "{}").mappings).toHaveLength(2);
+  });
+
   it("n’ajoute aucune option lorsqu’une combinaison CJ ne peut pas être interprétée", () => {
     const result = buildCjVariantStoreData([{ id: "CJ-SIMPLE", selectedOptions: {} }]);
     expect(result).toEqual({ options: null, mappings: null });
