@@ -3,12 +3,13 @@ import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal, Eye, Archive, CheckCircle2, CalendarDays, ListChecks, Save } from "lucide-react";
+import { Plus, Edit, Trash, Package, Import, Loader2, Image as ImageIcon, X, ChevronDown, ChevronUp, Upload, ExternalLink, ShieldCheck, Percent, Languages, Search, RotateCcw, SlidersHorizontal, Eye, Archive, CheckCircle2, CalendarDays, ListChecks, Save, Download } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/currency";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { downloadDraftCsv } from "@/lib/draftCsvExport";
 import {
   Dialog,
   DialogContent,
@@ -427,6 +428,16 @@ export default function AdminProducts() {
     }
   };
 
+  const visibleDraftProducts = filteredProducts.filter((product: any) => product.status === "draft");
+  const exportVisibleDraftsToCsv = () => {
+    if (visibleDraftProducts.length === 0) {
+      toast.error("Aucun brouillon affiché ne peut être exporté.");
+      return;
+    }
+    downloadDraftCsv(visibleDraftProducts);
+    toast.success(`${visibleDraftProducts.length} brouillon(s) exporté(s) dans un fichier CSV compatible Excel.`);
+  };
+
   const visibleProductIds = filteredProducts.map((product: any) => product.id);
   const allVisibleProductsSelected = visibleProductIds.length > 0 && visibleProductIds.every((id: number) => selectedProductIds.includes(id));
   const selectedProducts = (products || []).filter((product: any) => selectedProductIds.includes(product.id));
@@ -508,7 +519,11 @@ export default function AdminProducts() {
               <div className="flex items-center gap-2"><SlidersHorizontal className="h-4 w-4 text-orange-600" /><h2 className="font-semibold text-slate-900">Recherche et préparation</h2></div>
               <p className="mt-1 text-sm text-muted-foreground">{isLoading ? "Chargement du catalogue…" : `${filteredProducts.length} produit(s) affiché(s) sur ${products?.length ?? 0}`}</p>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="self-start text-slate-600 hover:bg-slate-100 lg:self-auto"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+              <Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-800">{visibleDraftProducts.length} brouillon(s) visible(s)</Badge>
+              <Button type="button" variant="outline" size="sm" onClick={exportVisibleDraftsToCsv} disabled={visibleDraftProducts.length === 0} className="border-violet-300 bg-white text-violet-800 hover:bg-violet-50"><Download className="mr-2 h-4 w-4" />Exporter les brouillons en CSV</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="text-slate-600 hover:bg-slate-100"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+            </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom, URL, catégorie ou fournisseur…" /></div>

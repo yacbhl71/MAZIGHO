@@ -235,3 +235,21 @@ Le générateur personnalisé peut désormais viser jusqu’à **40 brouillons q
 Ce mode reste manuel : la page doit rester ouverte pendant le scan. Il ne crée que des brouillons et continue de respecter les catégories, destinations, entrepôts, transports et règles activables choisis par l’administrateur. Aucun produit n’est activé, aucune commande fournisseur n’est créée et aucun paiement CJ n’est possible.
 
 Fichiers principaux : `server/cjDropshipping.ts` (taille de page CJ bornée), `server/cjBatchImport.ts` (curseur et sous-vagues), `server/adminRouter.ts` (validation du curseur) et `client/src/pages/admin/AdminSuppliers.tsx` (enchaînement, jauge et reprise).
+
+
+## Export CSV des brouillons CJ
+
+La page **Administration → Produits** affiche un bouton **« Exporter les brouillons en CSV »** à côté du compteur de brouillons visibles. L’export est volontairement local au navigateur et ne déclenche aucun appel fournisseur ni aucune modification de produit. Il contient uniquement les produits au statut `draft` actuellement visibles après les filtres, la recherche et le tri choisis par l’administrateur.
+
+Le fichier est nommé `mazigho_brouillons_cj_YYYY-MM-DD.csv`, encodé en **UTF-8 avec BOM** et séparé par des virgules, afin d’être directement lisible dans Excel. Ses colonnes sont exactement : `SKU`, `Titre_Brut_CJ`, `Nouveau_Titre_Epure`, `Accroche_SEO`, `Description_Detaillee`, `Prix_Vente_CHF`, `Poids_Grammes`.
+
+| Colonne | Source et règle |
+|---|---|
+| `SKU` | Référence stable `MAZIGHO-<id>` ; elle doit être conservée pour une future réimportation. |
+| `Titre_Brut_CJ` | Titre français actuellement stocké dans le brouillon. |
+| `Nouveau_Titre_Epure`, `Accroche_SEO` | Lignes laissées vides pour l’optimisation éditoriale externe. |
+| `Description_Detaillee` | Description longue si elle existe, sinon description source du brouillon CJ. |
+| `Prix_Vente_CHF` | Prix client déjà calculé, au format numérique avec deux décimales. |
+| `Poids_Grammes` | Poids de variante CJ conservé dans `products.supplierWeightG` pour les nouveaux brouillons ; `0` pour les fiches importées avant cette évolution sans poids historique. |
+
+Le CSV échappe les guillemets et préfixe les cellules susceptibles d’être interprétées comme des formules Excel, afin que les descriptions et titres CJ restent des données texte. Les fichiers clés sont `client/src/lib/draftCsvExport.ts`, `client/src/pages/admin/AdminProducts.tsx`, `server/db.ts`, `drizzle/schema.ts` et `server/draftCsvExport.test.ts`.

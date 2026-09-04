@@ -513,6 +513,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         variantId: string;
         stock: number;
         supplierPriceUsd: number;
+        weightG: number | null;
         deliveryProfiles: Array<{
           countryCode: string;
           supplierVariantId: string;
@@ -561,7 +562,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
           }];
         });
         if ((!rules.requireVerifiedPositiveStock || stock > 0) && variant.supplierPriceUsd != null && deliveryProfiles.length > 0) {
-          selection = { variantId: variant.id, stock, supplierPriceUsd: variant.supplierPriceUsd, deliveryProfiles };
+          selection = { variantId: variant.id, stock, supplierPriceUsd: variant.supplierPriceUsd, weightG: variant.weightG ?? null, deliveryProfiles };
           break;
         }
       }
@@ -598,6 +599,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         supplier: "CJdropshipping",
         supplierProductId: prepared.productId,
         supplierPrice: supplierPriceCents,
+        supplierWeightG: selection.weightG != null && selection.weightG > 0 ? Math.round(selection.weightG) : null,
         deliveryProfiles: selection.deliveryProfiles,
         lastSyncedAt: new Date(),
       });

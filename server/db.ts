@@ -26,6 +26,7 @@ let _auditLogSchemaReady: Promise<void> | null = null;
 let _promotionAdvancedSchemaReady: Promise<void> | null = null;
 let _reviewsSchemaReady: Promise<void> | null = null;
 let _fulfillmentSchemaReady: Promise<void> | null = null;
+let _supplierWeightSchemaReady: Promise<void> | null = null;
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -258,6 +259,21 @@ async function ensureDeliveryProfileSchema() {
   })();
 
   return _deliveryProfileSchemaReady;
+}
+
+async function ensureSupplierWeightSchema() {
+  if (_supplierWeightSchemaReady) return _supplierWeightSchemaReady;
+  _supplierWeightSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    try {
+      await db.execute(sql.raw("ALTER TABLE `products` ADD COLUMN IF NOT EXISTS `supplierWeightG` int NULL"));
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+    }
+  })();
+  return _supplierWeightSchemaReady;
 }
 
 async function ensureProductCategorySchema() {
@@ -1702,6 +1718,7 @@ export async function getAdminStats() {
 export async function getAllProductsAdmin() {
   await ensureProductCategorySchema();
   await ensureDeliveryProfileSchema();
+  await ensureSupplierWeightSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
   const { products, categories } = await import("../drizzle/schema");
@@ -1723,8 +1740,10 @@ export async function getAllProductsAdmin() {
     categoryId: products.categoryId,
     categoryName: categories.name,
     supplier: products.supplier,
+    supplierProductId: products.supplierProductId,
     supplierUrl: products.supplierUrl,
     supplierPrice: products.supplierPrice,
+    supplierWeightG: products.supplierWeightG,
     lastSyncedAt: products.lastSyncedAt,
     createdAt: products.createdAt,
   }).from(products)
@@ -1972,6 +1991,7 @@ export async function getProductBySupplierReference(supplier: string, supplierPr
 }
 
 export async function createProduct(data: any) {
+  await ensureSupplierWeightSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const { products, productImages } = await import("../drizzle/schema");

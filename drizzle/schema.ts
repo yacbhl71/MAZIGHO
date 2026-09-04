@@ -69,6 +69,7 @@ export const products = mysqlTable("products", {
   supplierProductId: varchar("supplierProductId", { length: 128 }),
   supplierUrl: varchar("supplierUrl", { length: 1000 }),
   supplierPrice: int("supplierPrice"), // Supplier price in cents
+  supplierWeightG: int("supplierWeightG"), // Verified supplier variant weight in grams, internal only
   options: text("options"), // JSON string for product options
   lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
