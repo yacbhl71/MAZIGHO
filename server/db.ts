@@ -2317,8 +2317,19 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
 
   if (input.action === "accepted") {
     if (order[0].paymentStatus !== "paid") throw new Error("ORDER_NOT_PAID");
-    if (order[0].status !== "pending") throw new Error("ORDER_NOT_PENDING");
-    await db.update(orders).set({ status: "processing" }).where(eq(orders.id, input.orderId));
+    // A verified Stripe webhook now moves the order to processing immediately.
+    // Treat a repeat acceptance as an idempotent success, so Odoo/CJ recovery
+    // can run without creating an additional decision or changing the status.
+    if (order[0].status === "processing") {
+      const existing = await db.select({ id: orderDecisions.id }).from(orderDecisions)
+        .where(and(eq(orderDecisions.orderId, input.orderId), eq(orderDecisions.action, "accepted"))).limit(1);
+      if (existing[0]) return { success: true, supplierOrderCreated: false, paymentRefunded: false, alreadyAccepted: true };
+      // No state update is necessary; the generic insert below records the
+      // operator decision once without perturbing the fulfilled workflow.
+    } else {
+      if (order[0].status !== "pending") throw new Error("ORDER_NOT_PENDING");
+      await db.update(orders).set({ status: "processing" }).where(eq(orders.id, input.orderId));
+    }
   }
 
   if (input.action === "rejected") {
@@ -4083,11 +4094,31 @@ export async function getStripeSessionIdForOrder(orderId: number): Promise<strin
 export async function markOrderPaidByStripeSession(sessionId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // A verified Stripe Test checkout may advance only a locally pending order.
+  // This prevents a late webhook from resurrecting a rejected or cancelled one.
   const result = await db.update(orders)
-    .set({ paymentStatus: "paid", paymentMethod: "stripe_test" })
-    .where(and(eq(orders.stripeSessionId, sessionId), eq(orders.paymentStatus, "unpaid")));
+    .set({ paymentStatus: "paid", paymentMethod: "stripe_test", status: "processing" })
+    .where(and(
+      eq(orders.stripeSessionId, sessionId),
+      eq(orders.paymentStatus, "unpaid"),
+      eq(orders.status, "pending"),
+    ));
   const affectedRows = Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
-  return { success: true, justPaid: affectedRows > 0 };
+
+  // A previous webhook may already have persisted the payment but stopped
+  // before the operational transition. Repair only this safe pending state.
+  let processingUpdated = false;
+  if (affectedRows === 0) {
+    const recovery = await db.update(orders)
+      .set({ status: "processing" })
+      .where(and(
+        eq(orders.stripeSessionId, sessionId),
+        eq(orders.paymentStatus, "paid"),
+        eq(orders.status, "pending"),
+      ));
+    processingUpdated = Number((recovery as any)?.[0]?.affectedRows ?? (recovery as any)?.affectedRows ?? 0) > 0;
+  }
+  return { success: true, justPaid: affectedRows > 0, processingUpdated };
 }
 
 // Records the promotion redemption for a freshly paid Stripe order (idempotent).

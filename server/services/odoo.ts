@@ -166,6 +166,21 @@ async function findOrCreatePartner(config: OdooConfig, uid: number, customer: Od
  * name, otherwise creates a saleable consumable product. Returns null on error
  * so the caller can fall back to ODOO_DEFAULT_PRODUCT_ID or the note summary.
  */
+async function clearSaleOrderLineTaxes(config: OdooConfig, uid: number, saleOrderId: number) {
+  // Odoo applies product defaults to sale.order.line. MAZIGHO is configured in
+  // franchise de TVA, so clear those defaults explicitly for every MAZIGHO
+  // sales order line. The Many2many command works for both newly-created and
+  // pre-existing idempotent orders.
+  const lineIds = await executeKw<number[]>(config, uid, "sale.order.line", "search", [[[
+    "order_id", "=", saleOrderId,
+  ]]]);
+  if (lineIds.length > 0) {
+    await executeKw<boolean>(config, uid, "sale.order.line", "write", [lineIds, {
+      tax_id: [[6, 0, []]],
+    }]);
+  }
+}
+
 async function findOrCreateProduct(
   config: OdooConfig,
   uid: number,
@@ -212,6 +227,7 @@ export async function syncOrderToOdoo(input: {
       "client_order_ref", "=", input.orderReference,
     ]]], { limit: 1 });
     if (existingOrderIds[0]) {
+      await clearSaleOrderLineTaxes(config, uid, existingOrderIds[0]);
       return { synced: true, skipped: false, saleOrderId: existingOrderIds[0] };
     }
 
@@ -244,6 +260,8 @@ export async function syncOrderToOdoo(input: {
         name: line.name,
         product_uom_qty: line.quantity,
         price_unit: line.priceUnit,
+        // Explicitly clear Odoo's default sale tax for MAZIGHO orders.
+        tax_id: [[6, 0, []]],
       }]);
     }
     if (orderLines.length > 0) {
@@ -251,6 +269,9 @@ export async function syncOrderToOdoo(input: {
     }
 
     const saleOrderId = await executeKw<number>(config, uid, "sale.order", "create", [saleOrderPayload]);
+    // Re-apply the zero-tax command after Odoo has generated the lines, which
+    // also protects against product/fiscal-position defaults on the instance.
+    await clearSaleOrderLineTaxes(config, uid, saleOrderId);
     return { synced: true, skipped: false, partnerId, saleOrderId };
   } catch (error) {
     return { synced: false, skipped: false, reason: error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR" };

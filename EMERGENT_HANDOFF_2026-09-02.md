@@ -303,3 +303,10 @@ Le flux de paiement utilise l’état local `paymentStatus: "paid"`, et non un c
 Dans **Administration → Commandes**, une commande `stripe_test` encore affichée `unpaid` peut utiliser **« Vérifier & accepter (test) »**. Cette action ne fait jamais confiance à un indicateur navigateur : elle interroge Stripe côté serveur avec une clé `sk_test_`, refuse si Stripe ne confirme pas la session, puis marque la commande comme réglée, relance Odoo et la mise en file CJ sandbox, avant d’enregistrer l’acceptation. Aucun paiement CJ, aucune commande CJ réelle et aucune expédition ne peuvent être déclenchés.
 
 La commande #60001 doit être réconciliée avec cette action. L’absence persistante de `odooSaleOrderId` après celle-ci signale une indisponibilité ou une configuration Odoo à investiguer, sans remettre en cause le paiement Stripe local ni la signature du webhook.
+
+
+## Odoo sans TVA et disponibilité CJ sandbox
+
+Pour les commandes MAZIGHO synchronisées vers Odoo, chaque `sale.order.line` est désormais créée avec `tax_id: [[6, 0, []]]`, puis les taxes sont une seconde fois vidées après création de la commande. La même remise à zéro est aussi appliquée lorsqu’une commande Odoo existante est retrouvée par `client_order_ref`. Cela neutralise les taxes par défaut de produit ou de position fiscale et aligne le total Odoo sur le total net MAZIGHO. Le régime réel doit rester validé avec la fiduciaire avant toute utilisation comptable hors test.
+
+Après confirmation cryptographique d’un paiement Stripe Test, une commande locale encore `pending` passe atomiquement à `paymentStatus: "paid"` et `status: "processing"`. La mise en file CJ sandbox est alors recalculée ; si l’instantané fournisseur est complet, `fulfillmentState` devient `awaiting_supplier_preparation` et le bouton « Préparer chez CJ (test) » devient disponible. Les commandes annulées ou déjà traitées ne sont jamais réactivées par un webhook tardif.
