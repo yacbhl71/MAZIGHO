@@ -166,17 +166,45 @@ async function findOrCreatePartner(config: OdooConfig, uid: number, customer: Od
  * name, otherwise creates a saleable consumable product. Returns null on error
  * so the caller can fall back to ODOO_DEFAULT_PRODUCT_ID or the note summary.
  */
-async function clearSaleOrderLineTaxes(config: OdooConfig, uid: number, saleOrderId: number) {
+type SaleOrderTaxField = "tax_id" | "tax_ids";
+
+/**
+ * Odoo 19 renamed the sales-line taxes field from `tax_id` to `tax_ids`.
+ * Resolve the field from the connected instance rather than assuming a
+ * version, so an Odoo 18 or 19 deployment receives an actual empty M2M tax
+ * relation and the amounts recompute correctly.
+ */
+async function resolveSaleOrderTaxField(config: OdooConfig, uid: number): Promise<SaleOrderTaxField> {
+  const fields = await executeKw<Record<string, { type?: string }>>(
+    config,
+    uid,
+    "sale.order.line",
+    "fields_get",
+    [],
+    { attributes: ["type"] },
+  );
+  if (fields.tax_ids?.type === "many2many") return "tax_ids";
+  if (fields.tax_id?.type === "many2many") return "tax_id";
+  throw new Error("ODOO_SALE_ORDER_TAX_FIELD_UNAVAILABLE");
+}
+
+async function clearSaleOrderLineTaxes(
+  config: OdooConfig,
+  uid: number,
+  saleOrderId: number,
+  taxField?: SaleOrderTaxField,
+) {
   // Odoo applies product defaults to sale.order.line. MAZIGHO is configured in
   // franchise de TVA, so clear those defaults explicitly for every MAZIGHO
   // sales order line. The Many2many command works for both newly-created and
   // pre-existing idempotent orders.
+  const field = taxField ?? await resolveSaleOrderTaxField(config, uid);
   const lineIds = await executeKw<number[]>(config, uid, "sale.order.line", "search", [[[
     "order_id", "=", saleOrderId,
   ]]]);
   if (lineIds.length > 0) {
     await executeKw<boolean>(config, uid, "sale.order.line", "write", [lineIds, {
-      tax_id: [[6, 0, []]],
+      [field]: [[6, 0, []]],
     }]);
   }
 }
@@ -226,8 +254,9 @@ export async function syncOrderToOdoo(input: {
     const existingOrderIds = await executeKw<number[]>(config, uid, "sale.order", "search", [[[
       "client_order_ref", "=", input.orderReference,
     ]]], { limit: 1 });
+    const taxField = await resolveSaleOrderTaxField(config, uid);
     if (existingOrderIds[0]) {
-      await clearSaleOrderLineTaxes(config, uid, existingOrderIds[0]);
+      await clearSaleOrderLineTaxes(config, uid, existingOrderIds[0], taxField);
       return { synced: true, skipped: false, saleOrderId: existingOrderIds[0] };
     }
 
@@ -261,7 +290,7 @@ export async function syncOrderToOdoo(input: {
         product_uom_qty: line.quantity,
         price_unit: line.priceUnit,
         // Explicitly clear Odoo's default sale tax for MAZIGHO orders.
-        tax_id: [[6, 0, []]],
+        [taxField]: [[6, 0, []]],
       }]);
     }
     if (orderLines.length > 0) {
@@ -271,7 +300,7 @@ export async function syncOrderToOdoo(input: {
     const saleOrderId = await executeKw<number>(config, uid, "sale.order", "create", [saleOrderPayload]);
     // Re-apply the zero-tax command after Odoo has generated the lines, which
     // also protects against product/fiscal-position defaults on the instance.
-    await clearSaleOrderLineTaxes(config, uid, saleOrderId);
+    await clearSaleOrderLineTaxes(config, uid, saleOrderId, taxField);
     return { synced: true, skipped: false, partnerId, saleOrderId };
   } catch (error) {
     return { synced: false, skipped: false, reason: error instanceof Error ? error.message : "ODOO_UNKNOWN_ERROR" };

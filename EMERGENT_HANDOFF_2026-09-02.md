@@ -310,3 +310,8 @@ La commande #60001 doit être réconciliée avec cette action. L’absence persi
 Pour les commandes MAZIGHO synchronisées vers Odoo, chaque `sale.order.line` est désormais créée avec `tax_id: [[6, 0, []]]`, puis les taxes sont une seconde fois vidées après création de la commande. La même remise à zéro est aussi appliquée lorsqu’une commande Odoo existante est retrouvée par `client_order_ref`. Cela neutralise les taxes par défaut de produit ou de position fiscale et aligne le total Odoo sur le total net MAZIGHO. Le régime réel doit rester validé avec la fiduciaire avant toute utilisation comptable hors test.
 
 Après confirmation cryptographique d’un paiement Stripe Test, une commande locale encore `pending` passe atomiquement à `paymentStatus: "paid"` et `status: "processing"`. La mise en file CJ sandbox est alors recalculée ; si l’instantané fournisseur est complet, `fulfillmentState` devient `awaiting_supplier_preparation` et le bouton « Préparer chez CJ (test) » devient disponible. Les commandes annulées ou déjà traitées ne sont jamais réactivées par un webhook tardif.
+
+
+## Correctif Odoo 18/19 — taxes de lignes
+
+L’instance Odoo connectée expose le champ `sale.order.line.tax_ids`, tandis que des versions antérieures utilisent `tax_id`. La synchronisation MAZIGHO ne doit donc pas figer un nom de champ : elle appelle `fields_get`, choisit le champ Many2many réellement présent, et lui applique la commande de remplacement vide `[[6, 0, []]]` à la création comme lors de la reprise d’une commande déjà existante. Cette règle est destinée à retirer la taxe par défaut et à laisser Odoo recalculer le devis à partir des montants nets MAZIGHO. Toute divergence de régime fiscal réel doit rester soumise à validation fiduciaire avant usage hors test.
