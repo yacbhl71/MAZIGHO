@@ -508,6 +508,8 @@ export const adminRouter = router({
       options: z.string().optional(),
       supplier: z.string().optional(),
       supplierUrl: z.string().optional(),
+      supplierProductId: z.string().max(128).optional(),
+      supplierVariantMappings: z.string().max(20000).optional(),
       supplierPrice: z.number().optional(),
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
@@ -533,6 +535,8 @@ export const adminRouter = router({
       options: z.string().optional(),
       supplier: z.string().optional(),
       supplierUrl: z.string().optional(),
+      supplierProductId: z.string().max(128).optional(),
+      supplierVariantMappings: z.string().max(20000).optional(),
       supplierPrice: z.number().optional(),
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
@@ -553,6 +557,14 @@ export const adminRouter = router({
       const name = (await db.getProductNameById(input)) ?? `#${input}`;
       const result = await db.deleteProduct(input);
       logAudit(ctx, { action: "product.delete", entityType: "product", entityId: input, summary: `Produit supprimé : « ${name} »` });
+      return result;
+    }),
+    bulkImportAliExpress: catalogEditorProcedure.input(z.object({
+      categoryId: z.number().int().positive(),
+      urls: z.array(z.string().trim().url()).min(1).max(50),
+    })).mutation(async ({ ctx, input }) => {
+      const result = await db.bulkCreateAliExpressDrafts(input.categoryId, input.urls);
+      logAudit(ctx, { action: "product.bulk_aliexpress_import", entityType: "product", entityId: null, summary: `${result.created} brouillon(s) AliExpress importé(s)`, metadata: { created: result.created, skipped: result.skipped.length } });
       return result;
     }),
     bulkArchive: catalogEditorProcedure.input(z.object({
@@ -888,6 +900,21 @@ export const adminRouter = router({
     }),
     getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderDecisionsAdmin(input.orderId);
+    }),
+    getFulfillmentLog: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(({ input }) => db.getOrderFulfillmentLog(input.orderId)),
+    logFulfillmentEvent: orderOperatorProcedure.input(z.object({
+      orderId: z.number().int().positive(),
+      event: z.enum(["extension_sent", "extension_started", "extension_error", "note"]),
+      detail: z.string().max(300).optional(),
+    })).mutation(({ ctx, input }) => {
+      const labels: Record<string, string> = {
+        extension_sent: "Manifeste envoyé à l'extension Chrome",
+        extension_started: "Extension : onglet AliExpress ouvert",
+        extension_error: "Extension : erreur au démarrage",
+        note: "Note",
+      };
+      logAudit(ctx, { action: `fulfillment.${input.event}`, entityType: "order", entityId: input.orderId, summary: `${labels[input.event]}${input.detail ? " — " + input.detail : ""}`.slice(0, 500) });
+      return { ok: true } as const;
     }),
     getFulfillment: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
       return await db.getOrderFulfillmentAdmin(input.orderId);

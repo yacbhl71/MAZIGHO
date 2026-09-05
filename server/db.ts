@@ -156,6 +156,47 @@ export async function getAuditLogFilterOptions() {
   };
 }
 
+export async function getOrderFulfillmentLog(orderId: number) {
+  await ensureAuditLogSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(auditLogs)
+    .where(and(eq(auditLogs.entityType, "order"), eq(auditLogs.entityId, orderId), sql`${auditLogs.action} LIKE 'fulfillment.%'`))
+    .orderBy(desc(auditLogs.createdAt)).limit(50);
+}
+
+/** Bulk-create AliExpress-sourced DRAFT products from a list of item URLs. */
+export async function bulkCreateAliExpressDrafts(categoryId: number, urls: string[]) {
+  let created = 0;
+  const skipped: string[] = [];
+  for (const url of urls) {
+    const match = url.match(/\/item\/(\d{6,})\.html/) || url.match(/[?&]productId=(\d{6,})/) || url.match(/(\d{10,})/);
+    const pid = match ? match[1] : null;
+    if (!pid) { skipped.push(url); continue; }
+    const slug = `ali-${pid}-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`;
+    try {
+      await createProduct({
+        categoryId,
+        name: `Import AliExpress ${pid}`,
+        slug,
+        price: 0,
+        stock: 0,
+        featured: 0,
+        status: "draft",
+        supplier: "AliExpress",
+        supplierUrl: url,
+        supplierProductId: pid,
+        categoryIds: [categoryId],
+      });
+      created++;
+    } catch {
+      skipped.push(url);
+    }
+  }
+  return { created, skipped };
+}
+
+
 export async function getProductNameById(id: number): Promise<string | null> {
   const db = await getDb();
   if (!db) return null;
@@ -1800,6 +1841,7 @@ export async function getAllProductsAdmin() {
     categoryName: categories.name,
     supplier: products.supplier,
     supplierProductId: products.supplierProductId,
+    supplierVariantMappings: products.supplierVariantMappings,
     supplierUrl: products.supplierUrl,
     supplierPrice: products.supplierPrice,
     supplierWeightG: products.supplierWeightG,

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Copy,
   Download,
+  Puzzle,
+  HelpCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -127,6 +129,7 @@ export default function AdminOrders() {
   const [decisionConfirmation, setDecisionConfirmation] = useState("");
   const [sandboxOrderId, setSandboxOrderId] = useState<number | null>(null);
   const [sandboxConfirmation, setSandboxConfirmation] = useState("");
+  const [extensionReady, setExtensionReady] = useState(false);
 
   const { data: orders, isLoading, refetch } = trpc.admin.orders.getAll.useQuery();
   const { data: orderItems, isLoading: isLoadingItems } = trpc.admin.orders.getItems.useQuery(
@@ -146,6 +149,57 @@ export default function AdminOrders() {
     { orderId: selectedOrder?.id ?? 0 },
     { enabled: Boolean(selectedOrder?.id && isDetailsOpen) },
   );
+  const utils = trpc.useUtils();
+  const { data: fulfillmentLog } = trpc.admin.orders.getFulfillmentLog.useQuery(
+    { orderId: selectedOrder?.id ?? 0 },
+    { enabled: Boolean(selectedOrder?.id && isDetailsOpen) },
+  );
+  const logFulfillmentEvent = trpc.admin.orders.logFulfillmentEvent.useMutation({
+    onSuccess: () => utils.admin.orders.getFulfillmentLog.invalidate(),
+  });
+  const activeFulfillOrderIdRef = useRef<number | null>(null);
+  const logEventRef = useRef(logFulfillmentEvent.mutate);
+  logEventRef.current = logFulfillmentEvent.mutate;
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
+
+  useEffect(() => {
+    const detect = () => setExtensionReady(Boolean(document.documentElement.getAttribute("data-mazigho-fulfillment-ext")));
+    detect();
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      const data = event.data;
+      if (!data || data.source !== "MAZIGHO_EXT") return;
+      if (data.type === "EXT_READY" || data.type === "MAZIGHO_PONG") setExtensionReady(true);
+      if (data.type === "FULFILLMENT_STARTED") {
+        toast.success(`Onglet AliExpress ouvert (commande #${data.orderId}). Résolvez tout captcha : le script s’arrête avant le paiement.`);
+        const oid = data.orderId || activeFulfillOrderIdRef.current;
+        if (oid) logEventRef.current({ orderId: oid, event: "extension_started" });
+      }
+      if (data.type === "FULFILLMENT_ERROR") {
+        toast.error(data.error === "NO_SUPPLIER_URL" ? "Aucune fiche fournisseur exploitable dans ce manifeste." : data.error === "MANIFEST_NOT_READY" ? "Le manifeste n’est pas prêt (contrôle requis)." : "L’extension n’a pas pu démarrer la préparation.");
+        const oid = data.orderId || activeFulfillOrderIdRef.current;
+        if (oid) logEventRef.current({ orderId: oid, event: "extension_error", detail: String(data.error || "").slice(0, 200) });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    const timer = window.setInterval(detect, 1500);
+    return () => { window.removeEventListener("message", onMessage); window.clearInterval(timer); };
+  }, []);
+
+  const startChromeExtensionFulfillment = () => {
+    if (!aliExpressManifest || aliExpressManifest.state !== "ready_for_human_review") {
+      toast.error("Le manifeste doit être « Prêt à vérifier » avant de lancer l’extension.");
+      return;
+    }
+    if (!extensionReady) {
+      toast.error("Extension MAZIGHO Fulfillment non détectée. Installez-la, puis rechargez cette page.");
+      return;
+    }
+    activeFulfillOrderIdRef.current = aliExpressManifest.orderId;
+    logFulfillmentEvent.mutate({ orderId: aliExpressManifest.orderId, event: "extension_sent" });
+    window.postMessage({ source: "MAZIGHO_ADMIN", type: "MAZIGHO_FULFILL_ORDER", payload: aliExpressManifest }, window.location.origin);
+    toast.message("Demande envoyée à l’extension Chrome…");
+  };
 
   const updateStatus = trpc.admin.orders.updateStatus.useMutation({
     onSuccess: async () => {
@@ -418,6 +472,22 @@ export default function AdminOrders() {
                     {aliExpressManifest.shipping && <div className="mt-3 rounded-lg border border-teal-100 bg-white p-3 text-xs text-slate-700"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-slate-800">Adresse de livraison confirmée</p><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" className="h-7 border-teal-200 text-teal-800 hover:bg-teal-50" onClick={copyAliExpressManifest}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copier</Button><Button type="button" variant="outline" size="sm" className="h-7 border-teal-200 text-teal-800 hover:bg-teal-50" onClick={downloadAliExpressManifest}><Download className="mr-1.5 h-3.5 w-3.5" /> Exporter JSON</Button></div></div><p className="mt-2 whitespace-pre-line">{[aliExpressManifest.shipping.name, aliExpressManifest.shipping.line1, aliExpressManifest.shipping.line2, `${aliExpressManifest.shipping.postalCode} ${aliExpressManifest.shipping.city}`, aliExpressManifest.shipping.state, aliExpressManifest.shipping.countryCode, aliExpressManifest.shipping.phone ? `Tél. ${aliExpressManifest.shipping.phone}` : null].filter(Boolean).join("\n")}</p></div>}
                     <div className="mt-3 space-y-2">{aliExpressManifest.lines.map(line => <div key={line.orderItemId} className="rounded-lg border border-teal-100 bg-white p-3 text-xs"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-slate-900">{line.quantity} × {line.productName}</p>{Object.keys(line.selectedOptions).length > 0 && <p className="mt-1 text-slate-600">{Object.entries(line.selectedOptions).map(([name, value]) => `${name} : ${value}`).join(" · ")}</p>}<p className={line.optionStatus === "mapped" || line.optionStatus === "not_applicable" ? "mt-1 text-teal-800" : "mt-1 text-amber-800"}>{line.optionStatus === "mapped" ? "Variante interne mappée : à vérifier sur la fiche" : line.optionStatus === "not_applicable" ? "Aucune option client à sélectionner" : "Options à choisir et vérifier manuellement"}</p></div>{line.supplierUrl ? <a href={line.supplierUrl} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-teal-200 px-2 text-teal-800 hover:bg-teal-50"><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Ouvrir la fiche</a> : <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">Fiche manquante</Badge>}</div>{line.urlSource === "current_catalog" && <p className="mt-2 text-amber-800">Lien issu du catalogue actuel : contrôlez qu’il correspond bien à l’article vendu.</p>}</div>)}</div>
                     {aliExpressManifest.warnings.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Points à contrôler avant toute action</p><ul className="mt-1 list-disc space-y-1 pl-4">{aliExpressManifest.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-teal-100 bg-white p-3">
+                      <Button type="button" size="sm" data-testid="fulfill-chrome-extension-btn" disabled={aliExpressManifest.state !== "ready_for_human_review" || !extensionReady} className="bg-teal-700 text-white hover:bg-teal-800" onClick={startChromeExtensionFulfillment}><Puzzle className="mr-2 h-4 w-4" /> Commander (via Extension Chrome)</Button>
+                      <Badge variant="outline" data-testid="extension-status-badge" className={extensionReady ? "border-teal-200 bg-teal-50 text-teal-800" : "border-slate-200 bg-slate-50 text-slate-600"}>{extensionReady ? "Extension détectée" : "Extension non détectée"}</Badge>
+                      <Button type="button" size="sm" variant="ghost" data-testid="install-guide-btn" className="text-teal-700 hover:bg-teal-50" onClick={() => setInstallGuideOpen(true)}><HelpCircle className="mr-1 h-4 w-4" /> Comment installer ?</Button>
+                      <p className="w-full text-xs text-slate-500">L’extension ouvre AliExpress dans votre session, sélectionne la variante et remplit l’adresse, puis <strong>s’arrête avant le paiement</strong> — le paiement reste un clic humain.</p>
+                    </div>
+                    {fulfillmentLog && fulfillmentLog.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="fulfillment-log">
+                        <p className="text-xs font-semibold text-slate-700">Journal de préparation</p>
+                        <ul className="mt-1 space-y-1">
+                          {fulfillmentLog.map((entry: any) => (
+                            <li key={entry.id} className="text-xs text-slate-600"><span className="text-slate-400">{new Date(entry.createdAt).toLocaleString("fr-CH")}</span> — {entry.summary}{entry.actorName ? ` (${entry.actorName})` : ""}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <p className="mt-3 text-xs font-medium text-teal-900"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" /> Aucune action de ce panneau ne crée de panier, ne transmet l’adresse client, ne passe de commande ni ne réalise de paiement AliExpress.</p></> : <p className="mt-4 text-xs text-rose-700">Le manifeste AliExpress n’a pas pu être chargé.</p>}
                 </div>
 
@@ -455,6 +525,22 @@ export default function AdminOrders() {
           <DialogContent className="sm:max-w-md">{decisionTarget && <><DialogHeader><DialogTitle>{decisionMeta[decisionTarget.action].label} — commande #{decisionTarget.orderId}</DialogTitle><DialogDescription>{decisionTarget.action === "accepted" && selectedOrder?.paymentMethod === "stripe_test" && selectedOrder?.paymentStatus !== "paid" ? "MAZIGHO vérifiera cette session directement auprès de Stripe Test, enregistrera le paiement seulement si Stripe le confirme, puis relancera Odoo et la préparation CJ sandbox sans débit." : decisionTarget.action === "accepted" ? "La commande passera en préparation interne. Aucun fournisseur ne sera contacté et aucun paiement CJ ne sera exécuté." : decisionTarget.action === "rejected" ? "La commande sera annulée dans MAZIGHO. Aucun fournisseur ne sera contacté." : "Une demande interne sera enregistrée. Aucun remboursement réel ne sera exécuté tant que le prestataire de paiement n’est pas connecté."}</DialogDescription></DialogHeader><div className="grid gap-4 py-3"><div className="grid gap-2"><Label htmlFor="decision-reason">Motif interne (facultatif)</Label><Input id="decision-reason" value={decisionReason} maxLength={500} onChange={event => setDecisionReason(event.target.value)} placeholder="Ex. stock non confirmé" /></div>{decisionTarget.action !== "accepted" && <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3"><Label htmlFor="decision-confirmation">Pour confirmer, saisissez exactement :</Label><code className="rounded bg-white px-2 py-1 text-sm text-slate-900">{decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`}</code><Input id="decision-confirmation" value={decisionConfirmation} onChange={event => setDecisionConfirmation(event.target.value)} autoComplete="off" placeholder="Texte de confirmation" /></div>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setDecisionTarget(null)}>Annuler</Button><Button type="button" disabled={decide.isPending || reconcileStripeTestAndAccept.isPending || (decisionTarget.action !== "accepted" && decisionConfirmation !== (decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`))} className={decisionTarget.action === "accepted" ? "bg-emerald-600 hover:bg-emerald-700" : decisionTarget.action === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"} onClick={submitDecision}>{(decide.isPending || reconcileStripeTestAndAccept.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{decisionTarget.action === "accepted" && selectedOrder?.paymentMethod === "stripe_test" && selectedOrder?.paymentStatus !== "paid" ? "Vérifier Stripe Test & accepter" : decisionTarget.action === "accepted" ? "Confirmer l’acceptation" : decisionTarget.action === "rejected" ? "Confirmer le refus" : "Enregistrer la demande"}</Button></DialogFooter></>}</DialogContent>
         </Dialog>
       </div>
+
+      <Dialog open={installGuideOpen} onOpenChange={setInstallGuideOpen}>
+        <DialogContent className="sm:max-w-[560px]" data-testid="install-guide-dialog">
+          <DialogHeader>
+            <DialogTitle>Installer l’extension MAZIGHO Fulfillment</DialogTitle>
+            <DialogDescription>3 étapes, une seule fois, sur Chrome de bureau.</DialogDescription>
+          </DialogHeader>
+          <ol className="space-y-3 text-sm">
+            <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">1</span><span>Ouvrez <code className="rounded bg-slate-100 px-1">chrome://extensions</code> et activez le <strong>Mode développeur</strong> (interrupteur en haut à droite).</span></li>
+            <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">2</span><span>Cliquez sur <strong>« Charger l’extension non empaquetée »</strong> puis sélectionnez le dossier <code className="rounded bg-slate-100 px-1">chrome-extension/</code> du projet.</span></li>
+            <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">3</span><span>Rechargez cette page : le badge passe à <strong>« Extension détectée »</strong>. Ouvrez une commande AliExpress « Prête à vérifier » et cliquez <strong>« Commander (via Extension Chrome) »</strong>.</span></li>
+          </ol>
+          <p className="text-xs text-slate-500">L’extension s’arrête toujours avant le paiement : vous validez et payez vous-même sur AliExpress. Résolvez tout captcha dans l’onglet ouvert, la préparation reprend ensuite.</p>
+          <DialogFooter><Button type="button" onClick={() => setInstallGuideOpen(false)}>Compris</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

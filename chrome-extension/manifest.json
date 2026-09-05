@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "MAZIGHO Fulfillment",
+  "version": "0.1.0",
+  "description": "Prépare automatiquement les commandes AliExpress depuis l'admin MAZIGHO (sélection variante, panier, adresse) et s'arrête AVANT le paiement.",
+  "permissions": ["tabs", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.mazigho.ch/*",
+    "https://mazigho.ch/*",
+    "https://*.mazigho.ch/*",
+    "https://*.preview.emergentagent.com/*",
+    "http://localhost:3000/*",
+    "https://*.aliexpress.com/*",
+    "https://*.aliexpress.us/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MAZIGHO Fulfillment"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.mazigho.ch/*",
+        "https://mazigho.ch/*",
+        "https://*.mazigho.ch/*",
+        "https://*.preview.emergentagent.com/*",
+        "http://localhost:3000/*"
+      ],
+      "js": ["content-mazigho.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.aliexpress.com/*", "https://*.aliexpress.us/*"],
+      "js": ["selectors.js", "content-aliexpress.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
