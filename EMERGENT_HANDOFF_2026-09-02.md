@@ -338,3 +338,17 @@ Dans **Administration → Produits**, l’action groupée **« Réactualiser var
 | Commande, paiement et expédition CJ | Exclus : aucun appel de préparation de commande, ni débit, ni expédition. |
 
 La révalidation de stock, de fret, de pays et de marge demeure obligatoire au moment séparé de la préparation **CJ sandbox**. Cette action de catalogue ne vaut donc jamais confirmation de disponibilité fournisseur.
+
+
+## Indicateur administratif de fraîcheur CJ
+
+La liste **Administration → Produits** affiche une colonne interne `CJ` sans identifiant ni prix fournisseur. Elle ne constitue pas une promesse de disponibilité, mais un repère de travail pour le catalogue :
+
+| Indicateur | Signification |
+|---|---|
+| `Révisé` | Les options et correspondances privées CJ ont été actualisées il y a trente jours ou moins. |
+| `À revalider` | La dernière actualisation date de plus de trente jours ; l’opérateur peut lancer la réactualisation manuelle. |
+| `À vérifier` | Aucune date de réactualisation exploitable n’est encore enregistrée. |
+| `Référence manquante` | Le produit porte le fournisseur CJ sans référence interne suffisante ; il ne peut pas être réactualisé tant que cette donnée n’est pas corrigée. |
+
+Les produits hors CJ affichent `—`. Cet indicateur n’effectue aucune requête réseau, ne modifie aucune fiche et ne remplace jamais le contrôle au moment d’une éventuelle préparation CJ sandbox.

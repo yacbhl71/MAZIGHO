@@ -49,6 +49,16 @@ const formatProductDate = (value: unknown) => {
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("fr-CH", { dateStyle: "medium", timeStyle: "short" }).format(date);
 };
 
+const getCjVariantReview = (product: { supplier?: string | null; supplierProductId?: string | null; lastSyncedAt?: unknown }) => {
+  if (product.supplier !== "CJdropshipping") return null;
+  if (!product.supplierProductId) return { label: "Référence manquante", tone: "danger" as const, detail: "Ce produit CJ ne peut pas être réactualisé tant que sa référence interne fournisseur est absente." };
+  const lastSyncedAt = product.lastSyncedAt instanceof Date ? product.lastSyncedAt : new Date(String(product.lastSyncedAt || ""));
+  if (Number.isNaN(lastSyncedAt.getTime())) return { label: "À vérifier", tone: "warning" as const, detail: "Les variantes CJ n’ont pas encore été réactualisées depuis l’ajout de ce repère." };
+  const ageInDays = (Date.now() - lastSyncedAt.getTime()) / 86_400_000;
+  if (ageInDays > 30) return { label: "À revalider", tone: "warning" as const, detail: `Dernière réactualisation : ${formatProductDate(lastSyncedAt)}. Les variantes fournisseur peuvent avoir évolué.` };
+  return { label: "Révisé", tone: "ready" as const, detail: `Dernière réactualisation : ${formatProductDate(lastSyncedAt)}.` };
+};
+
 export default function AdminProducts() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -609,7 +619,7 @@ export default function AdminProducts() {
         )}
 
         <div className="border rounded-lg bg-white overflow-x-auto">
-          <Table className="min-w-[1020px]">
+          <Table className="min-w-[1140px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12"><input type="checkbox" aria-label="Sélectionner tous les produits visibles" checked={allVisibleProductsSelected} disabled={visibleProductIds.length === 0} onChange={event => toggleVisibleProducts(event.target.checked)} className="h-4 w-4 accent-orange-500" /></TableHead>
@@ -618,6 +628,7 @@ export default function AdminProducts() {
                 <TableHead>Prix</TableHead>
                 <TableHead>Stock</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>CJ</TableHead>
                 <TableHead><span className="inline-flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Créé le</span></TableHead>
                 <TableHead>Langues</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
@@ -633,6 +644,7 @@ export default function AdminProducts() {
                     <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
@@ -640,7 +652,7 @@ export default function AdminProducts() {
                 ))
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={10} className="text-center py-10 text-red-500">
                     <div className="flex flex-col items-center gap-2">
                       <p>Erreur lors du chargement des produits</p>
                       <p className="text-xs font-mono">{error.message}</p>
@@ -650,7 +662,7 @@ export default function AdminProducts() {
                 </TableRow>
               ) : filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
                       <p>{products?.length === 0 ? "Aucun produit trouvé." : "Aucun produit ne correspond à ces filtres."}</p>
                       {products?.length === 0 ? <Button variant="outline" size="sm" onClick={() => refetch()}>Actualiser la liste</Button> : <Button variant="outline" size="sm" onClick={clearFilters}>Effacer les filtres</Button>}
@@ -698,6 +710,7 @@ export default function AdminProducts() {
                         {product.status === "active" ? "Actif" : product.status === "draft" ? "Brouillon" : "Archivé"}
                       </Badge>
                     </TableCell>
+                    <TableCell>{(() => { const review = getCjVariantReview(product); if (!review) return <span className="text-xs text-slate-400">—</span>; const className = review.tone === "ready" ? "border-teal-200 bg-teal-50 text-teal-800" : review.tone === "danger" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"; return <Badge variant="outline" className={className} title={review.detail}>{review.label}</Badge>; })()}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-slate-600">{formatProductDate(product.createdAt)}</TableCell>
                     <TableCell>{(() => { const translation = translationState(product.id); const pending = translatingProductId === product.id; return <div className="flex flex-wrap items-center gap-1"><Badge variant="outline" className={pending ? "border-sky-200 bg-sky-50 text-sky-700" : translation.stale ? "border-amber-200 bg-amber-50 text-amber-700" : translation.complete ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}>{pending ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Traduction…</> : translation.stale ? "À régénérer" : translation.complete ? "6 / 6 prêtes" : `${translation.ready} / 6 prêtes`}</Badge></div>; })()}</TableCell>
                     <TableCell className="w-[100px]">
