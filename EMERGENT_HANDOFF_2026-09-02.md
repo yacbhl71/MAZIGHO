@@ -372,3 +372,6 @@ La fenêtre **Administration → Commandes → Ouvrir** inclut désormais un pan
 | Paiement AliExpress | Toujours exclu : `human_checkout_only`. Toute extension ou étape future doit s’arrêter avant l’écran de paiement. |
 
 Les nouvelles commandes Stripe conservent désormais `supplierUrl` dans l’instantané fournisseur, en plus du produit, de la variante, du pays et du devis de livraison. Pour les commandes historiques, le panneau peut afficher une URL actuelle uniquement comme aide, jamais comme preuve que la fiche correspond encore à l’article vendu.
+
+
+Le panneau AliExpress propose aussi **« Exporter JSON »**. Le téléchargement est déclenché uniquement par un opérateur connecté et reste local à son appareil. Il contient les lignes à préparer, options, références produit/variante, liens de fiches, pays et adresse de livraison nécessaire ; l’adresse e-mail du client, les montants internes MAZIGHO et toute clé/jeton sont volontairement exclus. Le fichier rappelle que toute utilisation ultérieure exige la vérification humaine de chaque fiche, variante, prix, stock, livraison et adresse, ainsi qu’un paiement AliExpress séparément validé par l’opérateur.
