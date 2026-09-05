@@ -406,15 +406,16 @@ export const adminRouter = router({
     syncCjDraftVariants: catalogEditorProcedure.input(z.object({
       productIds: z.array(z.number().int().positive()).min(1).max(10),
     })).mutation(async ({ ctx, input }) => {
-      const candidates = await db.getCjDraftVariantSyncCandidates(input.productIds);
+      const candidates = await db.getCjVariantSyncCandidates(input.productIds);
       let updated = 0;
       let noVariants = 0;
       let skipped = input.productIds.length - candidates.length;
       const failed: number[] = [];
       for (const candidate of candidates) {
         try {
-          // No stock or shipping request is needed here: this action only restores
-          // the option labels and private CJ VID mapping for an existing draft.
+          // This deliberate, bounded action refreshes only public option labels
+          // and the private CJ VID mapping for an existing active or draft item.
+          // It never creates a supplier order, changes prices or re-quotes delivery.
           // CJ may occasionally return a transient gateway response when several
           // product details are read in sequence, so a single bounded retry avoids
           // leaving a valid draft without its selectable options.
@@ -433,7 +434,7 @@ export const adminRouter = router({
             noVariants += 1;
             continue;
           }
-          const wrote = await db.updateCjDraftVariantData(candidate.id, {
+          const wrote = await db.updateCjVariantData(candidate.id, {
             options: variantData.options,
             supplierVariantMappings: variantData.mappings,
           });
@@ -448,7 +449,7 @@ export const adminRouter = router({
         action: "product.cj_variants_sync",
         entityType: "product",
         entityId: null,
-        summary: `Synchronisation CJ des variantes : ${updated} brouillon(s) enrichi(s), ${noVariants + skipped + failed.length} ignoré(s).`,
+        summary: `Révalidation CJ des variantes : ${updated} produit(s) actif(s) ou brouillon(s) actualisé(s), ${noVariants + skipped + failed.length} ignoré(s).`,
         metadata: { requestedIds: input.productIds, ...result },
       });
       return result;

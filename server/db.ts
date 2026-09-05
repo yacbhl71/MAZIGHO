@@ -1733,23 +1733,32 @@ export async function getAdminStats() {
   };
 }
 
-export type CjDraftVariantSyncCandidate = { id: number; supplierProductId: string };
+export type CjVariantSyncCandidate = { id: number; supplierProductId: string; status: "draft" | "active" };
 
-/** Returns only draft CJ products explicitly chosen by an administrator for a bounded variant refresh. */
-export async function getCjDraftVariantSyncCandidates(ids: number[]): Promise<CjDraftVariantSyncCandidate[]> {
+/**
+ * Returns only draft or active CJ products explicitly chosen by an administrator
+ * for a bounded variant refresh. Archived products stay immutable here.
+ */
+export async function getCjVariantSyncCandidates(ids: number[]): Promise<CjVariantSyncCandidate[]> {
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
   const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0))).slice(0, 10);
   if (!uniqueIds.length) return [];
-  return await db.select({ id: products.id, supplierProductId: products.supplierProductId })
+  return await db.select({ id: products.id, supplierProductId: products.supplierProductId, status: products.status })
     .from(products)
-    .where(and(inArray(products.id, uniqueIds), eq(products.status, "draft"), eq(products.supplier, "CJdropshipping")))
-    .then(rows => rows.flatMap(row => row.supplierProductId ? [{ id: row.id, supplierProductId: row.supplierProductId }] : []));
+    .where(and(inArray(products.id, uniqueIds), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")))
+    .then(rows => rows.flatMap(row => row.supplierProductId && (row.status === "draft" || row.status === "active")
+      ? [{ id: row.id, supplierProductId: row.supplierProductId, status: row.status }]
+      : []));
 }
 
-/** Writes public option labels and the private CJ VID mapping only while the product is still a draft. */
-export async function updateCjDraftVariantData(id: number, data: { options: string; supplierVariantMappings: string }) {
+/**
+ * Writes only the public option labels, private CJ VID mapping and refresh date
+ * for an explicitly selected active or draft product. It never changes prices,
+ * stock, delivery profiles, publication state or supplier orders.
+ */
+export async function updateCjVariantData(id: number, data: { options: string; supplierVariantMappings: string }) {
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
@@ -1757,7 +1766,7 @@ export async function updateCjDraftVariantData(id: number, data: { options: stri
     options: data.options,
     supplierVariantMappings: data.supplierVariantMappings,
     lastSyncedAt: new Date(),
-  }).where(and(eq(products.id, id), eq(products.status, "draft"), eq(products.supplier, "CJdropshipping")));
+  }).where(and(eq(products.id, id), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")));
   const affected = Number((result as any)?.[0]?.affectedRows ?? 0);
   if (affected > 0) await markProductTranslationsStale(id);
   return affected > 0;

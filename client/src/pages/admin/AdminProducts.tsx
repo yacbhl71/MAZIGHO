@@ -230,16 +230,16 @@ export default function AdminProducts() {
     onSuccess: (result) => { toast.success(`${result.deleted} produit(s) archivé(s) supprimé(s) définitivement.`); clearBulkSelection(); refetch(); },
     onError: (error) => toast.error(error.message),
   });
-  const syncCjDraftVariants = trpc.admin.products.syncCjDraftVariants.useMutation({
+  const syncCjVariants = trpc.admin.products.syncCjDraftVariants.useMutation({
     onSuccess: (result) => {
       const ignored = result.noVariants + result.skipped + result.failedIds.length;
-      if (ignored > 0) toast.warning(`${result.updated} brouillon(s) CJ enrichi(s) avec leurs variantes ; ${ignored} ignoré(s).`);
-      else toast.success(`${result.updated} brouillon(s) CJ enrichi(s) avec tailles et couleurs.`);
+      if (ignored > 0) toast.warning(`${result.updated} produit(s) CJ réactualisé(s) ; ${ignored} ignoré(s).`);
+      else toast.success(`${result.updated} produit(s) CJ réactualisé(s) avec leurs options disponibles.`);
       clearBulkSelection();
       refetch();
       translationOverviewQuery.refetch();
     },
-    onError: (error) => toast.error(error.message || "La synchronisation des variantes CJ a échoué."),
+    onError: (error) => toast.error(error.message || "La révalidation des variantes CJ a échoué."),
   });
   const importDraftCsv = trpc.admin.products.importDraftCsv.useMutation({
     onSuccess: (result) => {
@@ -524,10 +524,11 @@ export default function AdminProducts() {
 
   const currentSalePriceCents = parseChfToCents(price);
   const currentSupplierProductCostCents = supplierPrice ? parseChfToCents(supplierPrice) : null;
-  const selectedCjDraftIds = selectedProductIds.filter(id => {
+  const selectedCjVariantIds = selectedProductIds.filter(id => {
     const product = (products || []).find((item: any) => item.id === id);
-    return product?.status === "draft" && product?.supplier === "CJdropshipping";
-  }).slice(0, 10);
+    return (product?.status === "draft" || product?.status === "active") && product?.supplier === "CJdropshipping";
+  });
+  const canSyncCjVariants = selectedCjVariantIds.length >= 1 && selectedCjVariantIds.length <= 10;
 
   const handleOdooCatalogSync = () => {
     if (!odooStatusQuery.data?.configured) {
@@ -596,8 +597,8 @@ export default function AdminProducts() {
             <div className="flex items-start gap-3"><ListChecks className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><div><h2 className="font-semibold text-orange-950">{selectedProductIds.length} produit(s) sélectionné(s)</h2><p className="mt-1 text-sm text-orange-800">Statuts présents : {selectedStatusLabel}. Modifiez, activez ou archivez toute la sélection ; la suppression exige un archivage préalable.</p></div></div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="outline" className="border-sky-200 bg-white text-sky-800 hover:bg-sky-50" onClick={() => setBulkEditOpen(true)}><Save className="mr-2 h-4 w-4" />Modifier</Button>
-              <Button type="button" size="sm" variant="outline" className="border-violet-200 bg-white text-violet-800 hover:bg-violet-50" disabled={selectedCjDraftIds.length === 0 || syncCjDraftVariants.isPending} title={selectedCjDraftIds.length ? "Ajouter les tailles, couleurs et autres options CJ aux brouillons sélectionnés" : "Sélectionnez au moins un brouillon CJ"} onClick={() => { if (confirm(`Compléter les variantes CJ de ${selectedCjDraftIds.length} brouillon(s) sélectionné(s) ? Cette action ajoute uniquement les tailles, couleurs et combinaisons disponibles ; elle ne publie aucun produit.`)) syncCjDraftVariants.mutate({ productIds: selectedCjDraftIds }); }}>
-                {syncCjDraftVariants.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}Variantes CJ ({selectedCjDraftIds.length}/10)
+              <Button type="button" size="sm" variant="outline" className="border-violet-200 bg-white text-violet-800 hover:bg-violet-50" disabled={!canSyncCjVariants || syncCjVariants.isPending} title={selectedCjVariantIds.length === 0 ? "Sélectionnez au moins un produit CJ actif ou brouillon" : selectedCjVariantIds.length > 10 ? "Sélectionnez au maximum dix produits CJ à la fois" : "Réactualiser les options et correspondances privées de variantes CJ"} onClick={() => { if (confirm(`Réactualiser les variantes CJ de ${selectedCjVariantIds.length} produit(s) sélectionné(s) ? Cette action vérifie les tailles, couleurs et combinaisons actuellement disponibles, puis met à jour uniquement les options et correspondances privées. Elle ne modifie ni le prix, ni le stock, ni la livraison, ni le statut de publication ; elle ne crée aucune commande, aucun paiement et aucune expédition fournisseur.`)) syncCjVariants.mutate({ productIds: selectedCjVariantIds }); }}>
+                {syncCjVariants.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Package className="mr-2 h-4 w-4" />}Réactualiser variantes CJ ({selectedCjVariantIds.length}/10)
               </Button>
               <Button type="button" size="sm" variant="outline" className="border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50" disabled={bulkActivateProducts.isPending} onClick={() => { if (confirm(`Activer ou réactiver ${selectedProductIds.length} produit(s) ? Chaque produit à changer doit avoir un prix et un profil de livraison validé.`)) bulkActivateProducts.mutate({ ids: selectedProductIds }); }}><CheckCircle2 className="mr-2 h-4 w-4" />Activer</Button>
               <Button type="button" size="sm" variant="outline" className="border-amber-200 bg-white text-amber-800 hover:bg-amber-50" disabled={bulkArchiveProducts.isPending} onClick={() => { if (confirm(`Archiver ${selectedProductIds.length} produit(s) ? Ils ne seront plus visibles en boutique.`)) bulkArchiveProducts.mutate({ ids: selectedProductIds }); }}><Archive className="mr-2 h-4 w-4" />Archiver</Button>

@@ -324,3 +324,17 @@ Une sélection client non vide, telle qu’une **taille**, une **couleur** ou un
 La mise en file `queueCjSandboxPreparationForPaidOrder` accepte donc une ligne avec options uniquement si la sélection est syntaxiquement valide et que son instantané contient simultanément `provider: "CJdropshipping"`, `supplierProductId`, `supplierVariantId` et le code pays. Les sélections malformées ou les instantanés incomplets restent en `supplier_exception` avec `CJ_MAPPING_INCOMPLETE`.
 
 > Cette correction ne rend jamais le fournisseur automatique : avant toute création sandbox, `prepareCjSandboxOrder` relit la fiche CJ, vérifie la variante exacte, le stock, le fret, le pays, la marge et l’adresse. Le processus demeure limité à `isSandbox=1` et `payType=3`; aucun débit, paiement réel ou expédition ne peut en résulter.
+
+
+## Réactualisation manuelle des variantes CJ sur le catalogue actif
+
+Dans **Administration → Produits**, l’action groupée **« Réactualiser variantes CJ »** accepte désormais jusqu’à dix produits CJ au statut `draft` ou `active`. Elle reste exclue des produits archivés. Elle relit la fiche CJ, puis actualise uniquement les groupes d’options publics et les correspondances privées combinaison → `supplierVariantId`, avec une date de dernière synchronisation.
+
+| Donnée concernée | Comportement |
+|---|---|
+| Options et correspondances de variante | Réactualisées uniquement après sélection manuelle d’un administrateur. |
+| Prix, stock, profils de livraison et statut de publication | Jamais modifiés par cette action. |
+| Traductions | Marquées à réviser après une modification effective des options. |
+| Commande, paiement et expédition CJ | Exclus : aucun appel de préparation de commande, ni débit, ni expédition. |
+
+La révalidation de stock, de fret, de pays et de marge demeure obligatoire au moment séparé de la préparation **CJ sandbox**. Cette action de catalogue ne vaut donc jamais confirmation de disponibilité fournisseur.
