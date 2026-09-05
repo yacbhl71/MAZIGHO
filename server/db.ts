@@ -6,6 +6,7 @@ import type { InsertUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
+import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -4264,11 +4265,11 @@ export async function queueCjSandboxPreparationForPaidOrder(sessionId: string) {
 
   const itemRows = await db.select({ selectedOptions: orderItems.selectedOptions, supplierSnapshot: orderItems.supplierSnapshot })
     .from(orderItems).where(eq(orderItems.orderId, order.id));
-  const mappings = itemRows.map(item => ({ item, snapshot: parseCjSupplierSnapshot(item.supplierSnapshot) }));
-  const optionsMapped = mappings.every(({ item }) => {
-    try { return Object.keys(JSON.parse(item.selectedOptions || "{}") as Record<string, string>).length === 0; } catch { return false; }
-  });
-  const eligible = mappings.length > 0 && mappings.every(mapping => Boolean(mapping.snapshot)) && optionsMapped;
+  // The supplier snapshot is captured server-side after checkout resolves the
+  // exact selected option combination to a CJ variant. A non-empty selection
+  // (for example Size or Colour) is therefore valid when that immutable
+  // snapshot remains complete; the sandbox preflight still rechecks it with CJ.
+  const eligible = itemRows.length > 0 && itemRows.every(isCjSandboxQueueLineEligible);
   const error = eligible ? null : "Préparation CJ bloquée : variante fournisseur ou options de commande non mappées de manière sûre.";
   const nextState: FulfillmentState = eligible ? "awaiting_supplier_preparation" : "supplier_exception";
   await db.update(orders).set({ fulfillmentState: nextState, fulfillmentLastError: error, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, order.id));

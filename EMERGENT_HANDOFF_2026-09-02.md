@@ -315,3 +315,12 @@ Après confirmation cryptographique d’un paiement Stripe Test, une commande lo
 ## Correctif Odoo 18/19 — taxes de lignes
 
 L’instance Odoo connectée expose le champ `sale.order.line.tax_ids`, tandis que des versions antérieures utilisent `tax_id`. La synchronisation MAZIGHO ne doit donc pas figer un nom de champ : elle appelle `fields_get`, choisit le champ Many2many réellement présent, et lui applique la commande de remplacement vide `[[6, 0, []]]` à la création comme lors de la reprise d’une commande déjà existante. Cette règle est destinée à retirer la taxe par défaut et à laisser Odoo recalculer le devis à partir des montants nets MAZIGHO. Toute divergence de régime fiscal réel doit rester soumise à validation fiduciaire avant usage hors test.
+
+
+## Éligibilité CJ sandbox des produits à variantes
+
+Une sélection client non vide, telle qu’une **taille**, une **couleur** ou une `Option` CJ non structurée, ne doit pas à elle seule bloquer la mise en file après paiement. Au checkout, MAZIGHO valide les valeurs proposées et résout côté serveur la combinaison exacte vers `supplierVariantId`; cet identifiant est enregistré dans l’instantané immuable de ligne de commande.
+
+La mise en file `queueCjSandboxPreparationForPaidOrder` accepte donc une ligne avec options uniquement si la sélection est syntaxiquement valide et que son instantané contient simultanément `provider: "CJdropshipping"`, `supplierProductId`, `supplierVariantId` et le code pays. Les sélections malformées ou les instantanés incomplets restent en `supplier_exception` avec `CJ_MAPPING_INCOMPLETE`.
+
+> Cette correction ne rend jamais le fournisseur automatique : avant toute création sandbox, `prepareCjSandboxOrder` relit la fiche CJ, vérifie la variante exacte, le stock, le fret, le pays, la marge et l’adresse. Le processus demeure limité à `isSandbox=1` et `payType=3`; aucun débit, paiement réel ou expédition ne peut en résulter.
