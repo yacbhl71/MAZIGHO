@@ -120,6 +120,7 @@ export default function AdminProducts() {
   const [translatingProductId, setTranslatingProductId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "draft" | "archived">("all");
+  const [cjReviewFilter, setCjReviewFilter] = useState<"all" | "needs_review" | "reviewed" | "not_cj">("all");
   const [translationFilter, setTranslationFilter] = useState<"all" | "ready" | "attention">("all");
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -151,22 +152,28 @@ export default function AdminProducts() {
         || (stockFilter === "available" && product.stock > 5)
         || (stockFilter === "low" && product.stock > 0 && product.stock <= 5)
         || (stockFilter === "empty" && product.stock <= 0);
+      const cjReview = getCjVariantReview(product);
+      const matchesCjReview = cjReviewFilter === "all"
+        || (cjReviewFilter === "needs_review" && Boolean(cjReview && cjReview.tone !== "ready"))
+        || (cjReviewFilter === "reviewed" && cjReview?.tone === "ready")
+        || (cjReviewFilter === "not_cj" && !cjReview);
       const matchesCategory = categoryFilter === "all"
         || (Array.isArray(product.categoryIds) && product.categoryIds.length
           ? product.categoryIds.map(String).includes(categoryFilter)
           : String(product.categoryId) === categoryFilter);
-      return matchesQuery && matchesStatus && matchesTranslation && matchesStock && matchesCategory;
+      return matchesQuery && matchesStatus && matchesCjReview && matchesTranslation && matchesStock && matchesCategory;
     }).sort((a: any, b: any) => {
       if (sortOrder === "name_asc") return (a.name || "").localeCompare(b.name || "", "fr");
       const left = new Date(String(sortOrder === "updated_desc" ? a.updatedAt : a.createdAt)).getTime();
       const right = new Date(String(sortOrder === "updated_desc" ? b.updatedAt : b.createdAt)).getTime();
       return sortOrder === "created_asc" ? left - right : right - left;
     });
-  }, [products, searchQuery, statusFilter, translationFilter, stockFilter, categoryFilter, sortOrder, translationOverviewQuery.data]);
+  }, [products, searchQuery, statusFilter, cjReviewFilter, translationFilter, stockFilter, categoryFilter, sortOrder, translationOverviewQuery.data]);
 
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
+    setCjReviewFilter("all");
     setTranslationFilter("all");
     setStockFilter("all");
     setCategoryFilter("all");
@@ -589,13 +596,14 @@ export default function AdminProducts() {
               <input ref={draftCsvFileInputRef} type="file" accept=".csv,text/csv" className="sr-only" aria-label="Choisir un fichier CSV de brouillons" onChange={handleDraftCsvImport} />
               <Button type="button" variant="outline" size="sm" onClick={exportVisibleDraftsToCsv} disabled={visibleDraftProducts.length === 0} className="border-violet-300 bg-white text-violet-800 hover:bg-violet-50"><Download className="mr-2 h-4 w-4" />Exporter les brouillons en CSV</Button>
               <Button type="button" variant="outline" size="sm" onClick={() => draftCsvFileInputRef.current?.click()} disabled={importDraftCsv.isPending} className="border-teal-300 bg-white text-teal-800 hover:bg-teal-50">{importDraftCsv.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}Importer / Mettre à jour via CSV</Button>
-              <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="text-slate-600 hover:bg-slate-100"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!searchQuery && statusFilter === "all" && cjReviewFilter === "all" && translationFilter === "all" && stockFilter === "all" && categoryFilter === "all" && sortOrder === "created_desc"} className="text-slate-600 hover:bg-slate-100"><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
             <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="pl-9" placeholder="Nom, URL, catégorie ou fournisseur…" /></div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger data-testid="admin-products-category-filter"><SelectValue placeholder="Catégorie" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{(categories || []).map((cat: any) => (<SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>))}</SelectContent></Select>
             <Select value={statusFilter} onValueChange={value => setStatusFilter(value as typeof statusFilter)}><SelectTrigger><SelectValue placeholder="Statut" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les statuts</SelectItem><SelectItem value="active">Actifs</SelectItem><SelectItem value="draft">Brouillons</SelectItem><SelectItem value="archived">Archivés</SelectItem></SelectContent></Select>
+            <Select value={cjReviewFilter} onValueChange={value => setCjReviewFilter(value as typeof cjReviewFilter)}><SelectTrigger><SelectValue placeholder="Contrôle CJ" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les contrôles CJ</SelectItem><SelectItem value="needs_review">À vérifier / revalider</SelectItem><SelectItem value="reviewed">Révisés récemment</SelectItem><SelectItem value="not_cj">Hors CJ</SelectItem></SelectContent></Select>
             <Select value={translationFilter} onValueChange={value => setTranslationFilter(value as typeof translationFilter)}><SelectTrigger><SelectValue placeholder="Traductions" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les traductions</SelectItem><SelectItem value="ready">6 langues prêtes</SelectItem><SelectItem value="attention">À compléter / régénérer</SelectItem></SelectContent></Select>
             <Select value={stockFilter} onValueChange={value => setStockFilter(value as typeof stockFilter)}><SelectTrigger><SelectValue placeholder="Stock" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les stocks</SelectItem><SelectItem value="available">Plus de 5 unités</SelectItem><SelectItem value="low">1 à 5 unités</SelectItem><SelectItem value="empty">Rupture de stock</SelectItem></SelectContent></Select>
             <Select value={sortOrder} onValueChange={value => setSortOrder(value as typeof sortOrder)}><SelectTrigger><SelectValue placeholder="Tri" /></SelectTrigger><SelectContent><SelectItem value="created_desc">Création : récent d’abord</SelectItem><SelectItem value="created_asc">Création : ancien d’abord</SelectItem><SelectItem value="updated_desc">Modification : récent d’abord</SelectItem><SelectItem value="name_asc">Nom : A à Z</SelectItem></SelectContent></Select>

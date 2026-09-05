@@ -352,3 +352,6 @@ La liste **Administration → Produits** affiche une colonne interne `CJ` sans i
 | `Référence manquante` | Le produit porte le fournisseur CJ sans référence interne suffisante ; il ne peut pas être réactualisé tant que cette donnée n’est pas corrigée. |
 
 Les produits hors CJ affichent `—`. Cet indicateur n’effectue aucune requête réseau, ne modifie aucune fiche et ne remplace jamais le contrôle au moment d’une éventuelle préparation CJ sandbox.
+
+
+Le filtre **Contrôle CJ** de la liste Produits permet d’afficher soit les références `À vérifier / revalider`, soit les références `Révisées récemment`, soit les produits `Hors CJ`. Il combine l’indicateur visuel existant avec une sélection de travail : aucune requête CJ ne part tant que l’administrateur ne sélectionne pas explicitement des produits puis ne confirme l’action manuelle de réactualisation.
