@@ -21,6 +21,8 @@ import {
   XCircle,
   ShieldAlert,
   RotateCcw,
+  Bot,
+  MonitorSmartphone,
 } from "lucide-react";
 import {
   Dialog,
@@ -109,6 +111,45 @@ export default function AdminOrders() {
     },
     onError: error => toast.error(error.message || "Décision impossible."),
   });
+
+  const utils = trpc.useUtils();
+  const [fulfillingId, setFulfillingId] = useState<number | null>(null);
+  const [serverModal, setServerModal] = useState<{ open: boolean; orderId: number | null; message: string; loading: boolean }>({ open: false, orderId: null, message: "", loading: false });
+  const startServer = trpc.admin.fulfillment.startServerFulfillment.useMutation();
+
+  const extensionInstalled = () => typeof document !== "undefined" && !!document.documentElement.getAttribute("data-mazigho-fulfillment-ext");
+
+  const handleExtensionFulfill = async (order: any) => {
+    if (!extensionInstalled()) {
+      toast.error("Extension MAZIGHO non détectée. Installez-la (chrome://extensions → « Charger l'extension non empaquetée » → dossier chrome-extension) puis réessayez.");
+      return;
+    }
+    try {
+      setFulfillingId(order.id);
+      const payload = await utils.admin.fulfillment.getReadyToFulfill.fetch({ orderId: order.id });
+      if (!payload.eligible) { toast.error("Commande non éligible (paiement non confirmé)."); return; }
+      if (payload.missing && payload.missing.length) {
+        const labels: Record<string, string> = { address: "adresse incomplète", supplierUrl: "URL fournisseur manquante", variantMapping: "variante non mappée" };
+        toast(`Données partielles : ${payload.missing.map(m => labels[m] || m).join(", ")}. L'extension remplira au mieux.`);
+      }
+      window.postMessage({ source: "MAZIGHO_ADMIN", type: "MAZIGHO_FULFILL_ORDER", payload }, window.location.origin);
+      toast.success("Extension déclenchée — un onglet AliExpress va s'ouvrir. Le script s'arrête avant le paiement.");
+    } catch (e: any) {
+      toast.error(e?.message || "Impossible de préparer la commande.");
+    } finally {
+      setFulfillingId(null);
+    }
+  };
+
+  const handleServerFulfill = async (order: any) => {
+    setServerModal({ open: true, orderId: order.id, message: "", loading: true });
+    try {
+      const res = await startServer.mutateAsync({ orderId: order.id });
+      setServerModal({ open: true, orderId: order.id, message: res.message, loading: false });
+    } catch (e: any) {
+      setServerModal({ open: true, orderId: order.id, message: e?.message || "Erreur.", loading: false });
+    }
+  };
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -221,7 +262,23 @@ export default function AdminOrders() {
                     <TableCell><Badge variant="outline" className={order.paymentStatus === "paid" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}>{order.paymentStatus === "paid" ? "Payée" : order.paymentStatus === "refunded" ? "Remboursée" : "À régler"}</Badge></TableCell>
                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                     <TableCell className="max-w-36 truncate text-sm text-slate-600">{order.trackingNumber || "—"}</TableCell>
-                    <TableCell className="text-right"><Button variant="outline" size="sm" onClick={() => handleOpenDetails(order)}><Eye className="mr-1.5 h-4 w-4" /> Ouvrir <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button></TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {order.paymentStatus === "paid" && (
+                          <>
+                            <Button variant="outline" size="sm" className="border-orange-200 text-orange-700 hover:bg-orange-50" title="Commander via l'extension Chrome (ordinateur)" data-testid={`fulfill-ext-${order.id}`} disabled={fulfillingId === order.id} onClick={() => handleExtensionFulfill(order)}>
+                              {fulfillingId === order.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                              <span className="ml-1 hidden xl:inline">Extension</span>
+                            </Button>
+                            <Button variant="outline" size="sm" className="border-blue-200 text-blue-700 hover:bg-blue-50" title="Commander via serveur déporté (tablette)" data-testid={`fulfill-server-${order.id}`} onClick={() => handleServerFulfill(order)}>
+                              <MonitorSmartphone className="h-4 w-4" />
+                              <span className="ml-1 hidden xl:inline">Serveur</span>
+                            </Button>
+                          </>
+                        )}
+                        <Button variant="outline" size="sm" onClick={() => handleOpenDetails(order)}><Eye className="mr-1.5 h-4 w-4" /> Ouvrir <ChevronRight className="ml-1 h-3.5 w-3.5" /></Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -268,6 +325,25 @@ export default function AdminOrders() {
 
         <Dialog open={Boolean(decisionTarget)} onOpenChange={open => { if (!open) { setDecisionTarget(null); setDecisionReason(""); setDecisionConfirmation(""); } }}>
           <DialogContent className="sm:max-w-md">{decisionTarget && <><DialogHeader><DialogTitle>{decisionMeta[decisionTarget.action].label} — commande #{decisionTarget.orderId}</DialogTitle><DialogDescription>{decisionTarget.action === "accepted" ? "La commande passera en préparation interne. Aucun fournisseur ne sera contacté et aucun paiement CJ ne sera exécuté." : decisionTarget.action === "rejected" ? "La commande sera annulée dans MAZIGHO. Aucun fournisseur ne sera contacté." : "Une demande interne sera enregistrée. Aucun remboursement réel ne sera exécuté tant que le prestataire de paiement n’est pas connecté."}</DialogDescription></DialogHeader><div className="grid gap-4 py-3"><div className="grid gap-2"><Label htmlFor="decision-reason">Motif interne (facultatif)</Label><Input id="decision-reason" value={decisionReason} maxLength={500} onChange={event => setDecisionReason(event.target.value)} placeholder="Ex. stock non confirmé" /></div>{decisionTarget.action !== "accepted" && <div className="grid gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3"><Label htmlFor="decision-confirmation">Pour confirmer, saisissez exactement :</Label><code className="rounded bg-white px-2 py-1 text-sm text-slate-900">{decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`}</code><Input id="decision-confirmation" value={decisionConfirmation} onChange={event => setDecisionConfirmation(event.target.value)} autoComplete="off" placeholder="Texte de confirmation" /></div>}</div><DialogFooter><Button type="button" variant="outline" onClick={() => setDecisionTarget(null)}>Annuler</Button><Button type="button" disabled={decide.isPending || (decisionTarget.action !== "accepted" && decisionConfirmation !== (decisionTarget.action === "rejected" ? `REFUSER #${decisionTarget.orderId}` : `REMBOURSER #${decisionTarget.orderId}`))} className={decisionTarget.action === "accepted" ? "bg-emerald-600 hover:bg-emerald-700" : decisionTarget.action === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-amber-600 hover:bg-amber-700"} onClick={submitDecision}>{decide.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{decisionTarget.action === "accepted" ? "Confirmer l’acceptation" : decisionTarget.action === "rejected" ? "Confirmer le refus" : "Enregistrer la demande"}</Button></DialogFooter></>}</DialogContent>
+        </Dialog>
+
+        <Dialog open={serverModal.open} onOpenChange={(o) => setServerModal(s => ({ ...s, open: o }))}>
+          <DialogContent className="sm:max-w-lg" data-testid="server-fulfill-modal">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><MonitorSmartphone className="h-5 w-5 text-blue-600" /> Serveur déporté — commande #{serverModal.orderId}</DialogTitle>
+              <DialogDescription>Mode secondaire (tablette) : navigateur piloté côté serveur avec relais visuel du captcha.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="flex min-h-28 items-center justify-center rounded-lg border border-dashed bg-slate-50 p-6 text-center">
+                {serverModal.loading ? <Loader2 className="h-6 w-6 animate-spin text-blue-600" /> : <div className="text-sm text-slate-600">{serverModal.message}</div>}
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                <p className="font-semibold">À savoir</p>
+                <p className="mt-1">Ce mode nécessite un service Node/Playwright hébergé en continu (Railway, Render, Fly.io ou VPS). Il ne peut pas tourner sur Vercel (serverless). Le flux vidéo/captcha temps réel sera branché une fois ce worker déployé (variable <span className="font-mono">FULFILLMENT_WORKER_URL</span>).</p>
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setServerModal(s => ({ ...s, open: false }))}>Fermer</Button></DialogFooter>
+          </DialogContent>
         </Dialog>
       </div>
     </DashboardLayout>

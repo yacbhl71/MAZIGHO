@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 300px; margin: 0; font: 13px/1.5 system-ui, Segoe UI, Roboto, sans-serif; color: #0f172a; }
+    header { background: #0f172a; color: #fff; padding: 14px 16px; }
+    header h1 { margin: 0; font-size: 15px; }
+    header p { margin: 2px 0 0; font-size: 11px; color: #94a3b8; }
+    .body { padding: 14px 16px; }
+    .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .k { color: #64748b; }
+    .v { font-weight: 600; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; }
+    .note { margin-top: 10px; font-size: 11px; color: #64748b; }
+    a { color: #f97316; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MAZIGHO Fulfillment</h1>
+    <p>Assistant de commande AliExpress</p>
+  </header>
+  <div class="body">
+    <div class="row"><span class="k">Version</span><span class="v" id="version">0.1.0</span></div>
+    <div class="row"><span class="k">Statut</span><span class="v"><span class="dot"></span>Actif</span></div>
+    <div class="row"><span class="k">Dernière action</span><span class="v" id="last">—</span></div>
+    <div class="note">
+      Lancez une commande depuis <strong>Admin MAZIGHO → Commandes</strong>.
+      Le script s'arrête toujours <strong>avant le paiement</strong>.
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

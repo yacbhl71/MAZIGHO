@@ -69,6 +69,7 @@ export const products = mysqlTable("products", {
   supplierProductId: varchar("supplierProductId", { length: 128 }),
   supplierUrl: varchar("supplierUrl", { length: 1000 }),
   supplierPrice: int("supplierPrice"), // Supplier price in cents
+  supplierVariantMap: text("supplierVariantMap"), // JSON: maps MAZIGHO variant key -> { skuId, supplierOptions } (AliExpress fulfillment)
   options: text("options"), // JSON string for product options
   lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

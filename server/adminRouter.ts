@@ -18,6 +18,7 @@ import { getMakeIntegrationStatus, sendMakeIntegrationTest } from "./makeIntegra
 import { getOdooStatus, verifyOdooConnection } from "./services/odoo";
 import { cancelOdooSaleOrder, createOdooPartner, listOdooPartners, listOdooSaleOrders, updateOdooPartner } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
+import { parseShippingAddress } from "./services/addressFormat";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -283,6 +284,59 @@ export const adminRouter = router({
     }),
     delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => db.deleteCampaign(input.id)),
     toggle: adminProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ input }) => db.toggleCampaign(input.id, input.enabled)),
+  }),
+
+  // Order fulfillment (AliExpress) — centralised, secure data for Chrome extension / deported worker.
+  fulfillment: router({
+    getReadyToFulfill: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
+      const data = await db.getOrderForFulfillment(input.orderId);
+      if (!data) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
+      const { order, items } = data;
+      const eligible = order.paymentStatus === "paid";
+      const address = parseShippingAddress(order.shippingAddress, undefined);
+      const enrichedItems = items.map(it => {
+        let variantMap: any = null;
+        try { variantMap = it.supplierVariantMap ? JSON.parse(it.supplierVariantMap) : null; } catch { variantMap = null; }
+        let productOptions: any = null;
+        try { productOptions = it.options ? JSON.parse(it.options) : null; } catch { productOptions = null; }
+        return {
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          supplier: it.supplier,
+          aliexpressProductUrl: it.supplierUrl || null,
+          aliexpressProductId: it.supplierProductId || null,
+          supplierVariantMap: variantMap,
+          productOptions,
+          aliexpressSkuId: null, // resolved by the extension from supplierVariantMap + chosen variant (not yet stored per order line)
+        };
+      });
+      const missing: string[] = [];
+      if (!address.complete) missing.push("address");
+      if (enrichedItems.some(i => !i.aliexpressProductUrl)) missing.push("supplierUrl");
+      if (enrichedItems.every(i => !i.supplierVariantMap)) missing.push("variantMapping");
+      return {
+        orderId: order.id,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        eligible,
+        missing,
+        customer: { name: order.userName, email: order.userEmail },
+        shippingAddress: address,
+        items: enrichedItems,
+      };
+    }),
+    setVariantMap: catalogEditorProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      map: z.record(z.string(), z.object({ skuId: z.string().optional(), supplierOptions: z.string().optional() })).nullable(),
+    })).mutation(async ({ input }) => db.setProductSupplierVariantMap(input.productId, input.map)),
+    startServerFulfillment: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).mutation(async ({ input }) => {
+      const workerUrl = process.env.FULFILLMENT_WORKER_URL;
+      if (!workerUrl) {
+        return { started: false, reason: "WORKER_NOT_CONFIGURED", message: "Le mode « Serveur déporté » nécessite un service Node/Playwright hébergé en continu (hors Vercel serverless). Configurez FULFILLMENT_WORKER_URL pour l'activer." };
+      }
+      return { started: false, reason: "NOT_IMPLEMENTED", message: "Worker déporté détecté mais l'exécution n'est pas encore branchée.", workerUrl };
+    }),
   }),
 
   // Dashboard Stats

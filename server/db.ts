@@ -3774,3 +3774,65 @@ export async function getActiveCampaign() {
     promo,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Order fulfillment (AliExpress) — data preparation.
+// ---------------------------------------------------------------------------
+let _fulfillmentSchemaReady: Promise<void> | null = null;
+async function ensureFulfillmentSchema() {
+  if (_fulfillmentSchemaReady) return _fulfillmentSchemaReady;
+  _fulfillmentSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    try {
+      await db.execute(sql.raw("ALTER TABLE `products` ADD COLUMN `supplierVariantMap` TEXT NULL"));
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      if (!/Duplicate column|already exists|exists/i.test(msg)) {
+        console.warn("[fulfillment] ensure schema:", msg);
+      }
+    }
+  })();
+  return _fulfillmentSchemaReady;
+}
+
+export async function getOrderForFulfillment(orderId: number) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const orderRows = await db.select({
+    id: orders.id,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    totalAmount: orders.totalAmount,
+    shippingAddress: orders.shippingAddress,
+    paymentMethod: orders.paymentMethod,
+    createdAt: orders.createdAt,
+    userName: users.name,
+    userEmail: users.email,
+  }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(eq(orders.id, orderId)).limit(1);
+  if (orderRows.length === 0) return null;
+  const order = orderRows[0];
+  const items = await db.select({
+    id: orderItems.id,
+    productId: orderItems.productId,
+    quantity: orderItems.quantity,
+    priceAtPurchase: orderItems.priceAtPurchase,
+    productName: products.name,
+    options: products.options,
+    supplier: products.supplier,
+    supplierProductId: products.supplierProductId,
+    supplierUrl: products.supplierUrl,
+    supplierVariantMap: products.supplierVariantMap,
+  }).from(orderItems).leftJoin(products, eq(orderItems.productId, products.id)).where(eq(orderItems.orderId, orderId));
+  return { order, items };
+}
+
+export async function setProductSupplierVariantMap(productId: number, map: unknown) {
+  await ensureFulfillmentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(products).set({ supplierVariantMap: map == null ? null : JSON.stringify(map) }).where(eq(products.id, productId));
+  return { success: true } as const;
+}
+

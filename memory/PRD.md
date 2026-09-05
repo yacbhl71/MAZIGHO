@@ -118,3 +118,11 @@ d'où l'erreur `Failed query` sur la recherche `users`. Ce n'était pas un bug d
 ## 2026-06 — Phase 3 : roadmap P1 finalisée (commit 59303d2, à déployer)
 - Mode Maintenance (/admin/maintenance), Campagnes & bannières + Compte à rebours FOMO (/admin/campagnes), Analyse conversion placeholder (/admin/conversion). Détails : CHANGELOG.md / ROADMAP.md.
 - Les 6 modules de la roadmap sont livrés (Analyse conversion en placeholder : à connecter à Vercel Web Analytics quand le token sera fourni).
+
+## 2026-09 — Order Fulfillment (AliExpress) — Brique 1 (commit local 0c6f106, NON déployée)
+- Voir memory/FULFILLMENT_ARCHITECTURE.md pour l'architecture complète.
+- Livré & testé : endpoint `admin.fulfillment.getReadyToFulfill` (adresse structurée + items + SKU),
+  extension Chrome `chrome-extension/` (MV3, mode A, arrêt avant paiement, selectors.js centralisé),
+  2 boutons (Extension / Serveur déporté) par commande payée dans Admin → Commandes, modale serveur.
+- Bonne nouvelle : l'adresse client est DÉJÀ structurée (JSON Stripe : name/line1/city/postalCode/countryCode/phone) → prérequis #1 résolu.
+- Gaps restants (auto complète) : variante choisie par ligne (orderItems) + mapping variante→SKU non peuplés ; supplierUrl présent seulement pour les produits importés AliExpress. Mode B (Playwright+WebSocket) = worker séparé hors Vercel (déféré).
