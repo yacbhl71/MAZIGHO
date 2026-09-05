@@ -23,6 +23,8 @@ import {
   RotateCcw,
   FlaskConical,
   ShieldCheck,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -99,6 +101,15 @@ function formatDate(value: Date | string) {
   return new Date(value).toLocaleDateString("fr-CH", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function getAliExpressManifestBadge(state?: string) {
+  const meta = state === "ready_for_human_review"
+    ? { label: "Prête à vérifier", className: "border-teal-200 bg-teal-50 text-teal-800" }
+    : state === "blocked"
+      ? { label: "Contrôle requis", className: "border-amber-200 bg-amber-50 text-amber-900" }
+      : { label: "Hors circuit AliExpress", className: "border-slate-200 bg-slate-50 text-slate-700" };
+  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>;
+}
+
 function SummaryCard({ label, value, tone }: { label: string; value: number; tone: string }) {
   return <Card className="border-border/70 bg-white shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</p><p className={`mt-1 text-2xl font-bold ${tone}`}>{value}</p></CardContent></Card>;
 }
@@ -130,6 +141,10 @@ export default function AdminOrders() {
     { enabled: Boolean(selectedOrder?.id && isDetailsOpen) }
   );
   const { data: cjSafety } = trpc.admin.orders.getCjSafetyStatus.useQuery();
+  const { data: aliExpressManifest, isLoading: isLoadingAliExpressManifest } = trpc.admin.orders.getAliExpressPreparationManifest.useQuery(
+    { orderId: selectedOrder?.id ?? 0 },
+    { enabled: Boolean(selectedOrder?.id && isDetailsOpen) },
+  );
 
   const updateStatus = trpc.admin.orders.updateStatus.useMutation({
     onSuccess: async () => {
@@ -237,6 +252,26 @@ export default function AdminOrders() {
     prepareCjSandbox.mutate({ orderId: sandboxOrderId, confirmation: sandboxConfirmation.trim() });
   };
 
+  const copyAliExpressManifest = async () => {
+    if (!aliExpressManifest?.shipping || !aliExpressManifest.lines.length) return;
+    const address = [
+      aliExpressManifest.shipping.name,
+      aliExpressManifest.shipping.line1,
+      aliExpressManifest.shipping.line2,
+      `${aliExpressManifest.shipping.postalCode} ${aliExpressManifest.shipping.city}`,
+      aliExpressManifest.shipping.state,
+      aliExpressManifest.shipping.countryCode,
+      aliExpressManifest.shipping.phone ? `Tél. ${aliExpressManifest.shipping.phone}` : null,
+    ].filter(Boolean).join("\n");
+    const lines = aliExpressManifest.lines.map(line => `${line.quantity} × ${line.productName}${Object.keys(line.selectedOptions).length ? ` (${Object.entries(line.selectedOptions).map(([name, value]) => `${name}: ${value}`).join(", ")})` : ""}`).join("\n");
+    try {
+      await navigator.clipboard.writeText(`MAZIGHO #${aliExpressManifest.orderId}\n\nArticles\n${lines}\n\nLivraison\n${address}`);
+      toast.success("Manifeste copié localement. Vérifiez chaque fiche et chaque montant avant tout paiement AliExpress.");
+    } catch {
+      toast.error("La copie locale a échoué. Vous pouvez recopier les informations affichées.");
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-8">
@@ -326,6 +361,15 @@ export default function AdminOrders() {
                 <div className="rounded-xl border p-4"><div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><MapPin className="h-4 w-4 text-orange-600" /> Adresse de livraison</div><p className="whitespace-pre-line text-sm text-slate-700">{selectedOrder.shippingAddress || "Adresse non renseignée"}</p></div>
 
                 {selectedOrder.notes && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">Note interne</p><p className="mt-1 whitespace-pre-line">{selectedOrder.notes}</p></div>}
+
+                <div className="rounded-xl border border-teal-100 bg-teal-50/50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-teal-700" /> Préparation AliExpress assistée</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Manifeste interne fondé sur la commande MAZIGHO payée. Il n’envoie aucune donnée à AliExpress et s’arrête avant le panier et le paiement, qui restent entièrement humains.</p></div>{getAliExpressManifestBadge(aliExpressManifest?.state)}</div>
+                  {isLoadingAliExpressManifest ? <Skeleton className="mt-4 h-28 w-full" /> : aliExpressManifest?.state === "not_eligible" ? <p className="mt-4 text-xs text-slate-600">Cette commande ne contient aucune ligne AliExpress référencée au moment du paiement.</p> : aliExpressManifest ? <><div className="mt-4 grid gap-3 rounded-lg border border-teal-100 bg-white p-3 text-xs sm:grid-cols-2"><div><p className="font-semibold text-slate-800">Paiement MAZIGHO</p><p className={aliExpressManifest.paymentConfirmed ? "mt-1 text-teal-800" : "mt-1 text-rose-700"}>{aliExpressManifest.paymentConfirmed ? "Confirmé" : "Non confirmé"}</p></div><div><p className="font-semibold text-slate-800">Règle fournisseur</p><p className="mt-1 text-slate-600">Validation humaine obligatoire avant paiement</p></div></div>
+                    {aliExpressManifest.shipping && <div className="mt-3 rounded-lg border border-teal-100 bg-white p-3 text-xs text-slate-700"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-slate-800">Adresse de livraison confirmée</p><Button type="button" variant="outline" size="sm" className="h-7 border-teal-200 text-teal-800 hover:bg-teal-50" onClick={copyAliExpressManifest}><Copy className="mr-1.5 h-3.5 w-3.5" /> Copier le manifeste</Button></div><p className="mt-2 whitespace-pre-line">{[aliExpressManifest.shipping.name, aliExpressManifest.shipping.line1, aliExpressManifest.shipping.line2, `${aliExpressManifest.shipping.postalCode} ${aliExpressManifest.shipping.city}`, aliExpressManifest.shipping.state, aliExpressManifest.shipping.countryCode, aliExpressManifest.shipping.phone ? `Tél. ${aliExpressManifest.shipping.phone}` : null].filter(Boolean).join("\n")}</p></div>}
+                    <div className="mt-3 space-y-2">{aliExpressManifest.lines.map(line => <div key={line.orderItemId} className="rounded-lg border border-teal-100 bg-white p-3 text-xs"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-semibold text-slate-900">{line.quantity} × {line.productName}</p>{Object.keys(line.selectedOptions).length > 0 && <p className="mt-1 text-slate-600">{Object.entries(line.selectedOptions).map(([name, value]) => `${name} : ${value}`).join(" · ")}</p>}<p className={line.optionStatus === "mapped" || line.optionStatus === "not_applicable" ? "mt-1 text-teal-800" : "mt-1 text-amber-800"}>{line.optionStatus === "mapped" ? "Variante interne mappée : à vérifier sur la fiche" : line.optionStatus === "not_applicable" ? "Aucune option client à sélectionner" : "Options à choisir et vérifier manuellement"}</p></div>{line.supplierUrl ? <a href={line.supplierUrl} target="_blank" rel="noreferrer" className="inline-flex h-7 items-center rounded-md border border-teal-200 px-2 text-teal-800 hover:bg-teal-50"><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Ouvrir la fiche</a> : <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">Fiche manquante</Badge>}</div>{line.urlSource === "current_catalog" && <p className="mt-2 text-amber-800">Lien issu du catalogue actuel : contrôlez qu’il correspond bien à l’article vendu.</p>}</div>)}</div>
+                    {aliExpressManifest.warnings.length > 0 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950"><p className="font-semibold">Points à contrôler avant toute action</p><ul className="mt-1 list-disc space-y-1 pl-4">{aliExpressManifest.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
+                    <p className="mt-3 text-xs font-medium text-teal-900"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" /> Aucune action de ce panneau ne crée de panier, ne transmet l’adresse client, ne passe de commande ni ne réalise de paiement AliExpress.</p></> : <p className="mt-4 text-xs text-rose-700">Le manifeste AliExpress n’a pas pu être chargé.</p>}
+                </div>
 
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><FlaskConical className="h-4 w-4 text-indigo-700" /> Préparation fournisseur CJ</div><p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Zone interne. Le test crée uniquement une commande sandbox CJ avec <code>payType=3</code> : aucun débit, aucune commande réelle et aucune expédition ne peuvent être déclenchés.</p></div>{getFulfillmentBadge(fulfillment?.order.fulfillmentState || selectedOrder.fulfillmentState)}</div>

@@ -355,3 +355,20 @@ Les produits hors CJ affichent `—`. Cet indicateur n’effectue aucune requêt
 
 
 Le filtre **Contrôle CJ** de la liste Produits permet d’afficher soit les références `À vérifier / revalider`, soit les références `Révisées récemment`, soit les produits `Hors CJ`. Il combine l’indicateur visuel existant avec une sélection de travail : aucune requête CJ ne part tant que l’administrateur ne sélectionne pas explicitement des produits puis ne confirme l’action manuelle de réactualisation.
+
+
+## Préparation AliExpress assistée — socle administratif
+
+La fenêtre **Administration → Commandes → Ouvrir** inclut désormais un panneau interne **« Préparation AliExpress assistée »**. Il génère un manifeste local, réservé aux opérateurs de commandes, à partir des instantanés enregistrés avant le paiement MAZIGHO. Aucune requête vers AliExpress, session navigateur, création de panier, transmission d’adresse, création de commande fournisseur ou paiement n’existe dans ce socle.
+
+| Contrôle | Règle appliquée |
+|---|---|
+| Paiement MAZIGHO | La préparation est bloquée tant que la commande n’est pas localement marquée `paid`. |
+| Cycle interne | La commande doit être au statut `processing`, après acceptation. |
+| Adresse | Le manifeste requiert destinataire, adresse, ville, code postal et pays. |
+| Fiche fournisseur | Seules les URLs HTTPS `aliexpress.com` du snapshot sont utilisables. Une URL de catalogue actuelle ne sert qu’en secours et déclenche une alerte de vérification. |
+| Destination | Le pays de l’adresse doit correspondre au pays enregistré dans l’instantané de paiement. |
+| Variantes | Une option client sans correspondance explicite n’est jamais devinée ; elle est présentée pour sélection et contrôle humain. |
+| Paiement AliExpress | Toujours exclu : `human_checkout_only`. Toute extension ou étape future doit s’arrêter avant l’écran de paiement. |
+
+Les nouvelles commandes Stripe conservent désormais `supplierUrl` dans l’instantané fournisseur, en plus du produit, de la variante, du pays et du devis de livraison. Pour les commandes historiques, le panneau peut afficher une URL actuelle uniquement comme aide, jamais comme preuve que la fiche correspond encore à l’article vendu.

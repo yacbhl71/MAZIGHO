@@ -7,6 +7,7 @@ import { ENV } from './_core/env';
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
+import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -2371,10 +2372,33 @@ export async function getOrderItemsAdmin(orderId: number) {
       selectedOptions: orderItems.selectedOptions,
       supplierSnapshot: orderItems.supplierSnapshot,
       productName: products.name,
+      supplier: products.supplier,
+      supplierUrl: products.supplierUrl,
     })
     .from(orderItems)
     .leftJoin(products, eq(orderItems.productId, products.id))
     .where(eq(orderItems.orderId, orderId));
+}
+
+/**
+ * Returns an admin-only, read-only AliExpress preparation manifest assembled
+ * from the paid-order snapshots. It deliberately does not call AliExpress,
+ * open a browser session, create a supplier order or initiate payment.
+ */
+export async function getAliExpressPreparationManifestAdmin(orderId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const orderRows = await db.select({
+    id: orders.id,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    totalAmount: orders.totalAmount,
+    shippingAddress: orders.shippingAddress,
+  }).from(orders).where(eq(orders.id, orderId)).limit(1);
+  const order = orderRows[0];
+  if (!order) throw new Error("ORDER_NOT_FOUND");
+  const items = await getOrderItemsAdmin(orderId);
+  return buildAliExpressPreparationManifest(order, items);
 }
 
 export async function getOperationalOrders() {
@@ -4003,6 +4027,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       options: products.options,
       supplier: products.supplier,
       supplierProductId: products.supplierProductId,
+      supplierUrl: products.supplierUrl,
       supplierVariantMappings: products.supplierVariantMappings,
     }).from(products).where(inArray(products.id, productIds)),
     db.select().from(productDeliveryProfiles).where(and(inArray(productDeliveryProfiles.productId, productIds), eq(productDeliveryProfiles.countryCode, normalizedCountry))),
@@ -4024,6 +4049,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       provider: product.supplier || null,
       supplierProductId: product.supplierProductId || null,
       supplierVariantId: supplierVariantId || null,
+      supplierUrl: product.supplierUrl || null,
       countryCode: normalizedCountry,
       deliveryMethod: profile.deliveryMethod || null,
       supplierShippingCostChf: profile.supplierShippingCost,

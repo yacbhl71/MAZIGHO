@@ -876,6 +876,16 @@ export const adminRouter = router({
     getItems: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderItemsAdmin(input.orderId);
     }),
+    getAliExpressPreparationManifest: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getAliExpressPreparationManifestAdmin(input.orderId);
+      } catch (error) {
+        if (error instanceof Error && error.message === "ORDER_NOT_FOUND") {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
+        }
+        throw error;
+      }
+    }),
     getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderDecisionsAdmin(input.orderId);
     }),
