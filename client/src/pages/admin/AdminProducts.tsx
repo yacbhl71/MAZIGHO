@@ -33,6 +33,12 @@ const deliveryCountries = [
 ] as const;
 type DeliveryProfileDraft = { countryCode: string; supplierVariantId: string; supplierShippingCost: string; customerShippingCost: string; deliveryMethod: string; minDeliveryDays: string; maxDeliveryDays: string };
 const makeDeliveryProfile = (countryCode: string): DeliveryProfileDraft => ({ countryCode, supplierVariantId: "test", supplierShippingCost: "0,00", customerShippingCost: "0,00", deliveryMethod: "Test Stripe", minDeliveryDays: "3", maxDeliveryDays: "7" });
+
+const extractAliExpressProductId = (url: string): string | null => {
+  if (!url) return null;
+  const match = url.match(/\/item\/(\d{6,})\.html/) || url.match(/[?&]productId=(\d{6,})/) || url.match(/(\d{10,})/);
+  return match ? match[1] : null;
+};
 const parseChfToCents = (raw: string): number | null => {
   const value = raw.trim().replace(/\s/g, "");
   if (!value) return 0;
@@ -85,7 +91,12 @@ export default function AdminProducts() {
   // Supplier info (Internal only)
   const [supplier, setSupplier] = useState("");
   const [supplierUrl, setSupplierUrl] = useState("");
+  const [supplierProductId, setSupplierProductId] = useState("");
   const [supplierPrice, setSupplierPrice] = useState("");
+  const [variantMappings, setVariantMappings] = useState<Record<string, string>>({});
+  const [aliImportOpen, setAliImportOpen] = useState(false);
+  const [aliImportUrls, setAliImportUrls] = useState("");
+  const [aliImportCategoryId, setAliImportCategoryId] = useState("");
 
   // Customer-facing translations remain separate from the French source form above.
   const [translationLocale, setTranslationLocale] = useState<"de" | "it" | "en" | "es" | "nl" | "ar">("de");
@@ -138,6 +149,20 @@ export default function AdminProducts() {
     const stale = overview?.translations?.some((translation: any) => translation.status === "stale");
     return { ready, stale, complete: ready === 6 && !stale };
   };
+
+  // Order-independent key for an option combination (e.g. { Couleur: "Bleu", Taille: "M" }).
+  const comboKey = (combo: Record<string, string>) => Object.keys(combo).sort().map((k) => `${k}=${combo[k]}`).join("|");
+  const optionCombinations = useMemo(() => {
+    if (!options.length || options.some((g) => !g.values?.length)) return [] as Record<string, string>[];
+    let combos: Record<string, string>[] = [{}];
+    for (const group of options) {
+      const next: Record<string, string>[] = [];
+      for (const combo of combos) for (const val of group.values) next.push({ ...combo, [group.name]: val });
+      combos = next;
+      if (combos.length > 60) return combos.slice(0, 60);
+    }
+    return combos;
+  }, [options]);
 
   const filteredProducts = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -206,6 +231,16 @@ export default function AdminProducts() {
       toast.success("Produit créé. Les versions clients sont en cours de traduction.");
       setIsOpen(false);
       resetForm();
+      refetch();
+    },
+    onError: (error) => toast.error(`Erreur : ${error.message}`),
+  });
+
+  const bulkImportAliExpress = trpc.admin.products.bulkImportAliExpress.useMutation({
+    onSuccess: (res: any) => {
+      toast.success(`${res.created} brouillon(s) AliExpress créé(s)${res.skipped?.length ? `, ${res.skipped.length} ignoré(s)` : ""}.`);
+      setAliImportOpen(false);
+      setAliImportUrls("");
       refetch();
     },
     onError: (error) => toast.error(`Erreur : ${error.message}`),
@@ -290,7 +325,9 @@ export default function AdminProducts() {
     setOptions([]);
     setSupplier("");
     setSupplierUrl("");
+    setSupplierProductId("");
     setSupplierPrice("");
+    setVariantMappings({});
     setTranslationLocale("de");
     setTranslationName("");
     setTranslationDescription("");
@@ -324,7 +361,20 @@ export default function AdminProducts() {
     setImages(product.images?.map((img: any) => img.imageUrl) || []);
     setSupplier(product.supplier || "");
     setSupplierUrl(product.supplierUrl || "");
+    setSupplierProductId(product.supplierProductId || "");
     setSupplierPrice(product.supplierPrice ? centsToChfInput(product.supplierPrice) : "");
+    try {
+      const parsedMap = product.supplierVariantMappings ? JSON.parse(product.supplierVariantMappings) : null;
+      const map: Record<string, string> = {};
+      if (parsedMap && Array.isArray(parsedMap.mappings)) {
+        for (const m of parsedMap.mappings) {
+          if (m && m.selectedOptions && typeof m.supplierVariantId === "string") map[comboKey(m.selectedOptions)] = m.supplierVariantId;
+        }
+      }
+      setVariantMappings(map);
+    } catch {
+      setVariantMappings({});
+    }
     
     try {
       const parsedOptions = typeof product.options === 'string' ? JSON.parse(product.options) : (product.options || []);
@@ -429,6 +479,10 @@ export default function AdminProducts() {
     const parsedCategoryId = parseInt(categoryId);
     const selectedCategoryIds = categoryIds.length > 0 ? categoryIds : (Number.isNaN(parsedCategoryId) ? [] : [parsedCategoryId]);
     const parsedSupplierPrice = supplierPrice ? parseChfToCents(supplierPrice) : undefined;
+    const variantMappingList = optionCombinations
+      .map((combo) => ({ selectedOptions: combo, supplierVariantId: (variantMappings[comboKey(combo)] || "").trim() }))
+      .filter((m) => m.supplierVariantId);
+    const supplierVariantMappingsJson = variantMappingList.length ? JSON.stringify({ options, mappings: variantMappingList }) : undefined;
 
     if (!name || !slug || parsedPrice == null || parsedPrice <= 0 || parsedOriginalPrice === null || parsedSupplierPrice === null || isNaN(parsedStock) || selectedCategoryIds.length === 0) {
       toast.error("Veuillez remplir tous les champs obligatoires avec des valeurs valides");
@@ -452,6 +506,8 @@ export default function AdminProducts() {
       featured: editingProduct ? undefined : 0,
       supplier: supplier || undefined,
       supplierUrl: supplierUrl || undefined,
+      supplierProductId: supplierProductId || undefined,
+      supplierVariantMappings: supplierVariantMappingsJson,
       supplierPrice: parsedSupplierPrice,
     };
 
@@ -568,6 +624,7 @@ export default function AdminProducts() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline"><Link href="/admin/importation"><Import className="mr-2 h-4 w-4" /> Importer fournisseur</Link></Button>
+            <Button type="button" variant="outline" data-testid="open-ali-import-btn" onClick={() => setAliImportOpen(true)} className="border-orange-300 bg-white text-orange-700 hover:bg-orange-50"><Import className="mr-2 h-4 w-4" /> Importer AliExpress (URLs)</Button>
             <Button
               type="button"
               variant="outline"
@@ -1022,7 +1079,7 @@ export default function AdminProducts() {
                   <div className="grid gap-2">
                     <Label htmlFor="supplierUrl">Lien direct vers le produit (Source)</Label>
                     <div className="flex gap-2">
-                      <Input id="supplierUrl" value={supplierUrl} onChange={(e) => setSupplierUrl(e.target.value)} placeholder="https://aliexpress.com/item/..." />
+                      <Input id="supplierUrl" value={supplierUrl} onChange={(e) => { const v = e.target.value; setSupplierUrl(v); const id = extractAliExpressProductId(v); if (id && !supplierProductId) setSupplierProductId(id); }} placeholder="https://aliexpress.com/item/..." />
                       {supplierUrl && (
                         <Button type="button" variant="outline" size="icon" asChild>
                           <a href={supplierUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="h-4 w-4" /></a>
@@ -1030,11 +1087,37 @@ export default function AdminProducts() {
                       )}
                     </div>
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="supplierProductId">ID produit fournisseur (AliExpress)</Label>
+                    <div className="flex gap-2">
+                      <Input id="supplierProductId" data-testid="product-supplier-id-input" value={supplierProductId} onChange={(e) => setSupplierProductId(e.target.value)} placeholder="Ex. 1005001234567890" />
+                      <Button type="button" variant="outline" data-testid="extract-ali-id-btn" onClick={() => { const id = extractAliExpressProductId(supplierUrl); if (id) { setSupplierProductId(id); toast.success("ID extrait de l'URL AliExpress"); } else { toast.error("Impossible d'extraire l'ID depuis l'URL"); } }}>Extraire de l'URL</Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Requis pour la préparation automatique AliExpress (extension Chrome). L'ID figure dans l'URL : .../item/<strong>ID</strong>.html</p>
+                  </div>
                   <div className="grid gap-2 w-1/2">
                     <Label htmlFor="supplierPrice">Prix d'achat fournisseur (CHF)</Label>
                     <Input id="supplierPrice" type="text" inputMode="decimal" value={supplierPrice} onChange={(e) => setSupplierPrice(e.target.value)} placeholder="34,00" />
                     <p className="text-[10px] text-muted-foreground">Utile pour calculer votre marge réelle.</p>
                   </div>
+                  {optionCombinations.length > 0 && (
+                    <div className="grid gap-2">
+                      <Label>Mapping variantes → SKU AliExpress (optionnel)</Label>
+                      <p className="text-xs text-muted-foreground">Associez chaque combinaison d'options au SKU/ID de variante AliExpress. Cela fait passer la ligne de « à vérifier » à « mappée » lors de la préparation d'une commande.</p>
+                      <div className="space-y-2 max-h-64 overflow-auto rounded border bg-white p-2" data-testid="variant-mapping-editor">
+                        {optionCombinations.map((combo) => {
+                          const key = comboKey(combo);
+                          const label = options.map((g) => `${g.name}: ${combo[g.name]}`).join(" · ");
+                          return (
+                            <div key={key} className="flex items-center gap-2">
+                              <span className="min-w-[45%] text-xs text-slate-700">{label}</span>
+                              <Input value={variantMappings[key] || ""} onChange={(e) => setVariantMappings((prev) => ({ ...prev, [key]: e.target.value }))} placeholder="SKU / ID variante AliExpress" className="h-8 text-xs" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -1047,6 +1130,38 @@ export default function AdminProducts() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={aliImportOpen} onOpenChange={setAliImportOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Importer des produits AliExpress</DialogTitle>
+            <DialogDescription>Collez une URL AliExpress par ligne. Chaque produit est créé en <strong>brouillon</strong> avec son ID fournisseur extrait automatiquement — complétez ensuite nom, prix, images et livraison.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <Label>Catégorie</Label>
+              <Select value={aliImportCategoryId} onValueChange={setAliImportCategoryId}>
+                <SelectTrigger data-testid="ali-import-category"><SelectValue placeholder="Choisir une catégorie" /></SelectTrigger>
+                <SelectContent>{(categories || []).map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>URLs AliExpress (une par ligne)</Label>
+              <Textarea data-testid="ali-import-urls" value={aliImportUrls} onChange={(e) => setAliImportUrls(e.target.value)} placeholder="https://www.aliexpress.com/item/1005001234567890.html" rows={7} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAliImportOpen(false)}>Annuler</Button>
+            <Button type="button" data-testid="ali-import-submit" disabled={bulkImportAliExpress.isPending} className="bg-orange-500 hover:bg-orange-600" onClick={() => {
+              const urls = aliImportUrls.split(/\n+/).map((u) => u.trim()).filter(Boolean);
+              const cat = parseInt(aliImportCategoryId);
+              if (!urls.length) { toast.error("Ajoutez au moins une URL."); return; }
+              if (Number.isNaN(cat)) { toast.error("Choisissez une catégorie."); return; }
+              bulkImportAliExpress.mutate({ categoryId: cat, urls });
+            }}>{bulkImportAliExpress.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Importer</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

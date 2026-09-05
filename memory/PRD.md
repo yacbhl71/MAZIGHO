@@ -118,3 +118,30 @@ d'où l'erreur `Failed query` sur la recherche `users`. Ce n'était pas un bug d
 ## 2026-06 — Phase 3 : roadmap P1 finalisée (commit 59303d2, à déployer)
 - Mode Maintenance (/admin/maintenance), Campagnes & bannières + Compte à rebours FOMO (/admin/campagnes), Analyse conversion placeholder (/admin/conversion). Détails : CHANGELOG.md / ROADMAP.md.
 - Les 6 modules de la roadmap sont livrés (Analyse conversion en placeholder : à connecter à Vercel Web Analytics quand le token sera fourni).
+
+## 2026-06 — Phase 4 : Fulfillment AliExpress — réconciliation Git + greffe extension Chrome
+### Contexte Git (RÉSOLU, aucune perte)
+- Un fork précédent avait force-pushé par erreur ; recovery effectuée. État constaté au démarrage de cette session :
+  - `origin/main = f88e1d5` = travail manuel de l'utilisateur/Manus (CJ sandbox, Odoo, adresse structurée Stripe, `selectedOptions` par ligne, `supplierVariantMappings`, générateur de manifeste AliExpress, imports/exports CSV brouillons) — **intact sur GitHub**.
+  - Travail agent "Brick 1" (extension Chrome) préservé sur `origin/agent-chrome-extension-brick1` + backup local `agent-brick1-local` (93a1087).
+- Décision utilisateur (option a) : **repartir de la base Manus (`f88e1d5`)** et n'y greffer QUE le dossier `chrome-extension/`, branché sur le manifeste de Manus. `main` local réaligné sur `f88e1d5` (`git reset --hard origin/main`), puis dossier `chrome-extension/` re-greffé depuis le backup.
+### Livré
+- Extension Chrome adaptée pour consommer le **manifeste canonique de Manus** (`admin.orders.getAliExpressPreparationManifest`). Backend dupliqué de l'agent (addressFormat.ts, getReadyToFulfill, colonne supplierVariantMap) **abandonné** (Manus a mieux). Voir `memory/FULFILLMENT_ARCHITECTURE.md`.
+- `client/src/pages/admin/AdminOrders.tsx` : bouton « Commander (via Extension Chrome) » (data-testid `fulfill-chrome-extension-btn`) + détection extension (badge `extension-status-badge`) + handler `startChromeExtensionFulfillment` (postMessage du manifeste). Bouton activé seulement si `state===ready_for_human_review` ET extension détectée. S'arrête toujours avant le paiement.
+- Vérifié (preview) : `yarn build` OK, `tsc` 0 erreur, extension `node --check` OK ; commande CJ → pas de bouton (scope OK) ; manifeste "ready" mocké → bouton affiché/activé + clic envoie le manifeste exact.
+### À faire / différé
+- **Mode B (worker tablette/iPad)** : DIFFÉRÉ (accord utilisateur). Impossible sur Vercel serverless (Playwright persistant + WebSocket). Nécessiterait Railway/Render/Fly.io.
+- Peupler `supplierVariantMappings` AliExpress à l'import et/ou via éditeur admin pour un mapping variante→SKU complet (aujourd'hui manuel/à vérifier sur la fiche).
+- Déploiement : via « Save to Github » → build/déploiement Vercel automatique. **Ne PAS force-push.**
+
+## 2026-06 — Phase 5 : procédure AliExpress COMPLÈTE (sourcing produit + pipeline validé sur données réelles)
+- Ajout du maillon manquant : **sourcing produit AliExpress** dans l'admin. Onglet « Fournisseur » du produit : champ `ID produit fournisseur (AliExpress)` (`supplierProductId`, data-testid `product-supplier-id-input`) + **auto-extraction depuis l'URL** (`.../item/<ID>.html`) + bouton « Extraire de l'URL ». Ajout de `supplierProductId` aux inputs `admin.products.create/update` (`server/adminRouter.ts`). Persistance vérifiée en base.
+- **Procédure de bout en bout validée sur données RÉELLES** : produit AliExpress → commande payée/processing + adresse structurée + selectedOptions → manifeste `ready_for_human_review` (endpoint réel) → bouton admin activé → envoi du manifeste à l'extension → l'extension ouvre AliExpress, sélectionne variante/quantité, remplit l'adresse et **s'arrête avant le paiement**. Détails et preuves : `memory/FULFILLMENT_ARCHITECTURE.md`.
+- ⚠️ Seul reste non testable automatiquement : l'automatisation réelle du navigateur AliExpress (extension installée dans un vrai Chrome + session AliExpress) — validation manuelle par l'utilisateur.
+
+## 2026-06 — Phase 6 : améliorations fulfillment (4 features)
+1. **Mapping variantes → SKU AliExpress** : éditeur dans le formulaire produit (onglet Fournisseur) listant chaque combinaison d'options, stocké dans `products.supplierVariantMappings` (format Manus). Fait passer `optionStatus` de « human_selection_required » à « mapped » (vérifié : manifeste réel → optionStatus=mapped, supplierVariantId résolu). Routeur `admin.products.create/update` accepte `supplierVariantMappings`. Pré-remplissage à l'édition (ajout de `supplierVariantMappings` à la projection `getAllProductsAdmin`).
+2. **Import AliExpress en masse** : bouton « Importer AliExpress (URLs) » + dialog (catégorie + textarea d'URLs) → `admin.products.bulkImportAliExpress` → crée des produits en **brouillon** avec `supplierProductId` extrait (vérifié : created=1/skipped=1 sur URL invalide).
+3. **Journal de préparation** : réutilise la table `auditLogs`. `admin.orders.logFulfillmentEvent` (extension_sent/started/error) + `getFulfillmentLog`. Affiché dans le panneau AliExpress (data-testid `fulfillment-log`). Vérifié insert+lecture + affichage UI.
+4. **Guide d'installation extension** : bouton « Comment installer ? » (data-testid `install-guide-btn`) → dialog en 3 étapes (data-testid `install-guide-dialog`). Vérifié UI.
+- Vérifs : `yarn build` OK, `tsc` 0 erreur, 4 features validées en UI (screenshots) + backend (curl/tsx). Données de démo/test seedées puis SUPPRIMÉES.
