@@ -30,7 +30,7 @@ import {
   Upload,
 } from "lucide-react";
 
-type ImageField = "highlightImageUrl" | "storyImageUrl" | "editorialImageUrl";
+type ImageField = "brandLogoUrl" | "highlightImageUrl" | "storyImageUrl" | "editorialImageUrl";
 
 type ImageEditorProps = {
   id: string;
@@ -101,6 +101,7 @@ export default function AdminCustomization() {
 
   const handleSave = async () => {
     const textValues = [
+      form.brandName,
       form.highlightEyebrow, form.highlightTitle, form.highlightText, form.highlightImageUrl,
       form.storyTitle, form.storyText, form.storyImageUrl,
       form.editorialEyebrow, form.editorialTitle, form.editorialImageUrl,
@@ -112,6 +113,9 @@ export default function AdminCustomization() {
     try {
       await updateDesign.mutateAsync({
         ...form,
+        brandName: form.brandName.trim(),
+        brandMessage: form.brandMessage.trim(),
+        brandLogoUrl: form.brandLogoUrl.trim(),
         highlightEyebrow: form.highlightEyebrow.trim(),
         highlightTitle: form.highlightTitle.trim(),
         highlightText: form.highlightText.trim(),
@@ -156,6 +160,30 @@ export default function AdminCustomization() {
         <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Aperçu de l’ambiance</p><div className="mt-4 overflow-hidden rounded-xl border" style={{ backgroundColor: palette.soft }}><div className="flex min-h-36 items-end bg-slate-900 p-5 text-white" style={{ backgroundImage: `linear-gradient(90deg, rgba(15,23,42,.90), rgba(15,23,42,.35)), url(${form.highlightImageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}><div><p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: palette.primary }}>{form.highlightEyebrow}</p><p className="mt-2 text-2xl font-semibold" style={{ fontFamily: typography.heading }}>{form.highlightTitle}</p></div></div><div className="flex items-center justify-between gap-3 p-4"><span className="text-sm font-medium text-slate-700">Bouton principal</span><span className="rounded-md px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: palette.primary }}>Découvrir</span></div></div></div>
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"><CheckCircle2 className="h-6 w-6 text-emerald-700" /><p className="mt-3 font-semibold text-slate-900">Recommandation</p><p className="mt-1 text-sm leading-6 text-slate-700">Conservez une seule palette par période. Changez d’abord l’image et les textes : ce sont les réglages les plus visibles pour vos visiteurs.</p><Button asChild variant="outline" className="mt-4 border-emerald-300 bg-white hover:bg-emerald-100"><Link href="/"><MonitorUp className="mr-2 h-4 w-4" /> Voir la boutique</Link></Button></div>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <Card className="border-orange-100 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Type className="h-5 w-5 text-orange-700" /> Identité de marque</CardTitle>
+              <CardDescription>Ajoutez votre logo, le nom visible dans l’en-tête et un message court affiché à côté sur les grands écrans. Ces éléments restent modifiables à tout moment.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="brandName">Nom de marque</Label><Input id="brandName" value={form.brandName} maxLength={48} onChange={event => setField("brandName", event.target.value)} placeholder="Ex. MAZIGHO" /><p className="text-xs text-slate-500">Entre 2 et 48 caractères.</p></div>
+                <div className="space-y-2"><Label htmlFor="brandMessage">Message à côté du logo <span className="font-normal text-slate-500">(facultatif)</span></Label><Input id="brandMessage" value={form.brandMessage} maxLength={120} onChange={event => setField("brandMessage", event.target.value)} placeholder="Ex. Trouvailles choisies pour vous" /><p className="text-xs text-slate-500">Jusqu’à 120 caractères ; masqué sur petit écran pour préserver la lisibilité.</p></div>
+              </div>
+              <ImageEditor id="brandLogo" label="Logo de marque" description="Logo affiché à gauche du nom dans l’en-tête. PNG, JPEG ou WebP, carré ou horizontal, jusqu’à 5 Mo. Laissez vide pour conserver le monogramme MAZIGHO." value={form.brandLogoUrl} onChange={value => setField("brandLogoUrl", value)} onUpload={event => handleUpload("brandLogoUrl", event)} isUploading={uploadImage.isPending} />
+            </CardContent>
+          </Card>
+          <aside className="rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 via-white to-orange-50 p-5 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Aperçu en-tête</p>
+            <div className="mt-6 flex items-center gap-3">
+              {form.brandLogoUrl ? <img src={form.brandLogoUrl} alt="Aperçu du logo" className="h-12 w-12 rounded-xl border border-white bg-white object-contain p-1 shadow-sm" /> : <div className="grid h-12 w-12 place-items-center rounded-xl bg-orange-700 text-lg font-bold text-white shadow-sm">{form.brandName.slice(0, 1).toUpperCase() || "M"}</div>}
+              <div className="min-w-0"><p className="truncate text-lg font-semibold tracking-[0.08em] text-orange-800">{form.brandName || "Nom de marque"}</p>{form.brandMessage ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-teal-800">{form.brandMessage}</p> : <p className="mt-1 text-xs leading-5 text-slate-500">Message facultatif</p>}</div>
+            </div>
+            <p className="mt-6 border-t border-teal-100 pt-4 text-xs leading-5 text-slate-600">Le logo et le message ne modifient ni le panier, ni les produits, ni les documents légaux.</p>
+          </aside>
         </section>
 
         <Tabs key={initialTab} defaultValue={initialTab} className="space-y-5">

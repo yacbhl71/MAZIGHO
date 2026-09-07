@@ -1616,6 +1616,9 @@ export const adminRouter = router({
     update: adminProcedure.input(z.object({
       paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
       typographyId: z.enum(["editorial", "modern", "classic"]),
+      brandName: z.string().trim().min(2).max(48),
+      brandMessage: z.string().trim().max(120).default(""),
+      brandLogoUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
       highlightEyebrow: z.string().trim().min(2).max(120),
       highlightTitle: z.string().trim().min(2).max(180),
       highlightText: z.string().trim().min(2).max(600),
@@ -1667,7 +1670,7 @@ export const adminRouter = router({
         await db.markPublicContentTranslationsStale("design", 1);
         autoTranslateContent("design", 1);
       }
-      logAudit(ctx, { action: "design.update", entityType: "design", entityId: 1, summary: `Personnalisation du site mise à jour (palette ${input.paletteId}, typographie ${input.typographyId})`, metadata: { paletteId: input.paletteId, typographyId: input.typographyId, buttonRadius: input.buttonRadius } });
+      logAudit(ctx, { action: "design.update", entityType: "design", entityId: 1, summary: `Personnalisation du site mise à jour (marque ${input.brandName}, palette ${input.paletteId}, typographie ${input.typographyId})`, metadata: { brandName: input.brandName, hasBrandLogo: Boolean(input.brandLogoUrl), hasBrandMessage: Boolean(input.brandMessage), paletteId: input.paletteId, typographyId: input.typographyId, buttonRadius: input.buttonRadius } });
       return profile;
     }),
     uploadImage: adminProcedure.input(z.object({

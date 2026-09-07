@@ -38,6 +38,9 @@ export default function Header() {
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();
+  const brandName = profile.brandName?.trim() || "MAZIGHO";
+  const brandMessage = profile.brandMessage?.trim() || "";
+  const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
   const copy = getPublicCopy(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
   const savedNavigation = locale === "fr" ? undefined : profile.navigationTranslations[locale];
@@ -81,10 +84,12 @@ export default function Header() {
       <nav className="container mx-auto px-3 py-2 xl:px-4 xl:py-2.5">
         <div className="flex items-center justify-between gap-2 xl:gap-3">
           {/* Logo */}
-          <Link href="/" aria-label="Accueil MAZIGHO">
-            <div className="group flex cursor-pointer items-center gap-1.5 border-r border-slate-200 pr-2 xl:pr-3">
-              <span className="whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">MAZIGHO</span>
-              <span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden="true" />
+          <Link href="/" aria-label={`Accueil ${brandName}`}>
+            <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
+              {brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" /> : null}
+              <span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">{brandName}</span>
+              {!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true" />}
+              {brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline">{brandMessage}</span> : null}
             </div>
           </Link>
 

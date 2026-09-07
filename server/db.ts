@@ -3154,6 +3154,9 @@ export type HomeTextBanner = {
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
+  brandName: string;
+  brandMessage: string;
+  brandLogoUrl: string;
   highlightEyebrow: string;
   highlightTitle: string;
   highlightText: string;
@@ -3187,6 +3190,9 @@ export type DesignProfile = {
 export const defaultDesignProfile: DesignProfile = {
   paletteId: "terracotta",
   typographyId: "editorial",
+  brandName: "MAZIGHO",
+  brandMessage: "",
+  brandLogoUrl: "",
   highlightEyebrow: "L'inspiration MAZIGHO",
   highlightTitle: "Des trouvailles qui embellissent le quotidien.",
   highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",
@@ -3232,16 +3238,20 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     ? source.typographyId as DesignProfile["typographyId"]
     : defaultDesignProfile.typographyId;
   const textFields = [
+    "brandName", "brandMessage", "brandLogoUrl",
     "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
     "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
     "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
   ] as const;
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
-    if (typeof source[field] === "string" && source[field].trim()) {
-      const value = source[field].trim();
-      normalized[field] = field.endsWith("ImageUrl") ? optimizedBuiltInImageUrls[value] || value : value;
+    if (typeof source[field] !== "string") continue;
+    const value = source[field].trim();
+    if (field === "brandMessage" || field === "brandLogoUrl") {
+      normalized[field] = value;
+      continue;
     }
+    if (value) normalized[field] = field.endsWith("ImageUrl") ? optimizedBuiltInImageUrls[value] || value : value;
   }
   const navigationTranslations = source.navigationTranslations;
   if (navigationTranslations && typeof navigationTranslations === "object") {

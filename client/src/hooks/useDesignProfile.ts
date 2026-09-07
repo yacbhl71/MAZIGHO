@@ -24,6 +24,9 @@ export type HomeTextBanner = {
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose";
   typographyId: "editorial" | "modern" | "classic";
+  brandName: string;
+  brandMessage: string;
+  brandLogoUrl: string;
   highlightEyebrow: string;
   highlightTitle: string;
   highlightText: string;
@@ -58,6 +61,9 @@ export type DesignProfile = {
 export const defaultDesignProfile: DesignProfile = {
   paletteId: "terracotta",
   typographyId: "editorial",
+  brandName: "MAZIGHO",
+  brandMessage: "",
+  brandLogoUrl: "",
   highlightEyebrow: "L'inspiration MAZIGHO",
   highlightTitle: "Des trouvailles qui embellissent le quotidien.",
   highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",
