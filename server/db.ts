@@ -10,6 +10,7 @@ import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
 import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
+import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -33,6 +34,7 @@ let _fulfillmentSchemaReady: Promise<void> | null = null;
 let _supplierWeightSchemaReady: Promise<void> | null = null;
 let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
 let _checkoutShippingSchemaReady: Promise<void> | null = null;
+let _orderCurrencySchemaReady: Promise<void> | null = null;
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -462,6 +464,34 @@ async function ensureFulfillmentSchema() {
  * separately from product prices so paid orders and the Odoo mirror remain
  * auditable when an administrator later changes the store-wide policy.
  */
+async function ensureOrderCurrencySchema() {
+  if (_orderCurrencySchemaReady) return _orderCurrencySchemaReady;
+
+  _orderCurrencySchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const run = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+      }
+    };
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `totalAmountChf` int NOT NULL DEFAULT 0");
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `currencyCode` varchar(3) NOT NULL DEFAULT 'CHF'");
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `currencyRateBps` int NOT NULL DEFAULT 10000");
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `customerShippingAmountChf` int NOT NULL DEFAULT 0");
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `discountAmountChf` int NOT NULL DEFAULT 0");
+    await run("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `priceAtPurchaseChf` int NOT NULL DEFAULT 0");
+    // Legacy MAZIGHO orders were charged in CHF. Backfill only missing references.
+    await db.execute(sql.raw("UPDATE `orders` SET `totalAmountChf` = `totalAmount` WHERE `currencyCode` = 'CHF' AND `totalAmountChf` = 0 AND `totalAmount` <> 0"));
+    await db.execute(sql.raw("UPDATE `orderItems` SET `priceAtPurchaseChf` = `priceAtPurchase` WHERE `priceAtPurchaseChf` = 0 AND `priceAtPurchase` <> 0"));
+  })();
+
+  return _orderCurrencySchemaReady;
+}
+
 async function ensureCheckoutShippingSchema() {
   if (_checkoutShippingSchemaReady) return _checkoutShippingSchemaReady;
 
@@ -2349,6 +2379,7 @@ export async function deleteCategory(id: number) {
 export async function getAllOrdersAdmin() {
   await ensureFulfillmentSchema();
   await ensureCheckoutShippingSchema();
+  await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -2356,7 +2387,10 @@ export async function getAllOrdersAdmin() {
     id: orders.id,
     status: orders.status,
     totalAmount: orders.totalAmount,
+    totalAmountChf: orders.totalAmountChf,
+    currencyCode: orders.currencyCode,
     customerShippingAmount: orders.customerShippingAmount,
+    customerShippingAmountChf: orders.customerShippingAmountChf,
     paymentStatus: orders.paymentStatus,
     paymentMethod: orders.paymentMethod,
     shippingAddress: orders.shippingAddress,
@@ -2429,6 +2463,7 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
 
 export async function getOrderItemsAdmin(orderId: number) {
   await ensureFulfillmentSchema();
+  await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -2437,6 +2472,7 @@ export async function getOrderItemsAdmin(orderId: number) {
       id: orderItems.id,
       quantity: orderItems.quantity,
       priceAtPurchase: orderItems.priceAtPurchase,
+      priceAtPurchaseChf: orderItems.priceAtPurchaseChf,
       productNameSnapshot: orderItems.productNameSnapshot,
       selectedOptions: orderItems.selectedOptions,
       supplierSnapshot: orderItems.supplierSnapshot,
@@ -2457,11 +2493,14 @@ export async function getOrderItemsAdmin(orderId: number) {
 export async function getAliExpressPreparationManifestAdmin(orderId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  await ensureOrderCurrencySchema();
   const orderRows = await db.select({
     id: orders.id,
     status: orders.status,
     paymentStatus: orders.paymentStatus,
     totalAmount: orders.totalAmount,
+    totalAmountChf: orders.totalAmountChf,
+    currencyCode: orders.currencyCode,
     shippingAddress: orders.shippingAddress,
   }).from(orders).where(eq(orders.id, orderId)).limit(1);
   const order = orderRows[0];
@@ -2967,6 +3006,12 @@ export async function getAllSettings() {
 export async function getCheckoutShippingPolicy() {
   const allSettings = await getAllSettings();
   return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
+}
+
+/** Public sale currency. Catalogue and supplier records remain canonical CHF values. */
+export async function getStoreCurrencyConfig(): Promise<StoreCurrencyConfig> {
+  const allSettings = await getAllSettings();
+  return currencyConfigFromSettings(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
 }
 
 /** Public identifiers only. Invalid or legacy values are never emitted to the storefront. */
@@ -4025,7 +4070,10 @@ type StripeCheckoutVerifiedItem = {
   productId: number;
   name: string;
   quantity: number;
+  /** Charged price in the active store currency minor units. */
   unitAmount: number;
+  /** Canonical catalogue price in CHF cents at checkout. */
+  unitAmountChf: number;
   shippingAmount: number;
   selectedOptions: Record<string, string>;
   supplierSnapshot: Record<string, unknown>;
@@ -4091,6 +4139,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   await ensureDeliveryProfileSchema();
   await ensureSupplierVariantMappingsSchema();
   await ensureCheckoutShippingSchema();
+  await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const normalizedCountry = countryCode.trim().toUpperCase();
@@ -4155,6 +4204,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       name: product.name,
       quantity: item.quantity,
       unitAmount: product.price,
+      unitAmountChf: product.price,
       // The profile remains mandatory to prove delivery to the chosen country,
       // but the customer charge comes from the single store-wide policy.
       shippingAmount: 0,
@@ -4163,15 +4213,26 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
     });
   }
 
-  const productSubtotal = verifiedItems.reduce((sum, item) => sum + item.unitAmount * item.quantity, 0);
-  const shipping = calculateCheckoutShipping(productSubtotal, await getCheckoutShippingPolicy());
+  const productSubtotalChf = verifiedItems.reduce((sum, item) => sum + item.unitAmountChf * item.quantity, 0);
+  const shippingChf = calculateCheckoutShipping(productSubtotalChf, await getCheckoutShippingPolicy());
+  const currency = await getStoreCurrencyConfig();
+  const items = verifiedItems.map(item => ({ ...item, unitAmount: convertChfCents(item.unitAmountChf, currency) }));
+  const converted = calculateConvertedCartTotals({
+    lines: verifiedItems,
+    shippingAmountChf: shippingChf.shippingAmountCents,
+    currency,
+  });
 
   return {
-    items: verifiedItems,
-    productSubtotal,
-    customerShippingAmount: shipping.shippingAmountCents,
-    shippingPolicy: shipping.mode,
-    totalAmount: productSubtotal + shipping.shippingAmountCents,
+    items,
+    currency,
+    productSubtotal: converted.subtotal,
+    productSubtotalChf,
+    customerShippingAmount: converted.shipping,
+    customerShippingAmountChf: shippingChf.shippingAmountCents,
+    shippingPolicy: shippingChf.mode,
+    totalAmount: converted.total,
+    totalAmountChf: productSubtotalChf + shippingChf.shippingAmountCents,
   };
 }
 
@@ -4180,13 +4241,15 @@ export async function createStripePendingOrder(input: {
   sessionId: string;
   countryCode: string;
   totalAmount: number;
-  cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number; customerShippingAmount: number };
+  cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number; totalAmountChf: number; customerShippingAmount: number; customerShippingAmountChf: number; currency: StoreCurrencyConfig };
   promotionId?: number | null;
   discountAmount?: number;
+  discountAmountChf?: number;
 }) {
   await ensurePromotionAdvancedSchema();
   await ensureFulfillmentSchema();
   await ensureCheckoutShippingSchema();
+  await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const existing = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
@@ -4196,7 +4259,11 @@ export async function createStripePendingOrder(input: {
   const result = await db.insert(orders).values({
     userId: input.userId,
     totalAmount: input.cart.totalAmount - discountAmount,
+    totalAmountChf: Math.max(0, input.cart.totalAmountChf - (input.discountAmountChf ?? 0)),
+    currencyCode: input.cart.currency.code,
+    currencyRateBps: input.cart.currency.rateBps,
     customerShippingAmount: input.cart.customerShippingAmount,
+    customerShippingAmountChf: input.cart.customerShippingAmountChf,
     shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
     billingAddress: null,
     paymentStatus: "unpaid",
@@ -4204,6 +4271,7 @@ export async function createStripePendingOrder(input: {
     stripeSessionId: input.sessionId,
     promotionId: input.promotionId ?? null,
     discountAmount,
+    discountAmountChf: input.discountAmountChf ?? 0,
     status: "pending",
     fulfillmentState: "not_eligible",
   });
@@ -4213,6 +4281,7 @@ export async function createStripePendingOrder(input: {
     productId: item.productId,
     quantity: item.quantity,
     priceAtPurchase: item.unitAmount + item.shippingAmount,
+    priceAtPurchaseChf: item.unitAmountChf + item.shippingAmount,
     productNameSnapshot: item.name.slice(0, 255),
     selectedOptions: JSON.stringify(item.selectedOptions),
     supplierSnapshot: JSON.stringify(item.supplierSnapshot),
@@ -4276,6 +4345,7 @@ export async function finalizePaidOrderRedemption(sessionId: string) {
 // Order snapshot used to synchronise a paid order + its customer towards Odoo.
 export async function getOrderForStripeSession(sessionId: string) {
   await ensureCheckoutShippingSchema();
+  await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) return null;
 
@@ -4283,7 +4353,11 @@ export async function getOrderForStripeSession(sessionId: string) {
     .select({
       id: orders.id,
       totalAmount: orders.totalAmount,
+      totalAmountChf: orders.totalAmountChf,
+      currencyCode: orders.currencyCode,
+      currencyRateBps: orders.currencyRateBps,
       customerShippingAmount: orders.customerShippingAmount,
+      customerShippingAmountChf: orders.customerShippingAmountChf,
       status: orders.status,
       paymentStatus: orders.paymentStatus,
       shippingAddress: orders.shippingAddress,
@@ -4307,6 +4381,7 @@ export async function getOrderForStripeSession(sessionId: string) {
       productId: orderItems.productId,
       quantity: orderItems.quantity,
       priceAtPurchase: orderItems.priceAtPurchase,
+      priceAtPurchaseChf: orderItems.priceAtPurchaseChf,
       productName: products.name,
       productNameSnapshot: orderItems.productNameSnapshot,
       selectedOptions: orderItems.selectedOptions,

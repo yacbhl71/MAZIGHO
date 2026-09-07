@@ -3,7 +3,7 @@ import { ArrowRight, Brush, CheckCircle2, Globe2, Loader2, Palette, Sparkles } f
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
@@ -13,6 +13,7 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 
 export default function Creations() {
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const copy = getCollectionsCopy(locale).creations;
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });

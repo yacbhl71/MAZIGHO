@@ -10,8 +10,14 @@ function firstName(name?: string | null): string {
   return name.trim().split(/\s+/)[0] || "";
 }
 
-function money(cents: number): string {
-  return `${(cents / 100).toFixed(2)} CHF`;
+function money(cents: number, currencyCode = "CHF"): string {
+  return new Intl.NumberFormat("fr-CH", {
+    style: "currency",
+    currency: currencyCode,
+    currencyDisplay: "code",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
 }
 
 // Renders a template body: replaces {{var}} tokens then converts newlines to <br>.
@@ -42,10 +48,10 @@ function layout(heading: string, innerHtml: string, buttonLabel: string, buttonU
   </div>`;
 }
 
-function itemsBlock(items: Array<{ name?: string | null; quantity: number; price?: number | null; priceAtPurchase?: number | null }>): string {
+function itemsBlock(items: Array<{ name?: string | null; quantity: number; price?: number | null; priceAtPurchase?: number | null }>, currencyCode = "CHF"): string {
   const rows = items.map(item => {
     const unit = Number(item.priceAtPurchase ?? item.price ?? 0);
-    return `<LIST>&bull; ${escapeHtml(item.name || "Article")} × ${item.quantity} — ${money(unit * item.quantity)}</LIST>`;
+    return `<LIST>&bull; ${escapeHtml(item.name || "Article")} × ${item.quantity} — ${money(unit * item.quantity, currencyCode)}</LIST>`;
   });
   return rows.join("\n");
 }
@@ -79,8 +85,8 @@ export async function sendOrderConfirmationForStripeSession(sessionId: string): 
   return deliver("order_confirmation", recipient, {
     prenom: firstName(order.userName),
     commande: String(order.id),
-    total: money(order.totalAmount),
-    lignes: itemsBlock(items),
+    total: money(order.totalAmount, order.currencyCode || "CHF"),
+    lignes: itemsBlock(items, order.currencyCode || "CHF"),
   }, url, `order-confirmation/${order.id}`);
 }
 

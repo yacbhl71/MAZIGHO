@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -17,6 +17,7 @@ import { favoritesT } from "@/lib/favoritesCopy";
 
 export default function Favorites() {
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);

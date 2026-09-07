@@ -10,7 +10,7 @@ import Footer from "@/components/Footer";
 import ImageGallery from "@/components/ImageGallery";
 import ProductOptions from "@/components/ProductOptions";
 import { trpc } from "@/lib/trpc";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -30,6 +30,7 @@ export default function Product() {
   const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const copy = getProductPublicCopy(locale);
   const previewQuery = trpc.admin.products.preview.useQuery({ key: key || "", locale }, {
     enabled: isPreview && Boolean(key), retry: false,

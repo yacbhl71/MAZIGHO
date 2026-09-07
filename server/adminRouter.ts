@@ -22,6 +22,7 @@ import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stri
 import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOdooStatus, listOdooPartners, listOdooSaleOrders, syncCatalogToOdoo, updateOdooPartner, verifyOdooConnection } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPixels";
+import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -1319,10 +1320,16 @@ export const adminRouter = router({
       return await db.getAllSettings();
     }),
     update: adminProcedure.input(z.object({
-      key: z.enum(["site_name", "contact_email", "currency", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "meta_pixel_id", "tiktok_pixel_id"]),
+      key: z.enum(["site_name", "contact_email", "currency", "store_currency_code", "store_currency_rate_bps", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "meta_pixel_id", "tiktok_pixel_id"]),
       value: z.string().max(1000),
       description: z.string().optional(),
     }).superRefine((input, ctx) => {
+      if (input.key === "store_currency_code" && !(SUPPORTED_STORE_CURRENCIES as readonly string[]).includes(input.value)) {
+        ctx.addIssue({ code: "custom", message: "Devise de vente non prise en charge" });
+      }
+      if (input.key === "store_currency_rate_bps" && !/^\d{4,5}$/.test(input.value)) {
+        ctx.addIssue({ code: "custom", message: "Taux de conversion invalide" });
+      }
       if (input.key === "shipping_policy" && input.value !== "included" && input.value !== "flat_rate") {
         ctx.addIssue({ code: "custom", message: "Politique de livraison invalide" });
       }

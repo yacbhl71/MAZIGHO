@@ -17,6 +17,8 @@ type SettingsForm = {
   site_name: string;
   contact_email: string;
   currency: string;
+  store_currency_code: "CHF" | "EUR" | "USD" | "GBP" | "CAD";
+  store_currency_rate_bps: string;
   shipping_policy: ShippingPolicy;
   free_shipping_threshold: string;
   flat_shipping_rate: string;
@@ -28,6 +30,8 @@ const defaultForm: SettingsForm = {
   site_name: "MAZIGHO",
   contact_email: "contact@mazigho.com",
   currency: "CHF",
+  store_currency_code: "CHF",
+  store_currency_rate_bps: "1,0000",
   // Preserve the current all-inclusive MAZIGHO storefront until an owner opts in.
   shipping_policy: "included",
   free_shipping_threshold: "100,00",
@@ -58,8 +62,13 @@ export default function AdminSettings() {
         next[setting.key] = centsToChfInput(setting.value);
       } else if (setting.key === "shipping_policy") {
         next.shipping_policy = setting.value === "flat_rate" ? "flat_rate" : "included";
-      } else {
-        next[setting.key as "site_name" | "contact_email" | "currency"] = setting.value;
+      } else if (setting.key === "store_currency_code" && ["CHF", "EUR", "USD", "GBP", "CAD"].includes(setting.value)) {
+        next.store_currency_code = setting.value as SettingsForm["store_currency_code"];
+        next.currency = setting.value;
+      } else if (setting.key === "store_currency_rate_bps" && /^\d{4,5}$/.test(setting.value)) {
+        next.store_currency_rate_bps = (Number(setting.value) / 10_000).toFixed(4).replace(".", ",");
+      } else if (setting.key === "site_name" || setting.key === "contact_email" || setting.key === "currency") {
+        next[setting.key] = setting.value;
       }
     }
     setForm(next);
@@ -81,12 +90,19 @@ export default function AdminSettings() {
     }
     const threshold = parseChfToCents(form.free_shipping_threshold);
     const shippingRate = parseChfToCents(form.flat_shipping_rate);
+    const rateBps = form.store_currency_code === "CHF" ? 10_000 : Math.round(Number(form.store_currency_rate_bps.replace(",", ".")) * 10_000);
     if (threshold == null || threshold < 0 || shippingRate == null || shippingRate < 0) {
       toast.error("Saisissez des montants de livraison valides en CHF (ex. 5,00 ou 5.00)");
       return;
     }
+    if (!Number.isInteger(rateBps) || rateBps < 1_000 || rateBps > 50_000) {
+      toast.error("Saisissez un taux compris entre 0,1000 et 5,0000 par CHF.");
+      return;
+    }
 
     const descriptions: Partial<Record<keyof SettingsForm, string>> = {
+      store_currency_code: "Devise de vente active de la boutique",
+      store_currency_rate_bps: "Taux manuel : unités de devise de vente pour 1 CHF",
       shipping_policy: "Politique client : livraison comprise dans les prix ou frais fixes par commande",
       free_shipping_threshold: "Seuil de livraison gratuite en centimes (0 = pas de seuil)",
       flat_shipping_rate: "Frais de livraison fixes par commande en centimes",
@@ -99,10 +115,12 @@ export default function AdminSettings() {
         key,
         value: key === "free_shipping_threshold" ? String(threshold)
           : key === "flat_shipping_rate" ? String(shippingRate)
-            : form[key].trim(),
+            : key === "store_currency_rate_bps" ? String(rateBps)
+              : key === "currency" ? form.store_currency_code
+                : form[key].trim(),
         description: descriptions[key],
       })));
-      toast.success("Politique de livraison et paramètres enregistrés");
+      toast.success("Devise, politique de livraison et paramètres enregistrés");
       await settingsQuery.refetch();
     } catch (error) {
       toast.error(`Erreur : ${error instanceof Error ? error.message : "enregistrement impossible"}`);
@@ -129,7 +147,7 @@ export default function AdminSettings() {
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card className="shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Boutique</p><p className="mt-1 text-xl font-bold text-slate-900">{form.site_name || "MAZIGHO"}</p><p className="mt-1 text-xs text-muted-foreground">Devise : {form.currency}</p></CardContent></Card>
+          <Card className="shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Boutique</p><p className="mt-1 text-xl font-bold text-slate-900">{form.site_name || "MAZIGHO"}</p><p className="mt-1 text-xs text-muted-foreground">Devise de vente : {form.store_currency_code}</p></CardContent></Card>
           <Card className="shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Livraison client</p><p className="mt-1 text-xl font-bold text-emerald-700">{isIncluded ? "Offerte" : `Dès ${deliveryPreview.threshold}`}</p><p className="mt-1 text-xs text-muted-foreground">{isIncluded ? "Comprise dans les prix" : `${deliveryPreview.rate} sous le seuil`}</p></CardContent></Card>
           <Card className="shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Paiement en ligne</p><p className="mt-1 text-xl font-bold text-amber-700">À connecter</p><p className="mt-1 text-xs text-muted-foreground">Aucune clé de paiement enregistrée ici</p></CardContent></Card>
           <Card className="shadow-sm"><CardContent className="p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">E-mails automatiques</p><p className="mt-1 text-xl font-bold text-amber-700">À vérifier</p><p className="mt-1 text-xs text-muted-foreground">Domaine connecté, prestataire à finaliser</p></CardContent></Card>
@@ -152,7 +170,7 @@ export default function AdminSettings() {
                 <div className="space-y-2"><Label htmlFor="siteName">Nom du site</Label><Input id="siteName" value={form.site_name} onChange={event => setField("site_name", event.target.value)} /></div>
                 <div className="space-y-2"><Label htmlFor="contactEmail">E-mail de contact</Label><Input id="contactEmail" type="email" value={form.contact_email} onChange={event => setField("contact_email", event.target.value)} /></div>
               </div>
-              <div className="max-w-md space-y-2"><Label htmlFor="currency">Devise principale</Label><select id="currency" value={form.currency} onChange={event => setField("currency", event.target.value)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CHF">Franc suisse (CHF)</option><option value="EUR">Euro (€)</option><option value="USD">Dollar (USD)</option></select><p className="text-xs text-muted-foreground">La conversion réelle du catalogue et du paiement sera configurée séparément.</p></div>
+              <div className="grid max-w-2xl gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="currency">Devise de vente</Label><select id="currency" value={form.store_currency_code} onChange={event => setField("store_currency_code", event.target.value as SettingsForm["store_currency_code"])} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CHF">Franc suisse (CHF)</option><option value="EUR">Euro (EUR)</option><option value="USD">Dollar américain (USD)</option><option value="GBP">Livre sterling (GBP)</option><option value="CAD">Dollar canadien (CAD)</option></select><p className="text-xs text-muted-foreground">Le catalogue reste stocké en CHF de référence ; l’affichage et Stripe Test utilisent la devise sélectionnée.</p></div><div className="space-y-2"><Label htmlFor="currencyRate">Taux pour 1 CHF</Label><Input id="currencyRate" type="text" inputMode="decimal" disabled={form.store_currency_code === "CHF"} placeholder="Ex. 0,9600" value={form.store_currency_code === "CHF" ? "1,0000" : form.store_currency_rate_bps} onChange={event => setField("store_currency_rate_bps", event.target.value.replace(/[^0-9,.]/g, ""))} /><p className="text-xs text-muted-foreground">Exemple : 1 CHF = 0,9600 EUR. Saisissez et contrôlez ce taux avant toute campagne ou vente dans une nouvelle devise.</p></div></div>
               <Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button>
             </CardContent></Card>
           </TabsContent>

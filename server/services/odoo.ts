@@ -239,6 +239,21 @@ async function findOrCreateProduct(
  * Never throws to the caller: failures are reported in the returned result so
  * the Stripe webhook stays resilient.
  */
+async function findPricelistForCurrency(config: OdooConfig, uid: number, currencyCode: string): Promise<number | null> {
+  if (currencyCode === "CHF") return null;
+  const currencyIds = await executeKw<number[]>(config, uid, "res.currency", "search", [[[
+    "name", "=", currencyCode,
+  ]]], { limit: 1 });
+  const currencyId = currencyIds[0];
+  if (!currencyId) throw new Error(`ODOO_CURRENCY_NOT_CONFIGURED:${currencyCode}`);
+  const pricelistIds = await executeKw<number[]>(config, uid, "product.pricelist", "search", [[[
+    "currency_id", "=", currencyId,
+  ]]], { limit: 1 });
+  const pricelistId = pricelistIds[0];
+  if (!pricelistId) throw new Error(`ODOO_PRICELIST_NOT_CONFIGURED:${currencyCode}`);
+  return pricelistId;
+}
+
 export async function syncOrderToOdoo(input: {
   orderReference: string;
   customer: OdooCustomer;
@@ -261,6 +276,11 @@ export async function syncOrderToOdoo(input: {
     }
 
     const partnerId = await findOrCreatePartner(config, uid, input.customer);
+    const currencyCode = input.currency || "CHF";
+    // Odoo derives an order currency from its pricelist. A foreign-currency order
+    // must therefore use a configured matching pricelist rather than defaulting
+    // to CHF with foreign numeric amounts.
+    const pricelistId = await findPricelistForCurrency(config, uid, currencyCode);
 
     const summary = input.lines
       .map(line => `- ${line.quantity} x ${line.name} @ ${line.priceUnit.toFixed(2)} ${input.currency || "CHF"}`)
@@ -273,6 +293,7 @@ export async function syncOrderToOdoo(input: {
       partner_id: partnerId,
       client_order_ref: input.orderReference,
       note,
+      ...(pricelistId ? { pricelist_id: pricelistId } : {}),
     };
 
     // Map each line to a real Odoo product so the sale order carries priced

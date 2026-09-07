@@ -4,7 +4,7 @@ import { ArrowRight, ArrowUpRight, Check, Sparkles, Store, Loader2 } from "lucid
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
@@ -18,6 +18,7 @@ const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700
 
 export default function Shop() {
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const publicCopy = getPublicCopy(locale);
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });

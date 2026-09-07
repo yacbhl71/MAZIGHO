@@ -28,7 +28,7 @@ async function syncPaidOrderToOdoo(sessionId: string) {
           reference: "MAZIGHO-SHIPPING",
         }] : []),
       ],
-      currency: "CHF",
+      currency: order.currencyCode || "CHF",
       note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
     });
     if (result.synced) {

@@ -5,7 +5,7 @@ import { Star, Heart, ShoppingCart, ArrowLeft } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import { useCart } from "@/hooks/useCart";
 import { useFavorites } from "@/hooks/useFavorites";
 import { useState } from "react";
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 export default function Nouveautes() {
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const copy = getCollectionsCopy(locale).newArrivals;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });

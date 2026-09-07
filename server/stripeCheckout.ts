@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
 import { createStripePendingOrder, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
+import { convertChfCents } from "../shared/storeCurrency";
 
 function getStripeTestClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -36,16 +37,19 @@ export const stripeCheckoutRouter = router({
         // Resolve promo (optional). Discount applies to the product subtotal, never to shipping.
         let promotionId: number | null = null;
         let discountAmount = 0;
+        let discountAmountChf = 0;
         let promoCodeLabel = "";
         if (input.promoCode) {
-          const productSubtotal = cart.productSubtotal;
+          // Promotion rules are administered in MAZIGHO's canonical CHF catalogue.
+          const productSubtotal = cart.productSubtotalChf;
           try {
             const resolved = await validatePromotion(input.promoCode, productSubtotal, {
               userId: ctx.user.id,
-              cartItems: cart.items.map(item => ({ productId: item.productId, price: item.unitAmount, quantity: item.quantity })),
+              cartItems: cart.items.map(item => ({ productId: item.productId, price: item.unitAmountChf, quantity: item.quantity })),
             });
             promotionId = resolved.promotion.id;
-            discountAmount = resolved.discountAmount;
+            discountAmountChf = resolved.discountAmount;
+            discountAmount = convertChfCents(discountAmountChf, cart.currency);
             promoCodeLabel = resolved.promotion.code;
           } catch (error) {
             throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Code promo invalide." });
@@ -55,7 +59,7 @@ export const stripeCheckoutRouter = router({
         for (const item of cart.items) {
           lineItems.push({
             price_data: {
-              currency: "chf",
+              currency: cart.currency.code.toLowerCase(),
               product_data: { name: item.name },
               unit_amount: item.unitAmount,
             },
@@ -65,7 +69,7 @@ export const stripeCheckoutRouter = router({
         if (cart.customerShippingAmount > 0) {
           lineItems.push({
             price_data: {
-              currency: "chf",
+              currency: cart.currency.code.toLowerCase(),
               product_data: { name: "Livraison" },
               unit_amount: cart.customerShippingAmount,
             },
@@ -73,9 +77,11 @@ export const stripeCheckoutRouter = router({
           });
         }
         const origin = process.env.PUBLIC_APP_URL?.trim() || ctx.req.headers.origin || "http://localhost:3000";
+        // TWINT is retained for the Swiss franc storefront; card is used for the other configured currencies.
+        const paymentMethodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = cart.currency.code === "CHF" ? ["card", "twint"] : ["card"];
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
           mode: "payment",
-          payment_method_types: ["card", "twint"],
+          payment_method_types: paymentMethodTypes,
           line_items: lineItems,
           shipping_address_collection: {
             allowed_countries: [input.countryCode.toUpperCase() as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry],
@@ -89,13 +95,16 @@ export const stripeCheckoutRouter = router({
             user_id: String(ctx.user.id),
             country_code: input.countryCode.toUpperCase(),
             total_amount: String(cart.totalAmount),
+            total_amount_chf: String(cart.totalAmountChf),
+            currency_code: cart.currency.code,
+            currency_rate_bps: String(cart.currency.rateBps),
             promo_code: promoCodeLabel,
             customer_shipping_amount: String(cart.customerShippingAmount),
             shipping_policy: cart.shippingPolicy,
           },
         };
         if (discountAmount > 0) {
-          const coupon = await stripe.coupons.create({ amount_off: discountAmount, currency: "chf", duration: "once", name: `MAZIGHO ${promoCodeLabel}` });
+          const coupon = await stripe.coupons.create({ amount_off: discountAmount, currency: cart.currency.code.toLowerCase(), duration: "once", name: `MAZIGHO ${promoCodeLabel}` });
           sessionParams.discounts = [{ coupon: coupon.id }];
         }
         const session = await stripe.checkout.sessions.create(sessionParams);
@@ -108,6 +117,7 @@ export const stripeCheckoutRouter = router({
           cart,
           promotionId,
           discountAmount,
+          discountAmountChf,
         });
         return { sessionId: session.id, orderId: order.id, url: session.url };
       } catch (error) {

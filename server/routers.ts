@@ -68,6 +68,10 @@ export const appRouter = router({
       const { getCheckoutShippingPolicy } = await import("./db");
       return await getCheckoutShippingPolicy();
     }),
+    getStoreCurrency: publicProcedure.query(async () => {
+      const { getStoreCurrencyConfig } = await import("./db");
+      return await getStoreCurrencyConfig();
+    }),
     getTrackingPixels: publicProcedure.query(async () => {
       const { getTrackingPixels } = await import("./db");
       return await getTrackingPixels();

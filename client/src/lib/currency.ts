@@ -19,22 +19,22 @@ function getNumberFormatLocale(locale: string) {
  * Formats an official MAZIGHO amount. Product and shipping records are stored
  * and displayed in CHF until checkout can lock a paid foreign-currency amount.
  */
-export function formatPrice(cents: number | null | undefined, locale = "fr"): string {
+export function formatPrice(cents: number | null | undefined, locale = "fr", currencyCode = OFFICIAL_CURRENCY_CODE): string {
   if (cents == null) return "—";
   return new Intl.NumberFormat(getNumberFormatLocale(locale), {
     style: "currency",
-    currency: OFFICIAL_CURRENCY_CODE,
+    currency: currencyCode,
     currencyDisplay: "code",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(cents / 100);
 }
 
-export function formatPriceShort(cents: number | null | undefined, locale = "fr"): string {
+export function formatPriceShort(cents: number | null | undefined, locale = "fr", currencyCode = OFFICIAL_CURRENCY_CODE): string {
   if (cents == null) return "—";
   return new Intl.NumberFormat(getNumberFormatLocale(locale), {
     style: "currency",
-    currency: OFFICIAL_CURRENCY_CODE,
+    currency: currencyCode,
     currencyDisplay: "narrowSymbol",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

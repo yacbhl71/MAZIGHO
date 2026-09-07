@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { ArrowRight, ArrowUpRight, Check, ChevronRight, Quote, Sparkles, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatPrice } from "@/lib/currency";
+import { useStorePrice } from "@/hooks/useStorePrice";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
@@ -53,6 +53,7 @@ const discoveryTileMeta = [
 
 export default function Home() {
   const { locale } = useLocale();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const { profile, palette } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
   const useManagedPublicTranslation = locale === "fr" || profile.contentTranslationReady === true;

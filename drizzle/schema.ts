@@ -163,9 +163,15 @@ export const orders = mysqlTable("orders", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
   status: mysqlEnum("status", ["pending", "processing", "shipped", "delivered", "cancelled"]).default("pending").notNull(),
-  totalAmount: int("totalAmount").notNull(), // Total in cents
+  // Charged amount in the currency locked at checkout; see currencyCode and currencyRateBps.
+  totalAmount: int("totalAmount").notNull(),
+  // Canonical CHF reference retained for finance reporting across multiple charged currencies.
+  totalAmountChf: int("totalAmountChf").default(0).notNull(),
+  currencyCode: varchar("currencyCode", { length: 3 }).default("CHF").notNull(),
+  currencyRateBps: int("currencyRateBps").default(10000).notNull(),
   // Customer shipping charged once at checkout, retained for invoices and Odoo.
   customerShippingAmount: int("customerShippingAmount").default(0).notNull(),
+  customerShippingAmountChf: int("customerShippingAmountChf").default(0).notNull(),
   shippingAddress: text("shippingAddress").notNull(),
   billingAddress: text("billingAddress"),
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),
@@ -179,6 +185,7 @@ export const orders = mysqlTable("orders", {
   fulfillmentUpdatedAt: timestamp("fulfillmentUpdatedAt"),
   promotionId: int("promotionId"),
   discountAmount: int("discountAmount").default(0).notNull(),
+  discountAmountChf: int("discountAmountChf").default(0).notNull(),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -206,7 +213,8 @@ export const orderItems = mysqlTable("orderItems", {
   orderId: int("orderId").notNull(),
   productId: int("productId").notNull(),
   quantity: int("quantity").notNull(),
-  priceAtPurchase: int("priceAtPurchase").notNull(), // Price in cents
+  priceAtPurchase: int("priceAtPurchase").notNull(), // Price in the order currency minor units
+  priceAtPurchaseChf: int("priceAtPurchaseChf").default(0).notNull(),
   // Immutable snapshots captured before Stripe Checkout. They avoid rebuilding a supplier order from mutable catalogue fields.
   productNameSnapshot: varchar("productNameSnapshot", { length: 255 }),
   selectedOptions: text("selectedOptions"),
