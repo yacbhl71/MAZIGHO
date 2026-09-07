@@ -10,6 +10,7 @@ import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
 import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
+import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
@@ -3024,6 +3025,25 @@ export async function getTrackingPixels() {
   });
 }
 
+export async function getSetupWizardStatus() {
+  const [allSettings, legalProfile] = await Promise.all([getAllSettings(), getLegalProfile()]);
+  return parseSetupWizardStatus(allSettings.map(setting => ({ key: setting.key, value: setting.value })), legalProfile);
+}
+
+export async function completeSetupWizard(input: { siteName: string; contactEmail: string }) {
+  const siteName = input.siteName.trim();
+  const contactEmail = input.contactEmail.trim();
+  if (!siteName || !contactEmail) throw new Error("SETUP_IDENTITY_REQUIRED");
+  await upsertSetting({ key: "site_name", value: siteName, description: "Nom de boutique défini dans l’assistant initial" });
+  await upsertSetting({ key: "contact_email", value: contactEmail, description: "E-mail de support défini dans l’assistant initial" });
+  await upsertSetting({
+    key: "setup_wizard_status",
+    value: JSON.stringify({ version: 1, completedAt: new Date().toISOString() }),
+    description: "État non sensible de l’assistant de démarrage",
+  });
+  return await getSetupWizardStatus();
+}
+
 export async function upsertSetting(data: { key: string; value: string; description?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -3165,16 +3185,16 @@ export type LegalProfile = {
 };
 
 export const defaultLegalProfile: LegalProfile = {
-  operatorName: "Bahloul Yacine",
-  addressLine: "Chemin des Lieugex 17",
-  postalCodeCity: "1860 Aigle",
-  country: "Suisse",
-  contactEmail: "yacbhll@gmail.com",
-  businessStatus: "Activité individuelle en cours de création",
-  ideVatNumber: "Aucun numéro IDE ou TVA attribué à ce jour",
-  deliveryZones: "Suisse et certains pays d’Europe, selon disponibilité",
-  deliveryDetails: "Les destinations, frais et délais définitifs seront affichés avant l’ouverture des commandes.",
-  returnsPolicy: "Aucun programme commercial de retours ou d’échanges n’est proposé à ce stade.",
+  operatorName: "Entreprise à renseigner",
+  addressLine: "Adresse à renseigner",
+  postalCodeCity: "Code postal et ville à renseigner",
+  country: "Pays à renseigner",
+  contactEmail: "support@example.com",
+  businessStatus: "Statut juridique à renseigner",
+  ideVatNumber: "Numéro d’entreprise ou régime TVA à renseigner",
+  deliveryZones: "Zones de livraison à renseigner",
+  deliveryDetails: "Les destinations, frais et délais sont indiqués avant validation de la commande.",
+  returnsPolicy: "Politique de retours à renseigner avant l’ouverture des ventes.",
 };
 
 function normalizeLegalProfile(value: unknown): LegalProfile {

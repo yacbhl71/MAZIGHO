@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw, FileSpreadsheet, Activity, Construction, Megaphone, TrendingUp } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw, FileSpreadsheet, Activity, Construction, Megaphone, TrendingUp, Rocket } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -122,6 +122,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     label: "Configuration",
     tone: "slate",
     items: [
+      { icon: Rocket, label: "Démarrage sécurisé", path: "/admin/demarrage" },
       { icon: Activity, label: "Santé du système", path: "/admin/sante" },
       { icon: Construction, label: "Mode maintenance", path: "/admin/maintenance" },
       { icon: Network, label: "Suivi Odoo", path: "/admin/suivi-odoo" },

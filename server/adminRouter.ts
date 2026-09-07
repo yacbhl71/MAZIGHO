@@ -1314,6 +1314,24 @@ export const adminRouter = router({
     }),
   }),
 
+  // Initial setup: non-sensitive storefront identity only. Technical credentials remain deployment secrets.
+  setup: router({
+    getStatus: adminProcedure.query(async () => await db.getSetupWizardStatus()),
+    completeNonSensitive: adminProcedure.input(z.object({
+      siteName: z.string().trim().min(2, "Saisissez un nom de boutique.").max(100),
+      contactEmail: z.string().trim().email("Saisissez un e-mail de support valide.").max(320),
+    })).mutation(async ({ ctx, input }) => {
+      const status = await db.completeSetupWizard(input);
+      logAudit(ctx, {
+        action: "setup.complete_non_sensitive",
+        entityType: "settings",
+        entityId: null,
+        summary: "Assistant de démarrage complété pour les réglages non sensibles.",
+      });
+      return status;
+    }),
+  }),
+
   // Site settings
   settings: router({
     getAll: adminProcedure.query(async () => {

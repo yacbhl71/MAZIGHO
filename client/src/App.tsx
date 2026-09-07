@@ -36,6 +36,7 @@ const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
 const AdminReviews = lazy(() => import("./pages/admin/AdminReviews"));
 const AdminMessages = lazy(() => import("./pages/admin/AdminMessages"));
 const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
+const AdminSetupWizard = lazy(() => import("./pages/admin/AdminSetupWizard"));
 const AdminLegal = lazy(() => import("./pages/admin/AdminLegal"));
 const AdminCustomization = lazy(() => import("./pages/admin/AdminCustomization"));
 const AdminAccounting = lazy(() => import("./pages/admin/AdminAccounting"));
@@ -104,6 +105,7 @@ function BrowserTitle() {
       "/admin/promotions": "MAZIGHO Admin | Promotions",
       "/admin/messages": "MAZIGHO Admin | Messages",
       "/admin/parametres": "MAZIGHO Admin | Paramètres",
+      "/admin/demarrage": "MAZIGHO Admin | Démarrage sécurisé",
       "/admin/legal": "MAZIGHO Admin | Informations légales",
       "/admin/personnalisation": "MAZIGHO Admin | Personnalisation",
       "/admin/creations": "MAZIGHO Admin | Collections créatives",
@@ -230,6 +232,7 @@ function Router() {
         <Route path={"/admin/promotions"} component={AdminPromotions} />
         <Route path={"/admin/messages"} component={AdminMessages} />
         <Route path={"/admin/parametres"} component={AdminSettings} />
+        <Route path={"/admin/demarrage"} component={AdminSetupWizard} />
         <Route path={"/admin/legal"} component={AdminLegal} />
         <Route path={"/admin/personnalisation"} component={AdminCustomization} />
         <Route path={"/admin/creations"} component={AdminCreations} />
