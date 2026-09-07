@@ -6,6 +6,9 @@ import { lazy, Suspense, useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
+import { MarketingConsentProvider } from "./contexts/MarketingConsentContext";
+import { MarketingConsentBanner } from "./components/MarketingConsentBanner";
+import { MarketingPixels } from "./components/MarketingPixels";
 import { LocaleProvider } from "./contexts/LocaleContext";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -261,10 +264,14 @@ function App() {
       <ThemeProvider defaultTheme="light" switchable>
         <LocaleProvider>
           <DeliveryCountryProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Router />
-            </TooltipProvider>
+            <MarketingConsentProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Router />
+                <MarketingPixels />
+                <MarketingConsentBanner />
+              </TooltipProvider>
+            </MarketingConsentProvider>
           </DeliveryCountryProvider>
         </LocaleProvider>
       </ThemeProvider>

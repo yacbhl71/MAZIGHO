@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bell, CheckCircle2, CircleAlert, CircleCheck, CreditCard, Globe2, Loader2, Mail, Save, Settings2, ShieldCheck, Truck } from "lucide-react";
+import { BarChart3, Bell, CheckCircle2, CircleAlert, CircleCheck, CreditCard, Globe2, Loader2, Mail, Save, Settings2, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { centsToChfInput, parseChfToCents } from "@/lib/moneyInput";
@@ -20,6 +20,8 @@ type SettingsForm = {
   shipping_policy: ShippingPolicy;
   free_shipping_threshold: string;
   flat_shipping_rate: string;
+  meta_pixel_id: string;
+  tiktok_pixel_id: string;
 };
 
 const defaultForm: SettingsForm = {
@@ -30,6 +32,8 @@ const defaultForm: SettingsForm = {
   shipping_policy: "included",
   free_shipping_threshold: "100,00",
   flat_shipping_rate: "5,00",
+  meta_pixel_id: "",
+  tiktok_pixel_id: "",
 };
 
 const settingKeys = Object.keys(defaultForm) as Array<keyof SettingsForm>;
@@ -86,6 +90,8 @@ export default function AdminSettings() {
       shipping_policy: "Politique client : livraison comprise dans les prix ou frais fixes par commande",
       free_shipping_threshold: "Seuil de livraison gratuite en centimes (0 = pas de seuil)",
       flat_shipping_rate: "Frais de livraison fixes par commande en centimes",
+      meta_pixel_id: "Identifiant Meta Pixel ; chargé uniquement après consentement marketing du visiteur",
+      tiktok_pixel_id: "Identifiant TikTok Pixel ; chargé uniquement après consentement marketing du visiteur",
     };
 
     try {
@@ -135,6 +141,7 @@ export default function AdminSettings() {
           <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
             <TabsTrigger value="general" className="gap-2 border data-[state=active]:border-slate-200 data-[state=active]:bg-white"><Globe2 className="h-4 w-4" /> Général</TabsTrigger>
             <TabsTrigger value="shipping" className="gap-2 border data-[state=active]:border-slate-200 data-[state=active]:bg-white"><Truck className="h-4 w-4" /> Livraison</TabsTrigger>
+            <TabsTrigger value="marketing" className="gap-2 border data-[state=active]:border-slate-200 data-[state=active]:bg-white"><BarChart3 className="h-4 w-4" /> Pixels publicitaires</TabsTrigger>
             <TabsTrigger value="payment" className="gap-2 border data-[state=active]:border-slate-200 data-[state=active]:bg-white"><CreditCard className="h-4 w-4" /> Paiement</TabsTrigger>
             <TabsTrigger value="notifications" className="gap-2 border data-[state=active]:border-slate-200 data-[state=active]:bg-white"><Bell className="h-4 w-4" /> E-mails</TabsTrigger>
           </TabsList>
@@ -173,6 +180,8 @@ export default function AdminSettings() {
               <Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer la politique</Button>
             </CardContent></Card>
           </TabsContent>
+
+          <TabsContent value="marketing"><Card className="shadow-sm"><CardHeader><CardTitle>Pixels Meta et TikTok</CardTitle><CardDescription>Ajoutez seulement les identifiants créés dans vos propres comptes publicitaires. Aucun script n’est chargé tant qu’un visiteur n’a pas accepté le suivi marketing.</CardDescription></CardHeader><CardContent className="space-y-6"><div className="grid gap-5 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="metaPixel">Identifiant Meta Pixel</Label><Input id="metaPixel" inputMode="numeric" autoComplete="off" placeholder="Ex. 123456789012345" value={form.meta_pixel_id} onChange={event => setField("meta_pixel_id", event.target.value.replace(/\s+/g, ""))} /><p className="text-xs leading-5 text-muted-foreground">Chiffres uniquement. Laissez vide pour désactiver Meta Pixel.</p></div><div className="space-y-2"><Label htmlFor="tiktokPixel">Identifiant TikTok Pixel</Label><Input id="tiktokPixel" autoComplete="off" placeholder="Ex. CXXXXXXXXXXXXXXXXXXX" value={form.tiktok_pixel_id} onChange={event => setField("tiktok_pixel_id", event.target.value.replace(/\s+/g, ""))} /><p className="text-xs leading-5 text-muted-foreground">Lettres, chiffres, tirets et underscores. Laissez vide pour désactiver TikTok Pixel.</p></div></div><div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" /><p><strong>Protection par défaut.</strong> Les pixels sont absents de la boutique tant que le visiteur n’a pas donné son accord. Il peut ensuite retirer ce consentement depuis le bouton « Confidentialité » présent dans la boutique.</p></div></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><div className="flex gap-3"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>Cette fonction installe uniquement les pixels de navigation de base. Elle ne crée ni campagne, ni publicité, ni synchronisation de données serveur. Vérifiez vos obligations d’information et de consentement avant activation.</p></div></div><Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer les pixels</Button></CardContent></Card></TabsContent>
 
           <TabsContent value="payment"><Card className="shadow-sm"><CardHeader><CardTitle>Paiement en ligne</CardTitle><CardDescription>Le panneau indique l’état réel de l’intégration : aucun prestataire de paiement n’est encore connecté.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-semibold text-slate-900"><CreditCard className="h-5 w-5 text-amber-600" /> Paiement sécurisé</div><p className="mt-1 text-sm text-slate-700">Stripe pourra être relié lorsque vous serez prêt à activer les encaissements réels.</p></div><Badge className="w-fit border-0 bg-amber-600">À configurer</Badge></div><div className="flex items-start gap-3 rounded-xl border bg-slate-50 p-4 text-sm text-slate-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p>Les clés de paiement ne seront jamais saisies sur cette page. Elles devront être ajoutées uniquement dans les variables sécurisées de Vercel.</p></div></CardContent></Card></TabsContent>
 

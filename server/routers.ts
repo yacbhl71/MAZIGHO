@@ -68,6 +68,10 @@ export const appRouter = router({
       const { getCheckoutShippingPolicy } = await import("./db");
       return await getCheckoutShippingPolicy();
     }),
+    getTrackingPixels: publicProcedure.query(async () => {
+      const { getTrackingPixels } = await import("./db");
+      return await getTrackingPixels();
+    }),
   }),
 
   // Public visual customisation applied to the storefront

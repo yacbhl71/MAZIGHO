@@ -21,6 +21,7 @@ import { getCjFulfillmentSafetyStatus, prepareCjSandboxOrder } from "./services/
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOdooStatus, listOdooPartners, listOdooSaleOrders, syncCatalogToOdoo, updateOdooPartner, verifyOdooConnection } from "./services/odoo";
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
+import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPixels";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -1318,7 +1319,7 @@ export const adminRouter = router({
       return await db.getAllSettings();
     }),
     update: adminProcedure.input(z.object({
-      key: z.enum(["site_name", "contact_email", "currency", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate"]),
+      key: z.enum(["site_name", "contact_email", "currency", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "meta_pixel_id", "tiktok_pixel_id"]),
       value: z.string().max(1000),
       description: z.string().optional(),
     }).superRefine((input, ctx) => {
@@ -1327,6 +1328,12 @@ export const adminRouter = router({
       }
       if ((input.key === "free_shipping_threshold" || input.key === "flat_shipping_rate") && !/^\d{1,8}$/.test(input.value)) {
         ctx.addIssue({ code: "custom", message: "Montant de livraison invalide" });
+      }
+      if (input.key === "meta_pixel_id" && input.value !== "" && !isValidMetaPixelId(input.value)) {
+        ctx.addIssue({ code: "custom", message: "Identifiant Meta Pixel invalide" });
+      }
+      if (input.key === "tiktok_pixel_id" && input.value !== "" && !isValidTikTokPixelId(input.value)) {
+        ctx.addIssue({ code: "custom", message: "Identifiant TikTok Pixel invalide" });
       }
     })).mutation(async ({ input }) => {
       return await db.upsertSetting(input);

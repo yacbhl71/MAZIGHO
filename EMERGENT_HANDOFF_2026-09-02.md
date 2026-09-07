@@ -375,3 +375,11 @@ Les nouvelles commandes Stripe conservent désormais `supplierUrl` dans l’inst
 
 
 Le panneau AliExpress propose aussi **« Exporter JSON »**. Le téléchargement est déclenché uniquement par un opérateur connecté et reste local à son appareil. Il contient les lignes à préparer, options, références produit/variante, liens de fiches, pays et adresse de livraison nécessaire ; l’adresse e-mail du client, les montants internes MAZIGHO et toute clé/jeton sont volontairement exclus. Le fichier rappelle que toute utilisation ultérieure exige la vérification humaine de chaque fiche, variante, prix, stock, livraison et adresse, ainsi qu’un paiement AliExpress séparément validé par l’opérateur.
+
+
+## Pixels publicitaires Meta et TikTok — 7 septembre 2026
+
+- Les identifiants publicitaires sont configurables par un administrateur dans **Paramètres → Pixels publicitaires** : `meta_pixel_id` accepte uniquement 5 à 30 chiffres ; `tiktok_pixel_id` accepte uniquement 5 à 64 caractères alphanumériques, tirets ou underscores. Les valeurs vides désactivent le fournisseur correspondant.
+- Aucun pixel n’est présent par défaut : le navigateur ne demande les identifiants et n’injecte les scripts Meta/TikTok qu’après consentement marketing explicite. Le visiteur peut refuser, puis rouvrir son choix via le bouton flottant « Confidentialité ».
+- Les pages `/admin` ne chargent jamais les pixels. Cette version ne met en œuvre que les événements de navigation `PageView` / `page` et n’ajoute ni Conversion API, ni événement serveur, ni campagne, ni audience.
+- Les références officielles consultées sont dans `TRACKING_PIXELS_REFERENCE_2026-09-07.md`.

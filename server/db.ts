@@ -9,6 +9,7 @@ import type { Pool } from "mysql2/promise";
 import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
 import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
+import { sanitizeTrackingPixels } from "./services/trackingPixels";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -2966,6 +2967,16 @@ export async function getAllSettings() {
 export async function getCheckoutShippingPolicy() {
   const allSettings = await getAllSettings();
   return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
+}
+
+/** Public identifiers only. Invalid or legacy values are never emitted to the storefront. */
+export async function getTrackingPixels() {
+  const allSettings = await getAllSettings();
+  const values = new Map(allSettings.map(setting => [setting.key, setting.value.trim()]));
+  return sanitizeTrackingPixels({
+    metaPixelId: values.get("meta_pixel_id"),
+    tiktokPixelId: values.get("tiktok_pixel_id"),
+  });
 }
 
 export async function upsertSetting(data: { key: string; value: string; description?: string }) {
