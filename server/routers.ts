@@ -64,6 +64,10 @@ export const appRouter = router({
       const { getActiveCampaign } = await import("./db");
       return await getActiveCampaign();
     }),
+    getCheckoutShippingPolicy: publicProcedure.query(async () => {
+      const { getCheckoutShippingPolicy } = await import("./db");
+      return await getCheckoutShippingPolicy();
+    }),
   }),
 
   // Public visual customisation applied to the storefront

@@ -8,6 +8,7 @@ import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
+import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
 
 const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -30,6 +31,7 @@ let _reviewsSchemaReady: Promise<void> | null = null;
 let _fulfillmentSchemaReady: Promise<void> | null = null;
 let _supplierWeightSchemaReady: Promise<void> | null = null;
 let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
+let _checkoutShippingSchemaReady: Promise<void> | null = null;
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -452,6 +454,28 @@ async function ensureFulfillmentSchema() {
   })();
 
   return _fulfillmentSchemaReady;
+}
+
+/**
+ * Persists the exact customer shipping charge selected at checkout. It is kept
+ * separately from product prices so paid orders and the Odoo mirror remain
+ * auditable when an administrator later changes the store-wide policy.
+ */
+async function ensureCheckoutShippingSchema() {
+  if (_checkoutShippingSchemaReady) return _checkoutShippingSchemaReady;
+
+  _checkoutShippingSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    try {
+      await db.execute(sql.raw("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `customerShippingAmount` int NOT NULL DEFAULT 0"));
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+    }
+  })();
+
+  return _checkoutShippingSchemaReady;
 }
 
 async function ensurePasswordHashColumn() {
@@ -2323,6 +2347,7 @@ export async function deleteCategory(id: number) {
 
 export async function getAllOrdersAdmin() {
   await ensureFulfillmentSchema();
+  await ensureCheckoutShippingSchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -2330,6 +2355,7 @@ export async function getAllOrdersAdmin() {
     id: orders.id,
     status: orders.status,
     totalAmount: orders.totalAmount,
+    customerShippingAmount: orders.customerShippingAmount,
     paymentStatus: orders.paymentStatus,
     paymentMethod: orders.paymentMethod,
     shippingAddress: orders.shippingAddress,
@@ -2935,6 +2961,11 @@ export async function getAllSettings() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(settings).orderBy(asc(settings.key));
+}
+
+export async function getCheckoutShippingPolicy() {
+  const allSettings = await getAllSettings();
+  return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
 }
 
 export async function upsertSetting(data: { key: string; value: string; description?: string }) {
@@ -4048,6 +4079,7 @@ function sanitizeSelectedOptions(value: Record<string, string> | undefined, prod
 export async function getStripeCheckoutCart(userId: number, countryCode: string, clientItems?: StripeCheckoutCartLine[]) {
   await ensureDeliveryProfileSchema();
   await ensureSupplierVariantMappingsSchema();
+  await ensureCheckoutShippingSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const normalizedCountry = countryCode.trim().toUpperCase();
@@ -4112,15 +4144,23 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       name: product.name,
       quantity: item.quantity,
       unitAmount: product.price,
-      shippingAmount: profile.customerShippingCost,
+      // The profile remains mandatory to prove delivery to the chosen country,
+      // but the customer charge comes from the single store-wide policy.
+      shippingAmount: 0,
       selectedOptions,
       supplierSnapshot,
     });
   }
 
+  const productSubtotal = verifiedItems.reduce((sum, item) => sum + item.unitAmount * item.quantity, 0);
+  const shipping = calculateCheckoutShipping(productSubtotal, await getCheckoutShippingPolicy());
+
   return {
     items: verifiedItems,
-    totalAmount: verifiedItems.reduce((sum, item) => sum + (item.unitAmount + item.shippingAmount) * item.quantity, 0),
+    productSubtotal,
+    customerShippingAmount: shipping.shippingAmountCents,
+    shippingPolicy: shipping.mode,
+    totalAmount: productSubtotal + shipping.shippingAmountCents,
   };
 }
 
@@ -4129,12 +4169,13 @@ export async function createStripePendingOrder(input: {
   sessionId: string;
   countryCode: string;
   totalAmount: number;
-  cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number };
+  cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number; customerShippingAmount: number };
   promotionId?: number | null;
   discountAmount?: number;
 }) {
   await ensurePromotionAdvancedSchema();
   await ensureFulfillmentSchema();
+  await ensureCheckoutShippingSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const existing = await db.select({ id: orders.id }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
@@ -4144,6 +4185,7 @@ export async function createStripePendingOrder(input: {
   const result = await db.insert(orders).values({
     userId: input.userId,
     totalAmount: input.cart.totalAmount - discountAmount,
+    customerShippingAmount: input.cart.customerShippingAmount,
     shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
     billingAddress: null,
     paymentStatus: "unpaid",
@@ -4222,6 +4264,7 @@ export async function finalizePaidOrderRedemption(sessionId: string) {
 
 // Order snapshot used to synchronise a paid order + its customer towards Odoo.
 export async function getOrderForStripeSession(sessionId: string) {
+  await ensureCheckoutShippingSchema();
   const db = await getDb();
   if (!db) return null;
 
@@ -4229,6 +4272,7 @@ export async function getOrderForStripeSession(sessionId: string) {
     .select({
       id: orders.id,
       totalAmount: orders.totalAmount,
+      customerShippingAmount: orders.customerShippingAmount,
       status: orders.status,
       paymentStatus: orders.paymentStatus,
       shippingAddress: orders.shippingAddress,

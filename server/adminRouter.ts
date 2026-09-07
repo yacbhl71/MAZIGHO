@@ -1318,9 +1318,16 @@ export const adminRouter = router({
       return await db.getAllSettings();
     }),
     update: adminProcedure.input(z.object({
-      key: z.enum(["site_name", "contact_email", "currency", "free_shipping_threshold", "flat_shipping_rate"]),
+      key: z.enum(["site_name", "contact_email", "currency", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate"]),
       value: z.string().max(1000),
       description: z.string().optional(),
+    }).superRefine((input, ctx) => {
+      if (input.key === "shipping_policy" && input.value !== "included" && input.value !== "flat_rate") {
+        ctx.addIssue({ code: "custom", message: "Politique de livraison invalide" });
+      }
+      if ((input.key === "free_shipping_threshold" || input.key === "flat_shipping_rate") && !/^\d{1,8}$/.test(input.value)) {
+        ctx.addIssue({ code: "custom", message: "Montant de livraison invalide" });
+      }
     })).mutation(async ({ input }) => {
       return await db.upsertSetting(input);
     }),

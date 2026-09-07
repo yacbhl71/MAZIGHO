@@ -164,6 +164,8 @@ export const orders = mysqlTable("orders", {
   userId: int("userId").notNull(),
   status: mysqlEnum("status", ["pending", "processing", "shipped", "delivered", "cancelled"]).default("pending").notNull(),
   totalAmount: int("totalAmount").notNull(), // Total in cents
+  // Customer shipping charged once at checkout, retained for invoices and Odoo.
+  customerShippingAmount: int("customerShippingAmount").default(0).notNull(),
   shippingAddress: text("shippingAddress").notNull(),
   billingAddress: text("billingAddress"),
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),

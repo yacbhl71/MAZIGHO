@@ -14,12 +14,20 @@ async function syncPaidOrderToOdoo(sessionId: string) {
     const result = await syncOrderToOdoo({
       orderReference: `MAZIGHO-${order.id}`,
       customer: { name: order.userName || order.userEmail || "Client MAZIGHO", email: order.userEmail },
-      lines: items.map(item => ({
-        name: item.productNameSnapshot || item.productName || "Article MAZIGHO",
-        quantity: item.quantity,
-        priceUnit: Math.round(item.priceAtPurchase) / 100,
-        reference: item.productId ? `MAZIGHO-${item.productId}` : null,
-      })),
+      lines: [
+        ...items.map(item => ({
+          name: item.productNameSnapshot || item.productName || "Article MAZIGHO",
+          quantity: item.quantity,
+          priceUnit: Math.round(item.priceAtPurchase) / 100,
+          reference: item.productId ? `MAZIGHO-${item.productId}` : null,
+        })),
+        ...(order.customerShippingAmount > 0 ? [{
+          name: "Livraison",
+          quantity: 1,
+          priceUnit: Math.round(order.customerShippingAmount) / 100,
+          reference: "MAZIGHO-SHIPPING",
+        }] : []),
+      ],
       currency: "CHF",
       note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
     });

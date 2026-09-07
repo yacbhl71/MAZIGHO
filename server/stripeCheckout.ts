@@ -38,7 +38,7 @@ export const stripeCheckoutRouter = router({
         let discountAmount = 0;
         let promoCodeLabel = "";
         if (input.promoCode) {
-          const productSubtotal = cart.items.reduce((sum, item) => sum + item.unitAmount * item.quantity, 0);
+          const productSubtotal = cart.productSubtotal;
           try {
             const resolved = await validatePromotion(input.promoCode, productSubtotal, {
               userId: ctx.user.id,
@@ -61,16 +61,16 @@ export const stripeCheckoutRouter = router({
             },
             quantity: item.quantity,
           });
-          if (item.shippingAmount > 0) {
-            lineItems.push({
-              price_data: {
-                currency: "chf",
-                product_data: { name: `Livraison — ${item.name}` },
-                unit_amount: item.shippingAmount,
-              },
-              quantity: item.quantity,
-            });
-          }
+        }
+        if (cart.customerShippingAmount > 0) {
+          lineItems.push({
+            price_data: {
+              currency: "chf",
+              product_data: { name: "Livraison" },
+              unit_amount: cart.customerShippingAmount,
+            },
+            quantity: 1,
+          });
         }
         const origin = process.env.PUBLIC_APP_URL?.trim() || ctx.req.headers.origin || "http://localhost:3000";
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -90,6 +90,8 @@ export const stripeCheckoutRouter = router({
             country_code: input.countryCode.toUpperCase(),
             total_amount: String(cart.totalAmount),
             promo_code: promoCodeLabel,
+            customer_shipping_amount: String(cart.customerShippingAmount),
+            shipping_policy: cart.shippingPolicy,
           },
         };
         if (discountAmount > 0) {
