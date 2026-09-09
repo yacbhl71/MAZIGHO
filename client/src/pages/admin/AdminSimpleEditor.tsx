@@ -7,12 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
+import { t } from "@/lib/i18n";
 import { toast } from "sonner";
-import type { DesignProfile } from "@/hooks/useDesignProfile";
+import type { DesignProfile, NavigationLabels } from "@/hooks/useDesignProfile";
 
 const editingAreas = [
   { href: "/admin/contenu", icon: Image, title: "Bannières et boutons", description: "Titre, accroche, image, lien, ordre et visibilité de chaque bannière.", examples: "Exemples : promotion, nouvelle collection, bouton Découvrir." },
-  { href: "/admin/personnalisation#home", icon: Type, title: "Titres et textes de l’accueil", description: "Grand message d’inspiration, histoire MAZIGHO et encart éditorial.", examples: "Exemples : titres, paragraphes et petites phrases d’accompagnement." },
+  { href: "/admin/personnalisation#home", icon: Type, title: "Titres et textes de l’accueil", description: "Grand message d’inspiration, histoire de marque et encart éditorial.", examples: "Exemples : titres, paragraphes et petites phrases d’accompagnement." },
   { href: "/admin/personnalisation#images", icon: Images, title: "Images de l’accueil", description: "Trois visuels éditoriaux avec aperçu, téléversement ou URL d’image.", examples: "Inspiration, histoire et encart avant les produits phares." },
   { href: "/admin/personnalisation#sections", icon: Eye, title: "Sections visibles", description: "Afficher ou masquer temporairement les univers, l’histoire, les avis et l’encart éditorial.", examples: "Aucune section n’est supprimée : elle reste réactivable." },
   { href: "/admin/categories", icon: Tags, title: "Cartes de catégories", description: "Nom, description courte, icône et ordre des univers visibles dans la boutique.", examples: "Mode, Beauté, Maison, Sport, High-tech et Mobilité." },
@@ -20,38 +21,118 @@ const editingAreas = [
   { href: "/admin/personnalisation#style", icon: Palette, title: "Ambiance visuelle", description: "Palette et typographie guidées, avec des choix testés pour préserver la lisibilité.", examples: "À utiliser avec modération afin de garder une identité cohérente." },
 ];
 
-type NavigationForm = Pick<DesignProfile, "navigationHome" | "navigationShop" | "navigationCategories" | "navigationCreations" | "navigationContact">;
-const emptyNavigation: NavigationForm = { navigationHome: "Accueil", navigationShop: "Boutique", navigationCategories: "Catégories", navigationCreations: "Créations", navigationContact: "Contact" };
+type NavigationLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
+type NavigationTranslationLocale = Exclude<NavigationLocale, "fr">;
+type NavigationByLocale = Record<NavigationLocale, NavigationLabels>;
+
+const navigationLocales: Array<{ code: NavigationLocale; label: string }> = [
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "it", label: "Italiano" },
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "nl", label: "Nederlands" },
+  { code: "ar", label: "العربية" },
+];
+
+const navigationTranslationLocales: Array<{ code: NavigationTranslationLocale; label: string }> = [
+  { code: "de", label: "Deutsch" },
+  { code: "it", label: "Italiano" },
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "nl", label: "Nederlands" },
+  { code: "ar", label: "العربية" },
+];
+
+const navigationFields: Array<[keyof NavigationLabels, string]> = [
+  ["navigationHome", "Accueil"],
+  ["navigationShop", "Boutique"],
+  ["navigationCategories", "Catégories"],
+  ["navigationCreations", "Créations"],
+  ["navigationContact", "Contact"],
+];
+
+function fallbackNavigation(locale: NavigationLocale): NavigationLabels {
+  return {
+    navigationHome: t(locale, "home"),
+    navigationShop: t(locale, "shop"),
+    navigationCategories: t(locale, "categories"),
+    navigationCreations: t(locale, "creations"),
+    navigationContact: t(locale, "contact"),
+  };
+}
+
+function emptyNavigationByLocale(): NavigationByLocale {
+  return Object.fromEntries(navigationLocales.map(({ code }) => [code, fallbackNavigation(code)])) as NavigationByLocale;
+}
+
+function normalizedLabels(labels: NavigationLabels): NavigationLabels {
+  return Object.fromEntries(Object.entries(labels).map(([key, value]) => [key, value.trim()])) as NavigationLabels;
+}
 
 export default function AdminSimpleEditor() {
   const designQuery = trpc.admin.design.get.useQuery();
   const updateDesign = trpc.admin.design.update.useMutation();
-  const [navigation, setNavigation] = useState<NavigationForm>(emptyNavigation);
+  const [selectedLocale, setSelectedLocale] = useState<NavigationLocale>("fr");
+  const [navigation, setNavigation] = useState<NavigationByLocale>(emptyNavigationByLocale);
 
   useEffect(() => {
-    if (designQuery.data) setNavigation({
-      navigationHome: designQuery.data.navigationHome,
-      navigationShop: designQuery.data.navigationShop,
-      navigationCategories: designQuery.data.navigationCategories,
-      navigationCreations: designQuery.data.navigationCreations,
-      navigationContact: designQuery.data.navigationContact,
-    });
+    if (!designQuery.data) return;
+    const profile = designQuery.data as DesignProfile;
+    const next = emptyNavigationByLocale();
+    next.fr = {
+      navigationHome: profile.navigationHome,
+      navigationShop: profile.navigationShop,
+      navigationCategories: profile.navigationCategories,
+      navigationCreations: profile.navigationCreations,
+      navigationContact: profile.navigationContact,
+    };
+    for (const { code } of navigationTranslationLocales) {
+      const saved = profile.navigationTranslations?.[code];
+      if (saved) next[code] = saved;
+    }
+    setNavigation(next);
   }, [designQuery.data]);
 
+  const currentLabels = navigation[selectedLocale];
+  const selectedLocaleLabel = navigationLocales.find(({ code }) => code === selectedLocale)?.label ?? selectedLocale;
+
   const saveNavigation = async () => {
-    const profile = designQuery.data;
+    const profile = designQuery.data as DesignProfile | undefined;
     if (!profile) return;
-    if (Object.values(navigation).some(value => value.trim().length === 0)) {
+    const candidateValues = Object.values(navigation).flatMap((labels) => Object.values(labels));
+    if (candidateValues.some((value) => value.trim().length === 0)) {
       toast.error("Chaque libellé doit contenir au moins un caractère.");
       return;
     }
+
+    const navigationTranslations: DesignProfile["navigationTranslations"] = {};
+    for (const { code } of navigationTranslationLocales) {
+      const labels = normalizedLabels(navigation[code]);
+      const fallback = fallbackNavigation(code);
+      const hasExistingTranslation = Boolean(profile.navigationTranslations?.[code]);
+      const differsFromFallback = navigationFields.some(([field]) => labels[field] !== fallback[field]);
+      if (hasExistingTranslation || differsFromFallback) navigationTranslations[code] = labels;
+    }
+
     try {
-      await updateDesign.mutateAsync({ ...profile, ...Object.fromEntries(Object.entries(navigation).map(([key, value]) => [key, value.trim()])) });
+      await updateDesign.mutateAsync({
+        ...profile,
+        ...normalizedLabels(navigation.fr),
+        navigationTranslations,
+      });
       await designQuery.refetch();
-      toast.success("Libellés de navigation enregistrés.");
+      toast.success(`Libellés de navigation ${selectedLocaleLabel} enregistrés.`);
     } catch (error) {
       toast.error(`Enregistrement impossible : ${error instanceof Error ? error.message : "erreur inconnue"}`);
     }
+  };
+
+  const updateCurrentLabel = (field: keyof NavigationLabels, value: string) => {
+    setNavigation((current) => ({
+      ...current,
+      [selectedLocale]: { ...current[selectedLocale], [field]: value },
+    }));
   };
 
   return <DashboardLayout><div className="space-y-6 pb-8">
@@ -59,9 +140,7 @@ export default function AdminSimpleEditor() {
       <div className="max-w-3xl"><p className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-700"><FileText className="h-4 w-4" /> Éditeur simple</p><h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Modifier votre boutique sans risque</h1><p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">Cet espace rassemble uniquement les changements visuels et éditoriaux sûrs. Vous ne pouvez pas casser le code, le panier, les prix, la livraison, les comptes ni les informations légales depuis ici.</p></div>
     </section>
 
-    <Card className="border-emerald-200 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Languages className="h-5 w-5 text-emerald-700" /> Libellés du menu français</CardTitle><CardDescription>Ces cinq mots sont les libellés visibles par les clients qui choisissent le français. Les versions étrangères restent protégées par le système de traduction.</CardDescription></CardHeader><CardContent>{designQuery.isLoading ? <div className="grid gap-4 md:grid-cols-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}</div> : <><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{([
-      ["navigationHome", "Accueil"], ["navigationShop", "Boutique"], ["navigationCategories", "Catégories"], ["navigationCreations", "Créations"], ["navigationContact", "Contact"],
-    ] as Array<[keyof NavigationForm, string]>).map(([field, label]) => <div key={field} className="space-y-2"><Label htmlFor={field}>{label}</Label><Input id={field} maxLength={40} value={navigation[field]} onChange={event => setNavigation(current => ({ ...current, [field]: event.target.value }))} /></div>)}</div><div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-emerald-50 p-4"><p className="text-sm text-emerald-950">Les changements sont visibles après enregistrement, sans modifier le code.</p><Button onClick={saveNavigation} disabled={updateDesign.isPending || designQuery.isLoading} className="bg-emerald-700 hover:bg-emerald-800">{updateDesign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Enregistrer</Button></div></>}</CardContent></Card>
+    <Card className="border-emerald-200 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-xl"><Languages className="h-5 w-5 text-emerald-700" /> Libellés de navigation</CardTitle><CardDescription>Choisissez une langue, puis adaptez les cinq mots visibles dans le menu. Si aucune traduction personnalisée n’est enregistrée, la boutique conserve ses libellés de référence pour cette langue.</CardDescription></CardHeader><CardContent>{designQuery.isLoading ? <div className="grid gap-4 md:grid-cols-2">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}</div> : <><div className="mb-5 flex flex-col gap-2 sm:max-w-xs"><Label htmlFor="navigation-locale">Langue à modifier</Label><select id="navigation-locale" value={selectedLocale} onChange={event => setSelectedLocale(event.target.value as NavigationLocale)} className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-emerald-600">{navigationLocales.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}</select></div><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{navigationFields.map(([field, label]) => <div key={field} className="space-y-2"><Label htmlFor={`${selectedLocale}-${field}`}>{label}</Label><Input id={`${selectedLocale}-${field}`} maxLength={40} value={currentLabels[field]} onChange={event => updateCurrentLabel(field, event.target.value)} /></div>)}</div><div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-emerald-50 p-4"><p className="text-sm text-emerald-950">Les changements sont visibles après enregistrement, sans modifier le code.</p><Button onClick={saveNavigation} disabled={updateDesign.isPending || designQuery.isLoading} className="bg-emerald-700 hover:bg-emerald-800">{updateDesign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Enregistrer {selectedLocaleLabel}</Button></div></>}</CardContent></Card>
 
     <section><div className="mb-5"><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">Blocs sûrs à personnaliser</p><h2 className="mt-2 text-2xl font-bold text-slate-900">Sept zones modifiables sans code</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque carte ouvre uniquement des champs éditoriaux guidés. Les prix, la livraison, les commandes et les réglages techniques n’y figurent jamais.</p></div><div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{editingAreas.map(area => <Card key={area.href} className="border-slate-200 shadow-sm"><CardHeader><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><area.icon className="h-5 w-5" /></div><CardTitle className="pt-3 text-xl">{area.title}</CardTitle><CardDescription className="leading-6">{area.description}</CardDescription></CardHeader><CardContent><p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{area.examples}</p><Link href={area.href}><Button className="mt-5 w-full bg-emerald-700 hover:bg-emerald-800">Ouvrir ce bloc <ArrowUpRight className="ml-2 h-4 w-4" /></Button></Link></CardContent></Card>)}</div></section>
 
