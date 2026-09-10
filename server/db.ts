@@ -249,6 +249,35 @@ export async function prepareGiftStoreOwnerInvitation(input: { storeId: number; 
   });
 }
 
+export async function reissueGiftStoreOwnerInvitation(input: { storeId: number; confirmationEmail: string }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF");
+  const settingsRows = await db.select().from(storeSettings).where(eq(storeSettings.storeId, store.id));
+  const settingsByKey = new Map(settingsRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+  const email = normaliseEmail(draft.ownerEmail);
+  if (normaliseEmail(input.confirmationEmail) !== email) throw new Error("OWNER_INVITATION_CONFIRMATION_MISMATCH");
+
+  const [owner] = await db.select({ id: users.id, accountStatus: users.accountStatus, email: users.email }).from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+  if (!owner || owner.accountStatus !== "pending_invitation") throw new Error("OWNER_INVITATION_NOT_PENDING");
+  const [membership] = await db.select({ id: storeMemberships.id }).from(storeMemberships).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.userId, owner.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"))).limit(1);
+  if (!membership) throw new Error("OWNER_MEMBERSHIP_MISSING");
+
+  const invitation = await reissuePendingInvitation(owner.id);
+  return { store: { id: store.id, displayName: store.displayName }, invitation: { token: invitation.invitation.token, expiresAt: invitation.invitation.expiresAt, email } };
+}
+
 export async function provisionGiftStoreFromDraft(input: { draftId: number; confirmationName: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();

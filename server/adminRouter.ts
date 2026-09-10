@@ -297,6 +297,25 @@ export const adminRouter = router({
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
     getGiftStoreOwnerHandoff: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreOwnerHandoffPreflight(input.storeId)),
+    reissueGiftStoreOwnerInvitation: platformProcedure.input(z.object({ storeId: z.number().int().positive(), confirmationEmail: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
+      try {
+        const reissued = await db.reissueGiftStoreOwnerInvitation(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_handoff.reissue",
+          entityType: "store",
+          entityId: reissued.store.id,
+          summary: `Lien propriétaire régénéré sans envoi : ${reissued.store.displayName}`,
+          metadata: { invitationsSent: 0 },
+        });
+        return { ...reissued, invitation: { expiresAt: reissued.invitation.expiresAt, email: reissued.invitation.email, link: getAccountInvitationLink(reissued.invitation.token) } };
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "OWNER_INVITATION_NOT_PENDING", "OWNER_MEMBERSHIP_MISSING"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Aucun lien propriétaire en attente ne peut être régénéré pour cette boutique." });
+        if (code === "OWNER_INVITATION_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement l’e-mail du bénéficiaire pour confirmer la régénération." });
+        throw error;
+      }
+    }),
     prepareGiftStoreOwnerInvitation: platformProcedure.input(z.object({ storeId: z.number().int().positive(), confirmationEmail: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
       try {
         const prepared = await db.prepareGiftStoreOwnerInvitation(input);

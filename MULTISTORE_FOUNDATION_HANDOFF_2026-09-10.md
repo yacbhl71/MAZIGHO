@@ -291,3 +291,9 @@ Le lien d’invitation brut n’est renvoyé qu’à l’opérateur Studio aprè
 > Cette étape ne rend jamais la boutique publique. Avant une future activation, le propriétaire doit pouvoir accéder à la boutique, le domaine doit être contrôlé et raccordé, le profil/catalogue doivent être finalisés et une activation distincte doit être explicitement confirmée.
 
 ---
+
+### Récupération d’un lien manuel non copié
+
+Une invitation locale en attente ne bloque plus l’opérateur si le lien brut n’a pas été copié avant la fermeture de la console. MAZIGHO Studio propose **« Régénérer le lien manuel »** après confirmation de l’e-mail du bénéficiaire. Cette action invalide atomiquement l’ancien jeton, crée un nouveau lien de 24 heures et ne déclenche toujours aucun e-mail. Elle reste limitée à une boutique offerte en `setup`, à son propriétaire `pending_invitation` et à son appartenance `owner` déjà vérifiée.
+
+---
