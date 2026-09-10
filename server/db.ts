@@ -876,6 +876,13 @@ const studioOwnerBuilderPages: Array<{ id: StudioOwnerBuilderPage; label: string
 const studioOwnerBuilderPalettes: StudioOwnerBuilderPalette[] = ["terracotta", "sage", "midnight", "rose"];
 const studioOwnerBuilderTypographies: StudioOwnerBuilderTypography[] = ["editorial", "modern", "classic"];
 
+const studioOwnerBuilderPaletteColors: Record<StudioOwnerBuilderPalette, Pick<DesignProfile, "customPrimary" | "customAccent" | "customSoft">> = {
+  terracotta: { customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" },
+  sage: { customPrimary: "#0F766E", customAccent: "#115E59", customSoft: "#F0FDFA" },
+  midnight: { customPrimary: "#1E3A5F", customAccent: "#0F766E", customSoft: "#EFF6FF" },
+  rose: { customPrimary: "#9A3412", customAccent: "#D97706", customSoft: "#FFF1F2" },
+};
+
 function normalizeStudioOwnerBuilderConfiguration(value: unknown, fallback: { niche: string; paletteId: StudioOwnerBuilderPalette; typographyId: StudioOwnerBuilderTypography }): StudioOwnerBuilderConfiguration {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const model = source.model === "editorial" || source.model === "catalogue" ? source.model : "commerce";
@@ -964,12 +971,15 @@ export async function saveStudioOwnerBuilderConfiguration(input: {
     typographyId: input.typographyId,
   }, { niche: snapshot.configuration.niche, paletteId: snapshot.configuration.paletteId, typographyId: snapshot.configuration.typographyId });
   const currentProfile = await getDesignProfile(input.storeId);
+  const paletteColors = studioOwnerBuilderPaletteColors[normalized.paletteId];
   const profile = await updateDesignProfile({
     ...currentProfile,
     brandName: input.brandName.trim(),
     brandMessage: input.brandMessage.trim(),
     paletteId: normalized.paletteId,
     typographyId: normalized.typographyId,
+    customColorsEnabled: true,
+    ...paletteColors,
   }, input.storeId);
   await setStoreSettingValue(input.storeId, "owner_builder_configuration", JSON.stringify(normalized), "Configuration privée du créateur de boutique ; sans publication automatique");
   return { privateBuilder: true as const, publicStorefront: false as const, store: snapshot.store, identity: { brandName: profile.brandName, brandMessage: profile.brandMessage, brandLogoUrl: profile.brandLogoUrl }, configuration: normalized };
