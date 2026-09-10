@@ -236,3 +236,9 @@ Cette étape ne publie pas le site, ne modifie pas le domaine, ne donne pas d’
 Dans l’atelier **Créer et personnaliser**, choisissez **Préparer les pages**. Sélectionnez une page, ajustez les trois blocs de texte, cochez ou décochez leur visibilité, puis enregistrez le brouillon. L’aperçu à droite sert uniquement à relire la page avant toute mise en ligne.
 
 Les pages **À propos**, **Questions fréquentes**, **Nous contacter** et **Inspiration** restent privées. Cette étape ne publie aucun contenu, n’ajoute pas de média ou de lien, ne modifie pas le domaine et ne rend pas les fonctions de vente disponibles.
+
+### Ajouter une image de couverture privée
+
+Dans l’éditeur de pages, utilisez **Choisir une image** pour ajouter une couverture à la page sélectionnée. Les formats acceptés sont JPEG, PNG et WebP, dans une limite de 5 Mo. L’image apparaît d’abord dans l’aperçu privé ; cliquez ensuite sur **Enregistrer le brouillon** pour conserver ce choix dans la boutique.
+
+Cette image n’est pas publiée sur le domaine de la boutique tant que celle-ci reste en `setup`. Évitez donc d’y déposer une image qui ne pourrait pas être rendue publique plus tard, et utilisez **Retirer** pour supprimer sa référence du brouillon avant l’ouverture.

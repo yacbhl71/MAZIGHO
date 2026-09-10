@@ -547,3 +547,11 @@ Le créateur Studio comprend désormais une seconde étape : l’éditeur privé
 Les brouillons sont enregistrés par boutique dans le réglage isolé `owner_page_drafts`. Ils ne sont lus par aucune route publique, procédure storefront, panier, paiement ou pixel marketing. Les routes tRPC de lecture et de sauvegarde sont protégées par `platformProcedure`; un administrateur d’une boutique cliente reçoit `FORBIDDEN` et ne peut jamais accéder aux brouillons d’une autre boutique.
 
 Cet éditeur ne crée aucune page publique ni média, et ne modifie ni domaine, catalogue, prix, commande, paiement, fournisseur, membre ou invitation. L’intégration éventuelle de ces pages à un storefront restera une décision ultérieure, distincte de leur rédaction et soumise aux gardes d’ouverture existants.
+
+---
+
+## Médias privés des pages en préparation
+
+L’éditeur de pages Studio permet désormais de préparer une image de couverture par page. Seuls les formats **JPEG**, **PNG** et **WebP** sont acceptés, avec une taille maximale de **5 Mo**. Le fichier est stocké sous un chemin rattaché à l’identifiant de la boutique et son URL est enregistrée uniquement dans le brouillon isolé de la page.
+
+Le téléversement et la sauvegarde restent protégés par `platformProcedure`. Le média n’est consommé par aucune route publique, aucun storefront, panier, paiement, pixel marketing ou intégration fournisseur tant que la boutique reste en `setup`. L’opérateur doit sauvegarder le brouillon de page après l’envoi de l’image ; retirer l’image retire sa référence du brouillon sans toucher au domaine ou au statut de boutique.

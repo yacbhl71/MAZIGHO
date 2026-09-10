@@ -988,7 +988,7 @@ export async function saveStudioOwnerBuilderConfiguration(input: {
 type StudioOwnerPageId = "about" | "faq" | "contact" | "lookbook";
 type StudioOwnerPageBlockId = "intro" | "detail" | "reassurance";
 type StudioOwnerPageBlock = { id: StudioOwnerPageBlockId; label: string; visible: boolean; title: string; body: string };
-type StudioOwnerPageDraft = { id: StudioOwnerPageId; label: string; description: string; enabled: boolean; blocks: StudioOwnerPageBlock[] };
+type StudioOwnerPageDraft = { id: StudioOwnerPageId; label: string; description: string; enabled: boolean; coverImageUrl: string; blocks: StudioOwnerPageBlock[] };
 
 const studioOwnerPageDefinitions: Array<{ id: StudioOwnerPageId; label: string; description: string; blocks: Array<{ id: StudioOwnerPageBlockId; label: string }> }> = [
   { id: "about", label: "À propos", description: "L’histoire, l’intention et la promesse de la marque.", blocks: [{ id: "intro", label: "Introduction" }, { id: "detail", label: "Notre histoire" }, { id: "reassurance", label: "Notre promesse" }] },
@@ -1001,6 +1001,12 @@ function cleanStudioPageText(value: unknown, fallback: string, maximum: number) 
   if (typeof value !== "string") return fallback;
   const trimmed = value.trim().slice(0, maximum);
   return trimmed || fallback;
+}
+
+function cleanStudioOwnerPageImageUrl(value: unknown) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim().slice(0, 2000);
+  return trimmed.startsWith("https://") || trimmed.startsWith("/") ? trimmed : "";
 }
 
 function getStudioOwnerPageDefaults(brandName: string, niche: string): StudioOwnerPageDraft[] {
@@ -1033,6 +1039,7 @@ function getStudioOwnerPageDefaults(brandName: string, niche: string): StudioOwn
       label: page.label,
       description: page.description,
       enabled: true,
+      coverImageUrl: "",
       blocks: page.blocks.map(block => ({ id: block.id, label: block.label, visible: true, title: content[block.id].title, body: content[block.id].body })),
     };
   });
@@ -1046,6 +1053,7 @@ function normalizeStudioOwnerPageDrafts(value: unknown, defaults: StudioOwnerPag
     return {
       ...defaultPage,
       enabled: rawPage.enabled === false ? false : defaultPage.enabled,
+      coverImageUrl: cleanStudioOwnerPageImageUrl(rawPage.coverImageUrl),
       blocks: defaultPage.blocks.map(defaultBlock => {
         const rawBlock = rawBlocks.find(candidate => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>).id === defaultBlock.id) as Record<string, unknown> | undefined;
         return {
@@ -1090,6 +1098,7 @@ export async function saveStudioOwnerPageDraft(input: {
   storeId: number;
   pageId: StudioOwnerPageId;
   enabled: boolean;
+  coverImageUrl: string;
   blocks: Array<{ id: StudioOwnerPageBlockId; visible: boolean; title: string; body: string }>;
 }) {
   const snapshot = await getStudioOwnerPageDrafts(input.storeId);
@@ -1099,6 +1108,7 @@ export async function saveStudioOwnerPageDraft(input: {
   const nextPage: StudioOwnerPageDraft = {
     ...currentPage,
     enabled: input.enabled,
+    coverImageUrl: cleanStudioOwnerPageImageUrl(input.coverImageUrl),
     blocks: currentPage.blocks.map(block => {
       const submitted = submittedById.get(block.id);
       if (!submitted) return block;
@@ -1106,7 +1116,7 @@ export async function saveStudioOwnerPageDraft(input: {
     }),
   };
   const nextPages = snapshot.pages.map(page => page.id === input.pageId ? nextPage : page);
-  await setStoreSettingValue(input.storeId, "owner_page_drafts", JSON.stringify(Object.fromEntries(nextPages.map(page => [page.id, { enabled: page.enabled, blocks: page.blocks.map(block => ({ id: block.id, visible: block.visible, title: block.title, body: block.body })) }]))), "Brouillons privés de pages du créateur ; sans publication automatique");
+  await setStoreSettingValue(input.storeId, "owner_page_drafts", JSON.stringify(Object.fromEntries(nextPages.map(page => [page.id, { enabled: page.enabled, coverImageUrl: page.coverImageUrl, blocks: page.blocks.map(block => ({ id: block.id, visible: block.visible, title: block.title, body: block.body })) }]))), "Brouillons privés de pages du créateur ; sans publication automatique");
   return { privatePageEditor: true as const, publicStorefront: false as const, store: snapshot.store, page: nextPage };
 }
 
@@ -1146,6 +1156,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.owner_page_draft.save": {
     title: "Brouillon de page enregistré",
     detail: "Une page éditoriale a été préparée dans l’espace privé, sans publication publique.",
+  },
+  "studio.gift_store.owner_page_image.upload": {
+    title: "Image de couverture préparée",
+    detail: "Un média de page a été préparé dans l’espace privé, sans publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",

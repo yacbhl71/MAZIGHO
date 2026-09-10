@@ -363,10 +363,39 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    uploadOwnerPageImage: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      dataUrl: z.string().max(7_100_000),
+      fileName: z.string().trim().min(1).max(160),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        await db.getStudioOwnerPageDrafts(input.storeId);
+        const image = decodeDesignImage(input.dataUrl);
+        const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "couverture";
+        const key = `studio-private/store-${input.storeId}/page-cover-${Date.now()}-${safeName}.${image.extension}`;
+        const { url } = await storagePut(key, image.buffer, image.contentType);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_page_image.upload",
+          entityType: "store",
+          entityId: input.storeId,
+          summary: "Image de couverture privée préparée pour une boutique offerte",
+          metadata: { status: "setup", publicStorefront: false, publicationExecuted: false },
+        });
+        return { url };
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Les médias privés sont réservés à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     saveOwnerPageDraft: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       pageId: z.enum(["about", "faq", "contact", "lookbook"]),
       enabled: z.boolean(),
+      coverImageUrl: z.string().trim().max(2000).refine(value => !value || value.startsWith("https://") || value.startsWith("/"), "Utilisez une URL https:// ou un chemin interne."),
       blocks: z.array(z.object({
         id: z.enum(["intro", "detail", "reassurance"]),
         visible: z.boolean(),
