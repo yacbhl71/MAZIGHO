@@ -64,6 +64,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getPrivateStorefrontPreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerBuilderConfiguration({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerBuilderConfiguration({ storeId: 1, brandName: "Boutique cliente", brandMessage: "Une boutique de démonstration.", niche: "Décoration artisanale", model: "commerce", pages: ["about", "faq"], paletteId: "terracotta", typographyId: "editorial" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getOwnerCollectionDrafts({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.saveOwnerCollectionDrafts({ storeId: 1, collections: [{ id: "collection-1", title: "Collection privée", description: "Une collection préparée sans produit ni prix.", featured: true }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerFullPagePreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerNavigationDraft({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerNavigationDraft({ storeId: 1, items: [{ pageId: "home", label: "Accueil", visible: true }, { pageId: "about", label: "À propos", visible: true }, { pageId: "faq", label: "FAQ", visible: true }, { pageId: "contact", label: "Contact", visible: true }, { pageId: "lookbook", label: "Inspiration", visible: false }] })).rejects.toMatchObject({ code: "FORBIDDEN" });

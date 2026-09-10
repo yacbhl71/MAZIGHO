@@ -1,11 +1,11 @@
 import type { StoreSetupReadinessCheck } from "./storeSetupReadiness";
 
 export type StudioPreparationChecklistItem = {
-  key: "identity" | "pages" | "media" | "catalogue" | "domain" | "private_preview" | "public_opening";
+  key: "identity" | "collections" | "pages" | "media" | "catalogue" | "domain" | "private_preview" | "public_opening";
   label: string;
   state: "ready" | "action" | "optional" | "manual";
   detail: string;
-  action: "builder" | "pages" | "storefront_preview" | "studio" | null;
+  action: "builder" | "collections" | "pages" | "storefront_preview" | "studio" | null;
 };
 
 export type StorePreparationChecklistInput = {
@@ -13,6 +13,8 @@ export type StorePreparationChecklistInput = {
   primaryDomain: string;
   readinessChecks: StoreSetupReadinessCheck[];
   hasSavedBuilderConfiguration: boolean;
+  hasSavedCollections: boolean;
+  collectionCount: number;
   hasSavedPageDrafts: boolean;
   enabledPageCount: number;
   pagesWithCoverImageCount: number;
@@ -36,6 +38,7 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
   const catalogueReady = hasReadyCheck(input.readinessChecks, "catalogue");
   const domainPrepared = isPreparedPublicDomain(input.primaryDomain);
   const pagesReady = input.hasSavedPageDrafts && input.enabledPageCount > 0;
+  const collectionsReady = input.hasSavedCollections && input.collectionCount > 0;
 
   const items: StudioPreparationChecklistItem[] = [
     {
@@ -46,6 +49,15 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
         ? "Une identité propre est enregistrée pour cette boutique."
         : "Préparez puis enregistrez le nom, le message, l’univers et le style de la boutique.",
       action: "builder",
+    },
+    {
+      key: "collections",
+      label: "Collections de présentation",
+      state: collectionsReady ? "ready" : "action",
+      detail: collectionsReady
+        ? `${input.collectionCount} collection${input.collectionCount > 1 ? "s" : ""} est/sont préparée${input.collectionCount > 1 ? "s" : ""} dans un brouillon privé, sans catégorie ni produit réel.`
+        : "Préparez les univers et accroches qui organiseront la future sélection de la boutique.",
+      action: "collections",
     },
     {
       key: "pages",
@@ -101,7 +113,7 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
     },
   ];
 
-  const essentialItems = items.filter(item => ["identity", "pages", "catalogue", "domain"].includes(item.key));
+  const essentialItems = items.filter(item => ["identity", "collections", "pages", "catalogue", "domain"].includes(item.key));
   const readyEssentialCount = essentialItems.filter(item => item.state === "ready").length;
 
   return {

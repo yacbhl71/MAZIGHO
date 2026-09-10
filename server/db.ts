@@ -20,6 +20,7 @@ import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
 import { buildStorePreparationChecklist } from "./services/storePreparationChecklist";
 import { buildStoreLaunchCenter } from "./services/storeLaunchCenter";
 import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./services/storeNavigationDraft";
+import { normalizeStudioCollectionDrafts, type StudioCollectionDraft } from "./services/storeCollectionDraft";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1126,12 +1127,58 @@ export async function saveStudioOwnerPageDraft(input: {
 }
 
 /**
+ * Private collection plan for a future offered-store owner. It deliberately
+ * does not write categories, products, pricing, stock or supplier data.
+ */
+export async function getStudioOwnerCollectionDrafts(storeId: number) {
+  const builder = await getStudioOwnerBuilderConfiguration(storeId);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [stored] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_collection_drafts")))
+    .limit(1);
+  let storedDrafts: unknown = null;
+  try {
+    storedDrafts = stored?.value ? JSON.parse(stored.value) : null;
+  } catch {
+    storedDrafts = null;
+  }
+  const existingCategories = await getAllCategories(storeId);
+  const defaults: StudioCollectionDraft[] = existingCategories.slice(0, 8).map((category, index) => ({
+    id: `collection-${index + 1}`,
+    title: category.name,
+    description: category.description?.trim() || `Découvrez la sélection ${category.name.toLowerCase()} de la boutique.`,
+    featured: index === 0,
+  }));
+  if (!defaults.length) {
+    defaults.push({ id: "collection-1", title: "Collection principale", description: `Une première sélection autour de ${builder.configuration.niche.toLowerCase()}.`, featured: true });
+  }
+  const collections = normalizeStudioCollectionDrafts(storedDrafts, defaults);
+  return {
+    privateCollectionEditor: true as const,
+    publicStorefront: false as const,
+    hasSavedCollections: Boolean(stored?.value),
+    store: builder.store,
+    collections,
+  };
+}
+
+export async function saveStudioOwnerCollectionDrafts(input: { storeId: number; collections: StudioCollectionDraft[] }) {
+  const snapshot = await getStudioOwnerCollectionDrafts(input.storeId);
+  const collections = normalizeStudioCollectionDrafts(input.collections, snapshot.collections);
+  if (!collections.length) throw new Error("OWNER_COLLECTION_DRAFTS_REQUIRED");
+  await setStoreSettingValue(input.storeId, "owner_collection_drafts", JSON.stringify(collections), "Collections privées du créateur de boutique ; sans catégories ni publication automatique");
+  return { privateCollectionEditor: true as const, publicStorefront: false as const, store: snapshot.store, collections, hasSavedCollections: true as const };
+}
+
+/**
  * Private progress checklist for one offered store in setup. It returns only
  * minimized preparation states; it never verifies or changes public opening.
  */
 export async function getStudioGiftStorePreparationChecklist(storeId: number) {
-  const [builder, pageDrafts, readiness] = await Promise.all([
+  const [builder, collectionDrafts, pageDrafts, readiness] = await Promise.all([
     getStudioOwnerBuilderConfiguration(storeId),
+    getStudioOwnerCollectionDrafts(storeId),
     getStudioOwnerPageDrafts(storeId),
     getStudioGiftStoreSetupReadiness(storeId),
   ]);
@@ -1150,6 +1197,8 @@ export async function getStudioGiftStorePreparationChecklist(storeId: number) {
     primaryDomain: store.primaryDomain,
     readinessChecks: readiness.readiness.checks,
     hasSavedBuilderConfiguration: builder.hasSavedConfiguration,
+    hasSavedCollections: collectionDrafts.hasSavedCollections,
+    collectionCount: collectionDrafts.collections.length,
     hasSavedPageDrafts: pageDrafts.hasSavedDrafts,
     enabledPageCount,
     pagesWithCoverImageCount,
@@ -1291,6 +1340,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.owner_navigation.save": {
     title: "Navigation privée enregistrée",
     detail: "La structure de navigation a été préparée dans l’espace privé, sans publication publique.",
+  },
+  "studio.gift_store.owner_collections.save": {
+    title: "Collections privées enregistrées",
+    detail: "La structure des collections a été préparée dans l’espace privé, sans catégories réelles ni publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",

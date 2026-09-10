@@ -272,3 +272,10 @@ Ce choix change uniquement la maquette privée et reste réversible. Il ne publi
 Depuis le panneau propriétaire simulé, ouvrez **Centre de lancement**. Les six étapes présentent les actions à effectuer dans l’ordre et proposent un lien direct vers le bon atelier Studio. Les états proviennent des préparations réellement enregistrées, et non d’une simple liste à cocher.
 
 La dernière étape, **Décider de l’ouverture publique**, reste volontairement sans bouton d’activation. Utilisez la revue Studio d’activation séparée uniquement lorsque tous les contrôles manuels, notamment le DNS et le certificat, ont été confirmés.
+
+
+### Préparer les collections de présentation
+
+Depuis **Créer et personnaliser**, choisissez **Préparer les collections**. Ajoutez, renommez, réorganisez ou retirez les collections que vous souhaitez présenter, puis ajoutez une courte accroche et indiquez celles à mettre à la une. L’aperçu à droite permet de vérifier la structure avant toute ouverture.
+
+Les collections enregistrées ici sont un brouillon éditorial privé : elles ne créent aucune catégorie réelle, aucun produit, prix, stock, fournisseur, panier ou lien public. Les futurs ateliers Produits, Prix, Stock, Fournisseurs et Panier les reprendront comme étapes distinctes, avec leurs contrôles propres.

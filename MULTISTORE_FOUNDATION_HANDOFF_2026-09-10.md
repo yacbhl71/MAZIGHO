@@ -595,3 +595,14 @@ Ces variantes ne constituent pas trois thèmes publics et n’écrivent aucune d
 Le centre de lancement MAZIGHO Studio consolide les états réels de préparation d’une boutique offerte en `setup` : identité enregistrée, pages préparées, médias éventuels, catalogue de démonstration, domaine renseigné et aperçu privé. Il s’appuie sur les snapshots existants de checklist et de préparation, puis renvoie des étapes et liens Studio minimisés.
 
 Le dernier jalon, **Décider de l’ouverture publique**, est délibérément informatif et manuel. Aucun bouton du centre ne vérifie automatiquement le DNS ou le certificat, n’écrit un domaine, ne crée un panier ou un paiement, ni ne modifie le statut de la boutique. L’activation reste uniquement disponible via la revue Studio séparée et avec confirmation explicite.
+
+
+## Atelier privé de collections — préparation de catalogue
+
+L’atelier **« Préparer les collections »** est accessible uniquement depuis MAZIGHO Studio pour les boutiques offertes en état `setup`. Il enregistre, sous la clé `owner_collection_drafts`, une liste ordonnée de une à huit collections. Chaque collection contient exclusivement un titre, une accroche et un indicateur « à la une » ; les valeurs restent dans un brouillon de préparation isolé par boutique.
+
+Cette brique n’écrit aucune catégorie réelle et ne crée aucun produit, variante, image de produit, prix, stock, fournisseur, panier, domaine ou publication. La checklist et le centre de lancement affichent les collections comme une étape éditoriale privée distincte du catalogue opérationnel. Les actions de lecture et de sauvegarde sont protégées par `platformProcedure`; les administrateurs de boutiques clientes n’y ont pas accès.
+
+Chemin opérateur : **Panneau propriétaire — simulation → Créer et personnaliser → Préparer les collections**.
+
+> Les ateliers Produits, Prix, Stock, Fournisseurs et Panier sont des jalons ultérieurs et devront être implémentés séparément avec leurs propres règles d’isolement, validations et confirmations. L’enregistrement de collections ne constitue jamais une publication.
