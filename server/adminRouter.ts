@@ -279,6 +279,12 @@ export const adminRouter = router({
     }),
   }),
 
+  // MAZIGHO Studio is the platform console. This read-only inventory exposes
+  // aggregate storefront signals, never customer records, secrets or catalogue details.
+  studio: router({
+    getInventory: platformProcedure.query(async () => db.getStudioStoreInventory()),
+  }),
+
   // Scheduled marketing campaigns (temporal banners + FOMO countdown) — admin-only.
   campaigns: router({
     getAll: adminProcedure.query(async ({ ctx }) => db.getAllCampaignsAdmin(ctx.store?.id)),

@@ -176,3 +176,24 @@ Les paramètres publics de devise, livraison et pixels nécessiteront leur propr
 Finaliser, tester et publier le périmètre opérationnel ; migrer les préférences publiques restantes par boutique ; puis créer dans MAZIGHO Studio la gestion réelle, à accès opérateur, du parc de boutiques et de l’invitation de leur premier propriétaire. Les états licence, grâce, limitation et révocation ne doivent pas être activés tant que leur mécanisme de décision est formellement défini et testé.
 
 ---
+
+## Étape 6 — MAZIGHO Studio : inventaire opérateur réel en lecture seule
+
+**Statut :** prête à publier. MAZIGHO Studio ne se limite plus à des aperçus visuels : la console interroge désormais le registre réel des boutiques dans un périmètre strictement opérateur. Aucune boutique cliente n’est créée, invitée ou modifiée par cette étape.
+
+| Élément affiché dans Studio | Règle de sécurité appliquée |
+|---|---|
+| Registre de boutiques | Nom, domaine, slug, statut et marqueur plateforme uniquement. |
+| Préparation | État informatif du profil initial, sans détail de contenus ni de configuration. |
+| Membres | Compteurs agrégés de membres et propriétaires actifs, sans identité, e-mail ou compte. |
+| Catalogue | Compteurs agrégés de produits et produits actifs, sans révéler les fiches d’une autre boutique. |
+| Commandes | Compteurs et date de dernière commande seulement, sans client, montant, ligne ou adresse. |
+| États d’accès | `setup`, `active`, `limited`, `suspended` et `closed` sont visibles comme signaux de pilotage ; aucune suspension ou licence automatique n’est activée. |
+
+La procédure `admin.studio.getInventory` est protégée par `platformProcedure`. Elle exige à la fois un administrateur global et le contexte de la boutique plateforme. Le test `platformProcedure.test.ts` confirme qu’un administrateur d’une future boutique cliente reçoit une interdiction pour l’inventaire Studio comme pour les contrôles techniques.
+
+Les aperçus animalier, bijoux et vêtements restent volontairement des modèles non publiés. Ils servent à présenter l’adaptation de la marque, des collections et des priorités métier, mais ne créent ni données, ni domaine, ni client.
+
+> La prochaine étape fonctionnelle est une mise en service guidée et explicitement confirmée : création d’une boutique, statut `setup`, invitation du premier propriétaire et rattachement de son domaine. Elle ne doit pas être lancée avant une validation séparée du parcours et de la gouvernance des accès.
+
+---

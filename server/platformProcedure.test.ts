@@ -33,9 +33,10 @@ function createContext(input: { role: "admin" | "user"; isPlatformStore: number 
 }
 
 describe("MAZIGHO Studio platform guard", () => {
-  it("refuses technical platform controls from a client storefront administrator", async () => {
+  it("refuses platform controls and the Studio inventory from a client storefront administrator", async () => {
     const caller = appRouter.createCaller(createContext({ role: "admin", isPlatformStore: 0 }));
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuses technical platform controls from a non-administrator", async () => {

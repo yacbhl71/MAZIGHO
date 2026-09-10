@@ -93,6 +93,90 @@ export async function getStoreMembershipForUser(storeId: number, userId: number)
   return rows[0];
 }
 
+/**
+ * Platform-only inventory for MAZIGHO Studio. It deliberately returns aggregate
+ * operational signals only: no customer identities, credentials, order lines or
+ * cross-store catalogue content are exposed here.
+ */
+export async function getStudioStoreInventory() {
+  await ensureMultiStoreSchema();
+  await ensureStoreCatalogScopeSchema();
+  await ensureStoreRelationshipScopeSchema();
+  await ensureStoreOperationsScopeSchema();
+  const db = await getDb();
+  if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
+
+  const [storeRows, membershipRows, productRows, orderRows, setupRows] = await Promise.all([
+    db.select({
+      id: stores.id,
+      slug: stores.slug,
+      displayName: stores.displayName,
+      primaryDomain: stores.primaryDomain,
+      status: stores.status,
+      isPlatformStore: stores.isPlatformStore,
+      createdAt: stores.createdAt,
+      updatedAt: stores.updatedAt,
+    }).from(stores).orderBy(desc(stores.isPlatformStore), asc(stores.displayName)),
+    db.select({
+      storeId: storeMemberships.storeId,
+      activeMembers: sql<number>`SUM(CASE WHEN ${storeMemberships.status} = 'active' THEN 1 ELSE 0 END)`,
+      activeOwners: sql<number>`SUM(CASE WHEN ${storeMemberships.status} = 'active' AND ${storeMemberships.role} = 'owner' THEN 1 ELSE 0 END)`,
+    }).from(storeMemberships).groupBy(storeMemberships.storeId),
+    db.select({
+      storeId: products.storeId,
+      productCount: count(),
+      activeProductCount: sql<number>`SUM(CASE WHEN ${products.status} = 'active' THEN 1 ELSE 0 END)`,
+    }).from(products).groupBy(products.storeId),
+    db.select({
+      storeId: orders.storeId,
+      orderCount: count(),
+      paidOrderCount: sql<number>`SUM(CASE WHEN ${orders.paymentStatus} = 'paid' THEN 1 ELSE 0 END)`,
+      latestOrderAt: sql<Date | null>`MAX(${orders.createdAt})`,
+    }).from(orders).groupBy(orders.storeId),
+    db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
+      .from(storeSettings).where(eq(storeSettings.key, "setup_wizard_status")),
+  ]);
+
+  const membershipsByStore = new Map(membershipRows.map(row => [row.storeId, row]));
+  const productsByStore = new Map(productRows.map(row => [row.storeId, row]));
+  const ordersByStore = new Map(orderRows.map(row => [row.storeId, row]));
+  const setupStoreIds = new Set(setupRows.filter(row => {
+    try { return Boolean(JSON.parse(row.value)?.completedAt); } catch { return false; }
+  }).map(row => row.storeId));
+
+  const inventory = storeRows.map(store => {
+    const membership = membershipsByStore.get(store.id);
+    const catalog = productsByStore.get(store.id);
+    const sales = ordersByStore.get(store.id);
+    return {
+      ...store,
+      setupCompleted: setupStoreIds.has(store.id),
+      activeMembers: Number(membership?.activeMembers ?? 0),
+      activeOwners: Number(membership?.activeOwners ?? 0),
+      productCount: Number(catalog?.productCount ?? 0),
+      activeProductCount: Number(catalog?.activeProductCount ?? 0),
+      orderCount: Number(sales?.orderCount ?? 0),
+      paidOrderCount: Number(sales?.paidOrderCount ?? 0),
+      latestOrderAt: sales?.latestOrderAt ?? null,
+    };
+  });
+
+  const statusCount = (status: schema.Store["status"]) => inventory.filter(store => store.status === status).length;
+  return {
+    summary: {
+      total: inventory.length,
+      platform: inventory.filter(store => Boolean(store.isPlatformStore)).length,
+      client: inventory.filter(store => !store.isPlatformStore).length,
+      setup: statusCount("setup"),
+      active: statusCount("active"),
+      limited: statusCount("limited"),
+      suspended: statusCount("suspended"),
+      closed: statusCount("closed"),
+    },
+    stores: inventory,
+  };
+}
+
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
   _reviewsSchemaReady = (async () => {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
+import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowUpRight,
   BadgeCheck,
+  CircleAlert,
+  Clock3,
   Building2,
   CheckCircle2,
   CircleDashed,
@@ -21,8 +24,8 @@ import {
   PawPrint,
   Shirt,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
+  RefreshCw,
   Store,
   UsersRound,
   WandSparkles,
@@ -102,6 +105,21 @@ const previews: Record<BoutiqueTheme, ThemePreview> = {
   },
 };
 
+const storeStatusPresentation = {
+  setup: { label: "À préparer", className: "border-amber-200 bg-amber-50 text-amber-800" },
+  active: { label: "Active", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  limited: { label: "Accès limité", className: "border-orange-200 bg-orange-50 text-orange-800" },
+  suspended: { label: "Suspendue", className: "border-rose-200 bg-rose-50 text-rose-800" },
+  closed: { label: "Clôturée", className: "border-slate-200 bg-slate-100 text-slate-700" },
+} as const;
+
+function formatStudioDate(value: Date | string | null) {
+  if (!value) return "Aucune commande";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date indisponible";
+  return new Intl.DateTimeFormat("fr-CH", { dateStyle: "medium" }).format(date);
+}
+
 function StudioRailItem({ icon: Icon, title, detail }: { icon: typeof Building2; title: string; detail: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -116,6 +134,8 @@ function StudioRailItem({ icon: Icon, title, detail }: { icon: typeof Building2;
 
 export default function AdminStudio() {
   const [themeId, setThemeId] = useState<BoutiqueTheme>("animalier");
+  const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
+  const inventory = inventoryQuery.data;
   const theme = previews[themeId];
   const ThemeIcon = theme.icon;
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
@@ -128,13 +148,13 @@ export default function AdminStudio() {
             <div>
               <Badge className="border border-orange-300/35 bg-orange-400/15 px-3 py-1 text-orange-100 hover:bg-orange-400/15"><Building2 className="mr-1.5 h-3.5 w-3.5" /> Console opérateur</Badge>
               <h1 className="mt-4 text-3xl font-bold tracking-tight md:text-4xl">MAZIGHO Studio prend forme.</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 md:text-base">Cette console vous appartient : elle donnera une vision de la plateforme, tandis que chaque acheteur administrera uniquement sa propre boutique. Les cartes ci-dessous sont des aperçus non publiés, sans boutique cliente créée ni donnée de production modifiée.</p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 md:text-base">Cette console vous appartient. Elle affiche maintenant le parc réel enregistré dans la plateforme, sous forme d’indicateurs agrégés et sans révéler de données clients. Les exemples animalier, bijoux et vêtements restent des modèles non publiés pour visualiser la future offre.</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-5">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Étape actuelle</p>
-              <p className="mt-2 text-lg font-semibold">Fondations multi-boutiques</p>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full w-[58%] rounded-full bg-orange-400" /></div>
-              <p className="mt-3 text-xs leading-5 text-slate-300">Identité, catalogue et relations client sont en cours d’isolation avant l’ouverture des premières boutiques clientes.</p>
+              <p className="mt-2 text-lg font-semibold">Console opérateur informative</p>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full w-[72%] rounded-full bg-orange-400" /></div>
+              <p className="mt-3 text-xs leading-5 text-slate-300">Le registre, l’identité, le catalogue, les relations client et les opérations sont isolés. La création d’une boutique cliente reste volontairement désactivée.</p>
             </div>
           </div>
           <div className="grid border-t border-white/10 sm:grid-cols-3">
@@ -142,6 +162,55 @@ export default function AdminStudio() {
             <div className="border-b border-white/10 px-6 py-4 sm:border-b-0 sm:border-r"><p className="text-xs uppercase tracking-[0.14em] text-slate-400">Espace client</p><p className="mt-1 font-semibold">Une boutique, un catalogue, un pilotage</p></div>
             <div className="px-6 py-4"><p className="text-xs uppercase tracking-[0.14em] text-slate-400">Sécurité</p><p className="mt-1 font-semibold">Secrets techniques hors interface</p></div>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parc réel de la plateforme</p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Les boutiques enregistrées, sans ouvrir leurs données internes.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque ligne regroupe uniquement l’état opérationnel, les membres actifs, le catalogue et les commandes. Les identités client, secrets et contenus détaillés restent isolés.</p>
+            </div>
+            <Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+              <RefreshCw className={`mr-2 h-4 w-4 ${inventoryQuery.isFetching ? "animate-spin" : ""}`} /> Actualiser
+            </Button>
+          </div>
+
+          {inventoryQuery.isLoading ? (
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-slate-100" />)}</div>
+          ) : inventoryQuery.isError ? (
+            <div className="mt-6 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /><p>Les indicateurs Studio ne sont pas disponibles pour le moment. Le panneau quotidien de MAZIGHO reste inchangé ; vous pouvez réessayer cette lecture sans modifier aucune donnée.</p></div>
+          ) : (
+            <>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Boutiques enregistrées</p><p className="mt-2 text-3xl font-bold text-slate-950">{inventory?.summary.total ?? 0}</p><p className="mt-1 text-xs text-slate-500">dont {inventory?.summary.platform ?? 0} plateforme</p></div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Boutiques actives</p><p className="mt-2 text-3xl font-bold text-emerald-950">{inventory?.summary.active ?? 0}</p><p className="mt-1 text-xs text-emerald-800">Aucun accès client n’est créé ici</p></div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">À préparer</p><p className="mt-2 text-3xl font-bold text-amber-950">{inventory?.summary.setup ?? 0}</p><p className="mt-1 text-xs text-amber-800">Identité, catalogue ou domaine à finaliser</p></div>
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Accès encadrés</p><p className="mt-2 text-3xl font-bold text-violet-950">{(inventory?.summary.limited ?? 0) + (inventory?.summary.suspended ?? 0)}</p><p className="mt-1 text-xs text-violet-800">États informatifs, sans licence automatique</p></div>
+              </div>
+
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="grid min-w-[760px] grid-cols-[minmax(220px,1.4fr)_150px_100px_120px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Commandes</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="min-w-[760px] divide-y divide-slate-100">
+                    {(inventory?.stores ?? []).map(store => {
+                      const status = storeStatusPresentation[store.status];
+                      return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.4fr)_150px_100px_120px_120px] items-center gap-4 px-5 py-4">
+                        <div className="min-w-0"><div className="flex items-center gap-2"><Store className="h-4 w-4 shrink-0 text-slate-500" /><p className="truncate font-semibold text-slate-900">{store.displayName}</p>{Boolean(store.isPlatformStore) && <Badge className="border-0 bg-slate-900 text-white hover:bg-slate-900">Plateforme</Badge>}</div><p className="mt-1 truncate text-xs text-slate-500">{store.primaryDomain} · {store.slug}</p></div>
+                        <div><Badge variant="outline" className={status.className}>{status.label}</Badge><p className="mt-1.5 text-xs text-slate-500">{store.setupCompleted ? "Profil initial complété" : "Profil initial à compléter"}</p></div>
+                        <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
+                        <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
+                        <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
+                      </div>;
+                    })}
+                  </div>
+                </div>
+              </div>
+              {(inventory?.summary.client ?? 0) === 0 && <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-orange-200 bg-orange-50/60 p-4 text-sm leading-6 text-orange-950"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><p><strong>Aucune boutique cliente n’est encore ouverte.</strong> C’est volontaire : Studio vous montre aujourd’hui la boutique plateforme réelle et prépare le dispositif d’accompagnement avant la première mise en service.</p></div>}
+            </>
+          )}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.06fr_.94fr]">
@@ -182,7 +251,7 @@ export default function AdminStudio() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700">Prévisualisations métier</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700">Modèles d’univers métier</p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Une même ossature, trois identités vraiment différentes.</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Le logiciel reste le même et sécurisé. Seuls l’univers visuel, les catégories, les conseils de catalogue et la priorité de gestion changent selon le métier du client.</p>
             </div>
@@ -221,7 +290,7 @@ export default function AdminStudio() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p><p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">La prochaine étape est de transformer cette vue en vraie console opérateur : inventaire des boutiques, états d’accès, accompagnement et passage guidé vers le panneau de chaque client. La création d’une première boutique reste désactivée tant que tous les services opérationnels ne sont pas isolés.</p></div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p>              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">Le parc réel est maintenant lisible dans Studio. La prochaine étape sera la mise en service guidée d’une première boutique, mais elle reste désactivée tant que le processus de domaine, invitation propriétaire et règles d’accès n’est pas formellement testé.</p></div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col"><Button asChild className="bg-slate-900 hover:bg-slate-800"><Link href="/admin"><ArrowUpRight className="mr-2 h-4 w-4" /> Revenir au pilotage MAZIGHO</Link></Button><Button asChild variant="outline" className="border-orange-200 bg-white text-orange-800 hover:bg-orange-50"><Link href="/admin/personnalisation"><Palette className="mr-2 h-4 w-4" /> Voir la personnalisation</Link></Button></div>
         </section>
       </div>
