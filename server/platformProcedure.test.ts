@@ -68,6 +68,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.uploadOwnerPageImage({ storeId: 1, dataUrl: "data:image/png;base64,aGVsbG8=", fileName: "couverture.png" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerPageDraft({ storeId: 1, pageId: "about", enabled: true, coverImageUrl: "", blocks: [{ id: "intro", visible: true, title: "Bienvenue", body: "Un brouillon de page privé." }, { id: "detail", visible: true, title: "Notre histoire", body: "Un contenu préparatoire." }, { id: "reassurance", visible: true, title: "Notre promesse", body: "Une promesse préparatoire." }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreSetupReadiness({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getGiftStorePreparationChecklist({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreActivityTimeline({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateGiftStorePrimaryDomain({ storeId: 1, confirmationName: "Boutique cliente", primaryDomain: "animalerie.exemple.ch", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftRetailDemoSetupCandidates()).rejects.toMatchObject({ code: "FORBIDDEN" });

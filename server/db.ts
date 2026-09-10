@@ -17,6 +17,7 @@ import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
+import { buildStorePreparationChecklist } from "./services/storePreparationChecklist";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -945,6 +946,7 @@ export async function getStudioOwnerBuilderConfiguration(storeId: number) {
   return {
     privateBuilder: true as const,
     publicStorefront: false as const,
+    hasSavedConfiguration: Boolean(settingsByKey.get("owner_builder_configuration")),
     store: { id: store.id, displayName: store.displayName, status: store.status, businessType: draft.businessType },
     identity: { brandName: profile.brandName || store.displayName, brandMessage: profile.brandMessage, brandLogoUrl: profile.brandLogoUrl },
     configuration,
@@ -1088,6 +1090,7 @@ export async function getStudioOwnerPageDrafts(storeId: number) {
   return {
     privatePageEditor: true as const,
     publicStorefront: false as const,
+    hasSavedDrafts: Boolean(stored?.value),
     store: builder.store,
     activePageIds: builder.configuration.pages,
     pages: normalizeStudioOwnerPageDrafts(storedDrafts, defaults),
@@ -1118,6 +1121,42 @@ export async function saveStudioOwnerPageDraft(input: {
   const nextPages = snapshot.pages.map(page => page.id === input.pageId ? nextPage : page);
   await setStoreSettingValue(input.storeId, "owner_page_drafts", JSON.stringify(Object.fromEntries(nextPages.map(page => [page.id, { enabled: page.enabled, coverImageUrl: page.coverImageUrl, blocks: page.blocks.map(block => ({ id: block.id, visible: block.visible, title: block.title, body: block.body })) }]))), "Brouillons privés de pages du créateur ; sans publication automatique");
   return { privatePageEditor: true as const, publicStorefront: false as const, store: snapshot.store, page: nextPage };
+}
+
+/**
+ * Private progress checklist for one offered store in setup. It returns only
+ * minimized preparation states; it never verifies or changes public opening.
+ */
+export async function getStudioGiftStorePreparationChecklist(storeId: number) {
+  const [builder, pageDrafts, readiness] = await Promise.all([
+    getStudioOwnerBuilderConfiguration(storeId),
+    getStudioOwnerPageDrafts(storeId),
+    getStudioGiftStoreSetupReadiness(storeId),
+  ]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, displayName: stores.displayName, status: stores.status, primaryDomain: stores.primaryDomain })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  const enabledPageCount = pageDrafts.pages.filter(page => page.enabled).length;
+  const pagesWithCoverImageCount = pageDrafts.pages.filter(page => Boolean(page.coverImageUrl)).length;
+  const checklist = buildStorePreparationChecklist({
+    status: store.status,
+    primaryDomain: store.primaryDomain,
+    readinessChecks: readiness.readiness.checks,
+    hasSavedBuilderConfiguration: builder.hasSavedConfiguration,
+    hasSavedPageDrafts: pageDrafts.hasSavedDrafts,
+    enabledPageCount,
+    pagesWithCoverImageCount,
+  });
+
+  return {
+    ...checklist,
+    store: { id: store.id, displayName: store.displayName, status: store.status },
+  };
 }
 
 const studioGiftStoreTimelineLabels = {

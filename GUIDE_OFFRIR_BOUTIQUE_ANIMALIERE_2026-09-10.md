@@ -242,3 +242,9 @@ Les pages **À propos**, **Questions fréquentes**, **Nous contacter** et **Insp
 Dans l’éditeur de pages, utilisez **Choisir une image** pour ajouter une couverture à la page sélectionnée. Les formats acceptés sont JPEG, PNG et WebP, dans une limite de 5 Mo. L’image apparaît d’abord dans l’aperçu privé ; cliquez ensuite sur **Enregistrer le brouillon** pour conserver ce choix dans la boutique.
 
 Cette image n’est pas publiée sur le domaine de la boutique tant que celle-ci reste en `setup`. Évitez donc d’y déposer une image qui ne pourrait pas être rendue publique plus tard, et utilisez **Retirer** pour supprimer sa référence du brouillon avant l’ouverture.
+
+### Utiliser la checklist de préparation
+
+Depuis le **panneau propriétaire — simulation**, ouvrez **Suivi de préparation**. Cette page indique les étapes déjà sauvegardées — identité, pages, médias, catalogue et domaine — puis propose un lien vers l’atelier correspondant. Elle est utile pour reprendre la préparation sans chercher dans les différents écrans Studio.
+
+La checklist ne met rien en ligne. Sa dernière carte rappelle que l’ouverture publique, le contrôle DNS, le certificat, le panier et le paiement restent des décisions distinctes à confirmer ultérieurement.

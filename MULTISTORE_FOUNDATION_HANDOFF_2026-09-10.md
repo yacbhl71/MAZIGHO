@@ -555,3 +555,11 @@ Cet éditeur ne crée aucune page publique ni média, et ne modifie ni domaine, 
 L’éditeur de pages Studio permet désormais de préparer une image de couverture par page. Seuls les formats **JPEG**, **PNG** et **WebP** sont acceptés, avec une taille maximale de **5 Mo**. Le fichier est stocké sous un chemin rattaché à l’identifiant de la boutique et son URL est enregistrée uniquement dans le brouillon isolé de la page.
 
 Le téléversement et la sauvegarde restent protégés par `platformProcedure`. Le média n’est consommé par aucune route publique, aucun storefront, panier, paiement, pixel marketing ou intégration fournisseur tant que la boutique reste en `setup`. L’opérateur doit sauvegarder le brouillon de page après l’envoi de l’image ; retirer l’image retire sa référence du brouillon sans toucher au domaine ou au statut de boutique.
+
+---
+
+## Checklist privée de préparation par boutique
+
+MAZIGHO Studio comprend une checklist visuelle par boutique offerte en `setup`. Elle calcule des états réels et minimisés pour l’identité sauvegardée, les pages de présentation enregistrées, les images de couverture éventuellement préparées, le catalogue de démonstration et le domaine renseigné. Chaque carte fournit uniquement un lien vers son étape Studio correspondante ; aucune carte ne modifie une donnée.
+
+Le snapshot de checklist ne retourne ni domaine en clair, contenu des pages, URL de médias, coordonnées de propriétaire, profil légal détaillé, commandes, clients ou secrets. Il est protégé par `platformProcedure` et refuse les administrateurs de boutiques clientes. L’étape **Ouverture publique** reste volontairement manuelle : la checklist ne vérifie ni DNS, ni certificat, ni paiement, ni panier, ni activation.
