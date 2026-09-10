@@ -480,3 +480,20 @@ La mutation génère une trace d’audit non sensible contenant les anciens et n
 | Effet | Lecture seule : aucun statut, domaine, accès, panier, paiement, e-mail, Stripe, Odoo, CJ ou fournisseur n’est modifié. |
 
 Les libellés affichés sont contrôlés par le code et ne reprennent jamais les textes bruts de journalisation. Cette règle évite qu’une donnée ajoutée à un audit ultérieur soit exposée automatiquement dans Studio.
+
+
+---
+
+## Correctif prioritaire — fermeture globale des domaines de boutiques en `setup`
+
+**Statut :** prêt à publier. Une vérification sur `animalerie.mazigho.ch` a montré qu’une procédure storefront refusait déjà correctement une boutique en `setup`, mais que l’application cliente continuait de rendre ses valeurs visuelles par défaut MAZIGHO après cette erreur. Ce comportement pouvait donner l’impression que la boutique plateforme était servie par le sous-domaine d’une boutique non ouverte.
+
+| Couche | Correctif appliqué |
+|---|---|
+| Signal serveur | `storefront.getAvailability` retourne uniquement deux indicateurs techniques : boutique résolue et storefront publiquement servable. Il ne retourne ni marque, ni domaine, ni catalogue, ni donnée client ou opérationnelle. |
+| Garde global client | Le routeur attend ce signal avant de rendre une page publique **ou** d’administration. Si le storefront n’est pas servable ou si la lecture échoue, il échoue fermé sur une page neutre de préparation. |
+| Interface et suivi | L’écran fermé ne monte ni en-tête, ni pied de page, ni panneau administratif MAZIGHO. Les pixels et la bannière de consentement ne sont plus montés avant la validation de disponibilité. |
+| Résolution serveur | Le repli de compatibilité vers la boutique plateforme est limité à ses hôtes reconnus, au développement local et aux alias Vercel du projet. Tout domaine personnalisé inconnu échoue fermé. |
+| Activation | Aucun état n’est modifié. Les boutiques `setup`, `suspended` et `closed` restent non servables ; seules `active` et `limited` peuvent servir le storefront. |
+
+Les tests couvrent le signal « storefront fermé » pour une boutique `setup`, le refus du catalogue, du panier et du checkout, ainsi que l’interdiction de repli d’un sous-domaine personnalisé vers la boutique plateforme.

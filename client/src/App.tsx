@@ -89,6 +89,22 @@ function ScrollToTop() {
   return null;
 }
 
+function StorefrontUnavailablePage() {
+  useEffect(() => {
+    document.title = "Boutique en préparation";
+  }, []);
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-center text-white">
+      <div className="max-w-md">
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-slate-400">Accès temporairement fermé</p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Cette boutique est en préparation</h1>
+        <p className="mt-4 text-sm leading-7 text-slate-300">Elle n’est pas encore ouverte au public. Aucun catalogue, panier, paiement ou espace d’administration n’est disponible sur cette adresse.</p>
+      </div>
+    </main>
+  );
+}
+
 function BrowserTitle() {
   const [location] = useLocation();
 
@@ -166,6 +182,7 @@ function Router() {
   const [location] = useLocation();
   const { user } = useAuth();
   const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
+  const storefrontAvailabilityQuery = trpc.storefront.getAvailability.useQuery(undefined, { refetchOnWindowFocus: false });
   const path = location.split("?")[0];
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -173,6 +190,14 @@ function Router() {
     path.startsWith("/admin") ||
     ["/login", "/register", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/activer-compte"].includes(path);
   const forcePreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview_maintenance") === "1";
+
+  if (storefrontAvailabilityQuery.isLoading) {
+    return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
+  }
+
+  if (!storefrontAvailabilityQuery.data?.publicStorefront) {
+    return <StorefrontUnavailablePage />;
+  }
 
   if (maintenance && (forcePreview || (maintenance.enabled && !isStaff && !isExemptPath))) {
     return (
@@ -259,6 +284,8 @@ function Router() {
         <Route component={NotFound} />
         </Switch>
       </Suspense>
+      <MarketingPixels />
+      <MarketingConsentBanner />
     </>
   );
 }
@@ -278,8 +305,6 @@ function App() {
               <TooltipProvider>
                 <Toaster />
                 <Router />
-                <MarketingPixels />
-                <MarketingConsentBanner />
               </TooltipProvider>
             </MarketingConsentProvider>
           </DeliveryCountryProvider>

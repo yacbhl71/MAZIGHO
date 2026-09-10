@@ -12,7 +12,7 @@ import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./servic
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
-import { normalizeStoreHost } from "./services/storeScope";
+import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
@@ -1237,7 +1237,8 @@ export async function resolveStoreForHost(host?: string | null): Promise<StoreSc
       : [];
     if (byDomain[0]) return byDomain[0];
     const primary = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
-    return primary[0] ?? null;
+    if (!primary[0] || !mayUsePlatformStoreFallback(normalizedHost, primary[0].primaryDomain)) return null;
+    return primary[0];
   } catch (error) {
     console.warn("[MultiStore] Unable to resolve storefront scope", error);
     return null;

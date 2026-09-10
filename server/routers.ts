@@ -59,6 +59,15 @@ export const appRouter = router({
   auth: authRouter,
   checkout: stripeCheckoutRouter,
 
+  // Minimal host-scoped availability signal used before rendering any public or admin shell.
+  // It deliberately exposes no brand, catalogue, domain, customer, order or integration data.
+  storefront: router({
+    getAvailability: publicProcedure.query(({ ctx }) => ({
+      publicStorefront: Boolean(ctx.store && mayServeStorefront(ctx.store.status)),
+      hasResolvedStore: Boolean(ctx.store),
+    })),
+  }),
+
   // Minimal authenticated workspace context used only to choose the correct panel shell.
   // It exposes no credentials, payments, customer data or cross-store catalogue data.
   workspace: router({

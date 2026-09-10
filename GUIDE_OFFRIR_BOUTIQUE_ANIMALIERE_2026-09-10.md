@@ -210,3 +210,10 @@ Avant de valider ce remplacement, attendez que Vercel reconnaisse le domaine et 
 Dans **MAZIGHO Studio**, sélectionnez la boutique dans **« Suivi privé de préparation »**, puis consultez **« Historique privé de préparation »**. Cette vue affiche seulement les jalons Studio utiles — création, préparation de l’accès propriétaire, kit de démonstration, profil légal et domaine — avec leur date.
 
 Elle ne révèle aucun e-mail, acteur, détail juridique, client, commande, paiement, fournisseur ou métadonnée. Elle est informative uniquement : elle ne vérifie pas automatiquement le DNS, ne modifie aucun état et ne permet pas d’ouvrir une boutique.
+
+
+### Domaine préparé, boutique encore fermée
+
+Après le rattachement d’un domaine public à une boutique qui est toujours en `setup`, le domaine ne doit pas afficher la boutique MAZIGHO ni son administration. Il affiche uniquement une page neutre indiquant que la boutique est en préparation. Le catalogue, le panier, le paiement, les routes d’administration et les pixels marketing restent fermés.
+
+Ce comportement est volontaire et constitue un garde-fou : le domaine peut être techniquement prêt dans Vercel avant que l’opérateur décide séparément d’ouvrir la boutique. L’activation publique reste l’unique étape qui peut rendre le storefront accessible.
