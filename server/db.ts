@@ -540,9 +540,6 @@ export async function getStoreMembershipForUser(storeId: number, userId: number)
  */
 export async function getStudioStoreInventory() {
   await ensureMultiStoreSchema();
-  await ensureStoreCatalogScopeSchema();
-  await ensureStoreRelationshipScopeSchema();
-  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
 
@@ -577,7 +574,22 @@ export async function getStudioStoreInventory() {
       .from(storeSettings).where(eq(storeSettings.key, "setup_wizard_status")),
     db.select({ storeId: storeSettings.storeId })
       .from(storeSettings).where(and(eq(storeSettings.key, "provisioning_mode"), eq(storeSettings.value, "gift"))),
-  ]);
+  ]).catch(async error => {
+    // The Studio overview must remain readable when a non-essential aggregate
+    // is temporarily unavailable on an existing database.
+    console.warn("[Studio] Aggregate counters unavailable; returning the store registry only", error);
+    const fallbackStores = await db.select({
+      id: stores.id,
+      slug: stores.slug,
+      displayName: stores.displayName,
+      primaryDomain: stores.primaryDomain,
+      status: stores.status,
+      isPlatformStore: stores.isPlatformStore,
+      createdAt: stores.createdAt,
+      updatedAt: stores.updatedAt,
+    }).from(stores).orderBy(desc(stores.isPlatformStore), asc(stores.displayName));
+    return [fallbackStores, [], [], [], [], []] as const;
+  });
 
   const membershipsByStore = new Map(membershipRows.map(row => [row.storeId, row]));
   const productsByStore = new Map(productRows.map(row => [row.storeId, row]));
