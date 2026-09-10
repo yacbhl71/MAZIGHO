@@ -14,16 +14,16 @@ export type LegalProfile = {
 };
 
 export const defaultLegalProfile: LegalProfile = {
-  operatorName: "Bahloul Yacine",
-  addressLine: "Chemin des Lieugex 17",
-  postalCodeCity: "1860 Aigle",
-  country: "Suisse",
-  contactEmail: "yacbhll@gmail.com",
-  businessStatus: "Activité individuelle en cours de création",
-  ideVatNumber: "Aucun numéro IDE ou TVA attribué à ce jour",
-  deliveryZones: "Suisse et certains pays d’Europe, selon disponibilité",
-  deliveryDetails: "Les destinations, frais et délais définitifs seront affichés avant l’ouverture des commandes.",
-  returnsPolicy: "Aucun programme commercial de retours ou d’échanges n’est proposé à ce stade.",
+  operatorName: "Entreprise à renseigner",
+  addressLine: "Adresse à renseigner",
+  postalCodeCity: "Code postal et ville à renseigner",
+  country: "Pays à renseigner",
+  contactEmail: "support@example.com",
+  businessStatus: "Statut juridique à renseigner",
+  ideVatNumber: "Numéro d’entreprise ou régime TVA à renseigner",
+  deliveryZones: "Zones de livraison à renseigner",
+  deliveryDetails: "Les destinations, frais et délais sont indiqués avant validation de la commande.",
+  returnsPolicy: "Politique de retours à renseigner avant l’ouverture des ventes.",
 };
 
 export function useLegalProfile() {
