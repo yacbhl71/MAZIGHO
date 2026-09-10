@@ -275,3 +275,19 @@ Les routes storefront, panier, promotions et checkout Stripe Test utilisent dés
 La prochaine étape, lorsqu’un véritable bénéficiaire devra recevoir son accès, consiste à préparer une **invitation distincte et explicitement confirmée**. Elle ne devra être proposée qu’après contrôle manuel du domaine et, selon le parcours choisi, de l’identité du propriétaire.
 
 ---
+
+## Étape 11 — propriétaire et invitation différée d’une boutique offerte
+
+**Statut :** prête à publier. MAZIGHO Studio peut maintenant sélectionner une boutique offerte en état `setup`, lire son propriétaire prévu et préparer son accès sans expédier d’e-mail.
+
+| Situation du bénéficiaire | Action locale contrôlée | Ce qui n’est pas exécuté |
+|---|---|---|
+| Compte déjà actif | Son appartenance `owner` est ajoutée à la boutique, après confirmation de l’e-mail | Aucun message, paiement ou changement du statut public. |
+| Aucun compte | Un compte local `pending_invitation`, une appartenance propriétaire et un jeton d’invitation de 24 heures sont créés dans une transaction | Aucun e-mail n’est envoyé ; aucun lien n’est transmis automatiquement. |
+| Invitation déjà préparée | Le prévol indique une invitation locale en attente | Aucun nouveau lien n’est généré silencieusement. |
+
+Le lien d’invitation brut n’est renvoyé qu’à l’opérateur Studio après la confirmation d’e-mail et une case de compréhension dans l’interface. Il peut être copié puis transmis manuellement par l’opérateur après vérification de l’identité du bénéficiaire. Il n’est jamais ajouté aux journaux d’audit.
+
+> Cette étape ne rend jamais la boutique publique. Avant une future activation, le propriétaire doit pouvoir accéder à la boutique, le domaine doit être contrôlé et raccordé, le profil/catalogue doivent être finalisés et une activation distincte doit être explicitement confirmée.
+
+---

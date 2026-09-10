@@ -296,6 +296,26 @@ export const adminRouter = router({
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
+    getGiftStoreOwnerHandoff: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreOwnerHandoffPreflight(input.storeId)),
+    prepareGiftStoreOwnerInvitation: platformProcedure.input(z.object({ storeId: z.number().int().positive(), confirmationEmail: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
+      try {
+        const prepared = await db.prepareGiftStoreOwnerInvitation(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_handoff.prepare",
+          entityType: "store",
+          entityId: prepared.store.id,
+          summary: prepared.owner.attached ? `Propriétaire existant attribué : ${prepared.store.displayName}` : `Invitation propriétaire préparée sans envoi : ${prepared.store.displayName}`,
+          metadata: { invitationPrepared: prepared.owner.invitationPrepared, createdAccount: prepared.owner.createdAccount, invitationsSent: 0 },
+        });
+        return prepared.invitation ? { ...prepared, invitation: { expiresAt: prepared.invitation.expiresAt, email: prepared.invitation.email, link: getAccountInvitationLink(prepared.invitation.token) } } : prepared;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "OWNER_ALREADY_ATTACHED"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir ce parcours propriétaire." });
+        if (code === "OWNER_INVITATION_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement l’e-mail du bénéficiaire pour confirmer la préparation." });
+        throw error;
+      }
+    }),
     provisionGiftStore: platformProcedure.input(z.object({ draftId: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
       try {
         const provisioned = await db.provisionGiftStoreFromDraft(input);

@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
+  Copy,
   Eye,
   Gift,
   Layers3,
@@ -36,6 +37,7 @@ import {
   RefreshCw,
   Store,
   UsersRound,
+  UserPlus,
   WandSparkles,
 } from "lucide-react";
 
@@ -177,11 +179,33 @@ export default function AdminStudio() {
   const [giftConfirmOpen, setGiftConfirmOpen] = useState(false);
   const [giftConfirmationName, setGiftConfirmationName] = useState("");
   const [giftAcknowledged, setGiftAcknowledged] = useState(false);
+  const [selectedOwnerHandoffStoreId, setSelectedOwnerHandoffStoreId] = useState<number | null>(null);
+  const [ownerHandoffConfirmOpen, setOwnerHandoffConfirmOpen] = useState(false);
+  const [ownerHandoffAcknowledged, setOwnerHandoffAcknowledged] = useState(false);
+  const [ownerHandoffEmail, setOwnerHandoffEmail] = useState("");
+  const [preparedOwnerInvitation, setPreparedOwnerInvitation] = useState<{ link: string; email: string; expiresAt: Date | string } | null>(null);
   const utils = trpc.useUtils();
   const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
   const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.admin.studio.getProvisioningReviews.useQuery(undefined, { refetchOnWindowFocus: false });
   const preflightQuery = trpc.admin.studio.getLaunchPreflight.useQuery({ draftId: selectedPreflightDraftId ?? 0 }, { enabled: selectedPreflightDraftId !== null, refetchOnWindowFocus: false });
+  const ownerHandoffQuery = trpc.admin.studio.getGiftStoreOwnerHandoff.useQuery({ storeId: selectedOwnerHandoffStoreId ?? 0 }, { enabled: selectedOwnerHandoffStoreId !== null, refetchOnWindowFocus: false });
+  const prepareOwnerInvitationMutation = trpc.admin.studio.prepareGiftStoreOwnerInvitation.useMutation({
+    onSuccess: result => {
+      if (result.invitation) {
+        setPreparedOwnerInvitation({ link: result.invitation.link, email: result.invitation.email, expiresAt: result.invitation.expiresAt });
+        toast.success("Invitation préparée. Aucun e-mail n’a été envoyé.");
+      } else {
+        toast.success("Le propriétaire disposant déjà d’un compte a été attribué à cette boutique.");
+      }
+      setOwnerHandoffConfirmOpen(false);
+      setOwnerHandoffAcknowledged(false);
+      setOwnerHandoffEmail("");
+      utils.admin.studio.getInventory.invalidate();
+      utils.admin.studio.getGiftStoreOwnerHandoff.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le parcours propriétaire n’a pas pu être préparé."),
+  });
   const provisionGiftMutation = trpc.admin.studio.provisionGiftStore.useMutation({
     onSuccess: result => {
       toast.success(`Boutique créée en préparation : ${result.store.displayName}. Aucun e-mail ni paiement n’a été déclenché.`);
@@ -210,6 +234,7 @@ export default function AdminStudio() {
   const theme = previews[themeId];
   const ThemeIcon = theme.icon;
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
+  const giftSetupStores = useMemo(() => (inventory?.stores ?? []).filter(store => store.status === "setup" && store.giftProvisioned), [inventory?.stores]);
 
   return (
     <DashboardLayout>
@@ -283,6 +308,25 @@ export default function AdminStudio() {
             </>
           )}
         </section>
+
+        <section className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]" data-testid="studio-owner-handoff">
+          <Card className="border-violet-200 shadow-sm">
+            <CardHeader><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700">Propriétaire de la boutique offerte</p><CardTitle className="mt-1 flex items-center gap-2 text-2xl"><UserPlus className="h-6 w-6 text-violet-700" /> Préparer l’accès, sans l’envoyer</CardTitle><CardDescription className="mt-2 max-w-2xl">Après la création d’une boutique en `setup`, ce parcours attache un propriétaire existant ou prépare un lien manuel. Il n’envoie jamais d’e-mail et n’ouvre pas la boutique au public.</CardDescription></div><Badge className="border-0 bg-violet-100 text-violet-800 hover:bg-violet-100">Contrôle opérateur</Badge></div></CardHeader>
+            <CardContent className="space-y-3">
+              {giftSetupStores.length === 0 ? <div className="rounded-2xl border border-dashed border-violet-200 bg-violet-50/50 p-5 text-sm leading-6 text-violet-950"><p className="font-semibold">Aucune boutique offerte en préparation.</p><p className="mt-1">Créez d’abord une boutique cadeau en état `setup` depuis un brouillon validé. Elle apparaîtra ensuite ici pour préparer son propriétaire.</p></div> : giftSetupStores.map(store => <button key={store.id} type="button" onClick={() => { setSelectedOwnerHandoffStoreId(store.id); setPreparedOwnerInvitation(null); }} className={selectedOwnerHandoffStoreId === store.id ? "w-full rounded-2xl border border-violet-400 bg-violet-50 p-4 text-left ring-2 ring-violet-100" : "w-full rounded-2xl border border-slate-200 bg-white p-4 text-left hover:border-violet-200 hover:bg-violet-50/40"}><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{store.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{store.primaryDomain}</p></div><Badge className="border-0 bg-amber-100 text-amber-800 hover:bg-amber-100">setup</Badge></div><p className="mt-3 text-xs leading-5 text-slate-600">{store.activeOwners > 0 ? "Propriétaire local déjà rattaché" : "Propriétaire à préparer"} · {store.activeMembers} membre{store.activeMembers > 1 ? "s" : ""}</p></button>)}
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">Revue d’accès</p><CardTitle className="mt-1 text-xl">Propriétaire et activation future</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {selectedOwnerHandoffStoreId === null ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Choisissez une boutique offerte à gauche pour vérifier son propriétaire et préparer, si nécessaire, un lien manuel.</div> : ownerHandoffQuery.isLoading ? <div className="h-40 animate-pulse rounded-2xl bg-slate-100" /> : ownerHandoffQuery.isError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">La revue propriétaire n’est pas disponible pour cette boutique.</div> : ownerHandoffQuery.data && <div className="space-y-3"><div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><p><strong className="text-slate-900">Bénéficiaire prévu :</strong> {ownerHandoffQuery.data.intendedOwner.name}</p><p><strong className="text-slate-900">E-mail :</strong> {ownerHandoffQuery.data.intendedOwner.email}</p><p className="mt-2"><strong className="text-slate-900">État :</strong> {ownerHandoffQuery.data.ownerState === "attached" ? "propriétaire déjà rattaché" : ownerHandoffQuery.data.ownerState === "invitation_pending" ? "invitation locale déjà en attente" : ownerHandoffQuery.data.ownerState === "existing_account_needs_assignment" ? "compte existant à attribuer" : "compte à préparer"}</p></div>{ownerHandoffQuery.data.requiredBeforePublicActivation.map(item => <p key={item} className="flex gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-600"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" />{item}</p>)}{preparedOwnerInvitation && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-sm font-semibold text-emerald-950">Lien préparé — aucun e-mail envoyé</p><p className="mt-1 text-xs leading-5 text-emerald-900">Transmettez-le vous-même au bénéficiaire uniquement après vérification de son identité. Il expire le {formatStudioDate(preparedOwnerInvitation.expiresAt)}.</p><div className="mt-3 flex gap-2"><Input value={preparedOwnerInvitation.link} readOnly className="bg-white text-xs" aria-label="Lien d’invitation préparé" /><Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(preparedOwnerInvitation.link); toast.success("Lien copié dans le presse-papiers."); }} aria-label="Copier le lien d’invitation"><Copy className="h-4 w-4" /></Button></div></div>}{ownerHandoffQuery.data.canPrepareInvitation && !ownerHandoffQuery.data.pendingInvitation.prepared && <Button type="button" className="w-full bg-violet-700 hover:bg-violet-800" onClick={() => { setOwnerHandoffEmail(""); setOwnerHandoffAcknowledged(false); setOwnerHandoffConfirmOpen(true); }}><UserPlus className="mr-2 h-4 w-4" /> Préparer l’invitation propriétaire</Button>}</div>}
+            </CardContent>
+          </Card>
+        </section>
+
+        <Dialog open={ownerHandoffConfirmOpen} onOpenChange={open => { if (!prepareOwnerInvitationMutation.isPending) setOwnerHandoffConfirmOpen(open); }}>
+          <DialogContent className="max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><UserPlus className="h-5 w-5 text-violet-700" /> Préparer l’accès propriétaire</DialogTitle><DialogDescription>Cette action crée au besoin un compte local en attente et un lien d’invitation manuel. Elle n’envoie aucun e-mail et ne rend pas la boutique publique.</DialogDescription></DialogHeader>{ownerHandoffQuery.data && <div className="space-y-3"><div className="rounded-xl border border-violet-100 bg-violet-50 p-4 text-sm text-violet-950"><p><strong>Boutique :</strong> {ownerHandoffQuery.data.store.displayName}</p><p className="mt-1"><strong>Bénéficiaire :</strong> {ownerHandoffQuery.data.intendedOwner.email}</p><p className="mt-1"><strong>Envoi e-mail :</strong> absent — le lien restera à transmettre manuellement.</p></div><div className="space-y-2"><Label htmlFor="owner-handoff-email">Recopiez l’e-mail du bénéficiaire</Label><Input id="owner-handoff-email" type="email" value={ownerHandoffEmail} onChange={event => setOwnerHandoffEmail(event.target.value)} placeholder={ownerHandoffQuery.data.intendedOwner.email} /></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={ownerHandoffAcknowledged} onChange={event => setOwnerHandoffAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-600" /><span>Je confirme préparer l’accès de ce bénéficiaire. J’ai compris qu’aucun e-mail ne sera envoyé, qu’aucun paiement ne sera créé et que la boutique restera fermée au public.</span></label></div>}<DialogFooter><Button type="button" variant="outline" onClick={() => setOwnerHandoffConfirmOpen(false)} disabled={prepareOwnerInvitationMutation.isPending}>Annuler</Button><Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!ownerHandoffQuery.data || !ownerHandoffAcknowledged || ownerHandoffEmail.trim().toLowerCase() !== ownerHandoffQuery.data.intendedOwner.email || prepareOwnerInvitationMutation.isPending} onClick={() => ownerHandoffQuery.data && prepareOwnerInvitationMutation.mutate({ storeId: ownerHandoffQuery.data.store.id, confirmationEmail: ownerHandoffEmail })}>{prepareOwnerInvitationMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />} Préparer le lien</Button></DialogFooter></DialogContent>
+        </Dialog>
 
         <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]" data-testid="studio-provisioning">
           <Card className="border-orange-200 shadow-sm">

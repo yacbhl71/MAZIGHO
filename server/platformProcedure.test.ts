@@ -47,6 +47,8 @@ describe("MAZIGHO Studio platform guard", () => {
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getLaunchPreflight({ draftId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.provisionGiftStore({ draftId: 1, confirmationName: "Boutique cliente" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getGiftStoreOwnerHandoff({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.prepareGiftStoreOwnerInvitation({ storeId: 1, confirmationEmail: "client@example.test" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuses technical platform controls from a non-administrator", async () => {

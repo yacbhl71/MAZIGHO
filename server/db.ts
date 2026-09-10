@@ -141,6 +141,114 @@ export async function getStudioStoreLaunchPreflight(draftId: number) {
   };
 }
 
+export async function getGiftStoreOwnerHandoffPreflight(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  await ensureInvitationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF");
+  const settingsRows = await db.select().from(storeSettings).where(eq(storeSettings.storeId, storeId));
+  const settingsByKey = new Map(settingsRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+  const normalizedEmail = normaliseEmail(draft.ownerEmail);
+  const [ownerUser, ownerMembership] = await Promise.all([
+    db.select().from(users).where(sql`LOWER(${users.email}) = ${normalizedEmail}`).limit(1),
+    db.select().from(storeMemberships).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"))).limit(1),
+  ]);
+  const user = ownerUser[0];
+  const pendingToken = user ? await db.select({ id: accountTokens.id, expiresAt: accountTokens.expiresAt }).from(accountTokens).where(and(eq(accountTokens.userId, user.id), eq(accountTokens.purpose, "account_invitation"), isNull(accountTokens.usedAt), gt(accountTokens.expiresAt, new Date()))).limit(1) : [];
+
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    intendedOwner: { name: draft.ownerName, email: normalizedEmail },
+    ownerState: user?.accountStatus === "active" && ownerMembership[0] ? "attached" as const : user?.accountStatus === "pending_invitation" ? "invitation_pending" as const : user ? "existing_account_needs_assignment" as const : "account_not_created" as const,
+    pendingInvitation: pendingToken[0] ? { prepared: true, expiresAt: pendingToken[0].expiresAt } : { prepared: false, expiresAt: null },
+    canPrepareInvitation: !ownerMembership[0] && store.status === "setup",
+    requiredBeforePublicActivation: [
+      "Le propriétaire doit activer son compte et pouvoir accéder à sa boutique.",
+      "Le domaine doit être vérifié et raccordé manuellement.",
+      "Le profil, le catalogue et les réglages de boutique doivent être finalisés.",
+      "L’activation publique doit être confirmée dans une étape distincte.",
+    ],
+  };
+}
+
+export async function prepareGiftStoreOwnerInvitation(input: { storeId: number; confirmationEmail: string }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  await ensureInvitationSchema();
+  await ensureStaffRoles();
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF");
+    const settingsRows = await tx.select().from(storeSettings).where(eq(storeSettings.storeId, store.id));
+    const settingsByKey = new Map(settingsRows.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+    const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+    if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+    const [draft] = await tx.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+    if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+    const email = normaliseEmail(draft.ownerEmail);
+    if (normaliseEmail(input.confirmationEmail) !== email) throw new Error("OWNER_INVITATION_CONFIRMATION_MISMATCH");
+    const [existingOwner] = await tx.select().from(storeMemberships).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"))).limit(1);
+    if (existingOwner) throw new Error("OWNER_ALREADY_ATTACHED");
+
+    const [existingUser] = await tx.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+    let userId: number;
+    let createdAccount = false;
+    if (existingUser) {
+      if (existingUser.accountStatus === "active") {
+        await tx.insert(storeMemberships).values({ storeId: store.id, userId: existingUser.id, role: "owner", status: "active" });
+        return { store: { id: store.id, displayName: store.displayName }, owner: { attached: true, invitationPrepared: false, createdAccount: false }, invitation: null };
+      }
+      userId = existingUser.id;
+    } else {
+      const createdUser = await tx.insert(users).values({
+        openId: `local_${randomUUID()}`,
+        name: draft.ownerName.trim(),
+        email,
+        role: "user",
+        passwordHash: null,
+        loginMethod: "invitation_pending",
+        accountStatus: "pending_invitation",
+        lastSignedIn: null,
+      });
+      userId = Number((createdUser as any)?.[0]?.insertId ?? (createdUser as any)?.insertId);
+      if (!Number.isInteger(userId) || userId <= 0) throw new Error("OWNER_ACCOUNT_CREATION_FAILED");
+      createdAccount = true;
+    }
+
+    const [membership] = await tx.select().from(storeMemberships).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.userId, userId))).limit(1);
+    if (!membership) await tx.insert(storeMemberships).values({ storeId: store.id, userId, role: "owner", status: "active" });
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+    const token = randomBytes(32).toString("base64url");
+    await tx.update(accountTokens).set({ usedAt: now }).where(and(eq(accountTokens.userId, userId), eq(accountTokens.purpose, "account_invitation"), isNull(accountTokens.usedAt)));
+    await tx.insert(accountTokens).values({ userId, purpose: "account_invitation", tokenHash: hashAccountToken(token), expiresAt });
+
+    return {
+      store: { id: store.id, displayName: store.displayName },
+      owner: { attached: false, invitationPrepared: true, createdAccount },
+      invitation: { token, expiresAt, email },
+    };
+  });
+}
+
 export async function provisionGiftStoreFromDraft(input: { draftId: number; confirmationName: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
@@ -273,7 +381,7 @@ export async function getStudioStoreInventory() {
   const db = await getDb();
   if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
 
-  const [storeRows, membershipRows, productRows, orderRows, setupRows] = await Promise.all([
+  const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows] = await Promise.all([
     db.select({
       id: stores.id,
       slug: stores.slug,
@@ -302,6 +410,8 @@ export async function getStudioStoreInventory() {
     }).from(orders).groupBy(orders.storeId),
     db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
       .from(storeSettings).where(eq(storeSettings.key, "setup_wizard_status")),
+    db.select({ storeId: storeSettings.storeId })
+      .from(storeSettings).where(and(eq(storeSettings.key, "provisioning_mode"), eq(storeSettings.value, "gift"))),
   ]);
 
   const membershipsByStore = new Map(membershipRows.map(row => [row.storeId, row]));
@@ -310,6 +420,7 @@ export async function getStudioStoreInventory() {
   const setupStoreIds = new Set(setupRows.filter(row => {
     try { return Boolean(JSON.parse(row.value)?.completedAt); } catch { return false; }
   }).map(row => row.storeId));
+  const giftProvisionedStoreIds = new Set(giftProvisioningRows.map(row => row.storeId));
 
   const inventory = storeRows.map(store => {
     const membership = membershipsByStore.get(store.id);
@@ -318,6 +429,7 @@ export async function getStudioStoreInventory() {
     return {
       ...store,
       setupCompleted: setupStoreIds.has(store.id),
+      giftProvisioned: giftProvisionedStoreIds.has(store.id),
       activeMembers: Number(membership?.activeMembers ?? 0),
       activeOwners: Number(membership?.activeOwners ?? 0),
       productCount: Number(catalog?.productCount ?? 0),
