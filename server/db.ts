@@ -49,6 +49,138 @@ let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
+type GiftDemoBusinessType = "animalier" | "bijoux" | "vetements";
+
+type GiftDemoBlueprint = {
+  setupKey: string;
+  setupDescription: string;
+  profile: (storeName: string) => DesignProfile;
+  categories: Array<{ name: string; slug: string; description: string; displayOrder: number }>;
+  product: { name: string; slug: string; description: string; longDescription: string; categorySlug: string };
+};
+
+function getGiftDemoBlueprint(businessType: GiftDemoBusinessType): GiftDemoBlueprint {
+  const sharedProfile = {
+    showDiscovery: false,
+    showStory: false,
+    showTestimonials: false,
+    showEditorial: false,
+    showFeatured: true,
+    customColorsEnabled: true,
+    textBanners: [],
+    homeOrder: ["featured"],
+  };
+
+  if (businessType === "bijoux") {
+    return {
+      setupKey: "jewelry_demo_setup",
+      setupDescription: "Kit de démonstration bijoux installé avant personnalisation commerciale.",
+      profile: storeName => ({
+        ...defaultDesignProfile,
+        ...sharedProfile,
+        paletteId: "rose",
+        typographyId: "editorial",
+        brandName: storeName,
+        brandMessage: "Une base élégante pour présenter vos collections et vos idées cadeaux.",
+        highlightEyebrow: "Atelier de démonstration",
+        highlightTitle: "Des détails qui deviennent des souvenirs.",
+        highlightText: "Une sélection non commerciale à personnaliser avant l’ouverture : nouveautés, attentions et essentiels.",
+        storyTitle: "Une boutique à votre image.",
+        storyText: "Ce contenu de démonstration est volontairement neutre : ajoutez vos bijoux, vos visuels et votre histoire avant toute vente.",
+        editorialEyebrow: "Démonstration",
+        editorialTitle: "Une base bijoux prête à personnaliser.",
+        customPrimary: "#9A3412",
+        customAccent: "#D97706",
+        customSoft: "#FFF7ED",
+      }),
+      categories: [
+        { name: "Nouveautés", slug: "nouveautes", description: "Démonstration : nouvelles pièces et collections à présenter.", displayOrder: 1 },
+        { name: "À offrir", slug: "a-offrir", description: "Démonstration : attentions, cadeaux et moments à célébrer.", displayOrder: 2 },
+        { name: "Essentiels", slug: "essentiels", description: "Démonstration : pièces signatures et essentiels du quotidien.", displayOrder: 3 },
+      ],
+      product: {
+        name: "Fiche de démonstration — pendentif atelier",
+        slug: "fiche-demonstration-pendentif-atelier",
+        description: "Fiche non commerciale à remplacer avant toute vente.",
+        longDescription: "Cette fiche sert uniquement à vérifier la présentation d’un catalogue bijoux. Ajoutez ensuite un produit réel, ses visuels, ses variantes, son prix, son stock et ses conditions de livraison avant l’ouverture publique.",
+        categorySlug: "nouveautes",
+      },
+    };
+  }
+
+  if (businessType === "vetements") {
+    return {
+      setupKey: "apparel_demo_setup",
+      setupDescription: "Kit de démonstration vêtements installé avant personnalisation commerciale.",
+      profile: storeName => ({
+        ...defaultDesignProfile,
+        ...sharedProfile,
+        paletteId: "midnight",
+        typographyId: "modern",
+        brandName: storeName,
+        brandMessage: "Une base éditoriale pour organiser les silhouettes, essentiels et nouveautés de votre marque.",
+        highlightEyebrow: "Collection de démonstration",
+        highlightTitle: "Des essentiels pensés pour le quotidien.",
+        highlightText: "Une sélection non commerciale à personnaliser avant l’ouverture : silhouettes, nouveautés et pièces incontournables.",
+        storyTitle: "Une boutique à votre image.",
+        storyText: "Ce contenu de démonstration est volontairement neutre : ajoutez vos vêtements, vos visuels et votre histoire avant toute vente.",
+        editorialEyebrow: "Démonstration",
+        editorialTitle: "Une base mode prête à personnaliser.",
+        customPrimary: "#0F172A",
+        customAccent: "#B45309",
+        customSoft: "#F8FAFC",
+      }),
+      categories: [
+        { name: "Nouveautés", slug: "nouveautes", description: "Démonstration : les nouvelles pièces et capsules de la saison.", displayOrder: 1 },
+        { name: "Femme", slug: "femme", description: "Démonstration : silhouettes et essentiels à personnaliser.", displayOrder: 2 },
+        { name: "Homme", slug: "homme", description: "Démonstration : pièces et essentiels à personnaliser.", displayOrder: 3 },
+      ],
+      product: {
+        name: "Fiche de démonstration — veste essentielle",
+        slug: "fiche-demonstration-veste-essentielle",
+        description: "Fiche non commerciale à remplacer avant toute vente.",
+        longDescription: "Cette fiche sert uniquement à vérifier la présentation d’un catalogue vêtements. Ajoutez ensuite un produit réel, ses visuels, ses tailles, son prix, son stock et ses conditions de livraison avant l’ouverture publique.",
+        categorySlug: "nouveautes",
+      },
+    };
+  }
+
+  return {
+    setupKey: "pet_demo_setup",
+    setupDescription: "Kit de démonstration animalier installé avant personnalisation commerciale.",
+    profile: storeName => ({
+      ...defaultDesignProfile,
+      ...sharedProfile,
+      paletteId: "sage",
+      typographyId: "modern",
+      brandName: storeName,
+      brandMessage: "Des essentiels choisis pour le bien-être, les sorties et le quotidien de vos compagnons.",
+      highlightEyebrow: "Pattes & Compagnie",
+      highlightTitle: "Le meilleur pour leurs grandes aventures.",
+      highlightText: "Une sélection à personnaliser avant l’ouverture : confort, promenade et vie de tous les jours.",
+      storyTitle: "Une boutique à votre image.",
+      storyText: "Ce contenu de démonstration est volontairement neutre : ajoutez vos produits, vos visuels et votre histoire avant toute vente.",
+      editorialEyebrow: "Démonstration",
+      editorialTitle: "Une base animalier prête à personnaliser.",
+      customPrimary: "#0F766E",
+      customAccent: "#F59E0B",
+      customSoft: "#F0FDFA",
+    }),
+    categories: [
+      { name: "Chiens", slug: "chiens", description: "Démonstration : confort, repas et accessoires pour chiens.", displayOrder: 1 },
+      { name: "Chats", slug: "chats", description: "Démonstration : repos, jeux et quotidien des chats.", displayOrder: 2 },
+      { name: "Promenade", slug: "promenade", description: "Démonstration : sorties, transport et essentiels de promenade.", displayOrder: 3 },
+    ],
+    product: {
+      name: "Fiche de démonstration — bol animalier",
+      slug: "fiche-demonstration-bol-animalier",
+      description: "Fiche non commerciale à remplacer avant toute vente.",
+      longDescription: "Cette fiche sert uniquement à vérifier la présentation du catalogue de Pattes & Compagnie. Ajoutez ensuite un produit réel, son fournisseur, ses visuels, son prix, son stock et ses conditions de livraison avant l’ouverture publique.",
+      categorySlug: "chiens",
+    },
+  };
+}
+
 async function ensureMultiStoreSchema() {
   if (_multiStoreSchemaReady) return _multiStoreSchemaReady;
 
@@ -354,6 +486,137 @@ export async function installGiftPetDemoSetup(input: { storeId: number; confirma
     }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ version: 1, installedAt: now.toISOString(), commercialReadiness: "not_for_sale" }), description: "Kit de démonstration animalier installé avant personnalisation commerciale." } });
 
     return { store: { id: store.id, displayName: store.displayName, status: store.status }, createdCategories: starterCategories.length, activeDemoProduct: !demoProduct, installedAt: now };
+  });
+}
+
+export async function getGiftRetailDemoSetupCandidates() {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  const [storeRows, settingRows] = await Promise.all([
+    db.select({ id: stores.id, displayName: stores.displayName, status: stores.status, isPlatformStore: stores.isPlatformStore })
+      .from(stores)
+      .where(and(eq(stores.status, "setup"), eq(stores.isPlatformStore, 0))),
+    db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value })
+      .from(storeSettings)
+      .where(inArray(storeSettings.key, ["provisioning_mode", "provisioning_draft_id", "jewelry_demo_setup", "apparel_demo_setup"])),
+  ]);
+
+  const settingsByStore = new Map<number, Map<string, string>>();
+  for (const row of settingRows) {
+    const values = settingsByStore.get(row.storeId) ?? new Map<string, string>();
+    values.set(row.key, row.value);
+    settingsByStore.set(row.storeId, values);
+  }
+  const candidateRows = storeRows.filter(store => settingsByStore.get(store.id)?.get("provisioning_mode") === "gift");
+  const draftIds = candidateRows.map(store => Number(settingsByStore.get(store.id)?.get("provisioning_draft_id"))).filter(draftId => Number.isInteger(draftId) && draftId > 0);
+  if (draftIds.length === 0) return [];
+
+  const drafts = await db.select({ id: storeProvisioningDrafts.id, businessType: storeProvisioningDrafts.businessType })
+    .from(storeProvisioningDrafts)
+    .where(inArray(storeProvisioningDrafts.id, draftIds));
+  const businessTypeByDraftId = new Map(drafts.map(draft => [draft.id, draft.businessType]));
+
+  return candidateRows.flatMap(store => {
+    const settings = settingsByStore.get(store.id);
+    const businessType = businessTypeByDraftId.get(Number(settings?.get("provisioning_draft_id")));
+    if (businessType !== "bijoux" && businessType !== "vetements") return [];
+    const setupKey = getGiftDemoBlueprint(businessType).setupKey;
+    return [{
+      id: store.id,
+      displayName: store.displayName,
+      status: store.status,
+      businessType,
+      demoInstalled: settings?.has(setupKey) ?? false,
+    }];
+  });
+}
+
+export async function installGiftRetailDemoSetup(input: { storeId: number; confirmationName: string; acknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_RETAIL_DEMO_SETUP");
+    if (!input.acknowledged || input.confirmationName.trim() !== store.displayName.trim()) throw new Error("RETAIL_DEMO_SETUP_CONFIRMATION_MISMATCH");
+
+    const existingSettings = await tx.select({ key: storeSettings.key, value: storeSettings.value })
+      .from(storeSettings).where(eq(storeSettings.storeId, store.id));
+    const settingsByKey = new Map(existingSettings.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+    const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+    if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+    const [draft] = await tx.select({ businessType: storeProvisioningDrafts.businessType }).from(storeProvisioningDrafts)
+      .where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+    if (!draft || (draft.businessType !== "bijoux" && draft.businessType !== "vetements")) throw new Error("STORE_NOT_RETAIL_DEMO_ELIGIBLE");
+
+    const blueprint = getGiftDemoBlueprint(draft.businessType);
+    if (settingsByKey.has(blueprint.setupKey)) throw new Error("RETAIL_DEMO_SETUP_ALREADY_INSTALLED");
+    const profile = blueprint.profile(store.displayName);
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "design_profile",
+      value: JSON.stringify(profile),
+      description: `Profil de démonstration propre à la boutique offerte ${draft.businessType}.`,
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify(profile), description: `Profil de démonstration propre à la boutique offerte ${draft.businessType}.` } });
+
+    const existingCategories = await tx.select({ id: categories.id, slug: categories.slug })
+      .from(categories).where(eq(categories.storeId, store.id));
+    const categoryBySlug = new Map(existingCategories.map(category => [category.slug, category.id]));
+    for (const category of blueprint.categories) {
+      if (categoryBySlug.has(category.slug)) continue;
+      const result = await tx.insert(categories).values({ ...category, storeId: store.id, catalogSection: "standard" });
+      categoryBySlug.set(category.slug, Number((result as any)[0].insertId));
+    }
+
+    const [demoProduct] = await tx.select({ id: products.id }).from(products)
+      .where(and(eq(products.storeId, store.id), eq(products.slug, blueprint.product.slug))).limit(1);
+    if (!demoProduct) {
+      const categoryId = categoryBySlug.get(blueprint.product.categorySlug);
+      if (!categoryId) throw new Error("RETAIL_DEMO_SETUP_CATEGORY_MISSING");
+      await tx.insert(products).values({
+        storeId: store.id,
+        categoryId,
+        name: blueprint.product.name,
+        slug: blueprint.product.slug,
+        description: blueprint.product.description,
+        longDescription: blueprint.product.longDescription,
+        price: 0,
+        originalPrice: null,
+        stock: 0,
+        featured: 1,
+        status: "active",
+        supplier: null,
+        supplierProductId: null,
+        supplierUrl: null,
+        supplierPrice: null,
+        supplierWeightG: null,
+        supplierVariantMappings: null,
+        options: null,
+      });
+    }
+
+    const now = new Date();
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: blueprint.setupKey,
+      value: JSON.stringify({ version: 1, installedAt: now.toISOString(), commercialReadiness: "not_for_sale" }),
+      description: blueprint.setupDescription,
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ version: 1, installedAt: now.toISOString(), commercialReadiness: "not_for_sale" }), description: blueprint.setupDescription } });
+
+    return {
+      store: { id: store.id, displayName: store.displayName, status: store.status },
+      businessType: draft.businessType,
+      createdCategories: blueprint.categories.length,
+      activeDemoProduct: !demoProduct,
+      installedAt: now,
+    };
   });
 }
 

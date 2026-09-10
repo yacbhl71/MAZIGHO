@@ -173,3 +173,12 @@ La création d’une boutique offerte, l’accès propriétaire et l’ouverture
 ---
 
 **Résumé :** préparez → créez en `setup` → préparez le propriétaire → configurez marque, légal et catalogue → vérifiez le domaine → lisez le prévol → confirmez l’activation → testez l’ouverture.
+
+
+---
+
+### Note pour les prochains univers bijoux et vêtements
+
+Le parcours de brouillon puis de création en `setup` est identique pour une boutique bijoux ou vêtements. Une fois la boutique réellement créée, MAZIGHO Studio peut proposer un **kit de démonstration** correspondant à son univers. Il installe seulement une identité, trois catégories et une fiche non commerciale, après recopie du nom et confirmation explicite.
+
+Le kit ne peut être installé qu’une fois afin de ne pas écraser une personnalisation ultérieure. Comme pour la boutique animalière, il ne crée pas de domaine public, paiement, fournisseur, livraison, e-mail, commande ni activation. L’aperçu privé Studio permet ensuite de visualiser cette boutique tant qu’elle demeure en `setup`.

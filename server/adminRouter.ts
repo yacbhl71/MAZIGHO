@@ -309,6 +309,32 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getGiftRetailDemoSetupCandidates: platformProcedure.query(async () => db.getGiftRetailDemoSetupCandidates()),
+    installGiftRetailDemoSetup: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const installed = await db.installGiftRetailDemoSetup(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.retail_demo.install",
+          entityType: "store",
+          entityId: installed.store.id,
+          summary: `Kit de démonstration ${installed.businessType} installé : ${installed.store.displayName}`,
+          metadata: { status: "setup", businessType: installed.businessType, billing: "none", invitationsSent: 0, externalCalls: 0 },
+        });
+        return installed;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "RETAIL_DEMO_SETUP_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
+        if (["STORE_NOT_ELIGIBLE_FOR_RETAIL_DEMO_SETUP", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_RETAIL_DEMO_ELIGIBLE", "RETAIL_DEMO_SETUP_ALREADY_INSTALLED"].includes(code)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir un kit de démonstration bijoux ou vêtements." });
+        }
+        throw error;
+      }
+    }),
     installGiftPetDemoSetup: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

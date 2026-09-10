@@ -388,3 +388,21 @@ La page est rendue dans `DashboardLayout`, avec un bandeau **« Aperçu privé S
 > L’aperçu ne modifie jamais l’état `setup`, n’active aucun domaine et ne crée ni paiement, ni commande, ni e-mail, ni fournisseur, ni synchronisation Odoo. Les routes storefront, panier, promotions et Stripe Test restent soumises au garde-fou public existant.
 
 Les contrôles de cette étape ont validé TypeScript, 57 tests Vitest, le build de production et la frontière de sécurité du nouvel endpoint.
+
+
+---
+
+## Kits de démonstration Studio — bijoux et vêtements
+
+**Statut :** prêt à publier. MAZIGHO Studio peut désormais préparer un kit de démonstration pour une boutique offerte **bijoux** ou **vêtements** déjà créée en état `setup`. Le kit animalier existant est inchangé ; cette extension prépare les deux autres univers déjà visibles dans les simulations Studio.
+
+| Univers | Contenu non commercial installé | Ce qui reste absent |
+|---|---|---|
+| Bijoux | Profil visuel éditorial, catégories Nouveautés / À offrir / Essentiels et une fiche de pendentif de démonstration. | Images, variantes, prix, stock, fournisseur, transport, paiement et commandes. |
+| Vêtements | Profil visuel mode, catégories Nouveautés / Femme / Homme et une fiche de veste de démonstration. | Images, tailles, prix, stock, fournisseur, transport, paiement et commandes. |
+
+Les kits sont listés seulement pour les boutiques offertes, non plateforme, en état `setup`, dont le brouillon source indique l’univers concerné. Leur installation exige la recopie exacte du nom de la boutique et une case de compréhension. Chaque kit est **à usage unique** : un second lancement est refusé afin de ne jamais remplacer une personnalisation ultérieure.
+
+Les procédures `admin.studio.getGiftRetailDemoSetupCandidates` et `admin.studio.installGiftRetailDemoSetup` sont protégées par `platformProcedure`. L’inventaire de kits et leur installation sont donc refusés depuis une boutique cliente, comme le confirme le test de frontière Studio.
+
+> Un kit prépare uniquement des données locales de présentation. Il ne crée pas de boutique, n’utilise pas de domaine, ne modifie pas l’état `setup`, n’envoie pas d’e-mail et ne déclenche ni Stripe Test, ni Odoo, ni CJ, ni action fournisseur.
