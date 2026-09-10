@@ -320,6 +320,30 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    copyPlatformLegalProfileToGiftStore: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const copied = await db.copyPlatformLegalProfileToGiftStore(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.legal_profile.copy_from_platform",
+          entityType: "store",
+          entityId: copied.store.id,
+          summary: `Coordonnées légales plateforme copiées avec autorisation : ${copied.store.displayName}`,
+          metadata: { status: "setup", source: "platform_legal_profile", publicStorefront: false },
+        });
+        return copied;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "LEGAL_COPY_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez la copie." });
+        if (["STORE_NOT_ELIGIBLE_FOR_LEGAL_COPY", "STORE_NOT_GIFT_PROVISIONED"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir les coordonnées légales de plateforme." });
+        if (["PLATFORM_STORE_NOT_FOUND", "PLATFORM_LEGAL_PROFILE_UNAVAILABLE", "PLATFORM_LEGAL_PROFILE_INVALID", "PLATFORM_LEGAL_PROFILE_INCOMPLETE"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les coordonnées légales MAZIGHO ne sont pas encore complètes ou disponibles." });
+        throw error;
+      }
+    }),
     activateGiftAnimalStore: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

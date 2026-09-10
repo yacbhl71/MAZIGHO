@@ -355,3 +355,10 @@ L’installation du kit ne modifie jamais le statut `setup`. Les routes publique
 - Condition : boutique offerte animale en `setup`, liée à son brouillon Studio.
 - Suivi : audit `studio.gift_store.pet_demo.install`, sans secrets, liens, paiement ni action externe.
 
+
+
+### Copie autorisée des coordonnées légales — Pattes & Compagnie
+
+Pattes & Compagnie demeure en état `setup` et peut recevoir, après confirmation explicite de l’opérateur, une copie des coordonnées légales déjà présentes dans la boutique plateforme MAZIGHO. Cette opération est strictement réservée à MAZIGHO Studio, exige la recopie du nom de la boutique et une case de confirmation. Elle ne modifie jamais MAZIGHO, ne lance aucun e-mail, paiement, fournisseur ou activation publique, et conserve une trace interne de la source et de l’instant de copie. Toute ouverture publique exige toujours un domaine réel, vérifié manuellement, et une confirmation d’activation distincte.
+
+Pour Pattes & Compagnie, l’opérateur a explicitement autorisé cette réutilisation de ses coordonnées existantes. Aucune valeur personnelle n’est recopiée dans ce document de passation.

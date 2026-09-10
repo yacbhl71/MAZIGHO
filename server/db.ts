@@ -357,6 +357,64 @@ export async function installGiftPetDemoSetup(input: { storeId: number; confirma
   });
 }
 
+export async function copyPlatformLegalProfileToGiftStore(input: { storeId: number; confirmationName: string; acknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_LEGAL_COPY");
+    if (!input.acknowledged || input.confirmationName.trim() !== store.displayName.trim()) throw new Error("LEGAL_COPY_CONFIRMATION_MISMATCH");
+
+    const [targetProvisioning] = await tx.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, store.id), eq(storeSettings.key, "provisioning_mode"))).limit(1);
+    if (targetProvisioning?.value !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+
+    const [platformStore] = await tx.select({ id: stores.id }).from(stores)
+      .where(eq(stores.isPlatformStore, 1)).limit(1);
+    if (!platformStore) throw new Error("PLATFORM_STORE_NOT_FOUND");
+
+    const [platformLegalSetting] = await tx.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, platformStore.id), eq(storeSettings.key, "legal_profile"))).limit(1);
+    if (!platformLegalSetting?.value) throw new Error("PLATFORM_LEGAL_PROFILE_UNAVAILABLE");
+
+    let profile: LegalProfile;
+    try {
+      profile = normalizeLegalProfile(JSON.parse(platformLegalSetting.value));
+    } catch {
+      throw new Error("PLATFORM_LEGAL_PROFILE_INVALID");
+    }
+    if (profile.operatorName === defaultLegalProfile.operatorName || profile.contactEmail === defaultLegalProfile.contactEmail) {
+      throw new Error("PLATFORM_LEGAL_PROFILE_INCOMPLETE");
+    }
+
+    const copiedAt = new Date();
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "legal_profile",
+      value: JSON.stringify(profile),
+      description: "Coordonnées légales copiées de la boutique plateforme avec autorisation de l’opérateur.",
+    }).onDuplicateKeyUpdate({ set: {
+      value: JSON.stringify(profile),
+      description: "Coordonnées légales copiées de la boutique plateforme avec autorisation de l’opérateur.",
+    } });
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "legal_profile_source",
+      value: JSON.stringify({ sourceStoreId: platformStore.id, copiedAt: copiedAt.toISOString(), mode: "operator_authorized_copy" }),
+      description: "Traçabilité interne de la copie autorisée des coordonnées légales.",
+    }).onDuplicateKeyUpdate({ set: {
+      value: JSON.stringify({ sourceStoreId: platformStore.id, copiedAt: copiedAt.toISOString(), mode: "operator_authorized_copy" }),
+      description: "Traçabilité interne de la copie autorisée des coordonnées légales.",
+    } });
+
+    return { store: { id: store.id, displayName: store.displayName, status: store.status }, copiedAt };
+  });
+}
+
 export async function getGiftStoreActivationPreflight(storeId: number) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
