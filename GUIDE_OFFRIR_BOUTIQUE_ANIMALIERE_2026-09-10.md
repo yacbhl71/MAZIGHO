@@ -279,3 +279,25 @@ La dernière étape, **Décider de l’ouverture publique**, reste volontairemen
 Depuis **Créer et personnaliser**, choisissez **Préparer les collections**. Ajoutez, renommez, réorganisez ou retirez les collections que vous souhaitez présenter, puis ajoutez une courte accroche et indiquez celles à mettre à la une. L’aperçu à droite permet de vérifier la structure avant toute ouverture.
 
 Les collections enregistrées ici sont un brouillon éditorial privé : elles ne créent aucune catégorie réelle, aucun produit, prix, stock, fournisseur, panier ou lien public. Les futurs ateliers Produits, Prix, Stock, Fournisseurs et Panier les reprendront comme étapes distinctes, avec leurs contrôles propres.
+
+
+---
+
+## Préparer des fiches produits sans rendre la boutique vendable
+
+Depuis le créateur, ouvrez **Collections**, puis **Fiches produits**. Cette étape permet de rédiger une sélection de travail : nom, description courte, collection de présentation, prix de travail et mise en avant. Enregistrez les brouillons lorsque la sélection vous convient.
+
+Ces fiches sont visibles uniquement dans Studio. Elles ne créent pas encore de produit public, stock, SKU, variante, fournisseur, livraison, panier, paiement, commande ou synchronisation externe. Les ateliers stock, fournisseur et panier restent des étapes distinctes de la feuille de route.
+
+## Reprendre un brouillon sans se bloquer sur tablette
+
+Dans **Brouillons enregistrés**, la règle est la suivante :
+
+| État de la ligne | Action à utiliser |
+|---|---|
+| Brouillon non créé | Appuyez sur **Reprendre et modifier**. Le formulaire remonte automatiquement ; modifiez les champs, cochez la confirmation et enregistrez. |
+| Brouillon à abandonner | Appuyez sur **Supprimer le brouillon**, recopiez son nom, puis confirmez. |
+| Brouillon prêt à contrôler | Appuyez sur **Vérifier avant création**. Ce prévol ne crée rien. |
+| Boutique déjà créée en `setup` | Appuyez sur **Continuer la préparation**. N’essayez plus de modifier ou supprimer l’ancien brouillon : il est désormais l’historique de cette vraie boutique. |
+
+Les boutons de reprise, suppression et vérification ont une hauteur tactile accrue. Une vraie boutique `setup` reste privée et non vendable tant qu’une ouverture publique distincte n’est pas confirmée.

@@ -21,6 +21,7 @@ import { buildStorePreparationChecklist } from "./services/storePreparationCheck
 import { buildStoreLaunchCenter } from "./services/storeLaunchCenter";
 import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./services/storeNavigationDraft";
 import { normalizeStudioCollectionDrafts, type StudioCollectionDraft } from "./services/storeCollectionDraft";
+import { normalizeStudioProductDrafts, type StudioProductDraft } from "./services/storeProductDraft";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1169,6 +1170,57 @@ export async function saveStudioOwnerCollectionDrafts(input: { storeId: number; 
   if (!collections.length) throw new Error("OWNER_COLLECTION_DRAFTS_REQUIRED");
   await setStoreSettingValue(input.storeId, "owner_collection_drafts", JSON.stringify(collections), "Collections privées du créateur de boutique ; sans catégories ni publication automatique");
   return { privateCollectionEditor: true as const, publicStorefront: false as const, store: snapshot.store, collections, hasSavedCollections: true as const };
+}
+
+/**
+ * Product concepts are private preparation records only. They deliberately do
+ * not create product rows, prices, stock, suppliers, carts or storefront data.
+ */
+export async function getStudioOwnerProductDrafts(storeId: number) {
+  const [builder, collectionSnapshot] = await Promise.all([
+    getStudioOwnerBuilderConfiguration(storeId),
+    getStudioOwnerCollectionDrafts(storeId),
+  ]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [stored] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_product_drafts")))
+    .limit(1);
+  const [currencySetting] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "store_currency_code")))
+    .limit(1);
+  let storedDrafts: unknown = null;
+  try {
+    storedDrafts = stored?.value ? JSON.parse(stored.value) : null;
+  } catch {
+    storedDrafts = null;
+  }
+  const collections = collectionSnapshot.collections.map(collection => ({ id: collection.id, title: collection.title }));
+  const drafts = normalizeStudioProductDrafts(storedDrafts, collections);
+  return {
+    privateProductEditor: true as const,
+    publicStorefront: false as const,
+    hasSavedProducts: Boolean(stored?.value),
+    store: builder.store,
+    currencyCode: currencySetting?.value?.trim().toUpperCase() || "CHF",
+    collections,
+    products: drafts,
+  };
+}
+
+export async function saveStudioOwnerProductDrafts(input: { storeId: number; products: StudioProductDraft[] }) {
+  const snapshot = await getStudioOwnerProductDrafts(input.storeId);
+  const products = normalizeStudioProductDrafts(input.products, snapshot.collections);
+  await setStoreSettingValue(input.storeId, "owner_product_drafts", JSON.stringify(products), "Fiches produits privées du créateur ; sans produit réel, prix public, stock, fournisseur, panier ni publication automatique");
+  return {
+    privateProductEditor: true as const,
+    publicStorefront: false as const,
+    store: snapshot.store,
+    currencyCode: snapshot.currencyCode,
+    collections: snapshot.collections,
+    products,
+    hasSavedProducts: true as const,
+  };
 }
 
 /**

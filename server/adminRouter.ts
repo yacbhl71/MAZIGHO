@@ -392,6 +392,48 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerProductDrafts: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerProductDrafts(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Les fiches produits privées sont réservées à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
+    saveOwnerProductDrafts: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      products: z.array(z.object({
+        id: z.string().trim().min(1).max(32),
+        name: z.string().trim().min(2).max(120),
+        description: z.string().trim().min(2).max(700),
+        collectionId: z.string().trim().min(1).max(32),
+        priceCents: z.number().int().min(1).max(10_000_000),
+        featured: z.boolean(),
+      })).max(24),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerProductDrafts(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_products.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: "Fiches produits privées du créateur enregistrées",
+          metadata: { status: "setup", publicStorefront: false, publicationExecuted: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Les fiches produits privées sont réservées à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     getOwnerFullPagePreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerFullPagePreview(input.storeId);

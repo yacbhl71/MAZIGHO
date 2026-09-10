@@ -606,3 +606,26 @@ Cette brique n’écrit aucune catégorie réelle et ne crée aucun produit, var
 Chemin opérateur : **Panneau propriétaire — simulation → Créer et personnaliser → Préparer les collections**.
 
 > Les ateliers Produits, Prix, Stock, Fournisseurs et Panier sont des jalons ultérieurs et devront être implémentés séparément avec leurs propres règles d’isolement, validations et confirmations. L’enregistrement de collections ne constitue jamais une publication.
+
+
+---
+
+## Atelier privé Produits et Prix — préparation sans vente
+
+MAZIGHO Studio propose désormais l’atelier **« Préparer les fiches produits »** à l’adresse `/admin/studio/produits/:storeId`, exclusivement pour une boutique offerte encore en `setup`. Il conserve, par boutique, jusqu’à 24 brouillons limités au nom, à une description, à une collection de présentation, à un prix de travail dans la devise isolée et à un repère de mise en avant.
+
+| Donnée préparée | Limite appliquée |
+|---|---|
+| Nom et description | Éditoriaux uniquement, validés et limités en longueur. |
+| Collection | Référence uniquement une collection privée déjà préparée. |
+| Prix de présentation | Visible dans l’aperçu Studio ; il n’est transmis à aucun panier, paiement ou tiers. |
+| Mise en avant | Repère visuel limité à la maquette privée. |
+| Éléments explicitement exclus | Stock, SKU, variantes, image produit, fournisseur, livraison, panier, publication, commande et paiement. |
+
+Le contrat serveur normalise la liste fermée des champs et ignore toute propriété commerciale supplémentaire. Les lectures et sauvegardes sont protégées par `platformProcedure`; les tests de frontière confirment qu’un administrateur de boutique cliente ne peut ni consulter ni enregistrer ces fiches.
+
+### Reprise tactile des brouillons Studio
+
+Les cartes de brouillon de mise en service disposent maintenant de commandes plus visibles et adaptées à une tablette. **« Reprendre et modifier »** charge les valeurs du brouillon et fait défiler automatiquement vers le formulaire. **« Supprimer le brouillon »** reste soumis à une recopie du nom. Si le brouillon a déjà créé une vraie boutique en `setup`, il n’est plus modifiable ni supprimable : une action unique **« Continuer la préparation »** mène au créateur privé de cette boutique. Cette distinction évite de confondre une fiche de préparation avec une boutique déjà créée.
+
+> Ces changements ne modifient ni le domaine, ni l’état public, ni les paiements, commandes, fournisseurs, Stripe, Odoo, CJ ou une autre boutique.
