@@ -294,6 +294,7 @@ export const adminRouter = router({
   studio: router({
     getInventory: platformProcedure.query(async () => db.getStudioStoreInventory()),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
+    getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     createProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema).mutation(async ({ ctx, input }) => {
       const draft = await db.createStudioProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
       logAudit(ctx, {

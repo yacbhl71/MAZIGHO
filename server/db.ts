@@ -13,6 +13,7 @@ import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { normalizeStoreHost } from "./services/storeScope";
+import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -83,6 +84,19 @@ export async function getStudioProvisioningDrafts() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(storeProvisioningDrafts).orderBy(desc(storeProvisioningDrafts.updatedAt));
+}
+
+export async function getStudioProvisioningDraftReviews() {
+  const drafts = await getStudioProvisioningDrafts();
+  const domainCounts = new Map<string, number>();
+  for (const draft of drafts) {
+    const domain = draft.requestedDomain.trim().toLowerCase();
+    domainCounts.set(domain, (domainCounts.get(domain) ?? 0) + 1);
+  }
+  return drafts.map(draft => ({
+    ...draft,
+    review: reviewStoreProvisioningDraft(draft, domainCounts.get(draft.requestedDomain.trim().toLowerCase()) ?? 0),
+  }));
 }
 
 export async function createStudioProvisioningDraft(input: {

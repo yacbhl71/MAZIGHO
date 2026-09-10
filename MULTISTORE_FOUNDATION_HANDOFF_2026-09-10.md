@@ -214,3 +214,21 @@ La création d’un brouillon exige une case de compréhension dans l’interfac
 > La prochaine étape à ne lancer qu’avec confirmation explicite est la transformation contrôlée d’un brouillon en boutique réelle : vérification de disponibilité du domaine, création du registre `stores` avec état `setup`, attribution du premier propriétaire, puis invitation séparée. Cette opération devra comporter une confirmation visible et ne devra jamais utiliser ou exposer de secrets techniques.
 
 ---
+
+## Étape 8 — revue locale des brouillons de mise en service
+
+**Statut :** prête à publier. Chaque brouillon de mise en service possède désormais une revue opérateur calculée localement dans MAZIGHO Studio.
+
+| Critère de revue | Règle | Limite volontaire |
+|---|---|---|
+| Identité | Nom de la future boutique renseigné | Ne crée aucun slug ni storefront. |
+| Propriétaire | Nom et format d’e-mail renseignés | Ne crée pas de compte et n’envoie aucune invitation. |
+| Univers et devise | Univers métier et devise de départ supportée | Ne copie aucun profil, catalogue ou réglage. |
+| Domaine | Vérifie uniquement le format et les doublons dans les brouillons locaux | Ne vérifie pas la disponibilité réelle, ne réserve et ne rattache aucun domaine. |
+| Lancement | Restitue explicitement les vérifications réservées au lancement | Ne crée aucune boutique, membership, licence, paiement ou intégration. |
+
+Le statut `ready_for_confirmation` de la revue signifie seulement que les données internes du brouillon sont cohérentes. Il **ne constitue pas** une autorisation de lancement. La transformation en boutique réelle reste une opération future distincte, protégée par une confirmation explicite et des contrôles de domaine, de propriété et d’accès.
+
+Les tests `storeProvisioningReview.test.ts` couvrent une préparation locale complète, les données incomplètes et un conflit entre deux brouillons. Aucune requête réseau ni vérification auprès d’un registrar n’est réalisée par cette étape.
+
+---
