@@ -197,3 +197,20 @@ Les aperçus animalier, bijoux et vêtements restent volontairement des modèles
 > La prochaine étape fonctionnelle est une mise en service guidée et explicitement confirmée : création d’une boutique, statut `setup`, invitation du premier propriétaire et rattachement de son domaine. Elle ne doit pas être lancée avant une validation séparée du parcours et de la gouvernance des accès.
 
 ---
+
+## Étape 7 — mise en service guidée : brouillon opérateur sans activation
+
+**Statut :** prête à publier. MAZIGHO Studio dispose maintenant d’un formulaire de préparation pour une future boutique. Il enregistre un **brouillon local** dans `storeProvisioningDrafts`, table distincte de `stores`.
+
+| Information préparée | Finalité | Ce qui n’est pas fait |
+|---|---|---|
+| Nom, domaine souhaité, univers métier et devise | Préparer le cadrage du storefront et de l’offre | Aucun domaine n’est vérifié, réservé ou rattaché. |
+| Nom et e-mail du futur propriétaire | Préparer le futur parcours de propriété | Aucun compte, lien ou e-mail d’invitation n’est créé ou envoyé. |
+| Notes de préparation | Conserver les contraintes de lancement | Aucun catalogue, contenu, produit ou profil n’est copié. |
+| État `draft` | Rendre la proposition visible dans MAZIGHO Studio | Aucun `storeId`, membership, licence, accès ou statut de storefront n’est activé. |
+
+La création d’un brouillon exige une case de compréhension dans l’interface et est protégée par `platformProcedure`. Le test de sécurité confirme qu’un administrateur d’une boutique cliente ne peut ni consulter ni créer de brouillon de plateforme.
+
+> La prochaine étape à ne lancer qu’avec confirmation explicite est la transformation contrôlée d’un brouillon en boutique réelle : vérification de disponibilité du domaine, création du registre `stores` avec état `setup`, attribution du premier propriétaire, puis invitation séparée. Cette opération devra comporter une confirmation visible et ne devra jamais utiliser ou exposer de secrets techniques.
+
+---

@@ -5,19 +5,25 @@ import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   BadgeCheck,
+  ClipboardPlus,
   CircleAlert,
   Clock3,
   Building2,
   CheckCircle2,
   CircleDashed,
   ClipboardCheck,
-  ExternalLink,
   Eye,
   Layers3,
+  Loader2,
   LockKeyhole,
   Palette,
   PanelTop,
@@ -32,6 +38,27 @@ import {
 } from "lucide-react";
 
 type BoutiqueTheme = "animalier" | "bijoux" | "vetements";
+type ProvisioningBusinessType = BoutiqueTheme | "autre";
+
+type ProvisioningDraftForm = {
+  displayName: string;
+  requestedDomain: string;
+  ownerName: string;
+  ownerEmail: string;
+  businessType: ProvisioningBusinessType;
+  preferredCurrency: "CHF" | "EUR" | "USD" | "GBP";
+  notes: string;
+};
+
+const emptyProvisioningDraft: ProvisioningDraftForm = {
+  displayName: "",
+  requestedDomain: "",
+  ownerName: "",
+  ownerEmail: "",
+  businessType: "autre",
+  preferredCurrency: "CHF",
+  notes: "",
+};
 
 type ThemePreview = {
   id: BoutiqueTheme;
@@ -113,6 +140,14 @@ const storeStatusPresentation = {
   closed: { label: "Clôturée", className: "border-slate-200 bg-slate-100 text-slate-700" },
 } as const;
 
+function formatBusinessType(value: ProvisioningBusinessType) {
+  return ({ animalier: "Animalier", bijoux: "Bijoux", vetements: "Vêtements", autre: "Autre univers" } as const)[value];
+}
+
+function formatProvisioningStatus(value: "draft" | "ready_for_confirmation" | "archived") {
+  return ({ draft: "Brouillon", ready_for_confirmation: "Prêt à confirmer", archived: "Archivé" } as const)[value];
+}
+
 function formatStudioDate(value: Date | string | null) {
   if (!value) return "Aucune commande";
   const date = new Date(value);
@@ -134,7 +169,20 @@ function StudioRailItem({ icon: Icon, title, detail }: { icon: typeof Building2;
 
 export default function AdminStudio() {
   const [themeId, setThemeId] = useState<BoutiqueTheme>("animalier");
+  const [draftForm, setDraftForm] = useState<ProvisioningDraftForm>(emptyProvisioningDraft);
+  const [draftAcknowledged, setDraftAcknowledged] = useState(false);
+  const utils = trpc.useUtils();
   const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
+  const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
+  const createDraftMutation = trpc.admin.studio.createProvisioningDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Brouillon enregistré. Aucune boutique, invitation ni intégration n’a été créée.");
+      setDraftForm(emptyProvisioningDraft);
+      setDraftAcknowledged(false);
+      utils.admin.studio.getProvisioningDrafts.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le brouillon n’a pas pu être enregistré."),
+  });
   const inventory = inventoryQuery.data;
   const theme = previews[themeId];
   const ThemeIcon = theme.icon;
@@ -211,6 +259,44 @@ export default function AdminStudio() {
               {(inventory?.summary.client ?? 0) === 0 && <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-orange-200 bg-orange-50/60 p-4 text-sm leading-6 text-orange-950"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><p><strong>Aucune boutique cliente n’est encore ouverte.</strong> C’est volontaire : Studio vous montre aujourd’hui la boutique plateforme réelle et prépare le dispositif d’accompagnement avant la première mise en service.</p></div>}
             </>
           )}
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]" data-testid="studio-provisioning">
+          <Card className="border-orange-200 shadow-sm">
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Mise en service guidée</p><CardTitle className="mt-1 flex items-center gap-2 text-2xl"><ClipboardPlus className="h-6 w-6 text-orange-600" /> Préparer une future boutique</CardTitle><CardDescription className="mt-2 max-w-2xl">Ce formulaire crée seulement une fiche de préparation interne. Il ne crée pas de boutique, ne réserve pas de domaine et n’envoie aucun e-mail.</CardDescription></div>
+                <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-800">Brouillon local uniquement</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-6 grid gap-2 sm:grid-cols-4">{["Identité", "Propriétaire", "Univers", "Confirmation"].map((step, index) => <div key={step} className="flex items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-xs font-semibold text-orange-900"><span className="grid h-5 w-5 place-items-center rounded-full bg-orange-600 text-[10px] text-white">{index + 1}</span>{step}</div>)}</div>
+              <form className="grid gap-4" onSubmit={event => { event.preventDefault(); if (!draftAcknowledged) return; createDraftMutation.mutate(draftForm); }}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="studio-draft-name">Nom de la future boutique</Label><Input id="studio-draft-name" required value={draftForm.displayName} onChange={event => setDraftForm(current => ({ ...current, displayName: event.target.value }))} placeholder="Ex. Éclat Atelier" /></div>
+                  <div className="space-y-2"><Label htmlFor="studio-draft-domain">Domaine souhaité</Label><Input id="studio-draft-domain" required value={draftForm.requestedDomain} onChange={event => setDraftForm(current => ({ ...current, requestedDomain: event.target.value }))} placeholder="exemple-boutique.ch" autoCapitalize="none" /></div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="studio-draft-owner">Nom du futur propriétaire</Label><Input id="studio-draft-owner" required value={draftForm.ownerName} onChange={event => setDraftForm(current => ({ ...current, ownerName: event.target.value }))} placeholder="Nom et prénom" /></div>
+                  <div className="space-y-2"><Label htmlFor="studio-draft-email">E-mail du futur propriétaire</Label><Input id="studio-draft-email" required type="email" value={draftForm.ownerEmail} onChange={event => setDraftForm(current => ({ ...current, ownerEmail: event.target.value }))} placeholder="client@exemple.ch" autoCapitalize="none" /></div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2"><Label>Univers métier</Label><Select value={draftForm.businessType} onValueChange={value => setDraftForm(current => ({ ...current, businessType: value as ProvisioningBusinessType }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="animalier">Animalier</SelectItem><SelectItem value="bijoux">Bijoux</SelectItem><SelectItem value="vetements">Vêtements</SelectItem><SelectItem value="autre">Autre univers</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Devise de départ</Label><Select value={draftForm.preferredCurrency} onValueChange={value => setDraftForm(current => ({ ...current, preferredCurrency: value as ProvisioningDraftForm["preferredCurrency"] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CHF">CHF — Franc suisse</SelectItem><SelectItem value="EUR">EUR — Euro</SelectItem><SelectItem value="USD">USD — Dollar US</SelectItem><SelectItem value="GBP">GBP — Livre sterling</SelectItem></SelectContent></Select></div>
+                </div>
+                <div className="space-y-2"><Label htmlFor="studio-draft-notes">Notes de préparation <span className="font-normal text-slate-500">(facultatif)</span></Label><Textarea id="studio-draft-notes" value={draftForm.notes} onChange={event => setDraftForm(current => ({ ...current, notes: event.target.value }))} placeholder="Positionnement, besoins de catalogue, contraintes de domaine…" rows={3} /></div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><input type="checkbox" checked={draftAcknowledged} onChange={event => setDraftAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500" /><span><strong className="text-slate-900">Je confirme préparer un brouillon seulement.</strong> Cette étape ne crée pas de boutique, de compte, de domaine, d’invitation, de licence, de paiement, de synchronisation Odoo ou d’action fournisseur.</span></label>
+                <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={!draftAcknowledged || createDraftMutation.isPending} className="bg-slate-900 hover:bg-slate-800">{createDraftMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardPlus className="mr-2 h-4 w-4" />} Enregistrer le brouillon</Button><p className="text-xs text-slate-500">La création réelle restera une action distincte et explicitement confirmée.</p></div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">File de préparation</p><CardTitle className="mt-1 text-xl">Brouillons enregistrés</CardTitle><CardDescription className="mt-1">Une vue opérateur interne, sans activation automatique.</CardDescription></div><Button variant="ghost" size="icon" onClick={() => draftsQuery.refetch()} disabled={draftsQuery.isFetching} aria-label="Actualiser les brouillons">{draftsQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</Button></div></CardHeader>
+            <CardContent className="space-y-3">
+              {draftsQuery.isLoading ? <div className="h-36 animate-pulse rounded-2xl bg-slate-100" /> : draftsQuery.isError ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">Impossible de charger les brouillons pour le moment.</div> : (draftsQuery.data ?? []).length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600"><p className="font-semibold text-slate-900">Aucun brouillon à préparer.</p><p className="mt-1">Créez une fiche de préparation à gauche lorsque vous aurez le premier client. Elle ne déclenchera aucune action externe.</p></div> : (draftsQuery.data ?? []).map(draft => <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{draft.requestedDomain}</p></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{formatProvisioningStatus(draft.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600"><span>{formatBusinessType(draft.businessType)}</span><span className="text-right">{draft.preferredCurrency}</span><span className="col-span-2 truncate">Propriétaire prévu : {draft.ownerEmail}</span></div></div>)}
+            </CardContent>
+          </Card>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.06fr_.94fr]">
@@ -290,7 +376,7 @@ export default function AdminStudio() {
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p>              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">Le parc réel est maintenant lisible dans Studio. La prochaine étape sera la mise en service guidée d’une première boutique, mais elle reste désactivée tant que le processus de domaine, invitation propriétaire et règles d’accès n’est pas formellement testé.</p></div>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p>              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">Vous pouvez maintenant préparer une future boutique dans Studio sans l’activer. La création réelle — domaine, boutique, invitation du propriétaire et accès — restera une opération distincte, visible et à confirmer séparément.</p></div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col"><Button asChild className="bg-slate-900 hover:bg-slate-800"><Link href="/admin"><ArrowUpRight className="mr-2 h-4 w-4" /> Revenir au pilotage MAZIGHO</Link></Button><Button asChild variant="outline" className="border-orange-200 bg-white text-orange-800 hover:bg-orange-50"><Link href="/admin/personnalisation"><Palette className="mr-2 h-4 w-4" /> Voir la personnalisation</Link></Button></div>
         </section>
       </div>

@@ -14,7 +14,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { normalizeStoreHost } from "./services/storeScope";
 
-const { accountTokens, users, stores, storeMemberships, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -42,6 +42,7 @@ let _checkoutShippingSchemaReady: Promise<void> | null = null;
 let _orderCurrencySchemaReady: Promise<void> | null = null;
 let _multiStoreSchemaReady: Promise<void> | null = null;
 let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
+let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -65,6 +66,46 @@ async function ensureMultiStoreSchema() {
   })();
 
   return _multiStoreSchemaReady;
+}
+
+async function ensureStoreProvisioningDraftSchema() {
+  if (_storeProvisioningDraftSchemaReady) return _storeProvisioningDraftSchemaReady;
+  _storeProvisioningDraftSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`))"));
+  })();
+  return _storeProvisioningDraftSchemaReady;
+}
+
+export async function getStudioProvisioningDrafts() {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(storeProvisioningDrafts).orderBy(desc(storeProvisioningDrafts.updatedAt));
+}
+
+export async function createStudioProvisioningDraft(input: {
+  displayName: string;
+  requestedDomain: string;
+  ownerName: string;
+  ownerEmail: string;
+  businessType: "animalier" | "bijoux" | "vetements" | "autre";
+  preferredCurrency: string;
+  notes?: string | null;
+  createdByUserId: number;
+}) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [result] = await db.insert(storeProvisioningDrafts).values({
+    ...input,
+    requestedDomain: input.requestedDomain.trim().toLowerCase(),
+    ownerEmail: input.ownerEmail.trim().toLowerCase(),
+    notes: input.notes?.trim() || null,
+    status: "draft",
+  });
+  return { id: Number(result.insertId) };
 }
 
 export async function resolveStoreForHost(host?: string | null): Promise<StoreScope | null> {

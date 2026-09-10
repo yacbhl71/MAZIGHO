@@ -45,6 +45,16 @@ function detectDeliveryCountry(address: string | null | undefined): string {
   return codeMatch ? codeMatch[1] : "—";
 }
 
+const studioProvisioningDraftInputSchema = z.object({
+  displayName: z.string().trim().min(2).max(160),
+  requestedDomain: z.string().trim().toLowerCase().regex(/^(?=.{3,255}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "Saisissez un domaine valide, sans http:// ni chemin."),
+  ownerName: z.string().trim().min(2).max(160),
+  ownerEmail: z.string().trim().email().max(320),
+  businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
+  preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP"]).default("CHF"),
+  notes: z.string().trim().max(2000).optional(),
+});
+
 const campaignInputSchema = z.object({
   name: z.string().trim().min(2).max(200),
   message: z.string().trim().max(300).optional().nullable(),
@@ -283,6 +293,18 @@ export const adminRouter = router({
   // aggregate storefront signals, never customer records, secrets or catalogue details.
   studio: router({
     getInventory: platformProcedure.query(async () => db.getStudioStoreInventory()),
+    getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
+    createProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema).mutation(async ({ ctx, input }) => {
+      const draft = await db.createStudioProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
+      logAudit(ctx, {
+        action: "studio.provisioning_draft.create",
+        entityType: "store_provisioning_draft",
+        entityId: draft.id,
+        summary: `Brouillon de mise en service créé pour ${input.displayName}`,
+        metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency },
+      });
+      return draft;
+    }),
   }),
 
   // Scheduled marketing campaigns (temporal banners + FOMO countdown) — admin-only.

@@ -37,6 +37,14 @@ describe("MAZIGHO Studio platform guard", () => {
     const caller = appRouter.createCaller(createContext({ role: "admin", isPlatformStore: 0 }));
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.createProvisioningDraft({
+      displayName: "Boutique cliente",
+      requestedDomain: "client.test",
+      ownerName: "Client Test",
+      ownerEmail: "client@example.test",
+      businessType: "autre",
+      preferredCurrency: "CHF",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuses technical platform controls from a non-administrator", async () => {

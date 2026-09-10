@@ -51,6 +51,26 @@ export const storeMemberships = mysqlTable("storeMemberships", {
 export type StoreMembership = typeof storeMemberships.$inferSelect;
 export type InsertStoreMembership = typeof storeMemberships.$inferInsert;
 
+// Platform-owned preparation record. A provisioning draft is not a storefront:
+// it cannot resolve a host, hold catalogue data, issue an invitation or trigger an integration.
+export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
+  id: int("id").autoincrement().primaryKey(),
+  displayName: varchar("displayName", { length: 160 }).notNull(),
+  requestedDomain: varchar("requestedDomain", { length: 255 }).notNull(),
+  ownerName: varchar("ownerName", { length: 160 }).notNull(),
+  ownerEmail: varchar("ownerEmail", { length: 320 }).notNull(),
+  businessType: mysqlEnum("businessType", ["animalier", "bijoux", "vetements", "autre"]).default("autre").notNull(),
+  preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
+  status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
+  notes: text("notes"),
+  createdByUserId: int("createdByUserId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StoreProvisioningDraft = typeof storeProvisioningDrafts.$inferSelect;
+export type InsertStoreProvisioningDraft = typeof storeProvisioningDrafts.$inferInsert;
+
 // Store-owned configuration. This intentionally excludes deployment secrets and global platform credentials.
 export const storeSettings = mysqlTable("storeSettings", {
   id: int("id").autoincrement().primaryKey(),
