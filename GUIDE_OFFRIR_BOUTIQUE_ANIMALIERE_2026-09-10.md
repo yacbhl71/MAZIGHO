@@ -189,3 +189,10 @@ Le kit ne peut être installé qu’une fois afin de ne pas écraser une personn
 Dans **`/admin/studio`**, le bloc **« Suivi privé de préparation »** permet de sélectionner une boutique offerte encore en `setup` et de voir l’état de ses bases : univers, identité, catalogue, devise, accès propriétaire et informations légales. Le bloc ne montre aucune coordonnée ni donnée commerciale ; il indique simplement ce qui est prêt, à compléter ou à vérifier.
 
 Cette lecture aide à organiser plusieurs boutiques de démonstration, par exemple animalier, bijoux et vêtements. Elle ne contrôle pas le domaine ou le DNS, ne remplace pas le prévol final d’activation et ne rend jamais une boutique publique.
+
+
+### Visualiser le futur panneau du propriétaire
+
+Après avoir sélectionné une boutique dans le **« Suivi privé de préparation »**, choisissez **« Voir le panneau propriétaire »**. Cette vue, réservée à l’opérateur Studio, montre l’organisation cible du panneau quotidien de cette boutique : pilotage, catalogue, identité, commandes et réglages de boutique.
+
+Elle sert uniquement à vérifier la séparation des rôles. Le futur propriétaire ne verra pas MAZIGHO Studio, les autres boutiques, les secrets ou les réglages de plateforme. À ce stade, cette page reste une **simulation en lecture seule** : elle ne crée pas d’accès, ne change aucun rôle, n’envoie pas d’invitation et ne rend pas la boutique publique.

@@ -426,3 +426,20 @@ La procédure `admin.studio.getGiftStoreSetupReadiness` est réservée à `platf
 > Le choix d’une boutique dans le suivi ne produit aucun effet. La boutique demeure en `setup`, le storefront demeure fermé, et aucune action Stripe Test, Odoo, CJ, fournisseur, e-mail ou domaine n’est effectuée.
 
 Les tests dédiés garantissent notamment que `publicStorefront` reste toujours `false`, qu’un univers non pris en charge ne peut pas être considéré prêt pour l’aperçu et qu’un administrateur de boutique cliente est refusé par la frontière Studio.
+
+
+---
+
+## Aperçu Studio du futur panneau propriétaire
+
+**Statut :** prêt à publier. Depuis le suivi privé de préparation, l’opérateur peut désormais ouvrir `/admin/studio/espace-proprietaire/:storeId` pour visualiser la forme du futur panneau quotidien d’une boutique offerte en `setup`.
+
+| Zone de l’aperçu | Ce qui est visualisé | Ce qui demeure exclu |
+|---|---|---|
+| Navigation propriétaire | Pilotage, catalogue, marque et contenu, commandes et réglages de boutique. | MAZIGHO Studio, infrastructure, autres boutiques, secrets et contrôles de plateforme. |
+| Données de boutique | Identité visuelle, catégories, fiches non commerciales, devise et états synthétiques de préparation. | Coordonnées, membres, clients, commandes réelles, prix, stock, fournisseurs, transport et paiements. |
+| Frontière publique | Lien vers l’aperçu storefront privé déjà existant. | Domaine public, panier, checkout, pixels marketing et actions de vente. |
+
+Cette page ne dispose d’aucune mutation et réutilise exclusivement les snapshots `getPrivateStorefrontPreview` et `getGiftStoreSetupReadiness`, tous deux protégés par `platformProcedure`. Le garde visuel de `DashboardLayout` couvre également cette sous-route Studio, mais la protection côté serveur reste l’autorité.
+
+> L’aperçu permet de démontrer la séparation cible : le propriétaire gérera uniquement sa boutique et son équipe, tandis que l’opérateur conserve MAZIGHO Studio et les décisions de plateforme. Cette étape ne crée ni compte, ni rôle, ni permission, ni invitation, ni ouverture publique.
