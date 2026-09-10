@@ -537,3 +537,13 @@ MAZIGHO Studio comprend désormais un premier créateur guidé réservé à l’
 L’atelier reste délibérément **non public** et ne crée aucun compte client. Il ne crée ni page publique, ni domaine, ni produit, ni image, ni membre, ni invitation, ni commande, ni paiement ou intégration fournisseur. Toute consultation et sauvegarde est protégée par `platformProcedure`; une boutique cliente, même administrée par un utilisateur authentifié, reçoit `FORBIDDEN`.
 
 Les futures étapes pourront étendre cette base vers l’édition effective de pages, médias et navigation, toujours avant une activation explicite et distincte de la boutique.
+
+---
+
+## Éditeur privé de pages par blocs
+
+Le créateur Studio comprend désormais une seconde étape : l’éditeur privé de pages. Il prépare quatre pages de marque — **À propos**, **Questions fréquentes**, **Nous contacter** et **Inspiration** — chacune composée de trois blocs éditoriaux guidés. Pour chaque bloc, l’opérateur peut contrôler la visibilité, le titre et le texte, puis vérifier le rendu dans un aperçu immédiat.
+
+Les brouillons sont enregistrés par boutique dans le réglage isolé `owner_page_drafts`. Ils ne sont lus par aucune route publique, procédure storefront, panier, paiement ou pixel marketing. Les routes tRPC de lecture et de sauvegarde sont protégées par `platformProcedure`; un administrateur d’une boutique cliente reçoit `FORBIDDEN` et ne peut jamais accéder aux brouillons d’une autre boutique.
+
+Cet éditeur ne crée aucune page publique ni média, et ne modifie ni domaine, catalogue, prix, commande, paiement, fournisseur, membre ou invitation. L’intégration éventuelle de ces pages à un storefront restera une décision ultérieure, distincte de leur rédaction et soumise aux gardes d’ouverture existants.

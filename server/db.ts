@@ -985,6 +985,131 @@ export async function saveStudioOwnerBuilderConfiguration(input: {
   return { privateBuilder: true as const, publicStorefront: false as const, store: snapshot.store, identity: { brandName: profile.brandName, brandMessage: profile.brandMessage, brandLogoUrl: profile.brandLogoUrl }, configuration: normalized };
 }
 
+type StudioOwnerPageId = "about" | "faq" | "contact" | "lookbook";
+type StudioOwnerPageBlockId = "intro" | "detail" | "reassurance";
+type StudioOwnerPageBlock = { id: StudioOwnerPageBlockId; label: string; visible: boolean; title: string; body: string };
+type StudioOwnerPageDraft = { id: StudioOwnerPageId; label: string; description: string; enabled: boolean; blocks: StudioOwnerPageBlock[] };
+
+const studioOwnerPageDefinitions: Array<{ id: StudioOwnerPageId; label: string; description: string; blocks: Array<{ id: StudioOwnerPageBlockId; label: string }> }> = [
+  { id: "about", label: "À propos", description: "L’histoire, l’intention et la promesse de la marque.", blocks: [{ id: "intro", label: "Introduction" }, { id: "detail", label: "Notre histoire" }, { id: "reassurance", label: "Notre promesse" }] },
+  { id: "faq", label: "Questions fréquentes", description: "Les réponses simples qui rassurent avant un achat.", blocks: [{ id: "intro", label: "Introduction" }, { id: "detail", label: "Question mise en avant" }, { id: "reassurance", label: "Besoin d’aide" }] },
+  { id: "contact", label: "Nous contacter", description: "Une page de contact claire et accueillante.", blocks: [{ id: "intro", label: "Accueil" }, { id: "detail", label: "Comment nous écrire" }, { id: "reassurance", label: "Notre engagement" }] },
+  { id: "lookbook", label: "Inspiration", description: "Une page éditoriale pour les idées, sélections et collections.", blocks: [{ id: "intro", label: "Ouverture" }, { id: "detail", label: "Sélection du moment" }, { id: "reassurance", label: "À découvrir ensuite" }] },
+];
+
+function cleanStudioPageText(value: unknown, fallback: string, maximum: number) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim().slice(0, maximum);
+  return trimmed || fallback;
+}
+
+function getStudioOwnerPageDefaults(brandName: string, niche: string): StudioOwnerPageDraft[] {
+  return studioOwnerPageDefinitions.map(page => {
+    const content: Record<StudioOwnerPageBlockId, { title: string; body: string }> = page.id === "about"
+      ? {
+          intro: { title: `Bienvenue chez ${brandName}`, body: `${niche} : découvrez une boutique pensée avec attention, simplicité et cohérence.` },
+          detail: { title: "Notre histoire", body: "Cette page vous permet de présenter l’origine de votre projet, votre sélection et ce qui rend votre marque singulière." },
+          reassurance: { title: "Notre promesse", body: "Une expérience claire, soignée et proche de vos besoins, à personnaliser avant toute ouverture." },
+        }
+      : page.id === "faq"
+        ? {
+            intro: { title: "Vos questions, nos réponses", body: "Ajoutez ici les informations pratiques qui accompagnent vos visiteurs." },
+            detail: { title: "Comment choisir ?", body: "Expliquez simplement comment trouver le produit, la collection ou le service le plus adapté." },
+            reassurance: { title: "Besoin d’un renseignement ?", body: "Indiquez comment votre future clientèle pourra vous contacter une fois la boutique ouverte." },
+          }
+        : page.id === "contact"
+          ? {
+              intro: { title: "Parlons de votre besoin", body: `L’équipe ${brandName} sera bientôt prête à répondre aux demandes concernant ${niche.toLowerCase()}.` },
+              detail: { title: "Nous écrire", body: "Préparez ici un message d’accueil et le ton que vous souhaitez adopter avec vos futurs clients." },
+              reassurance: { title: "Une réponse attentive", body: "Décrivez votre engagement de service sans inclure de coordonnées personnelles dans ce brouillon." },
+            }
+          : {
+              intro: { title: "L’inspiration de la boutique", body: `Un espace pour mettre en scène l’univers ${niche.toLowerCase()} avant l’ouverture.` },
+              detail: { title: "Une sélection à imaginer", body: "Ajoutez vos idées de collection, vos inspirations et les valeurs que vous souhaitez transmettre." },
+              reassurance: { title: "À découvrir bientôt", body: "Cette page restera un brouillon privé tant que la boutique ne sera pas activée séparément." },
+            };
+    return {
+      id: page.id,
+      label: page.label,
+      description: page.description,
+      enabled: true,
+      blocks: page.blocks.map(block => ({ id: block.id, label: block.label, visible: true, title: content[block.id].title, body: content[block.id].body })),
+    };
+  });
+}
+
+function normalizeStudioOwnerPageDrafts(value: unknown, defaults: StudioOwnerPageDraft[]) {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return defaults.map(defaultPage => {
+    const rawPage = source[defaultPage.id] && typeof source[defaultPage.id] === "object" ? source[defaultPage.id] as Record<string, unknown> : {};
+    const rawBlocks = Array.isArray(rawPage.blocks) ? rawPage.blocks : [];
+    return {
+      ...defaultPage,
+      enabled: rawPage.enabled === false ? false : defaultPage.enabled,
+      blocks: defaultPage.blocks.map(defaultBlock => {
+        const rawBlock = rawBlocks.find(candidate => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>).id === defaultBlock.id) as Record<string, unknown> | undefined;
+        return {
+          ...defaultBlock,
+          visible: rawBlock?.visible === false ? false : defaultBlock.visible,
+          title: cleanStudioPageText(rawBlock?.title, defaultBlock.title, 120),
+          body: cleanStudioPageText(rawBlock?.body, defaultBlock.body, 1200),
+        };
+      }),
+    } satisfies StudioOwnerPageDraft;
+  });
+}
+
+/**
+ * Private page drafts for an offered store. They are intentionally not read by
+ * public page routes, storefront procedures, checkout or any marketing pixel.
+ */
+export async function getStudioOwnerPageDrafts(storeId: number) {
+  const builder = await getStudioOwnerBuilderConfiguration(storeId);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [stored] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_page_drafts")))
+    .limit(1);
+  let storedDrafts: unknown = null;
+  try {
+    storedDrafts = stored?.value ? JSON.parse(stored.value) : null;
+  } catch {
+    storedDrafts = null;
+  }
+  const defaults = getStudioOwnerPageDefaults(builder.identity.brandName, builder.configuration.niche);
+  return {
+    privatePageEditor: true as const,
+    publicStorefront: false as const,
+    store: builder.store,
+    activePageIds: builder.configuration.pages,
+    pages: normalizeStudioOwnerPageDrafts(storedDrafts, defaults),
+  };
+}
+
+export async function saveStudioOwnerPageDraft(input: {
+  storeId: number;
+  pageId: StudioOwnerPageId;
+  enabled: boolean;
+  blocks: Array<{ id: StudioOwnerPageBlockId; visible: boolean; title: string; body: string }>;
+}) {
+  const snapshot = await getStudioOwnerPageDrafts(input.storeId);
+  const currentPage = snapshot.pages.find(page => page.id === input.pageId);
+  if (!currentPage) throw new Error("OWNER_PAGE_DRAFT_NOT_FOUND");
+  const submittedById = new Map(input.blocks.map(block => [block.id, block]));
+  const nextPage: StudioOwnerPageDraft = {
+    ...currentPage,
+    enabled: input.enabled,
+    blocks: currentPage.blocks.map(block => {
+      const submitted = submittedById.get(block.id);
+      if (!submitted) return block;
+      return { ...block, visible: submitted.visible, title: cleanStudioPageText(submitted.title, block.title, 120), body: cleanStudioPageText(submitted.body, block.body, 1200) };
+    }),
+  };
+  const nextPages = snapshot.pages.map(page => page.id === input.pageId ? nextPage : page);
+  await setStoreSettingValue(input.storeId, "owner_page_drafts", JSON.stringify(Object.fromEntries(nextPages.map(page => [page.id, { enabled: page.enabled, blocks: page.blocks.map(block => ({ id: block.id, visible: block.visible, title: block.title, body: block.body })) }]))), "Brouillons privés de pages du créateur ; sans publication automatique");
+  return { privatePageEditor: true as const, publicStorefront: false as const, store: snapshot.store, page: nextPage };
+}
+
 const studioGiftStoreTimelineLabels = {
   "studio.gift_store.provision": {
     title: "Boutique offerte préparée",
@@ -1017,6 +1142,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.owner_builder.save": {
     title: "Créateur de boutique enregistré",
     detail: "Les choix de marque et de structure ont été préparés dans l’espace privé, sans publication publique.",
+  },
+  "studio.gift_store.owner_page_draft.save": {
+    title: "Brouillon de page enregistré",
+    detail: "Une page éditoriale a été préparée dans l’espace privé, sans publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",

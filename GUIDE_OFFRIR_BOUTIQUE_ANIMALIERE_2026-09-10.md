@@ -230,3 +230,9 @@ Si vous sélectionnez **Autre univers**, renseignez obligatoirement une thémati
 Depuis le **panneau propriétaire — simulation** d’une boutique offerte encore en `setup`, choisissez **Créer et personnaliser**. L’atelier permet de préparer le nom de marque, un message, l’univers ou niche, le modèle de présentation, les pages souhaitées, la palette et la typographie. Cliquez sur **Enregistrer la préparation privée** lorsque les choix vous conviennent, puis consultez l’**aperçu storefront** pour vérifier le rendu.
 
 Cette étape ne publie pas le site, ne modifie pas le domaine, ne donne pas d’accès au propriétaire et ne rend pas le panier ou le paiement disponibles. Ces décisions restent séparées et sont toujours contrôlées depuis MAZIGHO Studio.
+
+### Rédiger les pages en brouillon
+
+Dans l’atelier **Créer et personnaliser**, choisissez **Préparer les pages**. Sélectionnez une page, ajustez les trois blocs de texte, cochez ou décochez leur visibilité, puis enregistrez le brouillon. L’aperçu à droite sert uniquement à relire la page avant toute mise en ligne.
+
+Les pages **À propos**, **Questions fréquentes**, **Nous contacter** et **Inspiration** restent privées. Cette étape ne publie aucun contenu, n’ajoute pas de média ou de lien, ne modifie pas le domaine et ne rend pas les fonctions de vente disponibles.
