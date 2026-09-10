@@ -194,7 +194,12 @@ async function ensureMultiStoreSchema() {
     await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeSettings` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `key` varchar(100) NOT NULL, `value` text NOT NULL, `description` text, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `store_settings_store_key_unique` (`storeId`,`key`), INDEX `store_settings_store_idx` (`storeId`))"));
 
     // The generic primary store preserves the existing single-store installation without embedding personal data in the codebase.
-    await db.execute(sql.raw("INSERT INTO `stores` (`slug`,`displayName`,`primaryDomain`,`status`,`isPlatformStore`) VALUES ('primary-store','Boutique principale','primary.local','active',1) ON DUPLICATE KEY UPDATE `slug`=`slug`"));
+    await db.execute(sql.raw("INSERT INTO `stores` (`slug`,`displayName`,`primaryDomain`,`status`,`isPlatformStore`) VALUES ('primary-store','Boutique principale','mazigho.ch','active',1) ON DUPLICATE KEY UPDATE `slug`=`slug`"));
+    // Older installations used the internal placeholder `primary.local`. Repair only that
+    // legacy value and the immutable platform marker so mazigho.ch always resolves to
+    // the platform store. Do not change the status or domain of any client store here.
+    await db.execute(sql.raw("UPDATE `stores` SET `primaryDomain` = 'mazigho.ch', `isPlatformStore` = 1 WHERE `slug` = 'primary-store' AND `primaryDomain` = 'primary.local'"));
+    await db.execute(sql.raw("UPDATE `stores` SET `isPlatformStore` = 1 WHERE `slug` = 'primary-store'"));
     // Existing platform administrators retain access to the original boutique. No non-admin account is upgraded automatically.
     await db.execute(sql.raw("INSERT IGNORE INTO `storeMemberships` (`storeId`,`userId`,`role`,`status`) SELECT s.id, u.id, 'owner', 'active' FROM `stores` s INNER JOIN `users` u ON u.role = 'admin' WHERE s.slug = 'primary-store'"));
     // Copy only public storefront records. Technical settings, payment secrets and integrations remain global.

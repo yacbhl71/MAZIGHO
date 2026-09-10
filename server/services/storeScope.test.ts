@@ -10,6 +10,8 @@ describe("store scope", () => {
 
   it("réserve le repli plateforme aux seuls hôtes MAZIGHO et Vercel prévus", () => {
     expect(mayUsePlatformStoreFallback("mazigho.ch", "www.mazigho.ch")).toBe(true);
+    expect(mayUsePlatformStoreFallback("mazigho.ch", "mazigho.ch")).toBe(true);
+    expect(mayUsePlatformStoreFallback("www.mazigho.ch", "mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("www.mazigho.ch", "www.mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("mazigho-shop.vercel.app", "www.mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("mazigho-shop-pr-123.vercel.app", "www.mazigho.ch")).toBe(true);

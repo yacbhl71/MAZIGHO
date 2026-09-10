@@ -523,3 +523,7 @@ Les brouillons de mise en service Studio sont maintenant gérables avant toute c
 | Archivé ou déjà provisionné | Non | Non | Non, protection contre l’écrasement ou le doublon |
 
 Lorsque l’opérateur sélectionne **« Autre univers »**, le champ **« Thématique ou niche »** devient obligatoire. La revue locale reste bloquée tant que cette précision n’est pas renseignée. Lors du provisionnement ultérieur, la thématique est conservée uniquement dans les réglages isolés de cette boutique ; elle n’ouvre aucun storefront et ne déclenche aucune intégration.
+
+### Correctif de résolution du domaine plateforme (10 septembre 2026)
+
+La boutique plateforme `primary-store` utilise désormais `mazigho.ch` comme domaine canonique lors de l’initialisation multi-boutique. Une réparation idempotente ne met à jour que l’ancienne valeur interne `primary.local` et réaffirme son marqueur `isPlatformStore`. Cette correction est nécessaire pour que `mazigho.ch` et `www.mazigho.ch` résolvent toujours la boutique plateforme, tout en laissant les domaines de boutiques clientes en `setup` fermés. Elle ne modifie jamais le statut, le domaine ou les réglages d’une boutique cliente.
