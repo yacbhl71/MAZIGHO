@@ -159,10 +159,10 @@ function autoTranslateProduct(productId: number | undefined | null) {
     .then(m => m.translateProductFromFrench(productId, AUTO_TRANSLATE_LOCALES as any))
     .catch(err => console.error("[auto-translate:product]", productId, err instanceof Error ? err.message : err));
 }
-function autoTranslateContent(contentType: "design" | "banner" | "category", contentId: number | undefined | null) {
+function autoTranslateContent(contentType: "design" | "banner" | "category", contentId: number | undefined | null, storeId?: number) {
   if (contentId == null) return;
   import("./publicContentTranslation")
-    .then(m => m.translatePublicContentFromFrench(contentType, contentId, AUTO_TRANSLATE_LOCALES as any))
+    .then(m => m.translatePublicContentFromFrench(contentType, contentId, AUTO_TRANSLATE_LOCALES as any, storeId))
     .catch(err => console.error("[auto-translate:content]", contentType, contentId, err instanceof Error ? err.message : err));
 }
 
@@ -718,7 +718,7 @@ export const adminRouter = router({
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ ctx, input }) => {
       const createdCategory = await db.createCategory(input);
-      autoTranslateContent("category", (createdCategory as any)?.id);
+      autoTranslateContent("category", (createdCategory as any)?.id, ctx.store?.id);
       logAudit(ctx, { action: "category.create", entityType: "category", entityId: (createdCategory as any)?.id ?? null, summary: `Catégorie créée : « ${input.name} »` });
       return createdCategory;
     }),
@@ -733,8 +733,8 @@ export const adminRouter = router({
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ ctx, input }) => {
       const category = await db.updateCategory(input.id, input);
-      autoTranslateContent("category", input.id);
-      await db.markPublicContentTranslationsStale("category", input.id);
+      autoTranslateContent("category", input.id, ctx.store?.id);
+      await db.markPublicContentTranslationsStale("category", input.id, ctx.store?.id);
       const name = input.name ?? (await db.getCategoryNameById(input.id)) ?? `#${input.id}`;
       logAudit(ctx, { action: "category.update", entityType: "category", entityId: input.id, summary: `Catégorie modifiée : « ${name} »` });
       return category;
@@ -1641,15 +1641,15 @@ export const adminRouter = router({
 
   // Visual customisation of the public storefront
   design: router({
-    get: adminProcedure.query(async () => {
-      return await db.getDesignProfile();
+    get: adminProcedure.query(async ({ ctx }) => {
+      return await db.getDesignProfile(ctx.store?.id);
     }),
     translateNavigation: adminProcedure.input(z.object({
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
         const { translateNavigationFromFrench } = await import("./navigationTranslation");
-        return await translateNavigationFromFrench(input.locales);
+        return await translateNavigationFromFrench(input.locales, ctx.store?.id);
       } catch {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La traduction des libellés est momentanément indisponible. Réessayez dans quelques instants." });
       }
@@ -1704,12 +1704,13 @@ export const adminRouter = router({
         enabled: z.boolean().default(true),
       })).max(8).default([]),
     })).mutation(async ({ ctx, input }) => {
-      const previous = await db.getDesignProfile();
-      const profile = await db.updateDesignProfile(input);
+      const storeId = ctx.store?.id;
+      const previous = await db.getDesignProfile(storeId);
+      const profile = await db.updateDesignProfile(input, storeId);
       const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
       if (editorialFields.some(field => previous[field] !== profile[field])) {
-        await db.markPublicContentTranslationsStale("design", 1);
-        autoTranslateContent("design", 1);
+        await db.markPublicContentTranslationsStale("design", 1, storeId);
+        autoTranslateContent("design", 1, storeId);
       }
       logAudit(ctx, { action: "design.update", entityType: "design", entityId: 1, summary: `Personnalisation du site mise à jour (marque ${input.brandName}, palette ${input.paletteId}, typographie ${input.typographyId})`, metadata: { brandName: input.brandName, hasBrandLogo: Boolean(input.brandLogoUrl), hasBrandMessage: Boolean(input.brandMessage), paletteId: input.paletteId, typographyId: input.typographyId, buttonRadius: input.buttonRadius } });
       return profile;
@@ -1728,24 +1729,24 @@ export const adminRouter = router({
 
   // Public editorial content translations. French stays the single source; generated text is always reviewable before use.
   publicContentTranslations: router({
-    getOverview: catalogEditorProcedure.query(async () => await db.getPublicContentTranslationOverview()),
+    getOverview: catalogEditorProcedure.query(async ({ ctx }) => await db.getPublicContentTranslationOverview(ctx.store?.id)),
     getSource: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
-    })).query(async ({ input }) => await db.getPublicContentTranslationSource(input.contentType, input.contentId)),
+    })).query(async ({ ctx, input }) => await db.getPublicContentTranslationSource(input.contentType, input.contentId, ctx.store?.id)),
     get: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
       locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
-    })).query(async ({ input }) => await db.getPublicContentTranslation(input.contentType, input.contentId, input.locale)),
+    })).query(async ({ ctx, input }) => await db.getPublicContentTranslation(input.contentType, input.contentId, input.locale, false, ctx.store?.id)),
     generate: catalogEditorProcedure.input(z.object({
       contentType: z.enum(["design", "banner", "category"]),
       contentId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
         const { translatePublicContentFromFrench } = await import("./publicContentTranslation");
-        return await translatePublicContentFromFrench(input.contentType, input.contentId, input.locales);
+        return await translatePublicContentFromFrench(input.contentType, input.contentId, input.locales, ctx.store?.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: message || "La traduction des contenus est momentanément indisponible. Réessayez dans quelques instants." });
@@ -1756,7 +1757,7 @@ export const adminRouter = router({
       contentId: z.number().int().positive(),
       locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
       payload: z.record(z.string(), z.string().max(1200)),
-    })).mutation(async ({ input }) => await db.savePublicContentTranslation({ ...input, payload: input.payload, machineGenerated: false })),
+    })).mutation(async ({ ctx, input }) => await db.savePublicContentTranslation({ ...input, payload: input.payload, machineGenerated: false, storeId: ctx.store?.id })),
   }),
 
   // Administrative register: customer sales are read from paid orders; purchases, costs and evidence are added here.
@@ -1836,8 +1837,8 @@ export const adminRouter = router({
 
   // Public legal information managed from the admin panel
   legal: router({
-    get: adminProcedure.query(async () => {
-      return await db.getLegalProfile();
+    get: adminProcedure.query(async ({ ctx }) => {
+      return await db.getLegalProfile(ctx.store?.id);
     }),
     update: adminProcedure.input(z.object({
       operatorName: z.string().trim().min(2).max(160),
@@ -1850,15 +1851,15 @@ export const adminRouter = router({
       deliveryZones: z.string().trim().min(2).max(1000),
       deliveryDetails: z.string().trim().min(2).max(3000),
       returnsPolicy: z.string().trim().min(2).max(3000),
-    })).mutation(async ({ input }) => {
-      return await db.updateLegalProfile(input);
+    })).mutation(async ({ ctx, input }) => {
+      return await db.updateLegalProfile(input, ctx.store?.id);
     }),
   }),
 
   // Homepage content / banners
   content: router({
-    getAll: adminProcedure.query(async () => {
-      return await db.getAllBanners();
+    getAll: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAllBanners(ctx.store?.id);
     }),
     create: adminProcedure.input(z.object({
       title: z.string().min(1),
@@ -1867,9 +1868,10 @@ export const adminRouter = router({
       linkUrl: z.string().url().optional().or(z.literal("")),
       active: z.number().int().min(0).max(1).default(1),
       displayOrder: z.number().int().default(0),
-    })).mutation(async ({ input }) => {
-      const createdBanner = await db.createBanner(input);
-      autoTranslateContent("banner", (createdBanner as any)?.id);
+    })).mutation(async ({ ctx, input }) => {
+      const storeId = ctx.store?.id;
+      const createdBanner = await db.createBanner(input, storeId);
+      autoTranslateContent("banner", (createdBanner as any)?.id, storeId);
       return createdBanner;
     }),
     update: adminProcedure.input(z.object({
@@ -1880,22 +1882,24 @@ export const adminRouter = router({
       linkUrl: z.string().url().optional().or(z.literal("")),
       active: z.number().int().min(0).max(1),
       displayOrder: z.number().int(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
+      const storeId = ctx.store?.id;
       const { id, ...data } = input;
-      const banner = await db.updateBanner(id, data);
-      autoTranslateContent("banner", id);
-      await db.markPublicContentTranslationsStale("banner", id);
+      const banner = await db.updateBanner(id, data, storeId);
+      autoTranslateContent("banner", id, storeId);
+      await db.markPublicContentTranslationsStale("banner", id, storeId);
       return banner;
     }),
-    delete: adminProcedure.input(z.number()).mutation(async ({ input }) => {
-      return await db.deleteBanner(input);
+    delete: adminProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
+      return await db.deleteBanner(input, ctx.store?.id);
     }),
     toggle: adminProcedure.input(z.object({
       id: z.number(),
       active: z.number().int().min(0).max(1),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
+      const storeId = ctx.store?.id;
       const { id, active } = input;
-      const banner = await db.getBannerById(id);
+      const banner = await db.getBannerById(id, storeId);
       if (!banner) throw new Error("Bannière introuvable");
       return await db.updateBanner(id, {
         title: banner.title,
@@ -1904,7 +1908,7 @@ export const adminRouter = router({
         linkUrl: banner.linkUrl ?? undefined,
         active,
         displayOrder: banner.displayOrder,
-      });
+      }, storeId);
     }),
   }),
 });

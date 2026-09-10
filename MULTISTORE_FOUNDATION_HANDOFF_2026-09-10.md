@@ -42,3 +42,35 @@ Cette étape est une fondation, **pas encore une isolation complète des donnée
 - Suite Vitest : 15 fichiers / 45 tests validés.
 - Build de production Vite + serveur Node validé.
 - Test dédié : normalisation de domaine et états de boutique servables.
+
+## Étape 2 — identité, informations légales, contenu public et bannières
+
+**Statut :** prête à publier. Cette étape isole le premier périmètre non transactionnel tout en conservant MAZIGHO comme boutique principale compatible.
+
+| Famille | Comportement désormais appliqué |
+|---|---|
+| Réglages de boutique | La table `storeSettings` contient les réglages publics propres à une boutique. Elle est séparée de `settings`, qui reste volontairement réservé aux réglages globaux et techniques non concernés par cette étape. |
+| Profil visuel | `design_profile`, y compris les libellés de navigation et leurs traductions, est lu et écrit par `storeId`. |
+| Informations légales | `legal_profile` est lu et écrit par `storeId`. |
+| Bannières | Toute liste, lecture par identifiant, création, modification, bascule d’état et suppression exige le périmètre de boutique ; un identifiant de bannière d’une autre boutique ne peut pas être modifié ou supprimé. |
+| Traductions publiques | Les traductions du design, des bannières et des catégories sont indexées par `storeId`, type de contenu, identifiant de contenu et langue. Les traductions automatiques déclenchées en arrière-plan reçoivent le même périmètre. |
+| Reprise de MAZIGHO | La migration `0021_store_identity_content_scope.sql` crée les structures, rattache les bannières et les traductions existantes à `primary-store`, et copie uniquement `design_profile` et `legal_profile` depuis les réglages globaux existants. |
+
+La résolution par domaine est maintenant transmise aux routes publiques du design, des informations légales, des bannières et des catégories localisées, ainsi qu’aux routes d’administration correspondantes. Les appels historiques sans identifiant explicite restent compatibles exclusivement via un repli contrôlé vers `primary-store`.
+
+> Cette étape ne déplace volontairement ni les secrets, ni Stripe, ni Odoo, ni CJ, ni les paramètres de calcul d’expédition, de devise ou de pixels. Elle ne crée aucune commande fournisseur, aucun paiement et aucune boutique cliente.
+
+## Limites mises à jour et séquence suivante
+
+L’identité et le contenu public sont maintenant prêts pour une boutique future, mais l’isolation globale reste incomplète. La prochaine famille obligatoire est le **catalogue** : catégories, produits, images, variantes, traductions produit et profils de livraison. Aucun second storefront client ne doit être créé avant que ces lectures et écritures soient réellement filtrées par `storeId`.
+
+Les campagnes marketing, les devises, les politiques d’expédition, les pixels et les réglages techniques restent globaux à dessein : ils feront l’objet de décisions métier et migrations séparées, plutôt que d’être déplacés implicitement.
+
+## Validation de l’étape 2
+
+- TypeScript sans erreur.
+- Suite Vitest : 15 fichiers / 45 tests validés.
+- Build de production Vite + serveur Node validé.
+- Vérification de diff sans erreur d’espacement.
+- Le script de démonstration rattache désormais explicitement ses bannières à `primary-store`.
+- Le correctif différé de visibilité des catégories n’est pas inclus dans ce périmètre.

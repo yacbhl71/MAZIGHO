@@ -51,6 +51,19 @@ export const storeMemberships = mysqlTable("storeMemberships", {
 export type StoreMembership = typeof storeMemberships.$inferSelect;
 export type InsertStoreMembership = typeof storeMemberships.$inferInsert;
 
+// Store-owned configuration. This intentionally excludes deployment secrets and global platform credentials.
+export const storeSettings = mysqlTable("storeSettings", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  key: varchar("key", { length: 100 }).notNull(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StoreSetting = typeof storeSettings.$inferSelect;
+export type InsertStoreSetting = typeof storeSettings.$inferInsert;
+
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.
 export const accountTokens = mysqlTable("accountTokens", {
@@ -156,6 +169,8 @@ export type InsertProductTranslation = typeof productTranslations.$inferInsert;
 // Public editorial translations. French remains the source of truth; only customer-facing text is stored here.
 export const publicContentTranslations = mysqlTable("publicContentTranslations", {
   id: int("id").autoincrement().primaryKey(),
+  // Categories remain global during the catalogue migration; design and banners are scoped immediately.
+  storeId: int("storeId").notNull(),
   contentType: mysqlEnum("contentType", ["design", "banner", "category"]).notNull(),
   contentId: int("contentId").notNull(),
   locale: varchar("locale", { length: 10 }).notNull(),
@@ -403,6 +418,7 @@ export type InsertContactMessage = typeof contactMessages.$inferInsert;
 // Banners table
 export const banners = mysqlTable("banners", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   title: varchar("title", { length: 200 }).notNull(),
   subtitle: text("subtitle"),
   imageUrl: varchar("imageUrl", { length: 500 }).notNull(),

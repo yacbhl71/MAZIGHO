@@ -46,10 +46,10 @@ function validateTranslations(value: unknown, locales: NavigationTranslationLoca
   return results;
 }
 
-export async function translateNavigationFromFrench(requestedLocales: NavigationTranslationLocale[]) {
+export async function translateNavigationFromFrench(requestedLocales: NavigationTranslationLocale[], storeId?: number) {
   const locales = Array.from(new Set(requestedLocales)) as NavigationTranslationLocale[];
   if (!locales.length) throw new Error("Sélectionnez au moins une langue.");
-  const source = await getDesignProfile();
+  const source = await getDesignProfile(storeId);
   const model = await chooseModel();
   const result = await invokeLLM({
     ...(model ? { model } : {}),
@@ -70,5 +70,5 @@ export async function translateNavigationFromFrench(requestedLocales: Navigation
   const parsed = JSON.parse(responseText(result.choices[0]?.message.content ?? ""));
   const translations = validateTranslations(parsed, locales);
   const navigationTranslations = { ...source.navigationTranslations, ...Object.fromEntries(translations) };
-  return await updateDesignProfile({ ...source, navigationTranslations });
+  return await updateDesignProfile({ ...source, navigationTranslations }, storeId);
 }

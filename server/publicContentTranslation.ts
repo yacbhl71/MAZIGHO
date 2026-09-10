@@ -49,10 +49,10 @@ function validateTranslations(value: unknown, locales: PublicContentTranslationL
   return results;
 }
 
-export async function translatePublicContentFromFrench(contentType: PublicContentType, contentId: number, requestedLocales: PublicContentTranslationLocale[]) {
+export async function translatePublicContentFromFrench(contentType: PublicContentType, contentId: number, requestedLocales: PublicContentTranslationLocale[], storeId?: number) {
   const locales = Array.from(new Set(requestedLocales)) as PublicContentTranslationLocale[];
   if (!locales.length || locales.some(locale => !isPublicContentTranslationLocale(locale))) throw new Error("Sélectionnez au moins une langue prise en charge.");
-  const source = await getPublicContentTranslationSource(contentType, contentId);
+  const source = await getPublicContentTranslationSource(contentType, contentId, storeId);
   if (!source) throw new Error("Source de contenu introuvable.");
   const fields = Object.keys(source.payload);
   const model = await chooseModel();
@@ -98,5 +98,5 @@ export async function translatePublicContentFromFrench(contentType: PublicConten
     throw new Error("Le service de traduction a renvoyé un format non exploitable. Réessayez.");
   }
   const translations = validateTranslations(parsed, locales, fields);
-  return await Promise.all(Array.from(translations.entries()).map(([locale, payload]) => savePublicContentTranslation({ contentType, contentId, locale, payload, machineGenerated: true })));
+  return await Promise.all(Array.from(translations.entries()).map(([locale, payload]) => savePublicContentTranslation({ contentType, contentId, locale, payload, machineGenerated: true, storeId })));
 }

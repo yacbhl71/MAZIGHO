@@ -14,7 +14,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { normalizeStoreHost } from "./services/storeScope";
 
-const { accountTokens, users, stores, storeMemberships, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, stores, storeMemberships, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -28,6 +28,7 @@ let _catalogSectionSchemaReady: Promise<void> | null = null;
 let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
 let _publicContentTranslationSchemaReady: Promise<void> | null = null;
+let _storeContentScopeSchemaReady: Promise<void> | null = null;
 let _staffRolesReady: Promise<void> | null = null;
 let _auditLogSchemaReady: Promise<void> | null = null;
 let _promotionAdvancedSchemaReady: Promise<void> | null = null;
@@ -50,11 +51,14 @@ async function ensureMultiStoreSchema() {
 
     await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `stores` (`id` int AUTO_INCREMENT PRIMARY KEY, `slug` varchar(80) NOT NULL, `displayName` varchar(160) NOT NULL, `primaryDomain` varchar(255) NOT NULL, `status` enum('setup','active','limited','suspended','closed') NOT NULL DEFAULT 'setup', `isPlatformStore` tinyint NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `stores_slug_unique` (`slug`), UNIQUE KEY `stores_domain_unique` (`primaryDomain`), INDEX `stores_status_idx` (`status`))"));
     await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeMemberships` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `userId` int NOT NULL, `role` enum('owner','manager','catalog_editor','support_agent','order_operator','accountant','viewer') NOT NULL DEFAULT 'viewer', `status` enum('active','blocked') NOT NULL DEFAULT 'active', `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `store_memberships_store_user_unique` (`storeId`,`userId`), INDEX `store_memberships_user_idx` (`userId`), INDEX `store_memberships_store_idx` (`storeId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeSettings` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `key` varchar(100) NOT NULL, `value` text NOT NULL, `description` text, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `store_settings_store_key_unique` (`storeId`,`key`), INDEX `store_settings_store_idx` (`storeId`))"));
 
     // The generic primary store preserves the existing single-store installation without embedding personal data in the codebase.
     await db.execute(sql.raw("INSERT INTO `stores` (`slug`,`displayName`,`primaryDomain`,`status`,`isPlatformStore`) VALUES ('primary-store','Boutique principale','primary.local','active',1) ON DUPLICATE KEY UPDATE `slug`=`slug`"));
     // Existing platform administrators retain access to the original boutique. No non-admin account is upgraded automatically.
     await db.execute(sql.raw("INSERT IGNORE INTO `storeMemberships` (`storeId`,`userId`,`role`,`status`) SELECT s.id, u.id, 'owner', 'active' FROM `stores` s INNER JOIN `users` u ON u.role = 'admin' WHERE s.slug = 'primary-store'"));
+    // Copy only public identity records. Technical settings and integrations remain global until their dedicated migration.
+    await db.execute(sql.raw("INSERT IGNORE INTO `storeSettings` (`storeId`,`key`,`value`,`description`) SELECT st.id, se.`key`, se.`value`, se.`description` FROM `stores` st INNER JOIN `settings` se ON se.`key` IN ('design_profile','legal_profile') WHERE st.slug = 'primary-store'"));
   })();
 
   return _multiStoreSchemaReady;
@@ -167,6 +171,31 @@ async function getPrimaryStoreId() {
   const rows = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
   if (!rows[0]) throw new Error("PRIMARY_STORE_NOT_FOUND");
   return rows[0].id;
+}
+
+async function getStoreSettingValue(storeId: number | undefined, key: string): Promise<string | null> {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return null;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, effectiveStoreId), eq(storeSettings.key, key))).limit(1);
+  return rows[0]?.value ?? null;
+}
+
+async function setStoreSettingValue(storeId: number | undefined, key: string, value: string, description?: string) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const existing = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, effectiveStoreId), eq(storeSettings.key, key))).limit(1);
+  if (existing[0]) {
+    await db.update(storeSettings).set({ value, description: description ?? null }).where(eq(storeSettings.id, existing[0].id));
+  } else {
+    await db.insert(storeSettings).values({ storeId: effectiveStoreId, key, value, description: description ?? null });
+  }
+  return { success: true } as const;
 }
 
 export async function recordAuditLog(input: {
@@ -366,13 +395,47 @@ async function ensureProductTranslationSchema() {
   return _productTranslationSchemaReady;
 }
 
+async function ensureStoreContentScopeSchema() {
+  if (_storeContentScopeSchemaReady) return _storeContentScopeSchemaReady;
+  _storeContentScopeSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const primaryStoreId = await getPrimaryStoreId();
+
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `publicContentTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `contentType` enum('design','banner','category') NOT NULL, `contentId` int NOT NULL, `locale` varchar(10) NOT NULL, `payload` text NOT NULL, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `public_content_translations_store_content_locale_unique` (`storeId`, `contentType`, `contentId`, `locale`), INDEX `public_content_translations_store_content_idx` (`storeId`, `contentType`, `contentId`))"));
+
+    await db.execute(sql.raw("ALTER TABLE `banners` ADD COLUMN IF NOT EXISTS `storeId` int NULL"));
+    await db.execute(sql.raw(`UPDATE \`banners\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
+    await db.execute(sql.raw("ALTER TABLE `banners` MODIFY COLUMN `storeId` int NOT NULL"));
+    try { await db.execute(sql.raw("CREATE INDEX `banners_store_active_order_idx` ON `banners` (`storeId`, `active`, `displayOrder`)")); } catch (error) {
+      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+    }
+
+    await db.execute(sql.raw("ALTER TABLE `publicContentTranslations` ADD COLUMN IF NOT EXISTS `storeId` int NULL"));
+    await db.execute(sql.raw(`UPDATE \`publicContentTranslations\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
+    await db.execute(sql.raw("ALTER TABLE `publicContentTranslations` MODIFY COLUMN `storeId` int NOT NULL"));
+    try { await db.execute(sql.raw("ALTER TABLE `publicContentTranslations` DROP INDEX `public_content_translations_content_locale_unique`")); } catch (error) {
+      if (!/check that column\/key exists|doesn't exist|cannot drop/i.test(String(error))) throw error;
+    }
+    try { await db.execute(sql.raw("CREATE UNIQUE INDEX `public_content_translations_store_content_locale_unique` ON `publicContentTranslations` (`storeId`, `contentType`, `contentId`, `locale`)")); } catch (error) {
+      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+    }
+    try { await db.execute(sql.raw("CREATE INDEX `public_content_translations_store_content_idx` ON `publicContentTranslations` (`storeId`, `contentType`, `contentId`)")); } catch (error) {
+      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+    }
+  })();
+  return _storeContentScopeSchemaReady;
+}
+
 async function ensurePublicContentTranslationSchema() {
   if (_publicContentTranslationSchemaReady) return _publicContentTranslationSchemaReady;
 
   _publicContentTranslationSchemaReady = (async () => {
+    await ensureStoreContentScopeSchema();
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `publicContentTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `contentType` enum('design','banner','category') NOT NULL, `contentId` int NOT NULL, `locale` varchar(10) NOT NULL, `payload` text NOT NULL, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `public_content_translations_content_locale_unique` (`contentType`, `contentId`, `locale`), INDEX `public_content_translations_content_idx` (`contentType`, `contentId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `publicContentTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `contentType` enum('design','banner','category') NOT NULL, `contentId` int NOT NULL, `locale` varchar(10) NOT NULL, `payload` text NOT NULL, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `public_content_translations_store_content_locale_unique` (`storeId`, `contentType`, `contentId`, `locale`), INDEX `public_content_translations_store_content_idx` (`storeId`, `contentType`, `contentId`))"));
   })();
 
   return _publicContentTranslationSchemaReady;
@@ -1329,10 +1392,10 @@ function normalizePublicContentPayload(value: unknown, sourcePayload: PublicCont
   return Object.fromEntries(requiredKeys.map(key => [key, String(candidate[key]).trim()]));
 }
 
-export async function getPublicContentTranslationSource(contentType: PublicContentType, contentId: number): Promise<{ title: string; payload: PublicContentPayload; sourceUpdatedAt: Date } | undefined> {
+export async function getPublicContentTranslationSource(contentType: PublicContentType, contentId: number, storeId?: number): Promise<{ title: string; payload: PublicContentPayload; sourceUpdatedAt: Date } | undefined> {
   if (contentType === "design") {
     if (contentId !== 1) return undefined;
-    const profile = await getDesignProfile();
+    const profile = await getDesignProfile(storeId);
     return {
       title: "Accueil, histoire et sélection éditoriale",
       payload: {
@@ -1351,7 +1414,8 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
   const db = await getDb();
   if (!db) return undefined;
   if (contentType === "banner") {
-    const rows = await db.select().from(banners).where(eq(banners.id, contentId)).limit(1);
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    const rows = await db.select().from(banners).where(and(eq(banners.id, contentId), eq(banners.storeId, effectiveStoreId))).limit(1);
     const banner = rows[0];
     if (!banner) return undefined;
     return { title: banner.title, payload: { title: banner.title, subtitle: banner.subtitle ?? "" }, sourceUpdatedAt: new Date() };
@@ -1363,16 +1427,17 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
   return { title: category.name, payload: { name: category.name, description: category.description ?? "" }, sourceUpdatedAt: new Date() };
 }
 
-export async function getPublicContentTranslation(contentType: PublicContentType, contentId: number, locale: PublicContentTranslationLocale, readyOnly = false) {
+export async function getPublicContentTranslation(contentType: PublicContentType, contentId: number, locale: PublicContentTranslationLocale, readyOnly = false, storeId?: number) {
   await ensurePublicContentTranslationSchema();
   const db = await getDb();
   if (!db) return undefined;
-  const conditions = [eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId), eq(publicContentTranslations.locale, locale)];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const conditions = [eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId), eq(publicContentTranslations.locale, locale)];
   if (readyOnly) conditions.push(eq(publicContentTranslations.status, "ready"));
   const rows = await db.select().from(publicContentTranslations).where(and(...conditions)).limit(1);
   const translation = rows[0];
   if (!translation) return undefined;
-  const source = await getPublicContentTranslationSource(contentType, contentId);
+  const source = await getPublicContentTranslationSource(contentType, contentId, storeId);
   let candidate: unknown;
   try {
     candidate = JSON.parse(translation.payload);
@@ -1383,13 +1448,14 @@ export async function getPublicContentTranslation(contentType: PublicContentType
   return payload ? { ...translation, payload } : undefined;
 }
 
-export async function getPublicContentTranslationOverview() {
+export async function getPublicContentTranslationOverview(storeId?: number) {
   await ensurePublicContentTranslationSchema();
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const [design, allBanners, allCategories, translations] = await Promise.all([
-    getPublicContentTranslationSource("design", 1),
-    getAllBanners(),
+    getPublicContentTranslationSource("design", 1, effectiveStoreId),
+    getAllBanners(effectiveStoreId),
     getAllCategories(),
-    (async () => { const db = await getDb(); return db ? db.select().from(publicContentTranslations) : []; })(),
+    (async () => { const db = await getDb(); return db ? db.select().from(publicContentTranslations).where(eq(publicContentTranslations.storeId, effectiveStoreId)) : []; })(),
   ]);
   const sources: Array<{ contentType: PublicContentType; contentId: number; title: string; fields: string[] }> = [];
   if (design) sources.push({ contentType: "design", contentId: 1, title: design.title, fields: Object.keys(design.payload) });
@@ -1402,15 +1468,17 @@ export async function getPublicContentTranslationOverview() {
   }));
 }
 
-export async function savePublicContentTranslation(input: { contentType: PublicContentType; contentId: number; locale: PublicContentTranslationLocale; payload: PublicContentPayload; machineGenerated: boolean }) {
+export async function savePublicContentTranslation(input: { contentType: PublicContentType; contentId: number; locale: PublicContentTranslationLocale; payload: PublicContentPayload; machineGenerated: boolean; storeId?: number }) {
   await ensurePublicContentTranslationSchema();
-  const source = await getPublicContentTranslationSource(input.contentType, input.contentId);
+  const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
+  const source = await getPublicContentTranslationSource(input.contentType, input.contentId, effectiveStoreId);
   if (!source) throw new Error("Source de contenu introuvable.");
   const payload = normalizePublicContentPayload(input.payload, source.payload);
   if (!payload) throw new Error("La structure de la traduction ne correspond pas au contenu source.");
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.insert(publicContentTranslations).values({
+    storeId: effectiveStoreId,
     contentType: input.contentType,
     contentId: input.contentId,
     locale: input.locale,
@@ -1420,46 +1488,47 @@ export async function savePublicContentTranslation(input: { contentType: PublicC
     sourceUpdatedAt: source.sourceUpdatedAt,
     translatedAt: new Date(),
   }).onDuplicateKeyUpdate({ set: { payload: JSON.stringify(payload), status: "ready", machineGenerated: input.machineGenerated ? 1 : 0, sourceUpdatedAt: source.sourceUpdatedAt, translatedAt: new Date() } });
-  return await getPublicContentTranslation(input.contentType, input.contentId, input.locale, true);
+  return await getPublicContentTranslation(input.contentType, input.contentId, input.locale, true, effectiveStoreId);
 }
 
-export async function markPublicContentTranslationsStale(contentType: PublicContentType, contentId: number) {
+export async function markPublicContentTranslationsStale(contentType: PublicContentType, contentId: number, storeId?: number) {
   await ensurePublicContentTranslationSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
 }
 
-export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale): Promise<DesignProfile & { contentTranslationReady: boolean }> {
-  const profile = await getDesignProfile();
+export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale, storeId?: number): Promise<DesignProfile & { contentTranslationReady: boolean }> {
+  const profile = await getDesignProfile(storeId);
   if (locale === "fr") return { ...profile, contentTranslationReady: true };
-  const translation = await getPublicContentTranslation("design", 1, locale, true);
+  const translation = await getPublicContentTranslation("design", 1, locale, true, storeId);
   return translation ? { ...profile, ...translation.payload, contentTranslationReady: true } : { ...profile, contentTranslationReady: false };
 }
 
-export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTranslationLocale) {
-  const sourceBanners = await getActiveBanners();
+export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTranslationLocale, storeId?: number) {
+  const sourceBanners = await getActiveBanners(storeId);
   if (locale === "fr") return sourceBanners.map(banner => ({ ...banner, sourceTitle: banner.title }));
   return await Promise.all(sourceBanners.map(async banner => {
-    const translation = await getPublicContentTranslation("banner", banner.id, locale, true);
+    const translation = await getPublicContentTranslation("banner", banner.id, locale, true, storeId);
     return translation ? { ...banner, ...translation.payload, sourceTitle: banner.title } : { ...banner, sourceTitle: banner.title };
   }));
 }
 
-export async function getLocalizedCategories(locale: "fr" | PublicContentTranslationLocale) {
+export async function getLocalizedCategories(locale: "fr" | PublicContentTranslationLocale, storeId?: number) {
   const sourceCategories = await getAllCategories();
   if (locale === "fr") return sourceCategories.map(category => ({ ...category, contentTranslationReady: true }));
   return await Promise.all(sourceCategories.map(async category => {
-    const translation = await getPublicContentTranslation("category", category.id, locale, true);
+    const translation = await getPublicContentTranslation("category", category.id, locale, true, storeId);
     return translation ? { ...category, ...translation.payload, contentTranslationReady: true } : { ...category, contentTranslationReady: false };
   }));
 }
 
-export async function getLocalizedCategoryBySlug(slug: string, locale: "fr" | PublicContentTranslationLocale) {
+export async function getLocalizedCategoryBySlug(slug: string, locale: "fr" | PublicContentTranslationLocale, storeId?: number) {
   const category = await getCategoryBySlug(slug);
   if (!category) return category;
   if (locale === "fr") return { ...category, contentTranslationReady: true };
-  const translation = await getPublicContentTranslation("category", category.id, locale, true);
+  const translation = await getPublicContentTranslation("category", category.id, locale, true, storeId);
   return translation ? { ...category, ...translation.payload, contentTranslationReady: true } : { ...category, contentTranslationReady: false };
 }
 
@@ -3071,10 +3140,12 @@ export async function getOrderDetail(userId: number, orderId: number) {
 }
 
 // Content management: banners
-export async function getAllBanners() {
+export async function getAllBanners(storeId?: number) {
+  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(banners).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return db.select().from(banners).where(eq(banners.storeId, effectiveStoreId)).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
 }
 
 export async function getAllSettings() {
@@ -3287,32 +3358,19 @@ function normalizeLegalProfile(value: unknown): LegalProfile {
   ) as LegalProfile;
 }
 
-export async function getLegalProfile(): Promise<LegalProfile> {
-  const db = await getDb();
-  if (!db) return { ...defaultLegalProfile };
-  const rows = await db.select().from(settings).where(eq(settings.key, "legal_profile")).limit(1);
-  if (!rows[0]) return { ...defaultLegalProfile };
+export async function getLegalProfile(storeId?: number): Promise<LegalProfile> {
+  const value = await getStoreSettingValue(storeId, "legal_profile");
+  if (!value) return { ...defaultLegalProfile };
   try {
-    return normalizeLegalProfile(JSON.parse(rows[0].value));
+    return normalizeLegalProfile(JSON.parse(value));
   } catch {
     return { ...defaultLegalProfile };
   }
 }
 
-export async function updateLegalProfile(data: LegalProfile) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+export async function updateLegalProfile(data: LegalProfile, storeId?: number) {
   const profile = normalizeLegalProfile(data);
-  await db.insert(settings).values({
-    key: "legal_profile",
-    value: JSON.stringify(profile),
-    description: "Informations légales publiques de MAZIGHO",
-  }).onDuplicateKeyUpdate({
-    set: {
-      value: JSON.stringify(profile),
-      description: "Informations légales publiques de MAZIGHO",
-    },
-  });
+  await setStoreSettingValue(storeId, "legal_profile", JSON.stringify(profile), "Informations légales publiques propres à cette boutique");
   return profile;
 }
 
@@ -3507,32 +3565,19 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   return normalized;
 }
 
-export async function getDesignProfile(): Promise<DesignProfile> {
-  const db = await getDb();
-  if (!db) return { ...defaultDesignProfile };
-  const rows = await db.select().from(settings).where(eq(settings.key, "design_profile")).limit(1);
-  if (!rows[0]) return { ...defaultDesignProfile };
+export async function getDesignProfile(storeId?: number): Promise<DesignProfile> {
+  const value = await getStoreSettingValue(storeId, "design_profile");
+  if (!value) return { ...defaultDesignProfile };
   try {
-    return normalizeDesignProfile(JSON.parse(rows[0].value));
+    return normalizeDesignProfile(JSON.parse(value));
   } catch {
     return { ...defaultDesignProfile };
   }
 }
 
-export async function updateDesignProfile(data: DesignProfile): Promise<DesignProfile> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+export async function updateDesignProfile(data: DesignProfile, storeId?: number): Promise<DesignProfile> {
   const profile = normalizeDesignProfile(data);
-  await db.insert(settings).values({
-    key: "design_profile",
-    value: JSON.stringify(profile),
-    description: "Personnalisation visuelle publique de MAZIGHO",
-  }).onDuplicateKeyUpdate({
-    set: {
-      value: JSON.stringify(profile),
-      description: "Personnalisation visuelle publique de MAZIGHO",
-    },
-  });
+  await setStoreSettingValue(storeId, "design_profile", JSON.stringify(profile), "Personnalisation visuelle publique propre à cette boutique");
   return profile;
 }
 
@@ -4097,16 +4142,20 @@ export async function getOrderTimeline(orderId: number) {
   return events.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 }
 
-export async function getActiveBanners() {
+export async function getActiveBanners(storeId?: number) {
+  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(banners).where(eq(banners.active, 1)).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return db.select().from(banners).where(and(eq(banners.storeId, effectiveStoreId), eq(banners.active, 1))).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
 }
 
-export async function getBannerById(id: number) {
+export async function getBannerById(id: number, storeId?: number) {
+  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select().from(banners).where(eq(banners.id, id)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select().from(banners).where(and(eq(banners.id, id), eq(banners.storeId, effectiveStoreId))).limit(1);
   return rows[0] ?? null;
 }
 
@@ -4117,10 +4166,13 @@ export async function createBanner(data: {
   linkUrl?: string;
   active?: number;
   displayOrder?: number;
-}) {
+}, storeId?: number) {
+  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const result = await db.insert(banners).values({
+    storeId: effectiveStoreId,
     title: data.title,
     subtitle: data.subtitle || null,
     imageUrl: data.imageUrl,
@@ -4138,17 +4190,21 @@ export async function updateBanner(id: number, data: {
   linkUrl?: string;
   active: number;
   displayOrder: number;
-}) {
+}, storeId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(banners).set({ ...data, subtitle: data.subtitle || null, linkUrl: data.linkUrl || null }).where(eq(banners.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const result = await db.update(banners).set({ ...data, subtitle: data.subtitle || null, linkUrl: data.linkUrl || null }).where(and(eq(banners.id, id), eq(banners.storeId, effectiveStoreId)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("Bannière introuvable pour cette boutique");
   return { success: true };
 }
 
-export async function deleteBanner(id: number) {
+export async function deleteBanner(id: number, storeId?: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(banners).where(eq(banners.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const result = await db.delete(banners).where(and(eq(banners.id, id), eq(banners.storeId, effectiveStoreId)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("Bannière introuvable pour cette boutique");
   return { success: true };
 }
 

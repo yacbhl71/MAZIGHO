@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
-import { categories, banners } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { categories, banners, stores } from "../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 import mysql from "mysql2/promise";
 
 const DEFAULT_BANNER_IMAGE = "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/JZmuCtGTfIYUcFRd.jpg";
@@ -44,7 +44,10 @@ async function seed() {
     }
   }
 
-  // 2. Injection des Bannières
+  // 2. Injection des Bannières — le jeu de démonstration historique appartient à la boutique principale.
+  const primaryStore = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
+  if (!primaryStore[0]) throw new Error("Boutique principale introuvable : appliquez d’abord la migration multi-boutique.");
+  const primaryStoreId = primaryStore[0].id;
   const demoBanners = [
     { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/boutique", active: 1, displayOrder: 1 },
     { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },
@@ -52,10 +55,10 @@ async function seed() {
   ];
 
   for (const banner of demoBanners) {
-    const existing = await db.select().from(banners).where(eq(banners.title, banner.title)).limit(1);
+    const existing = await db.select().from(banners).where(and(eq(banners.storeId, primaryStoreId), eq(banners.title, banner.title))).limit(1);
     if (existing.length === 0) {
       console.log(`Création de la bannière : ${banner.title}`);
-      await db.insert(banners).values(banner);
+      await db.insert(banners).values({ ...banner, storeId: primaryStoreId });
     }
   }
 

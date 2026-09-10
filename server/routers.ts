@@ -52,9 +52,9 @@ export const appRouter = router({
 
   // Homepage content. A pending translation safely falls back to the French source.
   content: router({
-    getActiveBanners: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+    getActiveBanners: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedActiveBanners } = await import("./db");
-      return await getLocalizedActiveBanners(locale);
+      return await getLocalizedActiveBanners(locale, ctx.store?.id);
     }),
     getMaintenance: publicProcedure.query(async () => {
       const { getMaintenanceStatus } = await import("./db");
@@ -80,25 +80,25 @@ export const appRouter = router({
 
   // Public visual customisation applied to the storefront
   design: router({
-    get: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+    get: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedDesignProfile } = await import("./db");
-      return await getLocalizedDesignProfile(locale);
+      return await getLocalizedDesignProfile(locale, ctx.store?.id);
     }),
   }),
 
   // Public legal information shown on the storefront
   legal: router({
-    get: publicProcedure.query(async () => {
+    get: publicProcedure.query(async ({ ctx }) => {
       const { getLegalProfile } = await import("./db");
-      return await getLegalProfile();
+      return await getLegalProfile(ctx.store?.id);
     }),
   }),
 
   // Categories. The URL slug stays French and stable; only visible name and description are localized.
   categories: router({
-    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedCategories } = await import("./db");
-      return await getLocalizedCategories(locale);
+      return await getLocalizedCategories(locale, ctx.store?.id);
     }),
     getBySlug: publicProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
@@ -106,9 +106,9 @@ export const appRouter = router({
       }
       if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
-    }).query(async ({ input }) => {
+    }).query(async ({ ctx, input }) => {
       const { getLocalizedCategoryBySlug } = await import("./db");
-      return await getLocalizedCategoryBySlug(input.slug, input.locale);
+      return await getLocalizedCategoryBySlug(input.slug, input.locale, ctx.store?.id);
     }),
     getBySlugWithProducts: publicProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
@@ -116,9 +116,9 @@ export const appRouter = router({
       }
       if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
-    }).query(async ({ input }) => {
+    }).query(async ({ ctx, input }) => {
       const { getLocalizedCategoryBySlug, getProductsByCategory } = await import("./db");
-      const category = await getLocalizedCategoryBySlug(input.slug, input.locale);
+      const category = await getLocalizedCategoryBySlug(input.slug, input.locale, ctx.store?.id);
       if (!category) return { category: null, products: [] };
       const prods = await getProductsByCategory(category.id);
       const products = await enrichPublicProducts(prods, input.locale);
