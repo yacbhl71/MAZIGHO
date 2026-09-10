@@ -571,3 +571,11 @@ Le snapshot de checklist ne retourne ni domaine en clair, contenu des pages, URL
 Le créateur Studio comprend un atelier de navigation privé. Il organise un menu limité à **Accueil**, **À propos**, **FAQ**, **Contact** et **Inspiration**. L’accueil reste toujours présent et en première position ; les autres entrées peuvent être renommées, affichées, masquées et ordonnées uniquement lorsqu’elles font partie de la structure de pages préparée dans le créateur.
 
 Le réglage `owner_navigation_draft` ne stocke que l’identifiant fermé de la page, un libellé court et sa visibilité. Il ne contient ni URL libre, ni lien externe, ni action de panier, paiement ou publication. Il est lu et sauvegardé uniquement par `platformProcedure` pour une boutique offerte en `setup`; son rendu actuel est strictement un aperçu privé Studio.
+
+---
+
+## Aperçu complet privé des pages préparées
+
+MAZIGHO Studio fournit un aperçu complet en lecture seule qui rassemble, pour une même boutique offerte en `setup`, l’identité préparée, la palette choisie, la navigation privée, l’accueil de démonstration, les pages éditoriales et leurs images de couverture. Il lit exclusivement `owner_builder_configuration`, `owner_navigation_draft` et `owner_page_drafts` via un snapshot `platformProcedure` dédié.
+
+Cette vue ne peut être atteinte par une boutique cliente et n’est référencée par aucune route storefront publique. Les boutons de navigation ne font que changer la page affichée dans la maquette Studio : ils n’exécutent pas de navigation publique. Aucun domaine, pixel, panier, paiement, commande, fournisseur, compte ou statut de boutique ne peut être modifié depuis cet aperçu.

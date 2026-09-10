@@ -1195,6 +1195,42 @@ export async function saveStudioOwnerNavigationDraft(input: { storeId: number; i
   return { privateNavigation: true as const, publicStorefront: false as const, store: snapshot.store, items, hasSavedNavigation: true as const };
 }
 
+/**
+ * Complete page-preview payload reserved to Studio. This is a read-only composition
+ * of existing private drafts and is never consumed by a public storefront route.
+ */
+export async function getStudioOwnerFullPagePreview(storeId: number) {
+  const [builder, navigation, pageDrafts] = await Promise.all([
+    getStudioOwnerBuilderConfiguration(storeId),
+    getStudioOwnerNavigationDraft(storeId),
+    getStudioOwnerPageDrafts(storeId),
+  ]);
+  return {
+    privateFullPagePreview: true as const,
+    publicStorefront: false as const,
+    store: pageDrafts.store,
+    identity: {
+      brandName: builder.identity.brandName,
+      brandMessage: builder.identity.brandMessage,
+      brandLogoUrl: builder.identity.brandLogoUrl,
+    },
+    configuration: {
+      model: builder.configuration.model,
+      niche: builder.configuration.niche,
+      paletteId: builder.configuration.paletteId,
+      typographyId: builder.configuration.typographyId,
+    },
+    navigation: navigation.items,
+    pages: pageDrafts.pages.map(page => ({
+      id: page.id,
+      label: page.label,
+      enabled: page.enabled,
+      coverImageUrl: page.coverImageUrl,
+      blocks: page.blocks.map(block => ({ id: block.id, label: block.label, visible: block.visible, title: block.title, body: block.body })),
+    })),
+  };
+}
+
 const studioGiftStoreTimelineLabels = {
   "studio.gift_store.provision": {
     title: "Boutique offerte préparée",

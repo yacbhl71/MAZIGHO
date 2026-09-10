@@ -254,3 +254,9 @@ La checklist ne met rien en ligne. Sa dernière carte rappelle que l’ouverture
 Dans le créateur de boutique, choisissez **Organiser le menu**. Vous pouvez renommer les entrées de page, masquer celles qui ne doivent pas apparaître et changer l’ordre des pages. La page **Accueil** reste toujours présente afin que le futur menu conserve un point de départ clair.
 
 Le menu n’accepte pas de lien externe et reste visible uniquement dans son aperçu privé Studio. Il ne change pas la navigation publique, le domaine, le panier ou le paiement tant que la boutique reste en `setup`.
+
+### Vérifier le rendu complet avant ouverture
+
+Après avoir préparé les pages, les images et le menu, cliquez sur **Voir l’aperçu complet** depuis l’atelier de navigation. Cette maquette rassemble l’accueil, le menu et les pages éditoriales comme les verraient de futurs visiteurs, mais reste strictement dans MAZIGHO Studio.
+
+Les entrées du menu de cette maquette ne changent que la page affichée à l’intérieur de l’aperçu. Elles ne rendent aucune page publique et ne modifient ni le domaine, ni le statut de la boutique, ni le panier ou le paiement.
