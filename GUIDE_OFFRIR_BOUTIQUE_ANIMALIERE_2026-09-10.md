@@ -266,3 +266,9 @@ Les entrées du menu de cette maquette ne changent que la page affichée à l’
 Dans le créateur, choisissez l’un des modèles proposés puis enregistrez la préparation : **Boutique directe** pour guider rapidement vers les pages, **Histoire de marque** pour privilégier le message et les valeurs, ou **Catalogue essentiel** pour une lecture plus structurée autour des collections. Ouvrez ensuite **Voir l’aperçu complet** pour comparer la composition.
 
 Ce choix change uniquement la maquette privée et reste réversible. Il ne publie pas l’accueil, ne modifie pas le domaine et n’active aucune vente.
+
+### Utiliser le centre de lancement guidé
+
+Depuis le panneau propriétaire simulé, ouvrez **Centre de lancement**. Les six étapes présentent les actions à effectuer dans l’ordre et proposent un lien direct vers le bon atelier Studio. Les états proviennent des préparations réellement enregistrées, et non d’une simple liste à cocher.
+
+La dernière étape, **Décider de l’ouverture publique**, reste volontairement sans bouton d’activation. Utilisez la revue Studio d’activation séparée uniquement lorsque tous les contrôles manuels, notamment le DNS et le certificat, ont été confirmés.

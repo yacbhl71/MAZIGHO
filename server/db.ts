@@ -18,6 +18,7 @@ import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLau
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
 import { buildStorePreparationChecklist } from "./services/storePreparationChecklist";
+import { buildStoreLaunchCenter } from "./services/storeLaunchCenter";
 import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./services/storeNavigationDraft";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
@@ -1199,6 +1200,21 @@ export async function saveStudioOwnerNavigationDraft(input: { storeId: number; i
  * Complete page-preview payload reserved to Studio. This is a read-only composition
  * of existing private drafts and is never consumed by a public storefront route.
  */
+/**
+ * Private, read-only launch center for one offered store. It composes the
+ * preparation checklist and readiness signals without invoking activation.
+ */
+export async function getStudioGiftStoreLaunchCenter(storeId: number) {
+  const [checklist, readiness] = await Promise.all([
+    getStudioGiftStorePreparationChecklist(storeId),
+    getStudioGiftStoreSetupReadiness(storeId),
+  ]);
+  return {
+    ...buildStoreLaunchCenter({ checklist: checklist.items, readinessChecks: readiness.readiness.checks }),
+    store: checklist.store,
+  };
+}
+
 export async function getStudioOwnerFullPagePreview(storeId: number) {
   const [builder, navigation, pageDrafts] = await Promise.all([
     getStudioOwnerBuilderConfiguration(storeId),

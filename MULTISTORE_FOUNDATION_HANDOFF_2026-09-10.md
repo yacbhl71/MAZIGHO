@@ -587,3 +587,11 @@ Cette vue ne peut être atteinte par une boutique cliente et n’est référenc�
 Le choix de modèle déjà enregistré par le créateur est maintenant rendu de manière distincte dans l’aperçu complet privé : **Boutique directe** privilégie un appel vers les pages préparées, **Histoire de marque** met le message et la promesse au premier plan, et **Catalogue essentiel** organise une lecture sobre autour des futures collections et pages clés.
 
 Ces variantes ne constituent pas trois thèmes publics et n’écrivent aucune donnée supplémentaire. Elles utilisent exclusivement le modèle privé `owner_builder_configuration` et les pages préparées déjà isolées. Le rendu reste rendu dans Studio, sans domaine de boutique, pixel, panier, paiement, commande, fournisseur ni activation.
+
+---
+
+## Centre de lancement guidé privé
+
+Le centre de lancement MAZIGHO Studio consolide les états réels de préparation d’une boutique offerte en `setup` : identité enregistrée, pages préparées, médias éventuels, catalogue de démonstration, domaine renseigné et aperçu privé. Il s’appuie sur les snapshots existants de checklist et de préparation, puis renvoie des étapes et liens Studio minimisés.
+
+Le dernier jalon, **Décider de l’ouverture publique**, est délibérément informatif et manuel. Aucun bouton du centre ne vérifie automatiquement le DNS ou le certificat, n’écrit un domaine, ne crée un panier ou un paiement, ni ne modifie le statut de la boutique. L’activation reste uniquement disponible via la revue Studio séparée et avec confirmation explicite.
