@@ -841,6 +841,48 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
   };
 }
 
+function normalizePublicStoreDomain(value: string) {
+  const domain = value.trim().toLowerCase();
+  if (!domain || domain.endsWith(".local") || domain.endsWith(".test") || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {
+    throw new Error("STORE_DOMAIN_INVALID");
+  }
+  return domain;
+}
+
+export async function updateGiftStorePrimaryDomain(input: { storeId: number; confirmationName: string; primaryDomain: string; acknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const primaryDomain = normalizePublicStoreDomain(input.primaryDomain);
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_DOMAIN_UPDATE");
+    if (!input.acknowledged || input.confirmationName.trim() !== store.displayName.trim()) throw new Error("STORE_DOMAIN_UPDATE_CONFIRMATION_MISMATCH");
+
+    const settingsRows = await tx.select({ key: storeSettings.key, value: storeSettings.value })
+      .from(storeSettings).where(eq(storeSettings.storeId, store.id));
+    const settingsByKey = new Map(settingsRows.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+    const [domainCollision] = await tx.select({ id: stores.id }).from(stores)
+      .where(and(eq(stores.primaryDomain, primaryDomain), ne(stores.id, store.id))).limit(1);
+    if (domainCollision) throw new Error("STORE_DOMAIN_ALREADY_IN_USE");
+
+    await tx.update(stores).set({ primaryDomain }).where(and(eq(stores.id, store.id), eq(stores.status, "setup")));
+    return {
+      store: {
+        id: store.id,
+        displayName: store.displayName,
+        previousDomain: store.primaryDomain,
+        primaryDomain,
+        status: "setup" as const,
+      },
+    };
+  });
+}
+
 export async function getStudioGiftStoreSetupReadiness(storeId: number) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();

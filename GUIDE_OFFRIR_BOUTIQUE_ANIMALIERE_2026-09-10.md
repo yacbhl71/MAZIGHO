@@ -196,3 +196,10 @@ Cette lecture aide à organiser plusieurs boutiques de démonstration, par exemp
 Après avoir sélectionné une boutique dans le **« Suivi privé de préparation »**, choisissez **« Voir le panneau propriétaire »**. Cette vue, réservée à l’opérateur Studio, montre l’organisation cible du panneau quotidien de cette boutique : pilotage, catalogue, identité, commandes et réglages de boutique.
 
 Elle sert uniquement à vérifier la séparation des rôles. Le futur propriétaire ne verra pas MAZIGHO Studio, les autres boutiques, les secrets ou les réglages de plateforme. À ce stade, cette page reste une **simulation en lecture seule** : elle ne crée pas d’accès, ne change aucun rôle, n’envoie pas d’invitation et ne rend pas la boutique publique.
+
+
+### Remplacer le domaine interne avant l’ouverture
+
+Lorsqu’un vrai domaine public est prêt dans Vercel, ouvrez la revue de préparation de la boutique dans Studio et utilisez **« Remplacer le domaine interne »**. Saisissez le nouveau domaine, recopiez le nom de la boutique et cochez la confirmation. Cette étape remplace uniquement l’adresse interne `.local` enregistrée au moment de la création.
+
+Avant de valider ce remplacement, attendez que Vercel reconnaisse le domaine et que le certificat HTTPS soit prêt. Le changement de domaine ne rend pas le site public : la boutique reste en `setup`, sans panier ou paiement, jusqu’à la confirmation d’activation distincte.

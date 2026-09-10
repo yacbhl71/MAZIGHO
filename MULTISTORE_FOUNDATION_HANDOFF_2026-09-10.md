@@ -443,3 +443,23 @@ Les tests dédiés garantissent notamment que `publicStorefront` reste toujours 
 Cette page ne dispose d’aucune mutation et réutilise exclusivement les snapshots `getPrivateStorefrontPreview` et `getGiftStoreSetupReadiness`, tous deux protégés par `platformProcedure`. Le garde visuel de `DashboardLayout` couvre également cette sous-route Studio, mais la protection côté serveur reste l’autorité.
 
 > L’aperçu permet de démontrer la séparation cible : le propriétaire gérera uniquement sa boutique et son équipe, tandis que l’opérateur conserve MAZIGHO Studio et les décisions de plateforme. Cette étape ne crée ni compte, ni rôle, ni permission, ni invitation, ni ouverture publique.
+
+
+---
+
+## Remplacement contrôlé du domaine interne d’une boutique offerte
+
+**Statut :** prêt à publier. MAZIGHO Studio propose maintenant le remplacement contrôlé du domaine interne d’une boutique offerte, via `admin.studio.updateGiftStorePrimaryDomain`.
+
+| Garde-fou | Règle appliquée |
+|---|---|
+| Rôle | La mutation est strictement limitée à `platformProcedure`. |
+| Éligibilité | La boutique doit être non plateforme, provenir du parcours « offerte » et être encore en état `setup`. |
+| Domaine | Seul un nom de domaine public valide est accepté ; `.local` et `.test` sont explicitement refusés. |
+| Collision | Le domaine ne peut pas être déjà attribué à une autre boutique enregistrée. |
+| Confirmation | L’opérateur doit recopier exactement le nom de la boutique et cocher une confirmation explicite. |
+| Effet | Seul `stores.primaryDomain` est remplacé ; le statut reste `setup`. |
+
+La mutation génère une trace d’audit non sensible contenant les anciens et nouveaux noms de domaine, sans donnée de client ou de secret. Elle ne rend pas le storefront public, ne touche pas au panier, à Stripe Test, Odoo, CJ, fournisseur, e-mail ou commande.
+
+> Le raccordement Vercel et le certificat HTTPS sont prérequis techniques distincts. Même après remplacement du domaine local, une boutique reste privée tant que l’opérateur ne confirme pas ultérieurement l’activation publique séparée.

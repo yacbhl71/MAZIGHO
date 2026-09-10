@@ -309,6 +309,34 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    updateGiftStorePrimaryDomain: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      primaryDomain: z.string().trim().min(4).max(253),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateGiftStorePrimaryDomain(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.domain.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: `Domaine de boutique offert mis à jour : ${updated.store.displayName}`,
+          metadata: { status: "setup", previousDomain: updated.store.previousDomain, primaryDomain: updated.store.primaryDomain, publicActivationExecuted: false },
+        });
+        return updated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "STORE_DOMAIN_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Indiquez un domaine public valide ; les domaines .local et .test ne sont pas acceptés." });
+        if (code === "STORE_DOMAIN_UPDATE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez le remplacement du domaine." });
+        if (code === "STORE_DOMAIN_ALREADY_IN_USE") throw new TRPCError({ code: "CONFLICT", message: "Ce domaine est déjà attribué à une autre boutique." });
+        if (["STORE_NOT_ELIGIBLE_FOR_DOMAIN_UPDATE", "STORE_NOT_GIFT_PROVISIONED"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Seule une boutique offerte encore en préparation peut changer de domaine depuis Studio." });
+        }
+        throw error;
+      }
+    }),
     getGiftStoreSetupReadiness: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioGiftStoreSetupReadiness(input.storeId);
