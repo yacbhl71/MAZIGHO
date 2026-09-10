@@ -296,6 +296,7 @@ export const adminRouter = router({
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
+    getGiftStoreActivationPreflight: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreActivationPreflight(input.storeId)),
     getGiftStoreOwnerHandoff: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreOwnerHandoffPreflight(input.storeId)),
     reissueGiftStoreOwnerInvitation: platformProcedure.input(z.object({ storeId: z.number().int().positive(), confirmationEmail: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
       try {

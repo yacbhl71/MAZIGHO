@@ -297,3 +297,22 @@ Le lien d’invitation brut n’est renvoyé qu’à l’opérateur Studio aprè
 Une invitation locale en attente ne bloque plus l’opérateur si le lien brut n’a pas été copié avant la fermeture de la console. MAZIGHO Studio propose **« Régénérer le lien manuel »** après confirmation de l’e-mail du bénéficiaire. Cette action invalide atomiquement l’ancien jeton, crée un nouveau lien de 24 heures et ne déclenche toujours aucun e-mail. Elle reste limitée à une boutique offerte en `setup`, à son propriétaire `pending_invitation` et à son appartenance `owner` déjà vérifiée.
 
 ---
+
+## Étape 12 — prévol d’activation publique contrôlée, univers animalier
+
+**Statut :** prêt à publier. MAZIGHO Studio affiche désormais une revue finale réservée aux boutiques offertes en `setup`. Le premier univers retenu est **animalier** ; un brouillon d’un autre univers est volontairement bloqué dans ce prévol.
+
+| Contrôle local | Condition évaluée | Effet si incomplet |
+|---|---|---|
+| Boutique et origine | État `setup`, provenance cadeau, brouillon animalier source | La revue d’activation reste bloquée. |
+| Propriétaire | Compte actif et appartenance `owner` | La boutique reste privée et son bénéficiaire doit terminer son accès. |
+| Domaine | Format public (ni `.local`, ni `.test`) | La boutique ne peut pas être considérée prête localement. |
+| Identité et légal | Profils distincts de MAZIGHO, marque et e-mail de support renseignés | Évite de publier l’identité ou la légale par défaut. |
+| Catalogue | Au moins une catégorie et un produit actif | Le propriétaire doit vérifier la cohérence effective avec l’univers animalier. |
+| Devise | Valeur propre à la boutique | La préparation commerciale reste incomplète. |
+
+Deux contrôles restent **toujours manuels** : le raccordement effectif du domaine (DNS, Vercel, accès réel) et la confirmation explicite de l’opérateur. Le prévol est en lecture seule : aucune procédure de ce commit ne modifie `stores.status`, ne sert le storefront, n’ouvre un panier ou ne crée une session Stripe.
+
+> Le futur passage `setup → active` devra être une mutation séparée, atomique, réservée à MAZIGHO Studio, avec relecture du prévol, confirmation forte et audit. Il ne doit jamais être automatisé.
+
+---

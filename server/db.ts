@@ -15,6 +15,7 @@ import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettin
 import { normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
+import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -247,6 +248,66 @@ export async function prepareGiftStoreOwnerInvitation(input: { storeId: number; 
       invitation: { token, expiresAt, email },
     };
   });
+}
+
+export async function getGiftStoreActivationPreflight(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION_REVIEW");
+
+  const [settingRows, ownerRows, categoryRows, activeProductRows] = await Promise.all([
+    db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
+    db.select({ id: users.id }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId)).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))).limit(1),
+    db.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
+    db.select({ total: count() }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+  ]);
+  const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+  const ownDesignValue = settingsByKey.get("design_profile");
+  let brandName = "";
+  if (ownDesignValue) {
+    try { brandName = String((JSON.parse(ownDesignValue) as Record<string, unknown>).brandName || "").trim(); } catch { /* invalid own profile remains blocked below */ }
+  }
+  const ownLegalValue = settingsByKey.get("legal_profile");
+  let hasOwnLegalProfile = false;
+  if (ownLegalValue) {
+    try {
+      const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
+      const companyName = String(legal.companyName || "").trim();
+      const supportEmail = String(legal.supportEmail || "").trim();
+      hasOwnLegalProfile = companyName.length >= 2 && supportEmail.includes("@") && !companyName.includes("à renseigner");
+    } catch { /* invalid own legal profile remains blocked below */ }
+  }
+
+  const preflight = buildStoreActivationPreflight({
+    status: store.status,
+    isGiftProvisioned: true,
+    businessType: draft.businessType,
+    primaryDomain: store.primaryDomain,
+    hasActiveOwner: Boolean(ownerRows[0]),
+    hasOwnDesignProfile: Boolean(ownDesignValue),
+    brandName,
+    hasOwnLegalProfile,
+    categoryCount: Number(categoryRows[0]?.total ?? 0),
+    activeProductCount: Number(activeProductRows[0]?.total ?? 0),
+    hasCurrency: Boolean(settingsByKey.get("store_currency_code")),
+  });
+
+  return {
+    store: { id: store.id, displayName: store.displayName, slug: store.slug, primaryDomain: store.primaryDomain, status: store.status },
+    intendedBusinessType: draft.businessType,
+    activation: preflight,
+  };
 }
 
 export async function reissueGiftStoreOwnerInvitation(input: { storeId: number; confirmationEmail: string }) {
