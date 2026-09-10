@@ -297,6 +297,18 @@ export const adminRouter = router({
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
     getGiftStoreActivationPreflight: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreActivationPreflight(input.storeId)),
+    getPrivateStorefrontPreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioPrivateStorefrontPreview(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_PRIVATE_PREVIEW", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cet aperçu privé est réservé à une boutique offerte préparée dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     installGiftPetDemoSetup: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

@@ -27,6 +27,7 @@ const Promos = lazy(() => import("./pages/Promos"));
 const Account = lazy(() => import("./pages/Account"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
+const AdminStudioPreview = lazy(() => import("./pages/admin/AdminStudioPreview"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
 const AdminDropshipping = lazy(() => import("./pages/admin/AdminDropshipping"));
 const AdminCjImport = lazy(() => import("./pages/admin/AdminCjImport"));
@@ -154,7 +155,7 @@ function BrowserTitle() {
       "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
-    document.title = adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
+    document.title = pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
   }, [location]);
 
   return null;
@@ -216,6 +217,7 @@ function Router() {
       <Route path="/conditions-generales" component={TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
         <Route path={"/admin"} component={AdminDashboard} />
+        <Route path={"/admin/studio/apercu/:storeId"} component={AdminStudioPreview} />
         <Route path={"/admin/studio"} component={AdminStudio} />
         <Route path={"/admin/produits"} component={AdminProducts} />
         <Route path={"/admin/importation"} component={AdminDropshipping} />

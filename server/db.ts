@@ -478,6 +478,105 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
   };
 }
 
+/**
+ * Read-only snapshot for the MAZIGHO Studio private preview.
+ *
+ * This intentionally does not reuse storefront procedures and never exposes legal
+ * details, memberships, customers, orders, integrations, supplier data or secrets.
+ * It does not change a store status and cannot make a setup store publicly reachable.
+ */
+export async function getStudioPrivateStorefrontPreview(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || !["setup", "active"].includes(store.status)) {
+    throw new Error("STORE_NOT_ELIGIBLE_FOR_PRIVATE_PREVIEW");
+  }
+
+  const settingRows = await db.select({ key: storeSettings.key, value: storeSettings.value })
+    .from(storeSettings)
+    .where(eq(storeSettings.storeId, store.id));
+  const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select({ businessType: storeProvisioningDrafts.businessType, preferredCurrency: storeProvisioningDrafts.preferredCurrency })
+    .from(storeProvisioningDrafts)
+    .where(eq(storeProvisioningDrafts.id, draftId))
+    .limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+  const [design, categoryRows, productRows] = await Promise.all([
+    getDesignProfile(store.id),
+    db.select({
+      id: categories.id,
+      name: categories.name,
+      slug: categories.slug,
+      description: categories.description,
+      imageUrl: categories.imageUrl,
+      icon: categories.icon,
+      displayOrder: categories.displayOrder,
+    }).from(categories).where(eq(categories.storeId, store.id)).orderBy(asc(categories.displayOrder), asc(categories.name)),
+    db.select({
+      id: products.id,
+      categoryId: products.categoryId,
+      name: products.name,
+      slug: products.slug,
+      description: products.description,
+      featured: products.featured,
+    }).from(products)
+      .where(and(eq(products.storeId, store.id), eq(products.status, "active")))
+      .orderBy(desc(products.featured), asc(products.name))
+      .limit(24),
+  ]);
+
+  return {
+    privatePreview: true as const,
+    publicStorefront: false as const,
+    store: {
+      id: store.id,
+      displayName: store.displayName,
+      status: store.status,
+      currency: settingsByKey.get("store_currency_code") || draft.preferredCurrency,
+      businessType: draft.businessType,
+    },
+    identity: {
+      brandName: design.brandName || store.displayName,
+      brandMessage: design.brandMessage,
+      brandLogoUrl: design.brandLogoUrl,
+      highlightEyebrow: design.highlightEyebrow,
+      highlightTitle: design.highlightTitle,
+      highlightText: design.highlightText,
+      customPrimary: design.customPrimary,
+      customAccent: design.customAccent,
+      customSoft: design.customSoft,
+    },
+    categories: categoryRows.map(category => ({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+      imageUrl: category.imageUrl,
+      icon: category.icon,
+      displayOrder: category.displayOrder,
+    })),
+    products: productRows.map(product => ({
+      id: product.id,
+      categoryId: product.categoryId,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      featured: Boolean(product.featured),
+      availability: "not_for_sale" as const,
+    })),
+  };
+}
+
 export async function activateGiftAnimalStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; activationAcknowledged: boolean }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();

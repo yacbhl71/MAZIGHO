@@ -184,6 +184,7 @@ export default function DashboardLayout({
   const [location, setLocation] = useLocation();
   const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: Boolean(user) });
   const isPlatformOperator = Boolean(workspaceQuery.data?.store?.isPlatformStore && user?.role === "admin");
+  const isStudioPath = location === "/admin/studio" || location.startsWith("/admin/studio/");
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -226,11 +227,11 @@ export default function DashboardLayout({
     );
   }
 
-  if (location === "/admin/studio" && workspaceQuery.isLoading) {
+  if (isStudioPath && workspaceQuery.isLoading) {
     return <DashboardLayoutSkeleton />;
   }
 
-  if (location === "/admin/studio" && !isPlatformOperator) {
+  if (isStudioPath && !isPlatformOperator) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
@@ -301,7 +302,7 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  const isStudio = location === "/admin/studio";
+  const isStudio = location === "/admin/studio" || location.startsWith("/admin/studio/");
 
   useEffect(() => {
     if (isCollapsed) {

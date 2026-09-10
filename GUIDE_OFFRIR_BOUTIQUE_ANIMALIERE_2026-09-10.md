@@ -65,6 +65,12 @@ Dans le prévol, utilisez **« Créer la boutique offerte en préparation »**. 
 
 Ne créez pas deux fois la même boutique : le brouillon est protégé contre un second provisionnement.
 
+### Visualiser la boutique avant le domaine public
+
+Dès qu’une boutique offerte est en état `setup`, ouvrez le bloc **« Aperçu privé des boutiques offertes »** dans **`/admin/studio`**, puis cliquez sur **« Ouvrir l’aperçu »**. Cette vue permet de vérifier l’identité visuelle, les catégories et les fiches de démonstration réellement enregistrées pour la boutique.
+
+> L’aperçu est réservé à l’opérateur Studio. Il ne passe pas par le domaine de la boutique et n’active rien : aucun visiteur ne peut y accéder, aucun panier ou paiement n’est affiché, et le statut reste `setup`.
+
 ## 6. Préparer le propriétaire de la boutique
 
 La nouvelle boutique apparaît dans le bloc **« Préparer l’accès, sans l’envoyer »**. Sélectionnez-la afin de consulter le bénéficiaire prévu.

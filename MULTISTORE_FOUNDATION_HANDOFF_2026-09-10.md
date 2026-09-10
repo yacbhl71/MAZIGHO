@@ -368,3 +368,23 @@ Pour Pattes & Compagnie, l’opérateur a explicitement autorisé cette réutili
 La copie autorisée du profil légal de la boutique plateforme vers une boutique offerte en `setup` a mis en évidence un écart de contrat : le prévol et la mutation d’activation lisaient des clés historiques (`companyName`, `supportEmail`), alors que le profil légal réellement enregistré utilise `operatorName` et `contactEmail`. Le contrôle s’appuie désormais sur ces clés persistées et compare aussi les valeurs de référence, afin qu’une copie légale valide soit reconnue sans faux blocage. Ce correctif n’active aucune boutique et ne remplace pas la vérification manuelle du domaine.
 
 > Les coordonnées publiées pour MAZIGHO sont réutilisables vers une boutique offerte seulement après autorisation opérateur explicite ; Pattes & Compagnie demeure en `setup` jusqu’à l’activation finale.
+
+
+---
+
+## Aperçu privé Studio — Pattes & Compagnie sans ouverture publique
+
+**Statut :** prêt à publier. MAZIGHO Studio propose désormais une visualisation privée en lecture seule pour une boutique offerte préparée, notamment **MAZIGHO PET’S — Pattes & Compagnie**. Cette vue utilise la route d’administration `/admin/studio/apercu/:storeId` et ne dépend ni du domaine configuré de la boutique ni des procédures storefront publiques.
+
+| Élément affiché | Limite appliquée |
+|---|---|
+| Identité visuelle | Nom de marque, message, palette et logo éventuel issus du profil propre à la boutique. |
+| Catalogue de démonstration | Catégories et fiches actives limitées à la boutique demandée ; aucun prix, stock, fournisseur, variante, livraison ou donnée interne n’est retourné. |
+| État de la boutique | Le snapshot indique explicitement `privatePreview: true` et `publicStorefront: false`, ainsi que l’état opérationnel et la devise. |
+| Accès | La lecture `admin.studio.getPrivateStorefrontPreview` est protégée par `platformProcedure`; un administrateur d’une boutique cliente est refusé. |
+
+La page est rendue dans `DashboardLayout`, avec un bandeau **« Aperçu privé Studio — non public »**, un retour explicite vers Studio et des commandes de vente visuellement désactivées. Elle ne charge pas de pixels marketing, ne contient aucun panier, checkout, lien vers un domaine de boutique ou action commerciale.
+
+> L’aperçu ne modifie jamais l’état `setup`, n’active aucun domaine et ne crée ni paiement, ni commande, ni e-mail, ni fournisseur, ni synchronisation Odoo. Les routes storefront, panier, promotions et Stripe Test restent soumises au garde-fou public existant.
+
+Les contrôles de cette étape ont validé TypeScript, 57 tests Vitest, le build de production et la frontière de sécurité du nouvel endpoint.

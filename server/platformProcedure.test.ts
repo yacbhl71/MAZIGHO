@@ -49,6 +49,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.provisionGiftStore({ draftId: 1, confirmationName: "Boutique cliente" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreOwnerHandoff({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreActivationPreflight({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getPrivateStorefrontPreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.installGiftPetDemoSetup({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.copyPlatformLegalProfileToGiftStore({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.activateGiftAnimalStore({ storeId: 1, confirmationName: "Boutique cliente", confirmationOwnerEmail: "client@example.test", domainVerified: true, activationAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
