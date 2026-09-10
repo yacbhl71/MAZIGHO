@@ -41,6 +41,7 @@ let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
 let _checkoutShippingSchemaReady: Promise<void> | null = null;
 let _orderCurrencySchemaReady: Promise<void> | null = null;
 let _multiStoreSchemaReady: Promise<void> | null = null;
+let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -59,8 +60,8 @@ async function ensureMultiStoreSchema() {
     await db.execute(sql.raw("INSERT INTO `stores` (`slug`,`displayName`,`primaryDomain`,`status`,`isPlatformStore`) VALUES ('primary-store','Boutique principale','primary.local','active',1) ON DUPLICATE KEY UPDATE `slug`=`slug`"));
     // Existing platform administrators retain access to the original boutique. No non-admin account is upgraded automatically.
     await db.execute(sql.raw("INSERT IGNORE INTO `storeMemberships` (`storeId`,`userId`,`role`,`status`) SELECT s.id, u.id, 'owner', 'active' FROM `stores` s INNER JOIN `users` u ON u.role = 'admin' WHERE s.slug = 'primary-store'"));
-    // Copy only public identity records. Technical settings and integrations remain global until their dedicated migration.
-    await db.execute(sql.raw("INSERT IGNORE INTO `storeSettings` (`storeId`,`key`,`value`,`description`) SELECT st.id, se.`key`, se.`value`, se.`description` FROM `stores` st INNER JOIN `settings` se ON se.`key` IN ('design_profile','legal_profile') WHERE st.slug = 'primary-store'"));
+    // Copy only public storefront records. Technical settings, payment secrets and integrations remain global.
+    await db.execute(sql.raw("INSERT IGNORE INTO `storeSettings` (`storeId`,`key`,`value`,`description`) SELECT st.id, se.`key`, se.`value`, se.`description` FROM `stores` st INNER JOIN `settings` se ON se.`key` IN ('design_profile','legal_profile','site_name','contact_email','currency','store_currency_code','store_currency_rate_bps','shipping_policy','free_shipping_threshold','flat_shipping_rate','meta_pixel_id','tiktok_pixel_id','setup_wizard_status','seo_default_title','seo_default_description') WHERE st.slug = 'primary-store'"));
   })();
 
   return _multiStoreSchemaReady;
@@ -497,6 +498,48 @@ async function ensureStoreRelationshipScopeSchema() {
   return _storeRelationshipScopeSchemaReady;
 }
 
+async function ensureStoreOperationsScopeSchema() {
+  if (_storeOperationsScopeSchemaReady) return _storeOperationsScopeSchemaReady;
+  _storeOperationsScopeSchemaReady = (async () => {
+    await ensureStoreRelationshipScopeSchema();
+    await ensureAccountingSchema();
+    await ensureFulfillmentSchema();
+    await ensureCampaignsSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const primaryStoreId = await getPrimaryStoreId();
+
+    const addAndBackfill = async (table: string, expression = String(primaryStoreId)) => {
+      await db.execute(sql.raw(`ALTER TABLE \`${table}\` ADD COLUMN IF NOT EXISTS \`storeId\` int NULL`));
+      await db.execute(sql.raw(`UPDATE \`${table}\` SET \`storeId\` = ${expression} WHERE \`storeId\` IS NULL`));
+      await db.execute(sql.raw(`UPDATE \`${table}\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
+      await db.execute(sql.raw(`ALTER TABLE \`${table}\` MODIFY COLUMN \`storeId\` int NOT NULL`));
+    };
+
+    await addAndBackfill("orderFulfillmentJobs", "(SELECT o.`storeId` FROM `orders` o WHERE o.`id` = `orderFulfillmentJobs`.`orderId` LIMIT 1)");
+    await addAndBackfill("orderSupplierOrders", "(SELECT o.`storeId` FROM `orders` o WHERE o.`id` = `orderSupplierOrders`.`orderId` LIMIT 1)");
+    await addAndBackfill("accountingEntries");
+    await addAndBackfill("campaigns");
+
+    // Unmatched provider messages are kept unassigned rather than guessed. They
+    // are never returned to a storefront until a later inbound-event processor
+    // can deterministically attach them to a local supplier order.
+    await db.execute(sql.raw("ALTER TABLE `supplierWebhookEvents` ADD COLUMN IF NOT EXISTS `storeId` int NULL"));
+    await db.execute(sql.raw("UPDATE `supplierWebhookEvents` e INNER JOIN `orderSupplierOrders` so ON so.`provider` = e.`provider` AND (so.`externalReference` = e.`externalReference` OR (e.`providerOrderId` IS NOT NULL AND so.`providerOrderId` = e.`providerOrderId`)) INNER JOIN `orders` o ON o.`id` = so.`orderId` SET e.`storeId` = o.`storeId` WHERE e.`storeId` IS NULL"));
+
+    const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
+    await createIndex("CREATE INDEX `order_fulfillment_jobs_store_order_idx` ON `orderFulfillmentJobs` (`storeId`, `orderId`)");
+    await createIndex("CREATE INDEX `order_fulfillment_jobs_store_state_available_idx` ON `orderFulfillmentJobs` (`storeId`, `state`, `availableAt`)");
+    await createIndex("CREATE INDEX `order_supplier_orders_store_order_idx` ON `orderSupplierOrders` (`storeId`, `orderId`)");
+    await createIndex("CREATE INDEX `order_supplier_orders_store_provider_order_idx` ON `orderSupplierOrders` (`storeId`, `provider`, `providerOrderId`)");
+    await createIndex("CREATE INDEX `supplier_webhook_events_store_provider_state_idx` ON `supplierWebhookEvents` (`storeId`, `provider`, `processingState`)");
+    await createIndex("CREATE INDEX `accounting_entries_store_occurred_idx` ON `accountingEntries` (`storeId`, `occurredAt`)");
+    await createIndex("CREATE INDEX `campaigns_store_starts_at_idx` ON `campaigns` (`storeId`, `startsAt`)");
+    await createIndex("CREATE INDEX `campaigns_store_enabled_window_idx` ON `campaigns` (`storeId`, `enabled`, `startsAt`, `endsAt`)");
+  })();
+  return _storeOperationsScopeSchemaReady;
+}
+
 async function ensureStoreContentScopeSchema() {
   if (_storeContentScopeSchemaReady) return _storeContentScopeSchemaReady;
   _storeContentScopeSchemaReady = (async () => {
@@ -652,7 +695,7 @@ async function ensureAccountingSchema() {
   _accountingSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `accountingEntries` (`id` int AUTO_INCREMENT PRIMARY KEY, `kind` enum('inventory_purchase','shipping','platform','advertising','payment_fee','other_expense','refund') NOT NULL, `description` varchar(255) NOT NULL, `amount` int NOT NULL, `occurredAt` timestamp NOT NULL, `supplier` varchar(160), `receiptUrl` varchar(500), `receiptKey` varchar(500), `receiptFileName` varchar(255), `notes` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `accountingEntries` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `kind` enum('inventory_purchase','shipping','platform','advertising','payment_fee','other_expense','refund') NOT NULL, `description` varchar(255) NOT NULL, `amount` int NOT NULL, `occurredAt` timestamp NOT NULL, `supplier` varchar(160), `receiptUrl` varchar(500), `receiptKey` varchar(500), `receiptFileName` varchar(255), `notes` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
   })();
 
   return _accountingSchemaReady;
@@ -698,9 +741,9 @@ async function ensureFulfillmentSchema() {
     await addColumn("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `selectedOptions` text NULL");
     await addColumn("ALTER TABLE `orderItems` ADD COLUMN IF NOT EXISTS `supplierSnapshot` text NULL");
 
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderFulfillmentJobs` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `jobType` enum('prepare_cj_sandbox','prepare_cj_live','process_cj_event') NOT NULL, `state` enum('queued','running','completed','failed','cancelled') NOT NULL DEFAULT 'queued', `idempotencyKey` varchar(255) NOT NULL, `attempts` int NOT NULL DEFAULT 0, `lastError` varchar(1000), `availableAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `lockedAt` timestamp NULL, `completedAt` timestamp NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_fulfillment_jobs_idempotency_unique` (`idempotencyKey`), INDEX `order_fulfillment_jobs_order_idx` (`orderId`), INDEX `order_fulfillment_jobs_state_idx` (`state`, `availableAt`))"));
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderSupplierOrders` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `mode` enum('sandbox','live') NOT NULL, `externalReference` varchar(128) NOT NULL, `providerOrderId` varchar(200), `providerOrderNumber` varchar(200), `providerShipmentOrderId` varchar(200), `state` enum('draft','payment_review','payment_pending','paid','exception','shipped','delivered','cancelled') NOT NULL DEFAULT 'draft', `paymentMode` enum('none','page','balance') NOT NULL DEFAULT 'none', `paymentUrl` varchar(1000), `supplierCurrency` varchar(3) NOT NULL DEFAULT 'USD', `supplierProductAmount` int, `supplierShippingAmount` int, `supplierTaxAmount` int, `supplierTotalAmount` int, `exchangeRateChf` decimal(10,6), `customerSaleAmount` int NOT NULL, `quoteSnapshot` text, `orderSnapshot` text, `approvalActorUserId` int, `approvedAt` timestamp NULL, `paidAt` timestamp NULL, `trackingNumber` varchar(200), `trackingProvider` varchar(200), `trackingUrl` varchar(1000), `trackingStatus` varchar(80), `lastError` varchar(1000), `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_supplier_orders_reference_unique` (`externalReference`), INDEX `order_supplier_orders_order_idx` (`orderId`), INDEX `order_supplier_orders_provider_order_idx` (`provider`, `providerOrderId`))"));
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `supplierWebhookEvents` (`id` int AUTO_INCREMENT PRIMARY KEY, `provider` varchar(40) NOT NULL, `messageId` varchar(200) NOT NULL, `eventType` varchar(40) NOT NULL, `messageType` varchar(40) NOT NULL, `providerOrderId` varchar(200), `externalReference` varchar(200), `payload` text, `processingState` enum('received','processed','ignored','failed') NOT NULL DEFAULT 'received', `processingError` varchar(1000), `receivedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `processedAt` timestamp NULL, UNIQUE KEY `supplier_webhook_events_message_unique` (`messageId`), INDEX `supplier_webhook_events_provider_order_idx` (`provider`, `providerOrderId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderFulfillmentJobs` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `jobType` enum('prepare_cj_sandbox','prepare_cj_live','process_cj_event') NOT NULL, `state` enum('queued','running','completed','failed','cancelled') NOT NULL DEFAULT 'queued', `idempotencyKey` varchar(255) NOT NULL, `attempts` int NOT NULL DEFAULT 0, `lastError` varchar(1000), `availableAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `lockedAt` timestamp NULL, `completedAt` timestamp NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_fulfillment_jobs_idempotency_unique` (`idempotencyKey`), INDEX `order_fulfillment_jobs_order_idx` (`orderId`), INDEX `order_fulfillment_jobs_state_idx` (`state`, `availableAt`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `orderSupplierOrders` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `orderId` int NOT NULL, `provider` varchar(40) NOT NULL, `mode` enum('sandbox','live') NOT NULL, `externalReference` varchar(128) NOT NULL, `providerOrderId` varchar(200), `providerOrderNumber` varchar(200), `providerShipmentOrderId` varchar(200), `state` enum('draft','payment_review','payment_pending','paid','exception','shipped','delivered','cancelled') NOT NULL DEFAULT 'draft', `paymentMode` enum('none','page','balance') NOT NULL DEFAULT 'none', `paymentUrl` varchar(1000), `supplierCurrency` varchar(3) NOT NULL DEFAULT 'USD', `supplierProductAmount` int, `supplierShippingAmount` int, `supplierTaxAmount` int, `supplierTotalAmount` int, `exchangeRateChf` decimal(10,6), `customerSaleAmount` int NOT NULL, `quoteSnapshot` text, `orderSnapshot` text, `approvalActorUserId` int, `approvedAt` timestamp NULL, `paidAt` timestamp NULL, `trackingNumber` varchar(200), `trackingProvider` varchar(200), `trackingUrl` varchar(1000), `trackingStatus` varchar(80), `lastError` varchar(1000), `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `order_supplier_orders_reference_unique` (`externalReference`), INDEX `order_supplier_orders_order_idx` (`orderId`), INDEX `order_supplier_orders_provider_order_idx` (`provider`, `providerOrderId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `supplierWebhookEvents` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NULL, `provider` varchar(40) NOT NULL, `messageId` varchar(200) NOT NULL, `eventType` varchar(40) NOT NULL, `messageType` varchar(40) NOT NULL, `providerOrderId` varchar(200), `externalReference` varchar(200), `payload` text, `processingState` enum('received','processed','ignored','failed') NOT NULL DEFAULT 'received', `processingError` varchar(1000), `receivedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `processedAt` timestamp NULL, UNIQUE KEY `supplier_webhook_events_message_unique` (`messageId`), INDEX `supplier_webhook_events_provider_order_idx` (`provider`, `providerOrderId`))"));
   })();
 
   return _fulfillmentSchemaReady;
@@ -3366,20 +3409,41 @@ export async function getAllSettings() {
   return db.select().from(settings).orderBy(asc(settings.key));
 }
 
-export async function getCheckoutShippingPolicy() {
-  const allSettings = await getAllSettings();
+const STOREFRONT_SETTING_KEYS = [
+  "site_name", "contact_email", "currency", "store_currency_code", "store_currency_rate_bps",
+  "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "meta_pixel_id", "tiktok_pixel_id",
+  "setup_wizard_status", "seo_default_title", "seo_default_description",
+] as const;
+
+/** Public configuration stored per storefront. Platform secrets never use this table. */
+export async function getAllStorefrontSettings(storeId?: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return db.select().from(storeSettings)
+    .where(and(eq(storeSettings.storeId, effectiveStoreId), inArray(storeSettings.key, [...STOREFRONT_SETTING_KEYS])))
+    .orderBy(asc(storeSettings.key));
+}
+
+export async function upsertStorefrontSetting(data: { key: typeof STOREFRONT_SETTING_KEYS[number]; value: string; description?: string }, storeId?: number) {
+  return setStoreSettingValue(storeId, data.key, data.value, data.description);
+}
+
+export async function getCheckoutShippingPolicy(storeId?: number) {
+  const allSettings = await getAllStorefrontSettings(storeId);
   return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
 }
 
 /** Public sale currency. Catalogue and supplier records remain canonical CHF values. */
-export async function getStoreCurrencyConfig(): Promise<StoreCurrencyConfig> {
-  const allSettings = await getAllSettings();
+export async function getStoreCurrencyConfig(storeId?: number): Promise<StoreCurrencyConfig> {
+  const allSettings = await getAllStorefrontSettings(storeId);
   return currencyConfigFromSettings(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
 }
 
 /** Public identifiers only. Invalid or legacy values are never emitted to the storefront. */
-export async function getTrackingPixels() {
-  const allSettings = await getAllSettings();
+export async function getTrackingPixels(storeId?: number) {
+  const allSettings = await getAllStorefrontSettings(storeId);
   const values = new Map(allSettings.map(setting => [setting.key, setting.value.trim()]));
   return sanitizeTrackingPixels({
     metaPixelId: values.get("meta_pixel_id"),
@@ -3387,23 +3451,23 @@ export async function getTrackingPixels() {
   });
 }
 
-export async function getSetupWizardStatus() {
-  const [allSettings, legalProfile] = await Promise.all([getAllSettings(), getLegalProfile()]);
+export async function getSetupWizardStatus(storeId?: number) {
+  const [allSettings, legalProfile] = await Promise.all([getAllStorefrontSettings(storeId), getLegalProfile(storeId)]);
   return parseSetupWizardStatus(allSettings.map(setting => ({ key: setting.key, value: setting.value })), legalProfile);
 }
 
-export async function completeSetupWizard(input: { siteName: string; contactEmail: string }) {
+export async function completeSetupWizard(input: { siteName: string; contactEmail: string }, storeId?: number) {
   const siteName = input.siteName.trim();
   const contactEmail = input.contactEmail.trim();
   if (!siteName || !contactEmail) throw new Error("SETUP_IDENTITY_REQUIRED");
-  await upsertSetting({ key: "site_name", value: siteName, description: "Nom de boutique défini dans l’assistant initial" });
-  await upsertSetting({ key: "contact_email", value: contactEmail, description: "E-mail de support défini dans l’assistant initial" });
-  await upsertSetting({
+  await upsertStorefrontSetting({ key: "site_name", value: siteName, description: "Nom de boutique défini dans l’assistant initial" }, storeId);
+  await upsertStorefrontSetting({ key: "contact_email", value: contactEmail, description: "E-mail de support défini dans l’assistant initial" }, storeId);
+  await upsertStorefrontSetting({
     key: "setup_wizard_status",
     value: JSON.stringify({ version: 1, completedAt: new Date().toISOString() }),
     description: "État non sensible de l’assistant de démarrage",
-  });
-  return await getSetupWizardStatus();
+  }, storeId);
+  return await getSetupWizardStatus(storeId);
 }
 
 export async function upsertSetting(data: { key: string; value: string; description?: string }) {
@@ -3814,19 +3878,20 @@ function yearRange(year: number) {
   };
 }
 
-export async function getAccountingOverview(year: number) {
-  await ensureAccountingSchema();
+export async function getAccountingOverview(year: number, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { start, end } = yearRange(year);
 
   const [paidOrders, entries] = await Promise.all([
     db.select({ id: orders.id, totalAmount: orders.totalAmount, createdAt: orders.createdAt, status: orders.status, paymentMethod: orders.paymentMethod })
       .from(orders)
-      .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)))
+      .where(and(eq(orders.storeId, effectiveStoreId), eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)))
       .orderBy(desc(orders.createdAt)),
     db.select().from(accountingEntries)
-      .where(and(gte(accountingEntries.occurredAt, start), lt(accountingEntries.occurredAt, end)))
+      .where(and(eq(accountingEntries.storeId, effectiveStoreId), gte(accountingEntries.occurredAt, start), lt(accountingEntries.occurredAt, end)))
       .orderBy(desc(accountingEntries.occurredAt), desc(accountingEntries.createdAt)),
   ]);
 
@@ -3852,11 +3917,13 @@ export async function getAccountingOverview(year: number) {
   };
 }
 
-export async function createAccountingEntry(data: AccountingEntryInput) {
-  await ensureAccountingSchema();
+export async function createAccountingEntry(data: AccountingEntryInput, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const result = await db.insert(accountingEntries).values({
+    storeId: effectiveStoreId,
     kind: data.kind,
     description: data.description.trim(),
     amount: data.amount,
@@ -3870,10 +3937,11 @@ export async function createAccountingEntry(data: AccountingEntryInput) {
   return { id: Number((result as any)[0]?.insertId), success: true };
 }
 
-export async function updateAccountingEntry(id: number, data: AccountingEntryInput) {
-  await ensureAccountingSchema();
+export async function updateAccountingEntry(id: number, data: AccountingEntryInput, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   await db.update(accountingEntries).set({
     kind: data.kind,
     description: data.description.trim(),
@@ -3884,15 +3952,16 @@ export async function updateAccountingEntry(id: number, data: AccountingEntryInp
     receiptKey: data.receiptKey || null,
     receiptFileName: data.receiptFileName || null,
     notes: data.notes?.trim() || null,
-  }).where(eq(accountingEntries.id, id));
+  }).where(and(eq(accountingEntries.storeId, effectiveStoreId), eq(accountingEntries.id, id)));
   return { success: true };
 }
 
-export async function deleteAccountingEntry(id: number) {
-  await ensureAccountingSchema();
+export async function deleteAccountingEntry(id: number, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(accountingEntries).where(eq(accountingEntries.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.delete(accountingEntries).where(and(eq(accountingEntries.storeId, effectiveStoreId), eq(accountingEntries.id, id)));
   return { success: true };
 }
 
@@ -3952,9 +4021,11 @@ export async function setVatConfig(input: { enabled: boolean; rate: number }) {
 }
 
 // --- Accounting / VAT export: paid orders on a period ---
-export async function getPaidOrdersBetween(from: Date, to: Date) {
+export async function getPaidOrdersBetween(from: Date, to: Date, storeId?: number) {
+  await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({
     id: orders.id,
     totalAmount: orders.totalAmount,
@@ -3963,17 +4034,19 @@ export async function getPaidOrdersBetween(from: Date, to: Date) {
     stripeSessionId: orders.stripeSessionId,
     shippingAddress: orders.shippingAddress,
   }).from(orders)
-    .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, from), lt(orders.createdAt, to)))
+    .where(and(eq(orders.storeId, effectiveStoreId), eq(orders.paymentStatus, "paid"), gte(orders.createdAt, from), lt(orders.createdAt, to)))
     .orderBy(desc(orders.createdAt));
   return rows.map(r => ({ ...r, totalAmount: Number(r.totalAmount) }));
 }
 
-export async function getYearToDatePaidSales(year: number): Promise<number> {
+export async function getYearToDatePaidSales(year: number, storeId?: number): Promise<number> {
+  await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) return 0;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { start, end } = yearRange(year);
   const rows = await db.select({ value: sum(orders.totalAmount) }).from(orders)
-    .where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)));
+    .where(and(eq(orders.storeId, effectiveStoreId), eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lt(orders.createdAt, end)));
   return Number(rows[0]?.value || 0);
 }
 
@@ -4613,8 +4686,8 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   }
 
   const productSubtotalChf = verifiedItems.reduce((sum, item) => sum + item.unitAmountChf * item.quantity, 0);
-  const shippingChf = calculateCheckoutShipping(productSubtotalChf, await getCheckoutShippingPolicy());
-  const currency = await getStoreCurrencyConfig();
+  const shippingChf = calculateCheckoutShipping(productSubtotalChf, await getCheckoutShippingPolicy(effectiveStoreId));
+  const currency = await getStoreCurrencyConfig(effectiveStoreId);
   const items = verifiedItems.map(item => ({ ...item, unitAmount: convertChfCents(item.unitAmountChf, currency) }));
   const converted = calculateConvertedCartTotals({
     lines: verifiedItems,
@@ -4760,6 +4833,7 @@ export async function getOrderForStripeSessionForStore(sessionId: string, userId
 
 // Order snapshot used to synchronise a paid order + its customer towards Odoo.
 export async function getOrderForStripeSession(sessionId: string) {
+  await ensureStoreOperationsScopeSchema();
   await ensureCheckoutShippingSchema();
   await ensureOrderCurrencySchema();
   const db = await getDb();
@@ -4768,6 +4842,7 @@ export async function getOrderForStripeSession(sessionId: string) {
   const orderRows = await db
     .select({
       id: orders.id,
+      storeId: orders.storeId,
       totalAmount: orders.totalAmount,
       totalAmountChf: orders.totalAmountChf,
       currencyCode: orders.currencyCode,
@@ -4804,8 +4879,8 @@ export async function getOrderForStripeSession(sessionId: string) {
       supplierSnapshot: orderItems.supplierSnapshot,
     })
     .from(orderItems)
-    .leftJoin(products, eq(orderItems.productId, products.id))
-    .where(eq(orderItems.orderId, order.id));
+    .leftJoin(products, and(eq(orderItems.productId, products.id), eq(products.storeId, order.storeId)))
+    .where(and(eq(orderItems.storeId, order.storeId), eq(orderItems.orderId, order.id)));
 
   return { order, items };
 }
@@ -4823,10 +4898,11 @@ export type StripeShippingAddressInput = {
 };
 
 /** Stores the minimum delivery record collected by Stripe Checkout for a paid order. */
-export async function storeStripeShippingAddress(sessionId: string, input: StripeShippingAddressInput) {
-  await ensureFulfillmentSchema();
+export async function storeStripeShippingAddress(sessionId: string, input: StripeShippingAddressInput, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const countryCode = input.countryCode?.trim().toUpperCase() || null;
   const shippingAddress = JSON.stringify({
     source: "stripe_checkout",
@@ -4840,14 +4916,15 @@ export async function storeStripeShippingAddress(sessionId: string, input: Strip
     postalCode: input.postalCode?.trim() || null,
     countryCode: countryCode && /^[A-Z]{2}$/.test(countryCode) ? countryCode : null,
   });
-  await db.update(orders).set({ shippingAddress }).where(eq(orders.stripeSessionId, sessionId));
+  await db.update(orders).set({ shippingAddress }).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.stripeSessionId, sessionId)));
 }
 
-export async function storeOdooSaleOrderId(orderId: number, saleOrderId: number) {
-  await ensureFulfillmentSchema();
+export async function storeOdooSaleOrderId(orderId: number, saleOrderId: number, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db || !Number.isInteger(saleOrderId) || saleOrderId <= 0) return;
-  await db.update(orders).set({ odooSaleOrderId: saleOrderId }).where(eq(orders.id, orderId));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.update(orders).set({ odooSaleOrderId: saleOrderId }).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId)));
 }
 
 type FulfillmentState = "not_eligible" | "awaiting_supplier_preparation" | "supplier_order_draft" | "supplier_payment_review" | "supplier_payment_pending" | "supplier_paid" | "supplier_exception" | "shipped" | "delivered" | "cancelled" | "refunded";
@@ -4887,17 +4964,17 @@ function parseCjSupplierSnapshot(value: string | null): CjSupplierSnapshot | nul
  * never calls CJ: an authorised operator must explicitly start it in admin.
  */
 export async function queueCjSandboxPreparationForPaidOrder(sessionId: string) {
-  await ensureFulfillmentSchema();
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const orderRows = await db.select({ id: orders.id, paymentStatus: orders.paymentStatus, status: orders.status })
+  const orderRows = await db.select({ id: orders.id, storeId: orders.storeId, paymentStatus: orders.paymentStatus, status: orders.status })
     .from(orders).where(eq(orders.stripeSessionId, sessionId)).limit(1);
   const order = orderRows[0];
   if (!order) return { queued: false, reason: "ORDER_NOT_FOUND" as const };
   if (order.paymentStatus !== "paid" || order.status === "cancelled") return { queued: false, reason: "ORDER_NOT_ELIGIBLE" as const };
 
   const itemRows = await db.select({ selectedOptions: orderItems.selectedOptions, supplierSnapshot: orderItems.supplierSnapshot })
-    .from(orderItems).where(eq(orderItems.orderId, order.id));
+    .from(orderItems).where(and(eq(orderItems.storeId, order.storeId), eq(orderItems.orderId, order.id)));
   // The supplier snapshot is captured server-side after checkout resolves the
   // exact selected option combination to a CJ variant. A non-empty selection
   // (for example Size or Colour) is therefore valid when that immutable
@@ -4905,14 +4982,15 @@ export async function queueCjSandboxPreparationForPaidOrder(sessionId: string) {
   const eligible = itemRows.length > 0 && itemRows.every(isCjSandboxQueueLineEligible);
   const error = eligible ? null : "Préparation CJ bloquée : variante fournisseur ou options de commande non mappées de manière sûre.";
   const nextState: FulfillmentState = eligible ? "awaiting_supplier_preparation" : "supplier_exception";
-  await db.update(orders).set({ fulfillmentState: nextState, fulfillmentLastError: error, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, order.id));
+  await db.update(orders).set({ fulfillmentState: nextState, fulfillmentLastError: error, fulfillmentUpdatedAt: new Date() }).where(and(eq(orders.storeId, order.storeId), eq(orders.id, order.id)));
   if (!eligible) return { queued: false, orderId: order.id, reason: "CJ_MAPPING_INCOMPLETE" as const };
 
   const idempotencyKey = `cj:sandbox:prepare:order:${order.id}`;
   const existing = await db.select({ id: orderFulfillmentJobs.id, state: orderFulfillmentJobs.state })
-    .from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.idempotencyKey, idempotencyKey)).limit(1);
+    .from(orderFulfillmentJobs).where(and(eq(orderFulfillmentJobs.storeId, order.storeId), eq(orderFulfillmentJobs.idempotencyKey, idempotencyKey))).limit(1);
   if (!existing[0]) {
     await db.insert(orderFulfillmentJobs).values({
+      storeId: order.storeId,
       orderId: order.id,
       provider: "CJdropshipping",
       jobType: "prepare_cj_sandbox",
@@ -4924,8 +5002,7 @@ export async function queueCjSandboxPreparationForPaidOrder(sessionId: string) {
 }
 
 export async function getOrderFulfillmentAdmin(orderId: number, storeId?: number) {
-  await ensureStoreRelationshipScopeSchema();
-  await ensureFulfillmentSchema();
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) return null;
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
@@ -4941,8 +5018,8 @@ export async function getOrderFulfillmentAdmin(orderId: number, storeId?: number
   }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId))).limit(1);
   if (!orderRows[0]) return null;
   const [supplierOrders, jobs] = await Promise.all([
-    db.select().from(orderSupplierOrders).where(eq(orderSupplierOrders.orderId, orderId)).orderBy(desc(orderSupplierOrders.createdAt)),
-    db.select().from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.orderId, orderId)).orderBy(desc(orderFulfillmentJobs.createdAt)),
+    db.select().from(orderSupplierOrders).where(and(eq(orderSupplierOrders.storeId, effectiveStoreId), eq(orderSupplierOrders.orderId, orderId))).orderBy(desc(orderSupplierOrders.createdAt)),
+    db.select().from(orderFulfillmentJobs).where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.orderId, orderId))).orderBy(desc(orderFulfillmentJobs.createdAt)),
   ]);
   return { order: orderRows[0], supplierOrders, jobs };
 }
@@ -4950,6 +5027,7 @@ export async function getOrderFulfillmentAdmin(orderId: number, storeId?: number
 export type CjSandboxPreparationInput = {
   order: {
     id: number;
+    storeId: number;
     totalAmount: number;
     status: string;
     paymentStatus: string;
@@ -4968,13 +5046,13 @@ export type CjSandboxPreparationInput = {
 };
 
 export async function claimCjSandboxPreparation(orderId: number, storeId?: number): Promise<{ claimed: boolean; input?: CjSandboxPreparationInput; reason?: string }> {
-  await ensureStoreRelationshipScopeSchema();
-  await ensureFulfillmentSchema();
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const orderRows = await db.select({
     id: orders.id,
+    storeId: orders.storeId,
     totalAmount: orders.totalAmount,
     status: orders.status,
     paymentStatus: orders.paymentStatus,
@@ -4986,7 +5064,7 @@ export async function claimCjSandboxPreparation(orderId: number, storeId?: numbe
 
   const jobKey = `cj:sandbox:prepare:order:${orderId}`;
   const jobRows = await db.select({ id: orderFulfillmentJobs.id, state: orderFulfillmentJobs.state })
-    .from(orderFulfillmentJobs).where(eq(orderFulfillmentJobs.idempotencyKey, jobKey)).limit(1);
+    .from(orderFulfillmentJobs).where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.idempotencyKey, jobKey))).limit(1);
   const job = jobRows[0];
   if (!job) return { claimed: false, reason: "CJ_PREPARATION_NOT_QUEUED" };
   if (job.state === "running") return { claimed: false, reason: "CJ_PREPARATION_IN_PROGRESS" };
@@ -4994,18 +5072,18 @@ export async function claimCjSandboxPreparation(orderId: number, storeId?: numbe
   if (job.state !== "queued") return { claimed: false, reason: "CJ_PREPARATION_REQUIRES_REVIEW" };
 
   const claim = await db.update(orderFulfillmentJobs).set({ state: "running", lockedAt: new Date(), attempts: sql`${orderFulfillmentJobs.attempts} + 1`, lastError: null })
-    .where(and(eq(orderFulfillmentJobs.id, job.id), eq(orderFulfillmentJobs.state, "queued")));
+    .where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.id, job.id), eq(orderFulfillmentJobs.state, "queued")));
   const affected = Number((claim as any)?.[0]?.affectedRows ?? (claim as any)?.affectedRows ?? 0);
   if (affected === 0) return { claimed: false, reason: "CJ_PREPARATION_IN_PROGRESS" };
 
   if (order.paymentStatus !== "paid" || order.status === "cancelled") {
-    await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: "Commande non éligible à la préparation CJ.", completedAt: new Date() }).where(eq(orderFulfillmentJobs.id, job.id));
+    await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: "Commande non éligible à la préparation CJ.", completedAt: new Date() }).where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.id, job.id)));
     return { claimed: false, reason: "ORDER_NOT_ELIGIBLE" };
   }
   const priorSupplierOrders = await db.select({ id: orderSupplierOrders.id }).from(orderSupplierOrders)
-    .where(and(eq(orderSupplierOrders.orderId, orderId), eq(orderSupplierOrders.provider, "CJdropshipping"), eq(orderSupplierOrders.mode, "sandbox"))).limit(1);
+    .where(and(eq(orderSupplierOrders.storeId, effectiveStoreId), eq(orderSupplierOrders.orderId, orderId), eq(orderSupplierOrders.provider, "CJdropshipping"), eq(orderSupplierOrders.mode, "sandbox"))).limit(1);
   if (priorSupplierOrders[0]) {
-    await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date() }).where(eq(orderFulfillmentJobs.id, job.id));
+    await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date() }).where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.id, job.id)));
     return { claimed: false, reason: "CJ_SANDBOX_ORDER_EXISTS" };
   }
   const items = await db.select({
@@ -5021,6 +5099,7 @@ export async function claimCjSandboxPreparation(orderId: number, storeId?: numbe
 }
 
 export type CjSandboxSupplierOrderRecord = {
+  storeId: number;
   orderId: number;
   externalReference: string;
   providerOrderId: string | null;
@@ -5036,13 +5115,17 @@ export type CjSandboxSupplierOrderRecord = {
 };
 
 export async function completeCjSandboxPreparation(records: CjSandboxSupplierOrderRecord[]) {
-  await ensureFulfillmentSchema();
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db || records.length === 0) throw new Error("CJ_SANDBOX_RESULT_EMPTY");
   const orderId = records[0].orderId;
-  if (records.some(record => record.orderId !== orderId)) throw new Error("CJ_SANDBOX_ORDER_MISMATCH");
+  const storeId = records[0].storeId;
+  if (records.some(record => record.orderId !== orderId || record.storeId !== storeId)) throw new Error("CJ_SANDBOX_ORDER_MISMATCH");
+  const orderRows = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.storeId, storeId), eq(orders.id, orderId))).limit(1);
+  if (!orderRows[0]) throw new Error("CJ_SANDBOX_ORDER_NOT_FOUND");
   for (const record of records) {
     await db.insert(orderSupplierOrders).values({
+      storeId,
       orderId,
       provider: "CJdropshipping",
       mode: "sandbox",
@@ -5062,17 +5145,19 @@ export async function completeCjSandboxPreparation(records: CjSandboxSupplierOrd
       orderSnapshot: JSON.stringify(record.orderSnapshot),
     });
   }
-  await db.update(orders).set({ fulfillmentState: "supplier_order_draft", fulfillmentLastError: null, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, orderId));
-  await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date(), lastError: null }).where(eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`));
+  await db.update(orders).set({ fulfillmentState: "supplier_order_draft", fulfillmentLastError: null, fulfillmentUpdatedAt: new Date() }).where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)));
+  await db.update(orderFulfillmentJobs).set({ state: "completed", completedAt: new Date(), lastError: null }).where(and(eq(orderFulfillmentJobs.storeId, storeId), eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`)));
 }
 
-export async function failCjSandboxPreparation(orderId: number, error: string) {
-  await ensureFulfillmentSchema();
+export async function failCjSandboxPreparation(orderId: number, error: string, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? (await db.select({ storeId: orders.storeId }).from(orders).where(eq(orders.id, orderId)).limit(1))[0]?.storeId;
+  if (!effectiveStoreId) return;
   const message = error.replace(/\s+/g, " ").trim().slice(0, 1000) || "Préparation CJ impossible.";
-  await db.update(orders).set({ fulfillmentState: "supplier_exception", fulfillmentLastError: message, fulfillmentUpdatedAt: new Date() }).where(eq(orders.id, orderId));
-  await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: message, completedAt: new Date() }).where(eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`));
+  await db.update(orders).set({ fulfillmentState: "supplier_exception", fulfillmentLastError: message, fulfillmentUpdatedAt: new Date() }).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId)));
+  await db.update(orderFulfillmentJobs).set({ state: "failed", lastError: message, completedAt: new Date() }).where(and(eq(orderFulfillmentJobs.storeId, effectiveStoreId), eq(orderFulfillmentJobs.idempotencyKey, `cj:sandbox:prepare:order:${orderId}`)));
 }
 
 
@@ -5108,7 +5193,7 @@ async function ensureCampaignsSchema() {
   _campaignSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `campaigns` (`id` int AUTO_INCREMENT PRIMARY KEY, `name` varchar(200) NOT NULL, `message` varchar(300), `startsAt` timestamp NOT NULL, `endsAt` timestamp NOT NULL, `imageDesktopUrl` varchar(1000), `imageMobileUrl` varchar(1000), `linkUrl` varchar(1000), `promoCode` varchar(64), `showCountdown` int NOT NULL DEFAULT 1, `placement` enum('announcement','products','both') NOT NULL DEFAULT 'announcement', `enabled` int NOT NULL DEFAULT 1, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `campaigns` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `name` varchar(200) NOT NULL, `message` varchar(300), `startsAt` timestamp NOT NULL, `endsAt` timestamp NOT NULL, `imageDesktopUrl` varchar(1000), `imageMobileUrl` varchar(1000), `linkUrl` varchar(1000), `promoCode` varchar(64), `showCountdown` int NOT NULL DEFAULT 1, `placement` enum('announcement','products','both') NOT NULL DEFAULT 'announcement', `enabled` int NOT NULL DEFAULT 1, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)"));
   })();
   return _campaignSchemaReady;
 }
@@ -5143,53 +5228,59 @@ function serializeCampaignInput(input: CampaignInput) {
   };
 }
 
-export async function getAllCampaignsAdmin() {
-  await ensureCampaignsSchema();
+export async function getAllCampaignsAdmin(storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(campaigns).orderBy(desc(campaigns.startsAt));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return await db.select().from(campaigns).where(eq(campaigns.storeId, effectiveStoreId)).orderBy(desc(campaigns.startsAt));
 }
 
-export async function createCampaign(input: CampaignInput) {
-  await ensureCampaignsSchema();
+export async function createCampaign(input: CampaignInput, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(campaigns).values(serializeCampaignInput(input));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const result = await db.insert(campaigns).values({ ...serializeCampaignInput(input), storeId: effectiveStoreId });
   return { id: Number((result as any)[0]?.insertId), success: true };
 }
 
-export async function updateCampaign(id: number, input: CampaignInput) {
-  await ensureCampaignsSchema();
+export async function updateCampaign(id: number, input: CampaignInput, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(campaigns).set(serializeCampaignInput(input)).where(eq(campaigns.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.update(campaigns).set(serializeCampaignInput(input)).where(and(eq(campaigns.storeId, effectiveStoreId), eq(campaigns.id, id)));
   return { success: true };
 }
 
-export async function deleteCampaign(id: number) {
-  await ensureCampaignsSchema();
+export async function deleteCampaign(id: number, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(campaigns).where(eq(campaigns.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.delete(campaigns).where(and(eq(campaigns.storeId, effectiveStoreId), eq(campaigns.id, id)));
   return { success: true };
 }
 
-export async function toggleCampaign(id: number, enabled: boolean) {
-  await ensureCampaignsSchema();
+export async function toggleCampaign(id: number, enabled: boolean, storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(campaigns).set({ enabled: enabled ? 1 : 0 }).where(eq(campaigns.id, id));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.update(campaigns).set({ enabled: enabled ? 1 : 0 }).where(and(eq(campaigns.storeId, effectiveStoreId), eq(campaigns.id, id)));
   return { success: true };
 }
 
 // Public: the currently active campaign (enabled and within its time window, server time).
-export async function getActiveCampaign() {
-  await ensureCampaignsSchema();
+export async function getActiveCampaign(storeId?: number) {
+  await ensureStoreOperationsScopeSchema();
   const db = await getDb();
   if (!db) return null;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const now = new Date();
   const rows = await db.select().from(campaigns)
-    .where(and(eq(campaigns.enabled, 1), lte(campaigns.startsAt, now), gt(campaigns.endsAt, now)))
+    .where(and(eq(campaigns.storeId, effectiveStoreId), eq(campaigns.enabled, 1), lte(campaigns.startsAt, now), gt(campaigns.endsAt, now)))
     .orderBy(asc(campaigns.startsAt))
     .limit(1);
   if (rows.length === 0) return null;
@@ -5197,7 +5288,7 @@ export async function getActiveCampaign() {
   let promo: { code: string; type: string; value: number } | null = null;
   if (campaign.promoCode) {
     const promoRows = await db.select({ code: promotions.code, type: promotions.type, value: promotions.value, active: promotions.active })
-      .from(promotions).where(eq(promotions.code, campaign.promoCode)).limit(1);
+      .from(promotions).where(and(eq(promotions.storeId, effectiveStoreId), eq(promotions.code, campaign.promoCode))).limit(1);
     if (promoRows.length && promoRows[0].active) {
       promo = { code: promoRows[0].code, type: promoRows[0].type, value: Number(promoRows[0].value) };
     }

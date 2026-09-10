@@ -292,6 +292,7 @@ export async function prepareCjSandboxOrder(orderId: number, storeId?: number) {
       if (marginRate < MIN_MARGIN_RATE) throw new Error("CJ_MARGIN_BELOW_SAFETY_THRESHOLD");
 
       records.push({
+        storeId: claim.input.order.storeId,
         orderId,
         externalReference,
         providerOrderId: response.orderId == null ? null : String(response.orderId),
@@ -339,7 +340,7 @@ export async function prepareCjSandboxOrder(orderId: number, storeId?: number) {
     };
   } catch (error) {
     const code = error instanceof Error ? error.message : "CJ_PREPARATION_FAILED";
-    await db.failCjSandboxPreparation(orderId, code);
+    await db.failCjSandboxPreparation(orderId, code, claim.input.order.storeId);
     throw new Error(code);
   }
 }

@@ -79,21 +79,21 @@ export const appRouter = router({
       const { getMaintenanceStatus } = await import("./db");
       return await getMaintenanceStatus();
     }),
-    getActiveCampaign: publicProcedure.query(async () => {
+    getActiveCampaign: publicProcedure.query(async ({ ctx }) => {
       const { getActiveCampaign } = await import("./db");
-      return await getActiveCampaign();
+      return await getActiveCampaign(ctx.store?.id);
     }),
-    getCheckoutShippingPolicy: publicProcedure.query(async () => {
+    getCheckoutShippingPolicy: publicProcedure.query(async ({ ctx }) => {
       const { getCheckoutShippingPolicy } = await import("./db");
-      return await getCheckoutShippingPolicy();
+      return await getCheckoutShippingPolicy(ctx.store?.id);
     }),
-    getStoreCurrency: publicProcedure.query(async () => {
+    getStoreCurrency: publicProcedure.query(async ({ ctx }) => {
       const { getStoreCurrencyConfig } = await import("./db");
-      return await getStoreCurrencyConfig();
+      return await getStoreCurrencyConfig(ctx.store?.id);
     }),
-    getTrackingPixels: publicProcedure.query(async () => {
+    getTrackingPixels: publicProcedure.query(async ({ ctx }) => {
       const { getTrackingPixels } = await import("./db");
-      return await getTrackingPixels();
+      return await getTrackingPixels(ctx.store?.id);
     }),
   }),
 

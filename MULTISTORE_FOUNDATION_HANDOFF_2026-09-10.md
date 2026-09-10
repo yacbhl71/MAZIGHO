@@ -143,3 +143,36 @@ L’entrée de navigation MAZIGHO Studio est visible uniquement lorsque la bouti
 ## Séquence suivante obligatoire
 
 Avant la première boutique cliente réelle, isoler les **opérations de plateforme restantes** : dossiers et tâches fournisseurs, journalisation opérationnelle associée, comptabilité, paramètres techniques d’exécution et règles explicites d’accès de propriétaire/gestionnaire par boutique. L’inventaire réel des boutiques, leurs accès limité/suspendu/révoqué, l’invitation du premier propriétaire et la couche de licence pourront ensuite être ajoutés progressivement dans MAZIGHO Studio.
+
+## Correctif d’urgence — reprise des associations catalogue héritées
+
+**Statut :** publié dans `763a3f8` après le constat d’un écran d’administration bloqué lors du passage de `productCategories.storeId` en colonne obligatoire.
+
+Une association secondaire de catégorie peut survivre à la suppression du produit auquel elle était historiquement liée. Le bootstrap et la migration `0022_store_catalog_scope.sql` appliquent désormais une seconde reprise vers `primary-store` lorsque la jointure initiale par produit ne permet pas de déterminer une boutique. Cette mesure conserve les enregistrements historiques sans supprimer de produit, de catégorie, de commande ou de fichier ; elle évite qu’une donnée ancienne et isolée bloque tout le catalogue.
+
+> Toute future migration qui rend `storeId` obligatoire sur une table liée à un parent doit prévoir un repli déterministe pour les lignes historiques dont le parent n’est plus disponible.
+
+Les vérifications locales du correctif ont validé TypeScript, les 45 tests Vitest, le build de production et `git diff --check`. Le déploiement Vercel est laissé à son exécution normale, sans boucle de sondage.
+
+---
+
+## Étape 5 — opérations par boutique et séparation des contrôles de plateforme
+
+**Statut :** travail local en cours, non publié. Cette étape isole les tâches de préparation fournisseur sandbox, les dossiers fournisseurs, écritures comptables et campagnes temporelles, puis réserve les contrôles techniques transversaux à MAZIGHO Studio. Elle ne modifie ni les clés d’environnement, ni Stripe Test, ni la politique de paiement fournisseur.
+
+| Élément | Cible de l’étape |
+|---|---|
+| Tâches CJ sandbox et dossiers fournisseurs | Dériver `storeId` de la commande locale et filtrer toutes les lectures et états par boutique. |
+| Comptabilité et TVA | Isoler les dépenses, justificatifs, exports et agrégats de ventes par boutique. |
+| Campagnes | Filtrer les campagnes temporelles et le code promotionnel associé par storefront. |
+| Contrôles techniques | Réserver les statuts, tests et actions Odoo/Make globaux à la boutique plateforme MAZIGHO Studio. |
+
+Les paramètres publics de devise, livraison et pixels nécessiteront leur propre migration vers `storeSettings` avant l’ouverture d’une première boutique cliente. Les secrets et accès Stripe, Odoo, CJ, TiDB et fournisseurs resteront hors base de données et hors interface client.
+
+---
+
+## Étape suivante avant la première boutique cliente
+
+Finaliser, tester et publier le périmètre opérationnel ; migrer les préférences publiques restantes par boutique ; puis créer dans MAZIGHO Studio la gestion réelle, à accès opérateur, du parc de boutiques et de l’invitation de leur premier propriétaire. Les états licence, grâce, limitation et révocation ne doivent pas être activés tant que leur mécanisme de décision est formellement défini et testé.
+
+---

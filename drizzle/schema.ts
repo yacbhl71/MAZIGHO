@@ -307,6 +307,7 @@ export type InsertOrderItem = typeof orderItems.$inferInsert;
 // Durable internal outbox. A paid order can be retried safely without recreating a supplier order.
 export const orderFulfillmentJobs = mysqlTable("orderFulfillmentJobs", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   provider: varchar("provider", { length: 40 }).notNull(),
   jobType: mysqlEnum("jobType", ["prepare_cj_sandbox", "prepare_cj_live", "process_cj_event"]).notNull(),
@@ -319,12 +320,16 @@ export const orderFulfillmentJobs = mysqlTable("orderFulfillmentJobs", {
   completedAt: timestamp("completedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeOrderIndex: index("order_fulfillment_jobs_store_order_idx").on(table.storeId, table.orderId),
+  storeStateAvailableIndex: index("order_fulfillment_jobs_store_state_available_idx").on(table.storeId, table.state, table.availableAt),
+}));
 export type OrderFulfillmentJob = typeof orderFulfillmentJobs.$inferSelect;
 
 // One MAZIGHO order can create several CJ orders if the supplier splits fulfillment.
 export const orderSupplierOrders = mysqlTable("orderSupplierOrders", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   provider: varchar("provider", { length: 40 }).notNull(),
   mode: mysqlEnum("mode", ["sandbox", "live"]).notNull(),
@@ -354,12 +359,18 @@ export const orderSupplierOrders = mysqlTable("orderSupplierOrders", {
   lastError: varchar("lastError", { length: 1000 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeOrderIndex: index("order_supplier_orders_store_order_idx").on(table.storeId, table.orderId),
+  storeProviderOrderIndex: index("order_supplier_orders_store_provider_order_idx").on(table.storeId, table.provider, table.providerOrderId),
+}));
 export type OrderSupplierOrder = typeof orderSupplierOrders.$inferSelect;
 
 // Minimal, deduplicated receipt of supplier notifications. No address data is written here.
 export const supplierWebhookEvents = mysqlTable("supplierWebhookEvents", {
   id: int("id").autoincrement().primaryKey(),
+  // May be null only while an inbound supplier notification cannot yet be matched to a local order.
+  // Such events are intentionally quarantined from every storefront view.
+  storeId: int("storeId"),
   provider: varchar("provider", { length: 40 }).notNull(),
   messageId: varchar("messageId", { length: 200 }).notNull().unique(),
   eventType: varchar("eventType", { length: 40 }).notNull(),
@@ -371,13 +382,16 @@ export const supplierWebhookEvents = mysqlTable("supplierWebhookEvents", {
   processingError: varchar("processingError", { length: 1000 }),
   receivedAt: timestamp("receivedAt").defaultNow().notNull(),
   processedAt: timestamp("processedAt"),
-});
+}, (table) => ({
+  storeProviderStateIndex: index("supplier_webhook_events_store_provider_state_idx").on(table.storeId, table.provider, table.processingState),
+}));
 export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;
 
 // Administrative records. Customer sales remain the paid orders recorded above;
 // this table contains purchases, operating costs and refunds with their evidence.
 export const accountingEntries = mysqlTable("accountingEntries", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   kind: mysqlEnum("kind", ["inventory_purchase", "shipping", "platform", "advertising", "payment_fee", "other_expense", "refund"]).notNull(),
   description: varchar("description", { length: 255 }).notNull(),
   amount: int("amount").notNull(), // Expense/refund amount in cents
@@ -389,7 +403,9 @@ export const accountingEntries = mysqlTable("accountingEntries", {
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeOccurredIndex: index("accounting_entries_store_occurred_idx").on(table.storeId, table.occurredAt),
+}));
 
 export type AccountingEntry = typeof accountingEntries.$inferSelect;
 export type InsertAccountingEntry = typeof accountingEntries.$inferInsert;
@@ -491,6 +507,7 @@ export type InsertSetting = typeof settings.$inferInsert;
 // Scheduled marketing campaigns (temporal banners + FOMO countdown).
 export const campaigns = mysqlTable("campaigns", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   message: varchar("message", { length: 300 }),
   startsAt: timestamp("startsAt").notNull(),
@@ -504,7 +521,10 @@ export const campaigns = mysqlTable("campaigns", {
   enabled: int("enabled").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeStartIndex: index("campaigns_store_starts_at_idx").on(table.storeId, table.startsAt),
+  storeEnabledWindowIndex: index("campaigns_store_enabled_window_idx").on(table.storeId, table.enabled, table.startsAt, table.endsAt),
+}));
 
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = typeof campaigns.$inferInsert;

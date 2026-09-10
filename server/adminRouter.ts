@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import Stripe from "stripe";
-import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, router } from "./_core/trpc";
+import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, platformProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storagePut } from "./storage";
@@ -187,27 +187,27 @@ function logAudit(ctx: any, entry: {
 export const adminRouter = router({
   // Suivi Odoo (ERP) — strictly admin-only.
   odoo: router({
-    status: adminProcedure.query(() => getOdooStatus()),
-    verify: adminProcedure.mutation(() => verifyOdooConnection()),
-    partners: adminProcedure.query(() => listOdooPartners()),
-    orders: adminProcedure.query(() => listOdooSaleOrders()),
-    createPartner: adminProcedure.input(z.object({
+    status: platformProcedure.query(() => getOdooStatus()),
+    verify: platformProcedure.mutation(() => verifyOdooConnection()),
+    partners: platformProcedure.query(() => listOdooPartners()),
+    orders: platformProcedure.query(() => listOdooSaleOrders()),
+    createPartner: platformProcedure.input(z.object({
       name: z.string().trim().min(1).max(180),
       email: z.string().trim().email().max(180).optional().or(z.literal("")),
       phone: z.string().trim().max(60).optional(),
     })).mutation(({ input }) => createOdooPartner({ name: input.name, email: input.email || undefined, phone: input.phone })),
-    updatePartner: adminProcedure.input(z.object({
+    updatePartner: platformProcedure.input(z.object({
       id: z.number().int().positive(),
       name: z.string().trim().min(1).max(180).optional(),
       email: z.string().trim().max(180).optional(),
       phone: z.string().trim().max(60).optional(),
     })).mutation(({ input }) => updateOdooPartner(input.id, { name: input.name, email: input.email, phone: input.phone })),
-    cancelOrder: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => cancelOdooSaleOrder(input.id)),
+    cancelOrder: platformProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => cancelOdooSaleOrder(input.id)),
   }),
 
   // System health dashboard (admin-only): TiDB ping, last Odoo sync, site version.
   system: router({
-    health: adminProcedure.query(async () => {
+    health: platformProcedure.query(async () => {
       const [dbPing, lastOdooSync] = await Promise.all([
         db.pingDatabase(),
         db.getLastOdooSync(),
@@ -281,14 +281,14 @@ export const adminRouter = router({
 
   // Scheduled marketing campaigns (temporal banners + FOMO countdown) — admin-only.
   campaigns: router({
-    getAll: adminProcedure.query(async () => db.getAllCampaignsAdmin()),
-    create: adminProcedure.input(campaignInputSchema).mutation(async ({ input }) => db.createCampaign(input)),
-    update: adminProcedure.input(campaignInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+    getAll: adminProcedure.query(async ({ ctx }) => db.getAllCampaignsAdmin(ctx.store?.id)),
+    create: adminProcedure.input(campaignInputSchema).mutation(async ({ ctx, input }) => db.createCampaign(input, ctx.store?.id)),
+    update: adminProcedure.input(campaignInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return db.updateCampaign(id, data);
+      return db.updateCampaign(id, data, ctx.store?.id);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => db.deleteCampaign(input.id)),
-    toggle: adminProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ input }) => db.toggleCampaign(input.id, input.enabled)),
+    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => db.deleteCampaign(input.id, ctx.store?.id)),
+    toggle: adminProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => db.toggleCampaign(input.id, input.enabled, ctx.store?.id)),
   }),
 
   // Dashboard Stats
@@ -1299,8 +1299,8 @@ export const adminRouter = router({
 
   // Live SEO snippet (Lot C)
   seo: router({
-    get: adminProcedure.query(async () => {
-      const all = await db.getAllSettings();
+    get: adminProcedure.query(async ({ ctx }) => {
+      const all = await db.getAllStorefrontSettings(ctx.store?.id);
       const find = (key: string) => all.find(s => s.key === key)?.value ?? "";
       return {
         title: find("seo_default_title") || "MAZIGHO — Boutique en ligne créative & tendance",
@@ -1312,8 +1312,8 @@ export const adminRouter = router({
       title: z.string().trim().min(3).max(70),
       description: z.string().trim().min(10).max(320),
     })).mutation(async ({ ctx, input }) => {
-      await db.upsertSetting({ key: "seo_default_title", value: input.title, description: "Titre SEO par défaut" });
-      await db.upsertSetting({ key: "seo_default_description", value: input.description, description: "Méta-description SEO par défaut" });
+      await db.upsertStorefrontSetting({ key: "seo_default_title", value: input.title, description: "Titre SEO par défaut" }, ctx.store?.id);
+      await db.upsertStorefrontSetting({ key: "seo_default_description", value: input.description, description: "Méta-description SEO par défaut" }, ctx.store?.id);
       logAudit(ctx, { action: "seo.update", entityType: "seo", entityId: null, summary: `Aperçu SEO mis à jour : « ${input.title.slice(0, 60)} »` });
       return { success: true };
     }),
@@ -1321,12 +1321,12 @@ export const adminRouter = router({
 
   // Initial setup: non-sensitive storefront identity only. Technical credentials remain deployment secrets.
   setup: router({
-    getStatus: adminProcedure.query(async () => await db.getSetupWizardStatus()),
+    getStatus: adminProcedure.query(async ({ ctx }) => await db.getSetupWizardStatus(ctx.store?.id)),
     completeNonSensitive: adminProcedure.input(z.object({
       siteName: z.string().trim().min(2, "Saisissez un nom de boutique.").max(100),
       contactEmail: z.string().trim().email("Saisissez un e-mail de support valide.").max(320),
     })).mutation(async ({ ctx, input }) => {
-      const status = await db.completeSetupWizard(input);
+      const status = await db.completeSetupWizard(input, ctx.store?.id);
       logAudit(ctx, {
         action: "setup.complete_non_sensitive",
         entityType: "settings",
@@ -1339,8 +1339,8 @@ export const adminRouter = router({
 
   // Site settings
   settings: router({
-    getAll: adminProcedure.query(async () => {
-      return await db.getAllSettings();
+    getAll: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAllStorefrontSettings(ctx.store?.id);
     }),
     update: adminProcedure.input(z.object({
       key: z.enum(["site_name", "contact_email", "currency", "store_currency_code", "store_currency_rate_bps", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "meta_pixel_id", "tiktok_pixel_id"]),
@@ -1365,17 +1365,17 @@ export const adminRouter = router({
       if (input.key === "tiktok_pixel_id" && input.value !== "" && !isValidTikTokPixelId(input.value)) {
         ctx.addIssue({ code: "custom", message: "Identifiant TikTok Pixel invalide" });
       }
-    })).mutation(async ({ input }) => {
-      return await db.upsertSetting(input);
+    })).mutation(async ({ ctx, input }) => {
+      return await db.upsertStorefrontSetting(input, ctx.store?.id);
     }),
   }),
 
   // Références de comptes : e-mail et note administrative uniquement, jamais de secret technique.
   supplierAccounts: router({
-    get: adminProcedure.query(async () => {
+    get: platformProcedure.query(async () => {
       return await db.getSupplierAccountReferences();
     }),
-    update: adminProcedure.input(z.array(z.object({
+    update: platformProcedure.input(z.array(z.object({
       service: z.enum(["cj", "aliexpress", "bigbuy", "printful"]),
       name: z.string().trim().min(2).max(80),
       email: z.union([z.literal(""), z.string().trim().email().max(254)]),
@@ -1603,14 +1603,14 @@ export const adminRouter = router({
 
   integrations: router({
     make: router({
-      status: adminProcedure.query(() => getMakeIntegrationStatus()),
-      test: adminProcedure.mutation(() => sendMakeIntegrationTest()),
+      status: platformProcedure.query(() => getMakeIntegrationStatus()),
+      test: platformProcedure.mutation(() => sendMakeIntegrationTest()),
     }),
     odoo: router({
-      status: adminProcedure.query(() => getOdooCatalogSyncStatus()),
-      syncCatalog: adminProcedure.mutation(async () => {
+      status: platformProcedure.query(() => getOdooCatalogSyncStatus()),
+      syncCatalog: platformProcedure.mutation(async ({ ctx }) => {
         try {
-          const products = await db.getProductsForOdooSync();
+          const products = await db.getProductsForOdooSync(ctx.store?.id);
           if (products.length === 0) {
             return {
               attempted: 0,
@@ -1765,18 +1765,18 @@ export const adminRouter = router({
 
   // Administrative register: customer sales are read from paid orders; purchases, costs and evidence are added here.
   accounting: router({
-    getOverview: adminProcedure.input(z.object({ year: z.number().int().min(2020).max(2100) })).query(async ({ input }) => {
-      return await db.getAccountingOverview(input.year);
+    getOverview: adminProcedure.input(z.object({ year: z.number().int().min(2020).max(2100) })).query(async ({ ctx, input }) => {
+      return await db.getAccountingOverview(input.year, ctx.store?.id);
     }),
-    create: adminProcedure.input(accountingEntrySchema).mutation(async ({ input }) => {
-      return await db.createAccountingEntry(input);
+    create: adminProcedure.input(accountingEntrySchema).mutation(async ({ ctx, input }) => {
+      return await db.createAccountingEntry(input, ctx.store?.id);
     }),
-    update: adminProcedure.input(accountingEntrySchema.extend({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+    update: adminProcedure.input(accountingEntrySchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-      return await db.updateAccountingEntry(id, data);
+      return await db.updateAccountingEntry(id, data, ctx.store?.id);
     }),
-    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
-      return await db.deleteAccountingEntry(input.id);
+    delete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      return await db.deleteAccountingEntry(input.id, ctx.store?.id);
     }),
     uploadReceipt: adminProcedure.input(z.object({
       dataUrl: z.string().max(14_200_000),
@@ -1784,7 +1784,8 @@ export const adminRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const document = decodeAccountingDocument(input.dataUrl);
       const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 90) || "justificatif";
-      const key = `accounting/${ctx.user.id}/${Date.now()}-${safeName}.${document.extension}`;
+      const storeSegment = ctx.store?.slug || "primary-store";
+      const key = `accounting/${storeSegment}/${ctx.user.id}/${Date.now()}-${safeName}.${document.extension}`;
       const { key: storedKey, url } = await storagePut(key, document.buffer, document.contentType);
       return { key: storedKey, url, fileName: input.fileName };
     }),
@@ -1796,13 +1797,13 @@ export const adminRouter = router({
     getVatReport: adminProcedure.input(z.object({
       from: z.coerce.date(),
       to: z.coerce.date(),
-    })).query(async ({ input }) => {
+    })).query(async ({ ctx, input }) => {
       const [paidOrders, vat] = await Promise.all([
-        db.getPaidOrdersBetween(input.from, input.to),
+        db.getPaidOrdersBetween(input.from, input.to, ctx.store?.id),
         db.getVatConfig(),
       ]);
       const year = new Date().getUTCFullYear();
-      const ytdSales = await db.getYearToDatePaidSales(year);
+      const ytdSales = await db.getYearToDatePaidSales(year, ctx.store?.id);
       const rows = paidOrders.map(order => {
         const gross = order.totalAmount;
         const net = vat.enabled ? Math.round(gross / (1 + vat.rate / 100)) : gross;

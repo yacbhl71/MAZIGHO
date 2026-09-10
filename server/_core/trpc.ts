@@ -68,3 +68,19 @@ export const adminProcedure = t.procedure.use(
     });
   }),
 );
+
+// Platform-level controls may only run from the platform storefront. Future
+// boutique owners remain administrators of their own data, but cannot inspect
+// shared credentials, infrastructure status or upstream integrations.
+export const platformProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (!ctx.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    }
+    if (ctx.user.role !== "admin" || !ctx.store?.isPlatformStore) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Accès réservé à MAZIGHO Studio." });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }),
+);

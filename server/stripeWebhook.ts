@@ -32,7 +32,7 @@ async function syncPaidOrderToOdoo(sessionId: string) {
       note: order.shippingAddress ? `Adresse de livraison:\n${order.shippingAddress}` : undefined,
     });
     if (result.synced) {
-      if (result.saleOrderId) await storeOdooSaleOrderId(order.id, result.saleOrderId);
+      if (result.saleOrderId) await storeOdooSaleOrderId(order.id, result.saleOrderId, order.storeId);
       console.log(`[Odoo] Order MAZIGHO-${order.id} synced (sale.order ${result.saleOrderId ?? "existing"}, partner ${result.partnerId ?? "existing"}).`);
       setSettingValue("odoo.last_sync_at", new Date().toISOString(), "Dernière synchronisation Odoo réussie").catch(() => {});
     } else if (!result.skipped) {
@@ -67,10 +67,14 @@ export function isVerifiedPaidStripeTestSession(session: Stripe.Checkout.Session
 }
 
 export async function completePaidStripeOrder(session: Stripe.Checkout.Session, options: { sendCustomerEmail?: boolean } = {}) {
+  // The Stripe event has no storefront host. Resolve its tenant only from the
+  // durable local order before persisting any downstream operational metadata.
+  const snapshot = await getOrderForStripeSession(session.id);
+  if (!snapshot) return;
   // Address capture is local and precedes Odoo/CJ handoff. If it fails, the
   // subsequent preparation is allowed to surface a visible exception instead
   // of guessing a delivery address.
-  await storeStripeShippingAddress(session.id, extractStripeShippingAddress(session));
+  await storeStripeShippingAddress(session.id, extractStripeShippingAddress(session), snapshot.order.storeId);
   const tasks = [
     finalizePaidOrderRedemption(session.id),
     syncPaidOrderToOdoo(session.id),
