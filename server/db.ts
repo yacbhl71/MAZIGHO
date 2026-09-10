@@ -847,6 +847,134 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
   };
 }
 
+type StudioOwnerBuilderModel = "commerce" | "editorial" | "catalogue";
+type StudioOwnerBuilderPage = "about" | "faq" | "contact" | "lookbook";
+type StudioOwnerBuilderPalette = DesignProfile["paletteId"];
+type StudioOwnerBuilderTypography = DesignProfile["typographyId"];
+
+type StudioOwnerBuilderConfiguration = {
+  niche: string;
+  model: StudioOwnerBuilderModel;
+  pages: StudioOwnerBuilderPage[];
+  paletteId: StudioOwnerBuilderPalette;
+  typographyId: StudioOwnerBuilderTypography;
+};
+
+const studioOwnerBuilderModels: Array<{ id: StudioOwnerBuilderModel; label: string; description: string }> = [
+  { id: "commerce", label: "Boutique directe", description: "Une page d’accueil orientée découverte et catégories." },
+  { id: "editorial", label: "Histoire de marque", description: "Une structure qui met d’abord en avant votre univers et vos valeurs." },
+  { id: "catalogue", label: "Catalogue essentiel", description: "Une présentation sobre qui guide rapidement vers les collections." },
+];
+
+const studioOwnerBuilderPages: Array<{ id: StudioOwnerBuilderPage; label: string; description: string }> = [
+  { id: "about", label: "À propos", description: "Présenter l’histoire et les valeurs de la marque." },
+  { id: "faq", label: "Questions fréquentes", description: "Répondre aux interrogations courantes avant l’achat." },
+  { id: "contact", label: "Nous contacter", description: "Offrir un point de contact clair aux visiteurs." },
+  { id: "lookbook", label: "Inspiration", description: "Mettre en avant des visuels ou des idées de collections." },
+];
+
+const studioOwnerBuilderPalettes: StudioOwnerBuilderPalette[] = ["terracotta", "sage", "midnight", "rose"];
+const studioOwnerBuilderTypographies: StudioOwnerBuilderTypography[] = ["editorial", "modern", "classic"];
+
+function normalizeStudioOwnerBuilderConfiguration(value: unknown, fallback: { niche: string; paletteId: StudioOwnerBuilderPalette; typographyId: StudioOwnerBuilderTypography }): StudioOwnerBuilderConfiguration {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const model = source.model === "editorial" || source.model === "catalogue" ? source.model : "commerce";
+  const allowedPages = new Set(studioOwnerBuilderPages.map(page => page.id));
+  const defaultPages: StudioOwnerBuilderPage[] = ["about", "faq", "contact"];
+  const pages: StudioOwnerBuilderPage[] = Array.isArray(source.pages)
+    ? Array.from(new Set(source.pages.filter((page): page is StudioOwnerBuilderPage => typeof page === "string" && allowedPages.has(page as StudioOwnerBuilderPage))))
+    : defaultPages;
+  const paletteId = studioOwnerBuilderPalettes.includes(source.paletteId as StudioOwnerBuilderPalette)
+    ? source.paletteId as StudioOwnerBuilderPalette
+    : fallback.paletteId;
+  const typographyId = studioOwnerBuilderTypographies.includes(source.typographyId as StudioOwnerBuilderTypography)
+    ? source.typographyId as StudioOwnerBuilderTypography
+    : fallback.typographyId;
+  const niche = typeof source.niche === "string" && source.niche.trim()
+    ? source.niche.trim().slice(0, 160)
+    : fallback.niche;
+  return { niche, model, pages, paletteId, typographyId };
+}
+
+/**
+ * Private, platform-only configuration scaffold for a future store owner.
+ * It intentionally remains separate from storefront publication, activation,
+ * payment, legal data, catalogue imports and domains.
+ */
+export async function getStudioOwnerBuilderConfiguration(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER");
+
+  const settingRows = await db.select({ key: storeSettings.key, value: storeSettings.value })
+    .from(storeSettings)
+    .where(eq(storeSettings.storeId, store.id));
+  const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select({ businessType: storeProvisioningDrafts.businessType, customBusinessTheme: storeProvisioningDrafts.customBusinessTheme })
+    .from(storeProvisioningDrafts)
+    .where(eq(storeProvisioningDrafts.id, draftId))
+    .limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+  const profile = await getDesignProfile(store.id);
+  let storedConfiguration: unknown = null;
+  try {
+    storedConfiguration = settingsByKey.get("owner_builder_configuration") ? JSON.parse(settingsByKey.get("owner_builder_configuration")!) : null;
+  } catch {
+    storedConfiguration = null;
+  }
+  const nicheFallback = draft.customBusinessTheme?.trim() || ({ animalier: "Produits et accessoires pour animaux", bijoux: "Bijoux et idées cadeaux", vetements: "Mode et accessoires", autre: "Univers de votre boutique" } as const)[draft.businessType];
+  const configuration = normalizeStudioOwnerBuilderConfiguration(storedConfiguration, { niche: nicheFallback, paletteId: profile.paletteId, typographyId: profile.typographyId });
+
+  return {
+    privateBuilder: true as const,
+    publicStorefront: false as const,
+    store: { id: store.id, displayName: store.displayName, status: store.status, businessType: draft.businessType },
+    identity: { brandName: profile.brandName || store.displayName, brandMessage: profile.brandMessage, brandLogoUrl: profile.brandLogoUrl },
+    configuration,
+    choices: { models: studioOwnerBuilderModels, pages: studioOwnerBuilderPages, palettes: studioOwnerBuilderPalettes, typographies: studioOwnerBuilderTypographies },
+  };
+}
+
+export async function saveStudioOwnerBuilderConfiguration(input: {
+  storeId: number;
+  brandName: string;
+  brandMessage: string;
+  niche: string;
+  model: StudioOwnerBuilderModel;
+  pages: StudioOwnerBuilderPage[];
+  paletteId: StudioOwnerBuilderPalette;
+  typographyId: StudioOwnerBuilderTypography;
+}) {
+  const snapshot = await getStudioOwnerBuilderConfiguration(input.storeId);
+  const normalized = normalizeStudioOwnerBuilderConfiguration({
+    niche: input.niche,
+    model: input.model,
+    pages: input.pages,
+    paletteId: input.paletteId,
+    typographyId: input.typographyId,
+  }, { niche: snapshot.configuration.niche, paletteId: snapshot.configuration.paletteId, typographyId: snapshot.configuration.typographyId });
+  const currentProfile = await getDesignProfile(input.storeId);
+  const profile = await updateDesignProfile({
+    ...currentProfile,
+    brandName: input.brandName.trim(),
+    brandMessage: input.brandMessage.trim(),
+    paletteId: normalized.paletteId,
+    typographyId: normalized.typographyId,
+  }, input.storeId);
+  await setStoreSettingValue(input.storeId, "owner_builder_configuration", JSON.stringify(normalized), "Configuration privée du créateur de boutique ; sans publication automatique");
+  return { privateBuilder: true as const, publicStorefront: false as const, store: snapshot.store, identity: { brandName: profile.brandName, brandMessage: profile.brandMessage, brandLogoUrl: profile.brandLogoUrl }, configuration: normalized };
+}
+
 const studioGiftStoreTimelineLabels = {
   "studio.gift_store.provision": {
     title: "Boutique offerte préparée",
@@ -875,6 +1003,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.domain.update": {
     title: "Domaine de boutique préparé",
     detail: "Le domaine interne a été remplacé dans le registre de la boutique ; l’ouverture reste distincte.",
+  },
+  "studio.gift_store.owner_builder.save": {
+    title: "Créateur de boutique enregistré",
+    detail: "Les choix de marque et de structure ont été préparés dans l’espace privé, sans publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",

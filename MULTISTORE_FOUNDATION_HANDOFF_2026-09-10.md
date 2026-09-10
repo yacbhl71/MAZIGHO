@@ -527,3 +527,13 @@ Lorsque l’opérateur sélectionne **« Autre univers »**, le champ **« Thém
 ### Correctif de résolution du domaine plateforme (10 septembre 2026)
 
 La boutique plateforme `primary-store` utilise désormais `mazigho.ch` comme domaine canonique lors de l’initialisation multi-boutique. Une réparation idempotente ne met à jour que l’ancienne valeur interne `primary.local` et réaffirme son marqueur `isPlatformStore`. Cette correction est nécessaire pour que `mazigho.ch` et `www.mazigho.ch` résolvent toujours la boutique plateforme, tout en laissant les domaines de boutiques clientes en `setup` fermés. Elle ne modifie jamais le statut, le domaine ou les réglages d’une boutique cliente.
+
+---
+
+## Atelier privé « Créer et personnaliser ma boutique »
+
+MAZIGHO Studio comprend désormais un premier créateur guidé réservé à l’opérateur, accessible depuis l’aperçu de panneau propriétaire d’une boutique offerte en `setup`. Il enregistre par boutique, et uniquement dans son périmètre isolé : le nom de marque, le message court, la niche, le modèle de présentation, les pages à préparer, la palette et la typographie. L’aperçu visuel se met à jour immédiatement dans l’atelier et un lien mène vers le storefront privé Studio.
+
+L’atelier reste délibérément **non public** et ne crée aucun compte client. Il ne crée ni page publique, ni domaine, ni produit, ni image, ni membre, ni invitation, ni commande, ni paiement ou intégration fournisseur. Toute consultation et sauvegarde est protégée par `platformProcedure`; une boutique cliente, même administrée par un utilisateur authentifié, reçoit `FORBIDDEN`.
+
+Les futures étapes pourront étendre cette base vers l’édition effective de pages, médias et navigation, toujours avant une activation explicite et distincte de la boutique.

@@ -224,3 +224,9 @@ Ce comportement est volontaire et constitue un garde-fou : le domaine peut être
 Dans **MAZIGHO Studio**, chaque brouillon non provisionné possède désormais trois actions : **Modifier le brouillon**, **Supprimer le brouillon** et **Prévol de boutique offerte**. La modification réouvre le formulaire avec les valeurs enregistrées. La suppression demande de recopier le nom de la future boutique et ne supprime que la fiche de préparation.
 
 Si vous sélectionnez **Autre univers**, renseignez obligatoirement une thématique ou niche précise — par exemple « décoration artisanale » ou « accessoires de voyage ». Sans cette information, le brouillon est enregistré ou modifiable mais son prévol reste à compléter et aucune boutique réelle ne peut être créée.
+
+### Préparer l’identité et la structure dans l’atelier privé
+
+Depuis le **panneau propriétaire — simulation** d’une boutique offerte encore en `setup`, choisissez **Créer et personnaliser**. L’atelier permet de préparer le nom de marque, un message, l’univers ou niche, le modèle de présentation, les pages souhaitées, la palette et la typographie. Cliquez sur **Enregistrer la préparation privée** lorsque les choix vous conviennent, puis consultez l’**aperçu storefront** pour vérifier le rendu.
+
+Cette étape ne publie pas le site, ne modifie pas le domaine, ne donne pas d’accès au propriétaire et ne rend pas le panier ou le paiement disponibles. Ces décisions restent séparées et sont toujours contrôlées depuis MAZIGHO Studio.

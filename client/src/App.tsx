@@ -29,6 +29,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminStudioPreview = lazy(() => import("./pages/admin/AdminStudioPreview"));
 const AdminStudioOwnerWorkspacePreview = lazy(() => import("./pages/admin/AdminStudioOwnerWorkspacePreview"));
+const AdminStudioOwnerBuilder = lazy(() => import("./pages/admin/AdminStudioOwnerBuilder"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
 const AdminDropshipping = lazy(() => import("./pages/admin/AdminDropshipping"));
 const AdminCjImport = lazy(() => import("./pages/admin/AdminCjImport"));
@@ -172,7 +173,7 @@ function BrowserTitle() {
       "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
-    document.title = pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
+    document.title = pathname.startsWith("/admin/studio/constructeur/") ? "MAZIGHO Studio | Créateur de boutique" : pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
   }, [location]);
 
   return null;
@@ -243,6 +244,7 @@ function Router() {
       <Route path="/conditions-generales" component={TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
         <Route path={"/admin"} component={AdminDashboard} />
+        <Route path={"/admin/studio/constructeur/:storeId"} component={AdminStudioOwnerBuilder} />
         <Route path={"/admin/studio/espace-proprietaire/:storeId"} component={AdminStudioOwnerWorkspacePreview} />
         <Route path={"/admin/studio/apercu/:storeId"} component={AdminStudioPreview} />
         <Route path={"/admin/studio"} component={AdminStudio} />

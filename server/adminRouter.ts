@@ -310,6 +310,47 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerBuilderConfiguration: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerBuilderConfiguration(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Le créateur privé est réservé à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
+    saveOwnerBuilderConfiguration: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      brandName: z.string().trim().min(2).max(160),
+      brandMessage: z.string().trim().max(220),
+      niche: z.string().trim().min(2).max(160),
+      model: z.enum(["commerce", "editorial", "catalogue"]),
+      pages: z.array(z.enum(["about", "faq", "contact", "lookbook"])).max(4),
+      paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
+      typographyId: z.enum(["editorial", "modern", "classic"]),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerBuilderConfiguration(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_builder.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: `Configuration privée du créateur enregistrée : ${saved.store.displayName}`,
+          metadata: { status: "setup", publicStorefront: false, publicationExecuted: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Le créateur privé est réservé à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     getGiftStoreActivityTimeline: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioGiftStoreActivityTimeline(input.storeId);
