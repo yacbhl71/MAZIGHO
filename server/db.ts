@@ -12,8 +12,9 @@ import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./servic
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
+import { normalizeStoreHost } from "./services/storeScope";
 
-const { accountTokens, users, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, stores, storeMemberships, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -36,6 +37,54 @@ let _supplierWeightSchemaReady: Promise<void> | null = null;
 let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
 let _checkoutShippingSchemaReady: Promise<void> | null = null;
 let _orderCurrencySchemaReady: Promise<void> | null = null;
+let _multiStoreSchemaReady: Promise<void> | null = null;
+
+export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
+
+async function ensureMultiStoreSchema() {
+  if (_multiStoreSchemaReady) return _multiStoreSchemaReady;
+
+  _multiStoreSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `stores` (`id` int AUTO_INCREMENT PRIMARY KEY, `slug` varchar(80) NOT NULL, `displayName` varchar(160) NOT NULL, `primaryDomain` varchar(255) NOT NULL, `status` enum('setup','active','limited','suspended','closed') NOT NULL DEFAULT 'setup', `isPlatformStore` tinyint NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `stores_slug_unique` (`slug`), UNIQUE KEY `stores_domain_unique` (`primaryDomain`), INDEX `stores_status_idx` (`status`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeMemberships` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `userId` int NOT NULL, `role` enum('owner','manager','catalog_editor','support_agent','order_operator','accountant','viewer') NOT NULL DEFAULT 'viewer', `status` enum('active','blocked') NOT NULL DEFAULT 'active', `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `store_memberships_store_user_unique` (`storeId`,`userId`), INDEX `store_memberships_user_idx` (`userId`), INDEX `store_memberships_store_idx` (`storeId`))"));
+
+    // The generic primary store preserves the existing single-store installation without embedding personal data in the codebase.
+    await db.execute(sql.raw("INSERT INTO `stores` (`slug`,`displayName`,`primaryDomain`,`status`,`isPlatformStore`) VALUES ('primary-store','Boutique principale','primary.local','active',1) ON DUPLICATE KEY UPDATE `slug`=`slug`"));
+    // Existing platform administrators retain access to the original boutique. No non-admin account is upgraded automatically.
+    await db.execute(sql.raw("INSERT IGNORE INTO `storeMemberships` (`storeId`,`userId`,`role`,`status`) SELECT s.id, u.id, 'owner', 'active' FROM `stores` s INNER JOIN `users` u ON u.role = 'admin' WHERE s.slug = 'primary-store'"));
+  })();
+
+  return _multiStoreSchemaReady;
+}
+
+export async function resolveStoreForHost(host?: string | null): Promise<StoreScope | null> {
+  try {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) return null;
+    const normalizedHost = normalizeStoreHost(host);
+    const byDomain = normalizedHost
+      ? await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.primaryDomain, normalizedHost)).limit(1)
+      : [];
+    if (byDomain[0]) return byDomain[0];
+    const primary = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
+    return primary[0] ?? null;
+  } catch (error) {
+    console.warn("[MultiStore] Unable to resolve storefront scope", error);
+    return null;
+  }
+}
+
+export async function getStoreMembershipForUser(storeId: number, userId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(storeMemberships).where(and(eq(storeMemberships.storeId, storeId), eq(storeMemberships.userId, userId))).limit(1);
+  return rows[0];
+}
 
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
@@ -87,15 +136,41 @@ async function ensureAuditLogSchema() {
   if (_auditLogSchemaReady) return _auditLogSchemaReady;
 
   _auditLogSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `auditLogs` (`id` int AUTO_INCREMENT PRIMARY KEY, `actorUserId` int, `actorName` varchar(200), `actorRole` varchar(40), `action` varchar(80) NOT NULL, `entityType` varchar(40) NOT NULL, `entityId` int, `summary` varchar(500) NOT NULL, `metadata` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `audit_logs_created_idx` (`createdAt`), INDEX `audit_logs_entity_idx` (`entityType`), INDEX `audit_logs_actor_idx` (`actorUserId`))"));
+    const primaryStore = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
+    const primaryStoreId = primaryStore[0]?.id;
+    if (!primaryStoreId) throw new Error("PRIMARY_STORE_NOT_FOUND");
+    const run = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists") && !message.includes("duplicate key")) throw error;
+      }
+    };
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `auditLogs` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `actorUserId` int, `actorName` varchar(200), `actorRole` varchar(40), `action` varchar(80) NOT NULL, `entityType` varchar(40) NOT NULL, `entityId` int, `summary` varchar(500) NOT NULL, `metadata` text, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `audit_logs_store_idx` (`storeId`), INDEX `audit_logs_created_idx` (`createdAt`), INDEX `audit_logs_entity_idx` (`entityType`), INDEX `audit_logs_actor_idx` (`actorUserId`))"));
+    await run("ALTER TABLE `auditLogs` ADD COLUMN IF NOT EXISTS `storeId` int NULL");
+    await db.execute(sql.raw(`UPDATE \`auditLogs\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
+    await run("ALTER TABLE `auditLogs` MODIFY COLUMN `storeId` int NOT NULL");
+    await run("CREATE INDEX `audit_logs_store_idx` ON `auditLogs` (`storeId`)");
   })();
 
   return _auditLogSchemaReady;
 }
 
+async function getPrimaryStoreId() {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
+  if (!rows[0]) throw new Error("PRIMARY_STORE_NOT_FOUND");
+  return rows[0].id;
+}
+
 export async function recordAuditLog(input: {
+  storeId?: number | null;
   actorUserId?: number | null;
   actorName?: string | null;
   actorRole?: string | null;
@@ -108,7 +183,9 @@ export async function recordAuditLog(input: {
   await ensureAuditLogSchema();
   const db = await getDb();
   if (!db) return;
+  const storeId = input.storeId ?? await getPrimaryStoreId();
   await db.insert(auditLogs).values({
+    storeId,
     actorUserId: input.actorUserId ?? null,
     actorName: input.actorName ?? null,
     actorRole: input.actorRole ?? null,
@@ -121,6 +198,7 @@ export async function recordAuditLog(input: {
 }
 
 export async function getAuditLogs(filters: {
+  storeId?: number;
   entityType?: string;
   action?: string;
   actorUserId?: number;
@@ -131,7 +209,7 @@ export async function getAuditLogs(filters: {
   await ensureAuditLogSchema();
   const db = await getDb();
   if (!db) return { entries: [], total: 0 };
-  const conditions = [];
+  const conditions = [eq(auditLogs.storeId, filters.storeId ?? await getPrimaryStoreId())];
   if (filters.entityType) conditions.push(eq(auditLogs.entityType, filters.entityType));
   if (filters.action) conditions.push(eq(auditLogs.action, filters.action));
   if (filters.actorUserId) conditions.push(eq(auditLogs.actorUserId, filters.actorUserId));
@@ -146,14 +224,15 @@ export async function getAuditLogs(filters: {
   return { entries, total: Number(totalRows[0]?.value || 0) };
 }
 
-export async function getAuditLogFilterOptions() {
+export async function getAuditLogFilterOptions(storeId?: number) {
   await ensureAuditLogSchema();
   const db = await getDb();
   if (!db) return { actors: [], actions: [], entityTypes: [] };
+  const scope = eq(auditLogs.storeId, storeId ?? await getPrimaryStoreId());
   const [actors, actions, entityTypes] = await Promise.all([
-    db.selectDistinct({ actorUserId: auditLogs.actorUserId, actorName: auditLogs.actorName }).from(auditLogs).where(sql`${auditLogs.actorUserId} IS NOT NULL`),
-    db.selectDistinct({ action: auditLogs.action }).from(auditLogs),
-    db.selectDistinct({ entityType: auditLogs.entityType }).from(auditLogs),
+    db.selectDistinct({ actorUserId: auditLogs.actorUserId, actorName: auditLogs.actorName }).from(auditLogs).where(and(scope, sql`${auditLogs.actorUserId} IS NOT NULL`)),
+    db.selectDistinct({ action: auditLogs.action }).from(auditLogs).where(scope),
+    db.selectDistinct({ entityType: auditLogs.entityType }).from(auditLogs).where(scope),
   ]);
   return {
     actors: actors.filter(a => a.actorUserId != null),
@@ -162,12 +241,12 @@ export async function getAuditLogFilterOptions() {
   };
 }
 
-export async function getOrderFulfillmentLog(orderId: number) {
+export async function getOrderFulfillmentLog(orderId: number, storeId?: number) {
   await ensureAuditLogSchema();
   const db = await getDb();
   if (!db) return [];
   return db.select().from(auditLogs)
-    .where(and(eq(auditLogs.entityType, "order"), eq(auditLogs.entityId, orderId), sql`${auditLogs.action} LIKE 'fulfillment.%'`))
+    .where(and(eq(auditLogs.storeId, storeId ?? await getPrimaryStoreId()), eq(auditLogs.entityType, "order"), eq(auditLogs.entityId, orderId), sql`${auditLogs.action} LIKE 'fulfillment.%'`))
     .orderBy(desc(auditLogs.createdAt)).limit(50);
 }
 

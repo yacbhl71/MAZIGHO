@@ -20,6 +20,37 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// Platform-owned storefront registry. Store status is operational only at this stage;
+// no billing or licence decision is attached to it yet.
+export const stores = mysqlTable("stores", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull().unique(),
+  displayName: varchar("displayName", { length: 160 }).notNull(),
+  primaryDomain: varchar("primaryDomain", { length: 255 }).notNull().unique(),
+  status: mysqlEnum("status", ["setup", "active", "limited", "suspended", "closed"]).default("setup").notNull(),
+  isPlatformStore: int("isPlatformStore").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Store = typeof stores.$inferSelect;
+export type InsertStore = typeof stores.$inferInsert;
+
+// A user may belong to more than one storefront. These roles are deliberately
+// store-scoped and do not replace the existing platform-level user role yet.
+export const storeMemberships = mysqlTable("storeMemberships", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  userId: int("userId").notNull(),
+  role: mysqlEnum("role", ["owner", "manager", "catalog_editor", "support_agent", "order_operator", "accountant", "viewer"]).default("viewer").notNull(),
+  status: mysqlEnum("status", ["active", "blocked"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type StoreMembership = typeof storeMemberships.$inferSelect;
+export type InsertStoreMembership = typeof storeMemberships.$inferInsert;
+
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.
 export const accountTokens = mysqlTable("accountTokens", {
@@ -456,6 +487,8 @@ export type InsertPromotionRedemption = typeof promotionRedemptions.$inferInsert
 // Staff activity audit trail. Records who did what and when across sensitive admin actions.
 export const auditLogs = mysqlTable("auditLogs", {
   id: int("id").autoincrement().primaryKey(),
+  // Each audit event belongs to a storefront; historical records are backfilled to the compatibility store.
+  storeId: int("storeId").notNull(),
   actorUserId: int("actorUserId"),
   actorName: varchar("actorName", { length: 200 }),
   actorRole: varchar("actorRole", { length: 40 }),

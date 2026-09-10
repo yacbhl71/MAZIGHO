@@ -176,6 +176,7 @@ function logAudit(ctx: any, entry: {
 }) {
   const user = ctx?.user;
   db.recordAuditLog({
+    storeId: ctx?.store?.id ?? null,
     actorUserId: user?.id ?? null,
     actorName: user?.name ?? user?.email ?? "Compte inconnu",
     actorRole: user?.role ?? null,
@@ -304,8 +305,9 @@ export const adminRouter = router({
       search: z.string().trim().max(200).optional(),
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(1).max(100).default(50),
-    })).query(async ({ input }) => {
+    })).query(async ({ ctx, input }) => {
       const { entries, total } = await db.getAuditLogs({
+        storeId: ctx.store?.id,
         entityType: input.entityType || undefined,
         action: input.action || undefined,
         actorUserId: input.actorUserId,
@@ -315,8 +317,8 @@ export const adminRouter = router({
       });
       return { entries, total, page: input.page, pageSize: input.pageSize };
     }),
-    getFilters: adminProcedure.query(async () => {
-      return await db.getAuditLogFilterOptions();
+    getFilters: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAuditLogFilterOptions(ctx.store?.id);
     }),
   }),
 
@@ -903,7 +905,7 @@ export const adminRouter = router({
     getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
       return await db.getOrderDecisionsAdmin(input.orderId);
     }),
-    getFulfillmentLog: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(({ input }) => db.getOrderFulfillmentLog(input.orderId)),
+    getFulfillmentLog: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(({ ctx, input }) => db.getOrderFulfillmentLog(input.orderId, ctx.store?.id)),
     logFulfillmentEvent: orderOperatorProcedure.input(z.object({
       orderId: z.number().int().positive(),
       event: z.enum(["extension_sent", "extension_started", "extension_error", "note"]),
