@@ -209,7 +209,8 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedAt` timestamp NULL"));
     await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_provisioned_store_idx` ON `storeProvisioningDrafts` (`provisionedStoreId`)"));
@@ -1190,6 +1191,8 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     await tx.insert(storeSettings).values([
       { storeId, key: "provisioning_mode", value: "gift", description: "Boutique offerte, sans facturation automatique." },
       { storeId, key: "provisioning_draft_id", value: String(draft.id), description: "Brouillon Studio source du provisionnement." },
+      { storeId, key: "provisioning_business_type", value: draft.businessType, description: "Univers de départ choisi lors du provisionnement." },
+      ...(draft.customBusinessTheme ? [{ storeId, key: "provisioning_custom_business_theme", value: draft.customBusinessTheme, description: "Thématique personnalisée renseignée dans Studio." }] : []),
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
     ]);
     await tx.update(storeProvisioningDrafts).set({ provisionedStoreId: storeId, provisionedAt: now }).where(eq(storeProvisioningDrafts.id, draft.id));
@@ -1203,27 +1206,74 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
   });
 }
 
-export async function createStudioProvisioningDraft(input: {
+export type StudioProvisioningDraftInput = {
   displayName: string;
   requestedDomain: string;
   ownerName: string;
   ownerEmail: string;
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
+  customBusinessTheme?: string | null;
   preferredCurrency: string;
   notes?: string | null;
-  createdByUserId: number;
-}) {
-  await ensureStoreProvisioningDraftSchema();
-  const db = await getDb();
-  if (!db) throw new Error("Database unavailable");
-  const [result] = await db.insert(storeProvisioningDrafts).values({
+};
+
+function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
+  const customBusinessTheme = input.businessType === "autre" ? input.customBusinessTheme?.trim() || null : null;
+  if (input.businessType === "autre" && !customBusinessTheme) throw new Error("PROVISIONING_CUSTOM_THEME_REQUIRED");
+  return {
     ...input,
     requestedDomain: input.requestedDomain.trim().toLowerCase(),
     ownerEmail: input.ownerEmail.trim().toLowerCase(),
+    customBusinessTheme,
     notes: input.notes?.trim() || null,
+  };
+}
+
+export async function createStudioProvisioningDraft(input: StudioProvisioningDraftInput & { createdByUserId: number }) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const normalized = normalizeStudioProvisioningDraft(input);
+  const [result] = await db.insert(storeProvisioningDrafts).values({
+    ...normalized,
+    createdByUserId: input.createdByUserId,
     status: "draft",
   });
   return { id: Number(result.insertId) };
+}
+
+export async function updateStudioProvisioningDraft(input: StudioProvisioningDraftInput & { id: number }) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, input.id)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+  if (draft.status === "archived" || draft.provisionedStoreId) throw new Error("PROVISIONING_DRAFT_LOCKED");
+  const normalized = normalizeStudioProvisioningDraft(input);
+  await db.update(storeProvisioningDrafts).set({
+    displayName: normalized.displayName.trim(),
+    requestedDomain: normalized.requestedDomain,
+    ownerName: normalized.ownerName.trim(),
+    ownerEmail: normalized.ownerEmail,
+    businessType: normalized.businessType,
+    customBusinessTheme: normalized.customBusinessTheme,
+    preferredCurrency: normalized.preferredCurrency,
+    notes: normalized.notes,
+    status: "draft",
+  }).where(eq(storeProvisioningDrafts.id, input.id));
+  return { id: input.id };
+}
+
+export async function deleteStudioProvisioningDraft(input: { id: number; confirmationName: string }) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, input.id)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+  if (draft.status === "archived" || draft.provisionedStoreId) throw new Error("PROVISIONING_DRAFT_LOCKED");
+  if (draft.displayName.trim() !== input.confirmationName.trim()) throw new Error("PROVISIONING_DRAFT_CONFIRMATION_MISMATCH");
+  await db.delete(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, input.id));
+  return { id: input.id };
 }
 
 export async function resolveStoreForHost(host?: string | null): Promise<StoreScope | null> {

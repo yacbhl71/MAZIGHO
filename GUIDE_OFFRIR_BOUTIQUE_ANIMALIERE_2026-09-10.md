@@ -217,3 +217,10 @@ Elle ne révèle aucun e-mail, acteur, détail juridique, client, commande, paie
 Après le rattachement d’un domaine public à une boutique qui est toujours en `setup`, le domaine ne doit pas afficher la boutique MAZIGHO ni son administration. Il affiche uniquement une page neutre indiquant que la boutique est en préparation. Le catalogue, le panier, le paiement, les routes d’administration et les pixels marketing restent fermés.
 
 Ce comportement est volontaire et constitue un garde-fou : le domaine peut être techniquement prêt dans Vercel avant que l’opérateur décide séparément d’ouvrir la boutique. L’activation publique reste l’unique étape qui peut rendre le storefront accessible.
+
+
+### Reprendre ou annuler un brouillon
+
+Dans **MAZIGHO Studio**, chaque brouillon non provisionné possède désormais trois actions : **Modifier le brouillon**, **Supprimer le brouillon** et **Prévol de boutique offerte**. La modification réouvre le formulaire avec les valeurs enregistrées. La suppression demande de recopier le nom de la future boutique et ne supprime que la fiche de préparation.
+
+Si vous sélectionnez **Autre univers**, renseignez obligatoirement une thématique ou niche précise — par exemple « décoration artisanale » ou « accessoires de voyage ». Sans cette information, le brouillon est enregistré ou modifiable mais son prévol reste à compléter et aucune boutique réelle ne peut être créée.

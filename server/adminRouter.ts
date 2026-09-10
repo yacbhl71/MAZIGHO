@@ -51,6 +51,7 @@ const studioProvisioningDraftInputSchema = z.object({
   ownerName: z.string().trim().min(2).max(160),
   ownerEmail: z.string().trim().email().max(320),
   businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
+  customBusinessTheme: z.string().trim().min(2).max(160).optional().nullable(),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -521,15 +522,58 @@ export const adminRouter = router({
       }
     }),
     createProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema).mutation(async ({ ctx, input }) => {
-      const draft = await db.createStudioProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
-      logAudit(ctx, {
-        action: "studio.provisioning_draft.create",
-        entityType: "store_provisioning_draft",
-        entityId: draft.id,
-        summary: `Brouillon de mise en service créé pour ${input.displayName}`,
-        metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency },
-      });
-      return draft;
+      try {
+        const draft = await db.createStudioProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
+        logAudit(ctx, {
+          action: "studio.provisioning_draft.create",
+          entityType: "store_provisioning_draft",
+          entityId: draft.id,
+          summary: `Brouillon de mise en service créé pour ${input.displayName}`,
+          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency },
+        });
+        return draft;
+      } catch (error) {
+        if (error instanceof Error && error.message === "PROVISIONING_CUSTOM_THEME_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Renseignez la thématique ou niche de la boutique lorsque vous choisissez « Autre univers »." });
+        throw error;
+      }
+    }),
+    updateProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      try {
+        const draft = await db.updateStudioProvisioningDraft(input);
+        logAudit(ctx, {
+          action: "studio.provisioning_draft.update",
+          entityType: "store_provisioning_draft",
+          entityId: draft.id,
+          summary: "Brouillon de mise en service modifié",
+          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency },
+        });
+        return draft;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "PROVISIONING_DRAFT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable." });
+        if (code === "PROVISIONING_DRAFT_LOCKED") throw new TRPCError({ code: "CONFLICT", message: "Ce brouillon est déjà provisionné ou archivé et ne peut plus être modifié." });
+        if (code === "PROVISIONING_CUSTOM_THEME_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Renseignez la thématique ou niche de la boutique lorsque vous choisissez « Autre univers »." });
+        throw error;
+      }
+    }),
+    deleteProvisioningDraft: platformProcedure.input(z.object({ id: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      try {
+        const draft = await db.deleteStudioProvisioningDraft(input);
+        logAudit(ctx, {
+          action: "studio.provisioning_draft.delete",
+          entityType: "store_provisioning_draft",
+          entityId: draft.id,
+          summary: "Brouillon de mise en service supprimé",
+          metadata: {},
+        });
+        return draft;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "PROVISIONING_DRAFT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable." });
+        if (code === "PROVISIONING_DRAFT_LOCKED") throw new TRPCError({ code: "CONFLICT", message: "Ce brouillon est déjà provisionné ou archivé et ne peut plus être supprimé." });
+        if (code === "PROVISIONING_DRAFT_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer la suppression." });
+        throw error;
+      }
     }),
   }),
 

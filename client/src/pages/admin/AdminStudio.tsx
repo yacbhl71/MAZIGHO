@@ -51,6 +51,7 @@ type ProvisioningDraftForm = {
   ownerName: string;
   ownerEmail: string;
   businessType: ProvisioningBusinessType;
+  customBusinessTheme: string;
   preferredCurrency: "CHF" | "EUR" | "USD" | "GBP";
   notes: string;
 };
@@ -61,6 +62,7 @@ const emptyProvisioningDraft: ProvisioningDraftForm = {
   ownerName: "",
   ownerEmail: "",
   businessType: "autre",
+  customBusinessTheme: "",
   preferredCurrency: "CHF",
   notes: "",
 };
@@ -176,6 +178,9 @@ export default function AdminStudio() {
   const [themeId, setThemeId] = useState<BoutiqueTheme>("animalier");
   const [draftForm, setDraftForm] = useState<ProvisioningDraftForm>(emptyProvisioningDraft);
   const [draftAcknowledged, setDraftAcknowledged] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState<number | null>(null);
+  const [deleteDraftTarget, setDeleteDraftTarget] = useState<{ id: number; displayName: string } | null>(null);
+  const [deleteDraftConfirmationName, setDeleteDraftConfirmationName] = useState("");
   const [selectedPreflightDraftId, setSelectedPreflightDraftId] = useState<number | null>(null);
   const [giftConfirmOpen, setGiftConfirmOpen] = useState(false);
   const [giftConfirmationName, setGiftConfirmationName] = useState("");
@@ -329,6 +334,29 @@ export default function AdminStudio() {
       utils.admin.studio.getProvisioningReviews.invalidate();
     },
     onError: error => toast.error(error.message || "Le brouillon n’a pas pu être enregistré."),
+  });
+  const updateDraftMutation = trpc.admin.studio.updateProvisioningDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Brouillon mis à jour. Aucune boutique, invitation ni intégration n’a été créée.");
+      setDraftForm(emptyProvisioningDraft);
+      setDraftAcknowledged(false);
+      setEditingDraftId(null);
+      setSelectedPreflightDraftId(null);
+      utils.admin.studio.getProvisioningDrafts.invalidate();
+      utils.admin.studio.getProvisioningReviews.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le brouillon n’a pas pu être mis à jour."),
+  });
+  const deleteDraftMutation = trpc.admin.studio.deleteProvisioningDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Brouillon supprimé. Aucune boutique ni donnée commerciale n’a été modifiée.");
+      setDeleteDraftTarget(null);
+      setDeleteDraftConfirmationName("");
+      setSelectedPreflightDraftId(null);
+      utils.admin.studio.getProvisioningDrafts.invalidate();
+      utils.admin.studio.getProvisioningReviews.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le brouillon n’a pas pu être supprimé."),
   });
   const inventory = inventoryQuery.data;
   const reviewByDraftId = useMemo(() => new Map((reviewsQuery.data ?? []).map(draft => [draft.id, draft.review])), [reviewsQuery.data]);
@@ -484,13 +512,13 @@ export default function AdminStudio() {
           <Card className="border-orange-200 shadow-sm">
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Mise en service guidée</p><CardTitle className="mt-1 flex items-center gap-2 text-2xl"><ClipboardPlus className="h-6 w-6 text-orange-600" /> Préparer une future boutique</CardTitle><CardDescription className="mt-2 max-w-2xl">Ce formulaire crée seulement une fiche de préparation interne. Il ne crée pas de boutique, ne réserve pas de domaine et n’envoie aucun e-mail.</CardDescription></div>
+                <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Mise en service guidée</p><CardTitle className="mt-1 flex items-center gap-2 text-2xl"><ClipboardPlus className="h-6 w-6 text-orange-600" /> {editingDraftId === null ? "Préparer une future boutique" : "Modifier un brouillon de boutique"}</CardTitle><CardDescription className="mt-2 max-w-2xl">{editingDraftId === null ? "Ce formulaire crée seulement une fiche de préparation interne. Il ne crée pas de boutique, ne réserve pas de domaine et n’envoie aucun e-mail." : "Vous modifiez seulement cette fiche de préparation. La boutique, le domaine, le propriétaire et les intégrations restent inchangés tant que vous ne les créez pas explicitement plus tard."}</CardDescription></div>
                 <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-800">Brouillon local uniquement</Badge>
               </div>
             </CardHeader>
             <CardContent>
               <div className="mb-6 grid gap-2 sm:grid-cols-4">{["Identité", "Propriétaire", "Univers", "Confirmation"].map((step, index) => <div key={step} className="flex items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2 text-xs font-semibold text-orange-900"><span className="grid h-5 w-5 place-items-center rounded-full bg-orange-600 text-[10px] text-white">{index + 1}</span>{step}</div>)}</div>
-              <form className="grid gap-4" onSubmit={event => { event.preventDefault(); if (!draftAcknowledged) return; createDraftMutation.mutate(draftForm); }}>
+              <form className="grid gap-4" onSubmit={event => { event.preventDefault(); if (!draftAcknowledged || (draftForm.businessType === "autre" && !draftForm.customBusinessTheme.trim())) return; if (editingDraftId === null) createDraftMutation.mutate(draftForm); else updateDraftMutation.mutate({ ...draftForm, id: editingDraftId }); }}>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2"><Label htmlFor="studio-draft-name">Nom de la future boutique</Label><Input id="studio-draft-name" required value={draftForm.displayName} onChange={event => setDraftForm(current => ({ ...current, displayName: event.target.value }))} placeholder="Ex. Éclat Atelier" /></div>
                   <div className="space-y-2"><Label htmlFor="studio-draft-domain">Domaine souhaité</Label><Input id="studio-draft-domain" required value={draftForm.requestedDomain} onChange={event => setDraftForm(current => ({ ...current, requestedDomain: event.target.value }))} placeholder="exemple-boutique.ch" autoCapitalize="none" /></div>
@@ -500,12 +528,13 @@ export default function AdminStudio() {
                   <div className="space-y-2"><Label htmlFor="studio-draft-email">E-mail du futur propriétaire</Label><Input id="studio-draft-email" required type="email" value={draftForm.ownerEmail} onChange={event => setDraftForm(current => ({ ...current, ownerEmail: event.target.value }))} placeholder="client@exemple.ch" autoCapitalize="none" /></div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2"><Label>Univers métier</Label><Select value={draftForm.businessType} onValueChange={value => setDraftForm(current => ({ ...current, businessType: value as ProvisioningBusinessType }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="animalier">Animalier</SelectItem><SelectItem value="bijoux">Bijoux</SelectItem><SelectItem value="vetements">Vêtements</SelectItem><SelectItem value="autre">Autre univers</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Univers métier</Label><Select value={draftForm.businessType} onValueChange={value => setDraftForm(current => ({ ...current, businessType: value as ProvisioningBusinessType, customBusinessTheme: value === "autre" ? current.customBusinessTheme : "" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="animalier">Animalier</SelectItem><SelectItem value="bijoux">Bijoux</SelectItem><SelectItem value="vetements">Vêtements</SelectItem><SelectItem value="autre">Autre univers</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Devise de départ</Label><Select value={draftForm.preferredCurrency} onValueChange={value => setDraftForm(current => ({ ...current, preferredCurrency: value as ProvisioningDraftForm["preferredCurrency"] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CHF">CHF — Franc suisse</SelectItem><SelectItem value="EUR">EUR — Euro</SelectItem><SelectItem value="USD">USD — Dollar US</SelectItem><SelectItem value="GBP">GBP — Livre sterling</SelectItem></SelectContent></Select></div>
                 </div>
+                {draftForm.businessType === "autre" && <div className="space-y-2"><Label htmlFor="studio-draft-custom-theme">Thématique ou niche de la boutique</Label><Input id="studio-draft-custom-theme" required value={draftForm.customBusinessTheme} onChange={event => setDraftForm(current => ({ ...current, customBusinessTheme: event.target.value }))} placeholder="Ex. décoration artisanale, beauté naturelle, accessoires de voyage…" /><p className="text-xs leading-5 text-slate-500">Cette précision est obligatoire pour un autre univers. Elle vous aide à reprendre et préparer le bon catalogue plus tard.</p></div>}
                 <div className="space-y-2"><Label htmlFor="studio-draft-notes">Notes de préparation <span className="font-normal text-slate-500">(facultatif)</span></Label><Textarea id="studio-draft-notes" value={draftForm.notes} onChange={event => setDraftForm(current => ({ ...current, notes: event.target.value }))} placeholder="Positionnement, besoins de catalogue, contraintes de domaine…" rows={3} /></div>
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><input type="checkbox" checked={draftAcknowledged} onChange={event => setDraftAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500" /><span><strong className="text-slate-900">Je confirme préparer un brouillon seulement.</strong> Cette étape ne crée pas de boutique, de compte, de domaine, d’invitation, de licence, de paiement, de synchronisation Odoo ou d’action fournisseur.</span></label>
-                <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={!draftAcknowledged || createDraftMutation.isPending} className="bg-slate-900 hover:bg-slate-800">{createDraftMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardPlus className="mr-2 h-4 w-4" />} Enregistrer le brouillon</Button><p className="text-xs text-slate-500">La création réelle restera une action distincte et explicitement confirmée.</p></div>
+                <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={!draftAcknowledged || (draftForm.businessType === "autre" && !draftForm.customBusinessTheme.trim()) || createDraftMutation.isPending || updateDraftMutation.isPending} className="bg-slate-900 hover:bg-slate-800">{createDraftMutation.isPending || updateDraftMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardPlus className="mr-2 h-4 w-4" />}{editingDraftId === null ? "Enregistrer le brouillon" : "Enregistrer les modifications"}</Button>{editingDraftId !== null && <Button type="button" variant="outline" onClick={() => { setEditingDraftId(null); setDraftForm(emptyProvisioningDraft); setDraftAcknowledged(false); }}>Annuler la modification</Button>}<p className="text-xs text-slate-500">La création réelle restera une action distincte et explicitement confirmée.</p></div>
               </form>
             </CardContent>
           </Card>
@@ -517,7 +546,7 @@ export default function AdminStudio() {
                 const review = reviewByDraftId.get(draft.id);
                 const attentionChecks = review?.checks.filter(check => check.state === "attention") ?? [];
                 const pendingChecks = review?.checks.filter(check => check.state === "pending") ?? [];
-                return <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{draft.requestedDomain}</p></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{formatProvisioningStatus(draft.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600"><span>{formatBusinessType(draft.businessType)}</span><span className="text-right">{draft.preferredCurrency}</span><span className="col-span-2 truncate">Propriétaire prévu : {draft.ownerEmail}</span></div>{review && <div className="mt-4 border-t border-slate-100 pt-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-800">{review.completeChecks}/{review.totalChecks} critères locaux complets</span><Badge className={review.readiness === "ready_for_confirmation" ? "border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "border-0 bg-amber-100 text-amber-800 hover:bg-amber-100"}>{review.readiness === "ready_for_confirmation" ? "Revue locale complète" : "À compléter"}</Badge></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={review.readiness === "ready_for_confirmation" ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-amber-500"} style={{ width: `${Math.round((review.completeChecks / review.totalChecks) * 100)}%` }} /></div>{attentionChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-amber-800"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}{pendingChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-slate-500"><Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}</div>}<Button type="button" variant="outline" size="sm" className="mt-4 w-full border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" onClick={() => setSelectedPreflightDraftId(draft.id)}><Gift className="mr-2 h-3.5 w-3.5" /> Prévol de boutique offerte</Button></div>;
+                return <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{draft.requestedDomain}</p></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{formatProvisioningStatus(draft.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600"><span>{draft.businessType === "autre" && draft.customBusinessTheme ? draft.customBusinessTheme : formatBusinessType(draft.businessType)}</span><span className="text-right">{draft.preferredCurrency}</span><span className="col-span-2 truncate">Propriétaire prévu : {draft.ownerEmail}</span></div>{review && <div className="mt-4 border-t border-slate-100 pt-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-800">{review.completeChecks}/{review.totalChecks} critères locaux complets</span><Badge className={review.readiness === "ready_for_confirmation" ? "border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "border-0 bg-amber-100 text-amber-800 hover:bg-amber-100"}>{review.readiness === "ready_for_confirmation" ? "Revue locale complète" : "À compléter"}</Badge></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={review.readiness === "ready_for_confirmation" ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-amber-500"} style={{ width: `${Math.round((review.completeChecks / review.totalChecks) * 100)}%` }} /></div>{attentionChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-amber-800"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}{pendingChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-slate-500"><Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}</div>}{!draft.provisionedStoreId && draft.status !== "archived" && <div className="mt-4 grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" size="sm" className="border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => { setEditingDraftId(draft.id); setDraftForm({ displayName: draft.displayName, requestedDomain: draft.requestedDomain, ownerName: draft.ownerName, ownerEmail: draft.ownerEmail, businessType: draft.businessType, customBusinessTheme: draft.customBusinessTheme || "", preferredCurrency: draft.preferredCurrency as ProvisioningDraftForm["preferredCurrency"], notes: draft.notes || "" }); setDraftAcknowledged(false); setSelectedPreflightDraftId(null); }}><span className="mr-2">Modifier</span> le brouillon</Button><Button type="button" variant="outline" size="sm" className="border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100" onClick={() => { setDeleteDraftTarget({ id: draft.id, displayName: draft.displayName }); setDeleteDraftConfirmationName(""); }}><span className="mr-2">Supprimer</span> le brouillon</Button></div>}<Button type="button" variant="outline" size="sm" className="mt-2 w-full border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" onClick={() => setSelectedPreflightDraftId(draft.id)}><Gift className="mr-2 h-3.5 w-3.5" /> Prévol de boutique offerte</Button></div>;
               })}
               <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-violet-700">Prévol cadeau / lancement</p><p className="mt-1 text-sm font-semibold text-violet-950">Créer une boutique offerte, sans facturation ni activation automatique.</p></div><Badge className="border-0 bg-violet-100 text-violet-800 hover:bg-violet-100">Lecture seule</Badge></div>
@@ -526,6 +555,10 @@ export default function AdminStudio() {
             </CardContent>
           </Card>
         </section>
+
+        <Dialog open={Boolean(deleteDraftTarget)} onOpenChange={open => { if (!open && !deleteDraftMutation.isPending) { setDeleteDraftTarget(null); setDeleteDraftConfirmationName(""); } }}>
+          <DialogContent className="max-w-lg"><DialogHeader><DialogTitle>Supprimer ce brouillon</DialogTitle><DialogDescription>Cette action retire uniquement la fiche de préparation. Elle ne supprime aucune boutique, domaine, compte, invitation, commande ou donnée fournisseur.</DialogDescription></DialogHeader>{deleteDraftTarget && <div className="space-y-3"><div className="rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm leading-6 text-rose-950"><p><strong>Brouillon :</strong> {deleteDraftTarget.displayName}</p><p className="mt-1">La suppression est possible uniquement avant le provisionnement d’une vraie boutique.</p></div><div className="space-y-2"><Label htmlFor="delete-draft-confirmation-name">Recopiez le nom de la boutique</Label><Input id="delete-draft-confirmation-name" value={deleteDraftConfirmationName} onChange={event => setDeleteDraftConfirmationName(event.target.value)} placeholder={deleteDraftTarget.displayName} /></div></div>}<DialogFooter><Button type="button" variant="outline" onClick={() => { setDeleteDraftTarget(null); setDeleteDraftConfirmationName(""); }} disabled={deleteDraftMutation.isPending}>Annuler</Button><Button type="button" className="bg-rose-700 hover:bg-rose-800" disabled={!deleteDraftTarget || deleteDraftConfirmationName.trim() !== deleteDraftTarget.displayName.trim() || deleteDraftMutation.isPending} onClick={() => deleteDraftTarget && deleteDraftMutation.mutate({ id: deleteDraftTarget.id, confirmationName: deleteDraftConfirmationName })}>{deleteDraftMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Supprimer définitivement le brouillon</Button></DialogFooter></DialogContent>
+        </Dialog>
 
         <Dialog open={giftConfirmOpen} onOpenChange={open => { if (!provisionGiftMutation.isPending) setGiftConfirmOpen(open); }}>
           <DialogContent className="max-w-lg">

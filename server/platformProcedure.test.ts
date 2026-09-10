@@ -43,8 +43,20 @@ describe("MAZIGHO Studio platform guard", () => {
       ownerName: "Client Test",
       ownerEmail: "client@example.test",
       businessType: "autre",
+      customBusinessTheme: "Décoration artisanale",
       preferredCurrency: "CHF",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.updateProvisioningDraft({
+      id: 1,
+      displayName: "Boutique cliente",
+      requestedDomain: "client.test",
+      ownerName: "Client Test",
+      ownerEmail: "client@example.test",
+      businessType: "autre",
+      customBusinessTheme: "Décoration artisanale",
+      preferredCurrency: "CHF",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.deleteProvisioningDraft({ id: 1, confirmationName: "Boutique cliente" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getLaunchPreflight({ draftId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.provisionGiftStore({ draftId: 1, confirmationName: "Boutique cliente" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreOwnerHandoff({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });

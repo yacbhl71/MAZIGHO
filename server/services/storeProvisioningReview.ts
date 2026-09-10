@@ -4,6 +4,7 @@ export type ProvisioningReviewInput = {
   ownerName: string;
   ownerEmail: string;
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
+  customBusinessTheme?: string | null;
   preferredCurrency: string;
   notes?: string | null;
   status: "draft" | "ready_for_confirmation" | "archived";
@@ -37,8 +38,12 @@ export function reviewStoreProvisioningDraft(input: ProvisioningReviewInput, mat
     {
       key: "business",
       label: "Univers et devise",
-      detail: input.businessType && supportedCurrencies.has(input.preferredCurrency) ? "Univers métier et devise de départ définis." : "Choisissez un univers métier et une devise supportée.",
-      state: input.businessType && supportedCurrencies.has(input.preferredCurrency) ? "complete" : "attention",
+      detail: input.businessType === "autre" && !input.customBusinessTheme?.trim()
+        ? "Renseignez la thématique ou niche personnalisée de cette boutique."
+        : input.businessType && supportedCurrencies.has(input.preferredCurrency)
+          ? "Univers métier et devise de départ définis."
+          : "Choisissez un univers métier et une devise supportée.",
+      state: input.businessType && supportedCurrencies.has(input.preferredCurrency) && (input.businessType !== "autre" || Boolean(input.customBusinessTheme?.trim())) ? "complete" : "attention",
     },
     {
       key: "domain_format",

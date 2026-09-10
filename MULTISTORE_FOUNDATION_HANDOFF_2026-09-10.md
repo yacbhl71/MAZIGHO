@@ -509,3 +509,17 @@ Les tests valident à la fois le fonctionnement normal d’une boutique `active`
 ### Exception explicite de la boutique plateforme
 
 La boutique plateforme MAZIGHO est toujours considérée comme publiquement servable, y compris si un ancien statut technique reste `setup` dans la base. Cette exception ne s’applique jamais aux boutiques clientes : celles-ci doivent être `active` ou `limited` pour servir leur storefront ou leur panneau. Ce traitement évite qu’un garde-fou de pré-lancement n’interrompe le domaine principal tout en conservant une fermeture stricte des sous-domaines non ouverts.
+
+
+---
+
+## Gestion opérateur des brouillons de futures boutiques
+
+Les brouillons de mise en service Studio sont maintenant gérables avant toute création réelle : l’opérateur peut les **modifier**, les **supprimer après recopie du nom**, ou ouvrir leur prévol. Ces actions restent réservées à MAZIGHO Studio et ne créent ni boutique, domaine, invitation, paiement, synchronisation Odoo, commande ni action fournisseur.
+
+| État du brouillon | Modification | Suppression | Provisionnement |
+|---|---:|---:|---:|
+| `draft` ou revue locale à compléter | Oui | Oui, après confirmation du nom | Seulement après prévol local complet et confirmation distincte |
+| Archivé ou déjà provisionné | Non | Non | Non, protection contre l’écrasement ou le doublon |
+
+Lorsque l’opérateur sélectionne **« Autre univers »**, le champ **« Thématique ou niche »** devient obligatoire. La revue locale reste bloquée tant que cette précision n’est pas renseignée. Lors du provisionnement ultérieur, la thématique est conservée uniquement dans les réglages isolés de cette boutique ; elle n’ouvre aucun storefront et ne déclenche aucune intégration.

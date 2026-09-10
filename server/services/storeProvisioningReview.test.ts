@@ -25,6 +25,15 @@ describe("store provisioning review", () => {
     expect(review.blockingChecks).toBeGreaterThanOrEqual(3);
   });
 
+  it("requires a custom theme when another universe is selected", () => {
+    const missingTheme = reviewStoreProvisioningDraft({ ...completeDraft, businessType: "autre" }, 1);
+    expect(missingTheme.readiness).toBe("needs_attention");
+    expect(missingTheme.checks.find(check => check.key === "business")).toMatchObject({ state: "attention" });
+
+    const themed = reviewStoreProvisioningDraft({ ...completeDraft, businessType: "autre", customBusinessTheme: "Décoration artisanale" }, 1);
+    expect(themed.checks.find(check => check.key === "business")).toMatchObject({ state: "complete" });
+  });
+
   it("flags a duplicate domain only inside the local draft queue", () => {
     const review = reviewStoreProvisioningDraft(completeDraft, 2);
     expect(review.readiness).toBe("needs_attention");
