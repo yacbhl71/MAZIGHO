@@ -497,3 +497,15 @@ Les libellés affichés sont contrôlés par le code et ne reprennent jamais les
 | Activation | Aucun état n’est modifié. Les boutiques `setup`, `suspended` et `closed` restent non servables ; seules `active` et `limited` peuvent servir le storefront. |
 
 Les tests couvrent le signal « storefront fermé » pour une boutique `setup`, le refus du catalogue, du panier et du checkout, ainsi que l’interdiction de repli d’un sous-domaine personnalisé vers la boutique plateforme.
+
+
+### Durcissement complémentaire des procédures de panneau
+
+Le correctif de fermeture est complété par un refus côté serveur des procédures `adminProcedure` et des procédures de personnel. Si la boutique résolue est absente, en `setup`, `suspended` ou `closed`, ces procédures retournent `FORBIDDEN` avant toute lecture métier. Cette seconde barrière protège les appels tRPC directs, même si un ancien navigateur ou un cache tente encore d’afficher une page administrative.
+
+Les tests valident à la fois le fonctionnement normal d’une boutique `active` et le refus d’un administrateur ou collaborateur placé dans le contexte d’une boutique `setup`.
+
+
+### Exception explicite de la boutique plateforme
+
+La boutique plateforme MAZIGHO est toujours considérée comme publiquement servable, y compris si un ancien statut technique reste `setup` dans la base. Cette exception ne s’applique jamais aux boutiques clientes : celles-ci doivent être `active` ou `limited` pour servir leur storefront ou leur panneau. Ce traitement évite qu’un garde-fou de pré-lancement n’interrompe le domaine principal tout en conservant une fermeture stricte des sous-domaines non ouverts.

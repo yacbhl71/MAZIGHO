@@ -12,7 +12,7 @@ type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
 
 const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
-  if (ctx.store && !mayServeStorefront(ctx.store.status)) {
+  if (ctx.store && !ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’est pas encore ouverte au public." });
   }
   return next({ ctx });
@@ -63,7 +63,7 @@ export const appRouter = router({
   // It deliberately exposes no brand, catalogue, domain, customer, order or integration data.
   storefront: router({
     getAvailability: publicProcedure.query(({ ctx }) => ({
-      publicStorefront: Boolean(ctx.store && mayServeStorefront(ctx.store.status)),
+      publicStorefront: Boolean(ctx.store && (ctx.store.isPlatformStore || mayServeStorefront(ctx.store.status))),
       hasResolvedStore: Boolean(ctx.store),
     })),
   }),

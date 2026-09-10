@@ -20,6 +20,7 @@ import { staffRouter } from "./staffRouter";
 function callerFor(role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin") {
   return staffRouter.createCaller({
     user: { id: 7, role, name: "Test", email: "test@mazigho.ch" },
+    store: { id: 1, slug: "boutique-ouverte", displayName: "Boutique ouverte", primaryDomain: "ouverte.example.ch", status: "active", isPlatformStore: 0 },
   } as any);
 }
 
@@ -52,6 +53,14 @@ describe("staffRouter", () => {
     await expect(caller.catalog.getDrafts()).resolves.toEqual([]);
     await expect(caller.support.getMessages()).resolves.toEqual([]);
     await expect(caller.operations.getOrders()).resolves.toEqual([]);
+  });
+
+  it("ferme les espaces collaborateur lorsqu’une boutique est encore en préparation", async () => {
+    const caller = staffRouter.createCaller({
+      user: { id: 7, role: "catalog_editor", name: "Test", email: "test@mazigho.ch" },
+      store: { id: 2, slug: "boutique-setup", displayName: "Boutique en préparation", primaryDomain: "setup.example.ch", status: "setup", isPlatformStore: 0 },
+    } as any);
+    await expect(caller.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuse tout accès collaborateur à un compte client", async () => {
