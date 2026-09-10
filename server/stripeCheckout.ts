@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
-import { createStripePendingOrder, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
+import { createStripePendingOrder, getOrderForStripeSessionForStore, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { convertChfCents } from "../shared/storeCurrency";
 
@@ -33,7 +33,7 @@ export const stripeCheckoutRouter = router({
       const stripe = getStripeTestClient();
       if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: stripeUnavailable("create") });
       try {
-        const cart = await getStripeCheckoutCart(ctx.user.id, input.countryCode, input.items);
+        const cart = await getStripeCheckoutCart(ctx.user.id, input.countryCode, input.items, ctx.store?.id);
         // Resolve promo (optional). Discount applies to the product subtotal, never to shipping.
         let promotionId: number | null = null;
         let discountAmount = 0;
@@ -46,6 +46,7 @@ export const stripeCheckoutRouter = router({
             const resolved = await validatePromotion(input.promoCode, productSubtotal, {
               userId: ctx.user.id,
               cartItems: cart.items.map(item => ({ productId: item.productId, price: item.unitAmountChf, quantity: item.quantity })),
+              storeId: ctx.store?.id,
             });
             promotionId = resolved.promotion.id;
             discountAmountChf = resolved.discountAmount;
@@ -101,6 +102,7 @@ export const stripeCheckoutRouter = router({
             promo_code: promoCodeLabel,
             customer_shipping_amount: String(cart.customerShippingAmount),
             shipping_policy: cart.shippingPolicy,
+            store_id: String(ctx.store?.id ?? ""),
           },
         };
         if (discountAmount > 0) {
@@ -118,6 +120,7 @@ export const stripeCheckoutRouter = router({
           promotionId,
           discountAmount,
           discountAmountChf,
+          storeId: ctx.store?.id,
         });
         return { sessionId: session.id, orderId: order.id, url: session.url };
       } catch (error) {
@@ -136,6 +139,10 @@ export const stripeCheckoutRouter = router({
         const session = await stripe.checkout.sessions.retrieve(input.sessionId);
         if (session.metadata?.user_id !== String(ctx.user.id)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Session Stripe non autorisée." });
+        }
+        const order = await getOrderForStripeSessionForStore(input.sessionId, ctx.user.id, ctx.store?.id);
+        if (!order) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable pour cette boutique." });
         }
         if (isVerifiedPaidStripeTestSession(session)) {
           const paid = await markOrderPaidByStripeSession(input.sessionId);

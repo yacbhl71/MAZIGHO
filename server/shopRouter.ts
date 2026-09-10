@@ -37,7 +37,7 @@ export const shopRouter = router({
         const cart = await db.getCart(ctx.user.id, ctx.store?.id);
         cartItems = (cart?.items ?? []).map((item: any) => ({ productId: item.productId, price: item.price, quantity: item.quantity }));
       }
-      const result = await db.validatePromotion(input.code, input.orderAmount, { userId: ctx.user?.id, cartItems });
+      const result = await db.validatePromotion(input.code, input.orderAmount, { userId: ctx.user?.id, cartItems, storeId: ctx.store?.id });
       return {
         code: result.promotion.code,
         discountAmount: result.discountAmount,
@@ -57,17 +57,17 @@ export const shopRouter = router({
       return await db.createOrder(ctx.user.id, input, ctx.store?.id);
     }),
     getMyOrders: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getUserOrders(ctx.user.id);
+      return await db.getUserOrders(ctx.user.id, ctx.store?.id);
     }),
     getDetail: protectedProcedure.input(z.number()).query(async ({ ctx, input }) => {
-      return await db.getOrderDetail(ctx.user.id, input);
+      return await db.getOrderDetail(ctx.user.id, input, ctx.store?.id);
     }),
     requestReturn: protectedProcedure.input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().trim().min(5).max(1000),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.createReturnRequest({ userId: ctx.user.id, orderId: input.orderId, reason: input.reason });
+        return await db.createReturnRequest({ userId: ctx.user.id, orderId: input.orderId, reason: input.reason, storeId: ctx.store?.id });
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
@@ -77,7 +77,7 @@ export const shopRouter = router({
       }
     }),
     getMyReturns: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getUserReturnRequests(ctx.user.id);
+      return await db.getUserReturnRequests(ctx.user.id, ctx.store?.id);
     }),
   }),
 });

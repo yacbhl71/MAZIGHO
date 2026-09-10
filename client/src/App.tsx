@@ -26,6 +26,7 @@ const BestSellers = lazy(() => import("./pages/BestSellers"));
 const Promos = lazy(() => import("./pages/Promos"));
 const Account = lazy(() => import("./pages/Account"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
 const AdminDropshipping = lazy(() => import("./pages/admin/AdminDropshipping"));
 const AdminCjImport = lazy(() => import("./pages/admin/AdminCjImport"));
@@ -93,6 +94,7 @@ function BrowserTitle() {
     const pathname = location.split("?")[0];
     const adminTitles: Record<string, string> = {
       "/admin": "MAZIGHO Admin | Tableau de bord",
+      "/admin/studio": "MAZIGHO Studio | Console opérateur",
       "/admin/produits": "MAZIGHO Admin | Produits",
       "/admin/importation": "MAZIGHO Admin | Import fournisseur",
       "/admin/import-cj": "MAZIGHO Admin | Brouillon CJ",
@@ -214,6 +216,7 @@ function Router() {
       <Route path="/conditions-generales" component={TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
         <Route path={"/admin"} component={AdminDashboard} />
+        <Route path={"/admin/studio"} component={AdminStudio} />
         <Route path={"/admin/produits"} component={AdminProducts} />
         <Route path={"/admin/importation"} component={AdminDropshipping} />
         <Route path={"/admin/import-cj"} component={AdminCjImport} />

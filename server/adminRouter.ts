@@ -292,8 +292,8 @@ export const adminRouter = router({
   }),
 
   // Dashboard Stats
-  getStats: adminProcedure.query(async () => {
-    return await db.getAdminStats();
+  getStats: adminProcedure.query(async ({ ctx }) => {
+    return await db.getAdminStats(ctx.store?.id);
   }),
 
   // Staff activity audit trail (admin-only)
@@ -340,8 +340,8 @@ export const adminRouter = router({
         : product;
       const [images, reviews, averageRating] = await Promise.all([
         db.getProductImages(product.id, ctx.store?.id),
-        db.getProductReviews(product.id),
-        db.getAverageRating(product.id),
+        db.getProductReviews(product.id, ctx.store?.id),
+        db.getAverageRating(product.id, ctx.store?.id),
       ]);
       return { ...localized, images, reviews, averageRating };
     }),
@@ -849,7 +849,7 @@ export const adminRouter = router({
     reconcileStripeTestAndAccept: orderOperatorProcedure.input(z.object({
       orderId: z.number().int().positive(),
     })).mutation(async ({ input, ctx }) => {
-      const sessionId = await db.getStripeSessionIdForOrder(input.orderId);
+      const sessionId = await db.getStripeSessionIdForOrder(input.orderId, ctx.store?.id);
       if (!sessionId) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande n’est pas une session Stripe Test réconciliable." });
       }
@@ -877,6 +877,7 @@ export const adminRouter = router({
         action: "accepted",
         actorUserId: ctx.user.id,
         reason: "Commande Stripe Test vérifiée côté Stripe et acceptée pour validation sandbox.",
+        storeId: ctx.store?.id,
       });
       logAudit(ctx, {
         action: "order.stripe_test_reconciled_and_accepted",
@@ -887,15 +888,15 @@ export const adminRouter = router({
       });
       return { ...decision, paymentReconciled: true, justMarkedPaid: paid.justPaid };
     }),
-    getAll: orderOperatorProcedure.query(async () => {
-      return await db.getAllOrdersAdmin();
+    getAll: orderOperatorProcedure.query(async ({ ctx }) => {
+      return await db.getAllOrdersAdmin(ctx.store?.id);
     }),
-    getItems: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
-      return await db.getOrderItemsAdmin(input.orderId);
+    getItems: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ ctx, input }) => {
+      return await db.getOrderItemsAdmin(input.orderId, ctx.store?.id);
     }),
-    getAliExpressPreparationManifest: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
+    getAliExpressPreparationManifest: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       try {
-        return await db.getAliExpressPreparationManifestAdmin(input.orderId);
+        return await db.getAliExpressPreparationManifestAdmin(input.orderId, ctx.store?.id);
       } catch (error) {
         if (error instanceof Error && error.message === "ORDER_NOT_FOUND") {
           throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
@@ -903,8 +904,8 @@ export const adminRouter = router({
         throw error;
       }
     }),
-    getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ input }) => {
-      return await db.getOrderDecisionsAdmin(input.orderId);
+    getDecisions: orderOperatorProcedure.input(z.object({ orderId: z.number() })).query(async ({ ctx, input }) => {
+      return await db.getOrderDecisionsAdmin(input.orderId, ctx.store?.id);
     }),
     getFulfillmentLog: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(({ ctx, input }) => db.getOrderFulfillmentLog(input.orderId, ctx.store?.id)),
     logFulfillmentEvent: orderOperatorProcedure.input(z.object({
@@ -921,8 +922,8 @@ export const adminRouter = router({
       logAudit(ctx, { action: `fulfillment.${input.event}`, entityType: "order", entityId: input.orderId, summary: `${labels[input.event]}${input.detail ? " — " + input.detail : ""}`.slice(0, 500) });
       return { ok: true } as const;
     }),
-    getFulfillment: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
-      return await db.getOrderFulfillmentAdmin(input.orderId);
+    getFulfillment: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      return await db.getOrderFulfillmentAdmin(input.orderId, ctx.store?.id);
     }),
     getCjSafetyStatus: orderOperatorProcedure.query(() => getCjFulfillmentSafetyStatus()),
     prepareCjSandbox: orderOperatorProcedure.input(z.object({
@@ -934,7 +935,7 @@ export const adminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Pour lancer le test sans débit, saisissez exactement : ${expected}` });
       }
       try {
-        const result = await prepareCjSandboxOrder(input.orderId);
+        const result = await prepareCjSandboxOrder(input.orderId, ctx.store?.id);
         logAudit(ctx, {
           action: "order.cj_sandbox_prepare",
           entityType: "order",
@@ -985,6 +986,7 @@ export const adminRouter = router({
           action: input.action,
           reason: input.reason,
           actorUserId: ctx.user.id,
+          storeId: ctx.store?.id,
         });
         const actionLabel = input.action === "accepted" ? "acceptée" : input.action === "rejected" ? "refusée" : "remboursement demandé";
         logAudit(ctx, { action: "order.decide", entityType: "order", entityId: input.orderId, summary: `Commande #${input.orderId} ${actionLabel}${input.reason ? ` — ${input.reason}` : ""}`, metadata: { action: input.action } });
@@ -1004,11 +1006,11 @@ export const adminRouter = router({
       trackingNumber: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await db.updateOrderStatus(input.id, input.status, input.trackingNumber);
+        const result = await db.updateOrderStatus(input.id, input.status, input.trackingNumber, ctx.store?.id);
         const statusLabels: Record<string, string> = { pending: "en attente", processing: "en préparation", shipped: "expédiée", delivered: "livrée", cancelled: "annulée" };
         logAudit(ctx, { action: "order.status", entityType: "order", entityId: input.id, summary: `Commande #${input.id} → ${statusLabels[input.status] || input.status}${input.trackingNumber ? ` (suivi ${input.trackingNumber})` : ""}`, metadata: { status: input.status } });
         if (input.status === "shipped") {
-          const contact = await db.getOrderContactById(input.id);
+          const contact = await db.getOrderContactById(input.id, ctx.store?.id);
           if (contact?.userEmail) {
             const { sendOrderShippedEmail } = await import("./emails");
             sendOrderShippedEmail({ email: contact.userEmail, name: contact.userName, orderId: input.id, trackingNumber: contact.trackingNumber }).catch(err => console.error("[email:order-shipped]", err));
@@ -1023,11 +1025,11 @@ export const adminRouter = router({
         throw error;
       }
     }),
-    getTimeline: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => {
-      return await db.getOrderTimeline(input.orderId);
+    getTimeline: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      return await db.getOrderTimeline(input.orderId, ctx.store?.id);
     }),
     refund: adminProcedure.input(z.object({ orderId: z.number().int().positive(), confirmation: z.string().trim().max(80).optional() })).mutation(async ({ ctx, input }) => {
-      const context = await db.getOrderRefundContext(input.orderId);
+      const context = await db.getOrderRefundContext(input.orderId, ctx.store?.id);
       if (!context) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
       if (context.paymentStatus === "refunded") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande est déjà remboursée." });
       if (context.paymentStatus !== "paid") throw new TRPCError({ code: "BAD_REQUEST", message: "Seule une commande payée peut être remboursée." });
@@ -1046,7 +1048,7 @@ export const adminRouter = router({
         console.error("[stripe:refund]", error);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le remboursement Stripe a échoué. Vérifiez le tableau de bord Stripe." });
       }
-      await db.markOrderRefunded(input.orderId);
+      await db.markOrderRefunded(input.orderId, ctx.store?.id);
       logAudit(ctx, { action: "order.refund", entityType: "order", entityId: input.orderId, summary: `Commande #${input.orderId} remboursée via Stripe (${(context.totalAmount / 100).toFixed(2)} CHF)` });
       return { success: true };
     }),
@@ -1054,15 +1056,15 @@ export const adminRouter = router({
 
   // Returns / RMA management (Lot C)
   returns: router({
-    getAll: orderOperatorProcedure.query(async () => {
-      return await db.getAllReturnRequestsAdmin();
+    getAll: orderOperatorProcedure.query(async ({ ctx }) => {
+      return await db.getAllReturnRequestsAdmin(ctx.store?.id);
     }),
     updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number().int().positive(),
       status: z.enum(["approved", "rejected", "refunded"]),
       resolutionNote: z.string().trim().max(1000).optional(),
     })).mutation(async ({ ctx, input }) => {
-      const result = await db.updateReturnRequestStatus({ id: input.id, status: input.status, resolutionNote: input.resolutionNote, actorUserId: ctx.user.id });
+      const result = await db.updateReturnRequestStatus({ id: input.id, status: input.status, resolutionNote: input.resolutionNote, actorUserId: ctx.user.id, storeId: ctx.store?.id });
       logAudit(ctx, { action: "return.status", entityType: "return", entityId: input.id, summary: `Retour #${input.id} → ${input.status === "approved" ? "approuvé" : input.status === "rejected" ? "refusé" : "remboursé"} (commande #${result.orderId})`, metadata: { status: input.status } });
       return result;
     }),
@@ -1073,8 +1075,8 @@ export const adminRouter = router({
     getAll: orderOperatorProcedure.query(async () => {
       return await db.getAllUsersAdmin();
     }),
-    getCustomerSegments: orderOperatorProcedure.query(async () => {
-      return await db.getCustomerSegmentsAdmin();
+    getCustomerSegments: orderOperatorProcedure.query(async ({ ctx }) => {
+      return await db.getCustomerSegmentsAdmin(ctx.store?.id);
     }),
     create: adminProcedure.input(z.object({
       name: z.string().trim().min(1).max(200),
@@ -1165,34 +1167,34 @@ export const adminRouter = router({
 
   // Reviews Moderation
   reviews: router({
-    getAll: orderOperatorProcedure.query(async () => {
-      return await db.getAllReviewsAdmin();
+    getAll: orderOperatorProcedure.query(async ({ ctx }) => {
+      return await db.getAllReviewsAdmin(ctx.store?.id);
     }),
     updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["pending", "approved", "rejected"]),
-    })).mutation(async ({ input }) => {
-      return await db.updateReviewStatus(input.id, input.status);
+    })).mutation(async ({ ctx, input }) => {
+      return await db.updateReviewStatus(input.id, input.status, ctx.store?.id);
     }),
   }),
 
   // Contact Messages
   messages: router({
-    getAll: orderOperatorProcedure.query(async () => {
-      return await db.getAllMessagesAdmin();
+    getAll: orderOperatorProcedure.query(async ({ ctx }) => {
+      return await db.getAllMessagesAdmin(ctx.store?.id);
     }),
     updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number(),
       status: z.enum(["unread", "read", "archived"]),
-    })).mutation(async ({ input }) => {
-      return await db.updateMessageStatus(input.id, input.status);
+    })).mutation(async ({ ctx, input }) => {
+      return await db.updateMessageStatus(input.id, input.status, ctx.store?.id);
     }),
   }),
 
   // Discount codes
   promotions: router({
-    getAll: adminProcedure.query(async () => {
-      return await db.getAllPromotions();
+    getAll: adminProcedure.query(async ({ ctx }) => {
+      return await db.getAllPromotions(ctx.store?.id);
     }),
     create: adminProcedure.input(z.object({
       code: z.string().min(2).max(64),
@@ -1210,7 +1212,7 @@ export const adminRouter = router({
       if (input.type === "percent" && input.value > 100) throw new Error("La remise en pourcentage ne peut pas dépasser 100");
       if (input.expiresAt && input.startsAt && input.expiresAt <= input.startsAt) throw new Error("La date de fin doit être après la date de début");
       if (input.scope === "category" && !input.categoryId) throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez une catégorie pour ce code ciblé." });
-      const result = await db.createPromotion(input);
+      const result = await db.createPromotion(input, ctx.store?.id);
       logAudit(ctx, { action: "promotion.create", entityType: "promotion", entityId: (result as any)?.id ?? null, summary: `Code promo créé : ${input.code} (${input.type === "percent" ? `${input.value}%` : `${(input.value / 100).toFixed(2)} CHF`}, portée ${input.scope})` });
       return result;
     }),
@@ -1231,12 +1233,12 @@ export const adminRouter = router({
       if (input.type === "percent" && input.value > 100) throw new Error("La remise en pourcentage ne peut pas dépasser 100");
       if (input.scope === "category" && !input.categoryId) throw new TRPCError({ code: "BAD_REQUEST", message: "Sélectionnez une catégorie pour ce code ciblé." });
       const { id, ...data } = input;
-      const result = await db.updatePromotion(id, data);
+      const result = await db.updatePromotion(id, data, ctx.store?.id);
       logAudit(ctx, { action: "promotion.update", entityType: "promotion", entityId: id, summary: `Code promo modifié : ${input.code} (${input.active ? "actif" : "inactif"}, portée ${input.scope})` });
       return result;
     }),
     delete: adminProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
-      const result = await db.deletePromotion(input);
+      const result = await db.deletePromotion(input, ctx.store?.id);
       logAudit(ctx, { action: "promotion.delete", entityType: "promotion", entityId: input, summary: `Code promo supprimé (#${input})` });
       return result;
     }),
@@ -1244,12 +1246,12 @@ export const adminRouter = router({
 
   // Abandoned carts recovery (Lot B)
   marketing: router({
-    abandonedCarts: adminProcedure.input(z.object({ olderThanHours: z.number().int().min(1).max(720).default(4) })).query(async ({ input }) => {
-      const carts = await db.getAbandonedCarts(input.olderThanHours);
+    abandonedCarts: adminProcedure.input(z.object({ olderThanHours: z.number().int().min(1).max(720).default(4) })).query(async ({ ctx, input }) => {
+      const carts = await db.getAbandonedCarts(input.olderThanHours, ctx.store?.id);
       return { carts, emailConfigured: (await import("./transactionalEmail")).isTransactionalEmailConfigured() };
     }),
     sendCartReminder: adminProcedure.input(z.object({ cartId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      const carts = await db.getAbandonedCarts(0);
+      const carts = await db.getAbandonedCarts(0, ctx.store?.id);
       const cart = carts.find(c => c.cartId === input.cartId);
       if (!cart) throw new TRPCError({ code: "NOT_FOUND", message: "Panier introuvable ou déjà vidé." });
       if (!cart.userEmail) throw new TRPCError({ code: "BAD_REQUEST", message: "Ce client n'a pas d'adresse e-mail." });
@@ -1266,7 +1268,7 @@ export const adminRouter = router({
         if (outcome.reason === "TEMPLATE_DISABLED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le modèle « panier abandonné » est désactivé." });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "L'envoi de la relance a échoué." });
       }
-      await db.markCartReminderSent(cart.cartId);
+      await db.markCartReminderSent(cart.cartId, ctx.store?.id);
       logAudit(ctx, { action: "cart.reminder", entityType: "cart", entityId: cart.cartId, summary: `Relance panier envoyée à ${cart.userEmail} (${(cart.total / 100).toFixed(2)} CHF)` });
       return { success: true };
     }),

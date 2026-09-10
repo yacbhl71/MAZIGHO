@@ -106,3 +106,40 @@ La prochaine famille est la **relation client et les transactions** : paniers pa
 - Vérification de diff sans erreur d’espacement.
 - Le correctif différé de visibilité des catégories reste exclu du périmètre.
 - Aucun produit, commande, paiement Stripe, synchronisation Odoo ou ordre fournisseur n’a été créé ou modifié pendant cette étape.
+
+## Étape 4 — relation client, commandes et aperçu MAZIGHO Studio
+
+**Statut :** prête à publier. Cette étape isole les données relationnelles et les frontières de commande nécessaires avant l’ouverture de boutiques clientes. Elle ajoute aussi une première visualisation protégée de la future plateforme, sans créer de boutique, abonnement, paiement ni action fournisseur.
+
+| Famille | Comportement désormais appliqué |
+|---|---|
+| Paniers | `carts` et `cartItems` portent `storeId`. Un même client possède donc un panier séparé pour chaque storefront, et chaque ligne est vérifiée contre le catalogue de la boutique active. |
+| Relation client | Les avis et messages de contact sont créés, affichés, modérés et agrégés par boutique. Les relances de paniers abandonnés utilisent le même périmètre. |
+| Promotions | Les codes, leurs limites, les rédemptions et leur validation au checkout sont propres à une boutique. Un même code peut donc exister dans deux boutiques sans être partagé. |
+| Commandes | `orders`, `orderItems`, `orderDecisions` et `returnRequests` portent `storeId`. Les listes client et administration, les lignes, les décisions, les chronologies, les retours et les tableaux de bord sont filtrés par boutique. |
+| Stripe Test | Le mode Test, les clés et la logique de vérification ne changent pas. Le retour navigateur vérifie en plus que la session Stripe correspond bien au client et à la boutique résolue. Les webhooks restent des entrées serveur globales, car ils n’ont pas de domaine de storefront, mais ne peuvent rapprocher qu’une session locale existante. |
+| CJ sandbox | Le déclencheur administratif de préparation sans débit vérifie d’abord la commande dans la boutique active. Les règles de stock, transport, marge, absence de paiement CJ et validation humaine sont conservées. |
+| Reprise de MAZIGHO | La migration `0023_store_relationship_scope.sql` rattache les données existantes à `primary-store`, adapte l’unicité du panier et des promotions, puis crée les index de recherche par boutique. |
+
+### Première matérialisation du SaaS
+
+La route protégée `/admin/studio` affiche désormais **MAZIGHO Studio**, distinct du panneau d’administration quotidien. Elle rappelle la séparation cible entre votre console opérateur — parc de boutiques, mises en service, états d’accès et accompagnement — et le futur panneau propriétaire d’un client, concentré sur sa marque, son catalogue, ses commandes et sa relation client.
+
+Trois aperçus clairement étiquetés **« simulation locale non publiée »** rendent la différence visible : une boutique animalière, une boutique de bijoux et une boutique de vêtements. Ils changent l’univers, les catégories et les priorités métier, pas la sécurité ni l’ossature e-commerce. Aucune donnée fictive n’est stockée et aucun storefront n’est créé par ces aperçus.
+
+L’entrée de navigation MAZIGHO Studio est visible uniquement lorsque la boutique résolue est la boutique plateforme (`isPlatformStore`) et que l’utilisateur possède le rôle administrateur global. Les propriétaires et collaborateurs de futures boutiques clientes ne voient donc pas cet accès. Le routeur `workspace.getCurrent` expose uniquement le contexte de boutique et l’appartenance active nécessaires à cette séparation visuelle ; il n’expose aucun secret, paiement, client ni catalogue inter-boutique.
+
+> Les dossiers fournisseurs, les écritures comptables et la configuration technique Stripe/Odoo/CJ restent encore structurés globalement. Ils constituent la prochaine étape obligatoire avant de créer une première boutique cliente réelle. Les aperçus Studio ne doivent pas être confondus avec un système d’abonnement ou de licence déjà actif.
+
+## Validation de l’étape 4
+
+- TypeScript sans erreur.
+- Suite Vitest : 15 fichiers / 45 tests validés.
+- Build de production Vite + serveur Node validé.
+- Vérification de diff sans erreur d’espacement.
+- Aucune clé Stripe, Odoo, CJ, TiDB ou AliExpress n’a été déplacée, affichée ou écrite.
+- Aucun paiement, remboursement, synchronisation Odoo, produit, commande fournisseur ou boutique cliente n’a été créé pendant cette étape.
+
+## Séquence suivante obligatoire
+
+Avant la première boutique cliente réelle, isoler les **opérations de plateforme restantes** : dossiers et tâches fournisseurs, journalisation opérationnelle associée, comptabilité, paramètres techniques d’exécution et règles explicites d’accès de propriétaire/gestionnaire par boutique. L’inventaire réel des boutiques, leurs accès limité/suspendu/révoqué, l’invitation du premier propriétaire et la couche de licence pourront ensuite être ajoutés progressivement dans MAZIGHO Studio.

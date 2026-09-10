@@ -49,27 +49,27 @@ export const staffRouter = router({
     }),
   }),
   support: router({
-    getMessages: supportAgentProcedure.query(async () => await db.getAllMessagesAdmin()),
+    getMessages: supportAgentProcedure.query(async ({ ctx }) => await db.getAllMessagesAdmin(ctx.store?.id)),
     updateMessageStatus: supportAgentProcedure.input(z.object({
       id: z.number().int().positive(),
       status: z.enum(["unread", "read", "archived"]),
-    })).mutation(async ({ input }) => await db.updateMessageStatus(input.id, input.status)),
-    getReviews: supportAgentProcedure.query(async () => await db.getAllReviewsAdmin()),
+    })).mutation(async ({ ctx, input }) => await db.updateMessageStatus(input.id, input.status, ctx.store?.id)),
+    getReviews: supportAgentProcedure.query(async ({ ctx }) => await db.getAllReviewsAdmin(ctx.store?.id)),
     updateReviewStatus: supportAgentProcedure.input(z.object({
       id: z.number().int().positive(),
       status: z.enum(["pending", "approved", "rejected"]),
-    })).mutation(async ({ input }) => await db.updateReviewStatus(input.id, input.status)),
+    })).mutation(async ({ ctx, input }) => await db.updateReviewStatus(input.id, input.status, ctx.store?.id)),
   }),
   operations: router({
-    getOrders: orderOperatorProcedure.query(async () => await db.getOperationalOrders()),
-    getOrderItems: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ input }) => await db.getOperationalOrderItems(input.orderId)),
+    getOrders: orderOperatorProcedure.query(async ({ ctx }) => await db.getOperationalOrders(ctx.store?.id)),
+    getOrderItems: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ ctx, input }) => await db.getOperationalOrderItems(input.orderId, ctx.store?.id)),
     updateTracking: orderOperatorProcedure.input(z.object({
       id: z.number().int().positive(),
       status: z.enum(["shipped", "delivered"]),
       trackingNumber: z.string().trim().max(100).optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.updateOperationalOrderTracking(input);
+        return await db.updateOperationalOrderTracking({ ...input, storeId: ctx.store?.id });
       } catch (error) {
         const code = String(error);
         if (code.includes("ORDER_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });

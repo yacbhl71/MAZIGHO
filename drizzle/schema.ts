@@ -230,6 +230,7 @@ export type InsertProductDeliveryProfile = typeof productDeliveryProfiles.$infer
 // Orders table
 export const orders = mysqlTable("orders", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   userId: int("userId").notNull(),
   status: mysqlEnum("status", ["pending", "processing", "shipped", "delivered", "cancelled"]).default("pending").notNull(),
   // Charged amount in the currency locked at checkout; see currencyCode and currencyRateBps.
@@ -258,7 +259,10 @@ export const orders = mysqlTable("orders", {
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeUserCreatedIndex: index("orders_store_user_created_idx").on(table.storeId, table.userId, table.createdAt),
+  storeStatusCreatedIndex: index("orders_store_status_created_idx").on(table.storeId, table.status, table.createdAt),
+}));
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
@@ -266,12 +270,15 @@ export type InsertOrder = typeof orders.$inferInsert;
 // Administrative decision trail. These decisions never trigger a supplier order or a payment refund by themselves.
 export const orderDecisions = mysqlTable("orderDecisions", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   action: mysqlEnum("action", ["accepted", "rejected", "refund_requested"]).notNull(),
   reason: varchar("reason", { length: 500 }),
   actorUserId: int("actorUserId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeOrderIndex: index("order_decisions_store_order_idx").on(table.storeId, table.orderId),
+}));
 
 export type OrderDecision = typeof orderDecisions.$inferSelect;
 export type InsertOrderDecision = typeof orderDecisions.$inferInsert;
@@ -279,6 +286,7 @@ export type InsertOrderDecision = typeof orderDecisions.$inferInsert;
 // Order items table
 export const orderItems = mysqlTable("orderItems", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   productId: int("productId").notNull(),
   quantity: int("quantity").notNull(),
@@ -289,7 +297,9 @@ export const orderItems = mysqlTable("orderItems", {
   selectedOptions: text("selectedOptions"),
   supplierSnapshot: text("supplierSnapshot"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeOrderIndex: index("order_items_store_order_idx").on(table.storeId, table.orderId),
+}));
 
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = typeof orderItems.$inferInsert;
@@ -387,11 +397,14 @@ export type InsertAccountingEntry = typeof accountingEntries.$inferInsert;
 // Cart table
 export const carts = mysqlTable("carts", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
+  storeId: int("storeId").notNull(),
+  userId: int("userId").notNull(),
   reminderSentAt: timestamp("reminderSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeUserUnique: uniqueIndex("carts_store_user_unique").on(table.storeId, table.userId),
+}));
 
 export type Cart = typeof carts.$inferSelect;
 export type InsertCart = typeof carts.$inferInsert;
@@ -399,12 +412,15 @@ export type InsertCart = typeof carts.$inferInsert;
 // Cart items table
 export const cartItems = mysqlTable("cartItems", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   cartId: int("cartId").notNull(),
   productId: int("productId").notNull(),
   quantity: int("quantity").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeCartProductIndex: index("cart_items_store_cart_product_idx").on(table.storeId, table.cartId, table.productId),
+}));
 
 export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = typeof cartItems.$inferInsert;
@@ -412,6 +428,7 @@ export type InsertCartItem = typeof cartItems.$inferInsert;
 // Reviews table
 export const reviews = mysqlTable("reviews", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   userId: int("userId"),
   authorName: varchar("authorName", { length: 120 }),
@@ -419,7 +436,9 @@ export const reviews = mysqlTable("reviews", {
   comment: text("comment"),
   status: mysqlEnum("status", ["pending", "approved", "rejected"]).default("pending").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeProductStatusIndex: index("reviews_store_product_status_idx").on(table.storeId, table.productId, table.status),
+}));
 
 export type Review = typeof reviews.$inferSelect;
 export type InsertReview = typeof reviews.$inferInsert;
@@ -427,13 +446,16 @@ export type InsertReview = typeof reviews.$inferInsert;
 // Contact messages table
 export const contactMessages = mysqlTable("contactMessages", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   subject: varchar("subject", { length: 200 }),
   message: text("message").notNull(),
   status: mysqlEnum("status", ["unread", "read", "archived"]).default("unread").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeStatusCreatedIndex: index("contact_messages_store_status_created_idx").on(table.storeId, table.status, table.createdAt),
+}));
 
 export type ContactMessage = typeof contactMessages.$inferSelect;
 export type InsertContactMessage = typeof contactMessages.$inferInsert;
@@ -490,7 +512,8 @@ export type InsertCampaign = typeof campaigns.$inferInsert;
 // Discount codes table
 export const promotions = mysqlTable("promotions", {
   id: int("id").autoincrement().primaryKey(),
-  code: varchar("code", { length: 64 }).notNull().unique(),
+  storeId: int("storeId").notNull(),
+  code: varchar("code", { length: 64 }).notNull(),
   type: mysqlEnum("type", ["percent", "fixed"]).default("percent").notNull(),
   value: int("value").notNull(), // percent points or cents, depending on type
   minOrderAmount: int("minOrderAmount"),
@@ -505,7 +528,10 @@ export const promotions = mysqlTable("promotions", {
   expiresAt: timestamp("expiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeCodeUnique: uniqueIndex("promotions_store_code_unique").on(table.storeId, table.code),
+  storeActiveIndex: index("promotions_store_active_idx").on(table.storeId, table.active),
+}));
 
 export type Promotion = typeof promotions.$inferSelect;
 export type InsertPromotion = typeof promotions.$inferInsert;
@@ -513,12 +539,15 @@ export type InsertPromotion = typeof promotions.$inferInsert;
 // Per-customer promotion redemptions. Powers per-user limits and abuse prevention.
 export const promotionRedemptions = mysqlTable("promotionRedemptions", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   promotionId: int("promotionId").notNull(),
   userId: int("userId").notNull(),
   orderId: int("orderId"),
   discountAmount: int("discountAmount").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storePromotionUserIndex: index("promotion_redemptions_store_promotion_user_idx").on(table.storeId, table.promotionId, table.userId),
+}));
 
 export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
 export type InsertPromotionRedemption = typeof promotionRedemptions.$inferInsert;
@@ -545,6 +574,7 @@ export type InsertAuditLog = typeof auditLogs.$inferInsert;
 // Customer return requests (RMA). Refunds are issued through Stripe when a return is approved.
 export const returnRequests = mysqlTable("returnRequests", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   userId: int("userId").notNull(),
   reason: varchar("reason", { length: 1000 }).notNull(),
@@ -554,7 +584,10 @@ export const returnRequests = mysqlTable("returnRequests", {
   actorUserId: int("actorUserId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeOrderIndex: index("return_requests_store_order_idx").on(table.storeId, table.orderId),
+  storeUserStatusIndex: index("return_requests_store_user_status_idx").on(table.storeId, table.userId, table.status),
+}));
 
 export type ReturnRequest = typeof returnRequests.$inferSelect;
 export type InsertReturnRequest = typeof returnRequests.$inferInsert;

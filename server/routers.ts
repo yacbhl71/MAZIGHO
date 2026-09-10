@@ -2,7 +2,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminRouter } from "./adminRouter";
 import { staffRouter } from "./staffRouter";
 import { shopRouter } from "./shopRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { authRouter } from "./authRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 
@@ -26,7 +26,7 @@ async function enrichPublicProducts(prods: any[], locale: PublicProductLocale, s
   const ids = prods.map((product: any) => product.id);
   const [imagesMap, reviewsMap, translationsMap] = await Promise.all([
     getProductImagesForProducts(ids, storeId),
-    getProductReviewsForProducts(ids),
+    getProductReviewsForProducts(ids, storeId),
     locale === "fr" ? Promise.resolve(new Map()) : getReadyProductTranslationsForProducts(ids, locale, storeId),
   ]);
   return prods.map((product: any) => {
@@ -49,6 +49,25 @@ export const appRouter = router({
   shop: shopRouter,
   auth: authRouter,
   checkout: stripeCheckoutRouter,
+
+  // Minimal authenticated workspace context used only to choose the correct panel shell.
+  // It exposes no credentials, payments, customer data or cross-store catalogue data.
+  workspace: router({
+    getCurrent: protectedProcedure.query(async ({ ctx }) => {
+      const { getStoreMembershipForUser } = await import("./db");
+      const membership = ctx.store ? await getStoreMembershipForUser(ctx.store.id, ctx.user.id) : undefined;
+      return {
+        store: ctx.store ? {
+          slug: ctx.store.slug,
+          displayName: ctx.store.displayName,
+          primaryDomain: ctx.store.primaryDomain,
+          status: ctx.store.status,
+          isPlatformStore: ctx.store.isPlatformStore,
+        } : null,
+        membership: membership ? { role: membership.role, status: membership.status } : null,
+      };
+    }),
+  }),
 
   // Homepage content. A pending translation safely falls back to the French source.
   content: router({
@@ -162,8 +181,8 @@ export const appRouter = router({
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
         getProductImages(product.id, ctx.store?.id),
-        getProductReviews(product.id),
-        getAverageRating(product.id),
+        getProductReviews(product.id, ctx.store?.id),
+        getAverageRating(product.id, ctx.store?.id),
       ]);
       return { ...localizedProduct, images, reviews, averageRating };
     }),
@@ -183,8 +202,8 @@ export const appRouter = router({
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
         getProductImages(product.id, ctx.store?.id),
-        getProductReviews(product.id),
-        getAverageRating(product.id),
+        getProductReviews(product.id, ctx.store?.id),
+        getAverageRating(product.id, ctx.store?.id),
       ]);
       return { ...localizedProduct, images, reviews, averageRating };
     }),
@@ -203,7 +222,7 @@ export const appRouter = router({
       const { createReview, getProductById } = await import("./db");
       const product = await getProductById(input.productId, ctx.store?.id);
       if (!product) throw new Error("Produit introuvable");
-      await createReview({ productId: input.productId, authorName: input.name, rating: input.rating, comment: input.comment || null });
+      await createReview({ productId: input.productId, authorName: input.name, rating: input.rating, comment: input.comment || null }, ctx.store?.id);
       return { success: true };
     }),
   }),
@@ -224,11 +243,11 @@ export const appRouter = router({
         return val as { name: string; email: string; subject?: string; message: string };
       }
       throw new Error("Invalid contact data");
-    }).mutation(async ({ input }) => {
+    }).mutation(async ({ ctx, input }) => {
       const { createContactMessage } = await import("./db");
       const { notifyOwner } = await import("./_core/notification");
       
-      await createContactMessage(input);
+      await createContactMessage(input, ctx.store?.id);
       
       // Notify owner about new contact message
       await notifyOwner({

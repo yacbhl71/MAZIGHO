@@ -24,11 +24,12 @@ import {
 } from "@/components/ui/sidebar";
 import { APP_LOGO, APP_TITLE } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw, FileSpreadsheet, Activity, Construction, Megaphone, TrendingUp, Rocket } from "lucide-react";
+import { LayoutDashboard, LogOut, PanelLeft, Users, Package, ShoppingBag, Star, MessageSquare, Settings, Home, FolderTree, Layout, Import, Percent, Scale, Palette, ReceiptText, Workflow, Brush, Languages, PencilLine, SearchCheck, Network, ScrollText, ShoppingCart, Mail, RotateCcw, FileSpreadsheet, Activity, Construction, Megaphone, TrendingUp, Rocket, Building2, LockKeyhole } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
+import { trpc } from "@/lib/trpc";
 import ThemeToggle from "./ThemeToggle";
 
 type SidebarTone = "sky" | "orange" | "teal" | "violet" | "slate";
@@ -72,6 +73,13 @@ const sidebarToneClasses: Record<SidebarTone, { label: string; active: string; i
 };
 
 const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ icon: typeof LayoutDashboard; label: string; path: string }> }> = [
+  {
+    label: "Plateforme",
+    tone: "violet",
+    items: [
+      { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
+    ],
+  },
   {
     label: "Pilotage",
     tone: "sky",
@@ -174,6 +182,8 @@ export default function DashboardLayout({
   });
   const { isLoading: loading, user } = useAuth() as any;
   const [location, setLocation] = useLocation();
+  const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: Boolean(user) });
+  const isPlatformOperator = Boolean(workspaceQuery.data?.store?.isPlatformStore && user?.role === "admin");
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -216,6 +226,23 @@ export default function DashboardLayout({
     );
   }
 
+  if (location === "/admin/studio" && workspaceQuery.isLoading) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (location === "/admin/studio" && !isPlatformOperator) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-xl">
+          <LockKeyhole className="mx-auto h-9 w-9 text-slate-600" />
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">Console plateforme réservée</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">MAZIGHO Studio est réservé à l’opérateur de la plateforme. Votre espace reste limité à la boutique active et à ses modules autorisés.</p>
+          <Button onClick={() => setLocation(firstAllowedPath(user.role))} className="mt-6 bg-slate-900 hover:bg-slate-800">Revenir à mon espace</Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!isPathAllowed(user.role, location)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -248,7 +275,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isPlatformOperator={isPlatformOperator}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -258,11 +285,13 @@ export default function DashboardLayout({
 type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
+  isPlatformOperator: boolean;
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
+  isPlatformOperator,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
@@ -272,6 +301,7 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
+  const isStudio = location === "/admin/studio";
 
   useEffect(() => {
     if (isCollapsed) {
@@ -345,7 +375,7 @@ function DashboardLayoutContent({
                       alt="Logo"
                     />
                     <span className="font-semibold tracking-tight truncate">
-                      {APP_TITLE} Admin
+                      {isStudio ? "MAZIGHO Studio" : `${APP_TITLE} Admin`}
                     </span>
                   </div>
                   <button
@@ -363,7 +393,10 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0 overflow-y-auto">
             {menuSections.map(section => {
-              const items = section.items.filter(item => isPathAllowed((user as any)?.role || "admin", item.path));
+              const items = section.items.filter(item => {
+                if (item.path === "/admin/studio" && !isPlatformOperator) return false;
+                return isPathAllowed((user as any)?.role || "admin", item.path);
+              });
               const tone = sidebarToneClasses[section.tone];
               if (items.length === 0) return null;
               return (

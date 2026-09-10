@@ -258,8 +258,8 @@ async function createCjSandboxOrder(input: { orderId: number; externalReference:
  * CJ sandbox order with payType=3. It does not debit a CJ balance, open a
  * payment URL, confirm a production order or update any customer-visible data.
  */
-export async function prepareCjSandboxOrder(orderId: number) {
-  const claim = await db.claimCjSandboxPreparation(orderId);
+export async function prepareCjSandboxOrder(orderId: number, storeId?: number) {
+  const claim = await db.claimCjSandboxPreparation(orderId, storeId);
   if (!claim.claimed || !claim.input) {
     return { prepared: false, reason: claim.reason || "CJ_PREPARATION_NOT_AVAILABLE", supplierOrders: [] as Array<{ externalReference: string; providerOrderId: string | null }> };
   }
