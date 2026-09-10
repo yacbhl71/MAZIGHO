@@ -443,16 +443,19 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
   if (ownDesignValue) {
     try { brandName = String((JSON.parse(ownDesignValue) as Record<string, unknown>).brandName || "").trim(); } catch { /* invalid own profile remains blocked below */ }
   }
-  const ownLegalValue = settingsByKey.get("legal_profile");
-  let hasOwnLegalProfile = false;
-  if (ownLegalValue) {
-    try {
-      const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
-      const companyName = String(legal.companyName || "").trim();
-      const supportEmail = String(legal.supportEmail || "").trim();
-      hasOwnLegalProfile = companyName.length >= 2 && supportEmail.includes("@") && !companyName.includes("à renseigner");
-    } catch { /* invalid own legal profile remains blocked below */ }
-  }
+    const ownLegalValue = settingsByKey.get("legal_profile");
+    let hasOwnLegalProfile = false;
+    if (ownLegalValue) {
+      try {
+        const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
+        const operatorName = String(legal.operatorName || "").trim();
+        const contactEmail = String(legal.contactEmail || "").trim();
+        hasOwnLegalProfile = operatorName.length >= 2
+          && contactEmail.includes("@")
+          && operatorName !== defaultLegalProfile.operatorName
+          && contactEmail !== defaultLegalProfile.contactEmail;
+      } catch { /* invalid own legal profile remains blocked below */ }
+    }
 
   const preflight = buildStoreActivationPreflight({
     status: store.status,
@@ -515,9 +518,12 @@ export async function activateGiftAnimalStore(input: { storeId: number; confirma
     if (ownLegalValue) {
       try {
         const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
-        const companyName = String(legal.companyName || "").trim();
-        const supportEmail = String(legal.supportEmail || "").trim();
-        hasOwnLegalProfile = companyName.length >= 2 && supportEmail.includes("@") && !companyName.includes("à renseigner");
+        const operatorName = String(legal.operatorName || "").trim();
+        const contactEmail = String(legal.contactEmail || "").trim();
+        hasOwnLegalProfile = operatorName.length >= 2
+          && contactEmail.includes("@")
+          && operatorName !== defaultLegalProfile.operatorName
+          && contactEmail !== defaultLegalProfile.contactEmail;
       } catch { /* the preflight blocks invalid own legal profile */ }
     }
     const preflight = buildStoreActivationPreflight({

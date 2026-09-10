@@ -362,3 +362,9 @@ L’installation du kit ne modifie jamais le statut `setup`. Les routes publique
 Pattes & Compagnie demeure en état `setup` et peut recevoir, après confirmation explicite de l’opérateur, une copie des coordonnées légales déjà présentes dans la boutique plateforme MAZIGHO. Cette opération est strictement réservée à MAZIGHO Studio, exige la recopie du nom de la boutique et une case de confirmation. Elle ne modifie jamais MAZIGHO, ne lance aucun e-mail, paiement, fournisseur ou activation publique, et conserve une trace interne de la source et de l’instant de copie. Toute ouverture publique exige toujours un domaine réel, vérifié manuellement, et une confirmation d’activation distincte.
 
 Pour Pattes & Compagnie, l’opérateur a explicitement autorisé cette réutilisation de ses coordonnées existantes. Aucune valeur personnelle n’est recopiée dans ce document de passation.
+
+### Correctif de cohérence du prévol légal — 10 septembre 2026
+
+La copie autorisée du profil légal de la boutique plateforme vers une boutique offerte en `setup` a mis en évidence un écart de contrat : le prévol et la mutation d’activation lisaient des clés historiques (`companyName`, `supportEmail`), alors que le profil légal réellement enregistré utilise `operatorName` et `contactEmail`. Le contrôle s’appuie désormais sur ces clés persistées et compare aussi les valeurs de référence, afin qu’une copie légale valide soit reconnue sans faux blocage. Ce correctif n’active aucune boutique et ne remplace pas la vérification manuelle du domaine.
+
+> Les coordonnées publiées pour MAZIGHO sont réutilisables vers une boutique offerte seulement après autorisation opérateur explicite ; Pattes & Compagnie demeure en `setup` jusqu’à l’activation finale.
