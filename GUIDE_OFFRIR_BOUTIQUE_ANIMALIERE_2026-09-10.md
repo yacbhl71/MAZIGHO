@@ -260,3 +260,9 @@ Le menu n’accepte pas de lien externe et reste visible uniquement dans son ape
 Après avoir préparé les pages, les images et le menu, cliquez sur **Voir l’aperçu complet** depuis l’atelier de navigation. Cette maquette rassemble l’accueil, le menu et les pages éditoriales comme les verraient de futurs visiteurs, mais reste strictement dans MAZIGHO Studio.
 
 Les entrées du menu de cette maquette ne changent que la page affichée à l’intérieur de l’aperçu. Elles ne rendent aucune page publique et ne modifient ni le domaine, ni le statut de la boutique, ni le panier ou le paiement.
+
+### Comparer les modèles d’accueil
+
+Dans le créateur, choisissez l’un des modèles proposés puis enregistrez la préparation : **Boutique directe** pour guider rapidement vers les pages, **Histoire de marque** pour privilégier le message et les valeurs, ou **Catalogue essentiel** pour une lecture plus structurée autour des collections. Ouvrez ensuite **Voir l’aperçu complet** pour comparer la composition.
+
+Ce choix change uniquement la maquette privée et reste réversible. Il ne publie pas l’accueil, ne modifie pas le domaine et n’active aucune vente.

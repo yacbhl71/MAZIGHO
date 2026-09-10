@@ -579,3 +579,11 @@ Le réglage `owner_navigation_draft` ne stocke que l’identifiant fermé de la 
 MAZIGHO Studio fournit un aperçu complet en lecture seule qui rassemble, pour une même boutique offerte en `setup`, l’identité préparée, la palette choisie, la navigation privée, l’accueil de démonstration, les pages éditoriales et leurs images de couverture. Il lit exclusivement `owner_builder_configuration`, `owner_navigation_draft` et `owner_page_drafts` via un snapshot `platformProcedure` dédié.
 
 Cette vue ne peut être atteinte par une boutique cliente et n’est référencée par aucune route storefront publique. Les boutons de navigation ne font que changer la page affichée dans la maquette Studio : ils n’exécutent pas de navigation publique. Aucun domaine, pixel, panier, paiement, commande, fournisseur, compte ou statut de boutique ne peut être modifié depuis cet aperçu.
+
+---
+
+## Modèles d’accueil privés du créateur
+
+Le choix de modèle déjà enregistré par le créateur est maintenant rendu de manière distincte dans l’aperçu complet privé : **Boutique directe** privilégie un appel vers les pages préparées, **Histoire de marque** met le message et la promesse au premier plan, et **Catalogue essentiel** organise une lecture sobre autour des futures collections et pages clés.
+
+Ces variantes ne constituent pas trois thèmes publics et n’écrivent aucune donnée supplémentaire. Elles utilisent exclusivement le modèle privé `owner_builder_configuration` et les pages préparées déjà isolées. Le rendu reste rendu dans Studio, sans domaine de boutique, pixel, panier, paiement, commande, fournisseur ni activation.
