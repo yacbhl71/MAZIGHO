@@ -415,6 +415,10 @@ async function ensureStoreCatalogScopeSchema() {
     const addAndBackfill = async (table: string, expression: string) => {
       await db.execute(sql.raw(`ALTER TABLE \`${table}\` ADD COLUMN IF NOT EXISTS \`storeId\` int NULL`));
       await db.execute(sql.raw(`UPDATE \`${table}\` SET \`storeId\` = ${expression} WHERE \`storeId\` IS NULL`));
+      // Old auxiliary rows can occasionally outlive a deleted product. Preserve
+      // them in the compatibility store instead of failing the whole catalogue
+      // migration when storeId becomes mandatory.
+      await db.execute(sql.raw(`UPDATE \`${table}\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
       await db.execute(sql.raw(`ALTER TABLE \`${table}\` MODIFY COLUMN \`storeId\` int NOT NULL`));
     };
     await addAndBackfill("categories", String(primaryStoreId));

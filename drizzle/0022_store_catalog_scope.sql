@@ -25,6 +25,11 @@ UPDATE `productCategories` pc
 INNER JOIN `products` p ON p.`id` = pc.`productId`
 SET pc.`storeId` = p.`storeId`
 WHERE pc.`storeId` IS NULL;
+-- Preserve a legacy association whose product no longer exists instead of
+-- blocking the entire storefront migration.
+UPDATE `productCategories`
+SET `storeId` = (SELECT `id` FROM `stores` WHERE `slug` = 'primary-store' LIMIT 1)
+WHERE `storeId` IS NULL;
 ALTER TABLE `productCategories` MODIFY COLUMN `storeId` int NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS `product_categories_store_product_category_unique`
   ON `productCategories` (`storeId`, `productId`, `categoryId`);
@@ -35,6 +40,9 @@ UPDATE `productImages` pi
 INNER JOIN `products` p ON p.`id` = pi.`productId`
 SET pi.`storeId` = p.`storeId`
 WHERE pi.`storeId` IS NULL;
+UPDATE `productImages`
+SET `storeId` = (SELECT `id` FROM `stores` WHERE `slug` = 'primary-store' LIMIT 1)
+WHERE `storeId` IS NULL;
 ALTER TABLE `productImages` MODIFY COLUMN `storeId` int NOT NULL;
 CREATE INDEX IF NOT EXISTS `product_images_store_product_order_idx`
   ON `productImages` (`storeId`, `productId`, `displayOrder`);
@@ -44,6 +52,9 @@ UPDATE `productTranslations` pt
 INNER JOIN `products` p ON p.`id` = pt.`productId`
 SET pt.`storeId` = p.`storeId`
 WHERE pt.`storeId` IS NULL;
+UPDATE `productTranslations`
+SET `storeId` = (SELECT `id` FROM `stores` WHERE `slug` = 'primary-store' LIMIT 1)
+WHERE `storeId` IS NULL;
 ALTER TABLE `productTranslations` MODIFY COLUMN `storeId` int NOT NULL;
 ALTER TABLE `productTranslations` DROP INDEX IF EXISTS `product_translations_product_locale_unique`;
 CREATE UNIQUE INDEX IF NOT EXISTS `product_translations_store_product_locale_unique`
@@ -56,6 +67,9 @@ UPDATE `productDeliveryProfiles` pdp
 INNER JOIN `products` p ON p.`id` = pdp.`productId`
 SET pdp.`storeId` = p.`storeId`
 WHERE pdp.`storeId` IS NULL;
+UPDATE `productDeliveryProfiles`
+SET `storeId` = (SELECT `id` FROM `stores` WHERE `slug` = 'primary-store' LIMIT 1)
+WHERE `storeId` IS NULL;
 ALTER TABLE `productDeliveryProfiles` MODIFY COLUMN `storeId` int NOT NULL;
 CREATE INDEX IF NOT EXISTS `delivery_profiles_store_product_country_idx`
   ON `productDeliveryProfiles` (`storeId`, `productId`, `countryCode`);
