@@ -63,6 +63,9 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
   status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
   notes: text("notes"),
+  // Set only by the explicit, atomic gift-provisioning action.
+  provisionedStoreId: int("provisionedStoreId"),
+  provisionedAt: timestamp("provisionedAt"),
   createdByUserId: int("createdByUserId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

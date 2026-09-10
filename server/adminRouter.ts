@@ -296,6 +296,26 @@ export const adminRouter = router({
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
+    provisionGiftStore: platformProcedure.input(z.object({ draftId: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      try {
+        const provisioned = await db.provisionGiftStoreFromDraft(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.provision",
+          entityType: "store",
+          entityId: provisioned.store.id,
+          summary: `Boutique offerte créée en préparation : ${provisioned.store.displayName}`,
+          metadata: { draftId: input.draftId, storeSlug: provisioned.store.slug, billing: provisioned.billing, invitationsSent: provisioned.invitationsSent },
+        });
+        return provisioned;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "PROVISIONING_DRAFT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable." });
+        if (code === "PROVISIONING_DRAFT_ARCHIVED" || code === "PROVISIONING_DRAFT_ALREADY_PROVISIONED") throw new TRPCError({ code: "CONFLICT", message: "Ce brouillon ne peut plus être provisionné." });
+        if (code === "PROVISIONING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer la création." });
+        if (code === "PROVISIONING_PREFLIGHT_INCOMPLETE") throw new TRPCError({ code: "CONFLICT", message: "Le prévol local doit être complet et sans conflit avant de créer la boutique." });
+        throw error;
+      }
+    }),
     createProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema).mutation(async ({ ctx, input }) => {
       const draft = await db.createStudioProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
       logAudit(ctx, {

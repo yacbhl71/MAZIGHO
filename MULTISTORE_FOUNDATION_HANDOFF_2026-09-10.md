@@ -252,3 +252,26 @@ Les tests `storeLaunchPreflight.test.ts` couvrent le cas d’une offre localemen
 > Lorsque vous souhaiterez effectivement offrir une première boutique, il faudra fournir ou vérifier le nom de la boutique, le domaine, le nom et l’e-mail du bénéficiaire, puis confirmer explicitement la création. Cette action future devra utiliser une transaction atomique, créer la boutique en état `setup`, attacher le propriétaire ou préparer une invitation séparée, sans activer de facturation.
 
 ---
+
+## Étape 10 — création contrôlée d’une boutique offerte
+
+**Statut :** prête à publier. Un brouillon disposant d’un prévol local sans conflit peut désormais être transformé en **vraie boutique locale**, après confirmation écrite exacte du nom de marque et case de compréhension dans MAZIGHO Studio.
+
+La transaction `provisionGiftStoreFromDraft` applique les garde-fous suivants dans une seule transaction :
+
+| Action locale réalisée | Garantie |
+|---|---|
+| Création d’une boutique | Statut forcé à `setup` ; elle ne doit pas servir le storefront public. |
+| Domaine et slug | Conflits internes revérifiés dans la transaction avant insertion. |
+| Brouillon source | Réclamé puis lié à `provisionedStoreId` et `provisionedAt`, empêchant un second lancement. |
+| Bénéficiaire ayant déjà un compte | Une appartenance `owner` est créée dans la transaction. |
+| Bénéficiaire sans compte | Aucun compte ni token n’est créé ; `invitationRequired` est seulement signalé. |
+| Préférences initiales | Seuls le mode `gift`, le brouillon source et la devise sont enregistrés par boutique. |
+
+> Aucun e-mail, lien d’invitation, paiement, abonnement, licence, appel Stripe, synchronisation Odoo, opération CJ, réservation de domaine ou vérification DNS n’est effectué par cette action.
+
+Les routes storefront, panier, promotions et checkout Stripe Test utilisent désormais le garde-fou `mayServeStorefront`. Une boutique `setup` reçoit une erreur d’accès avant toute lecture de catalogue ou action transactionnelle. Le test `storefrontSetupGuard.test.ts` couvre cette frontière.
+
+La prochaine étape, lorsqu’un véritable bénéficiaire devra recevoir son accès, consiste à préparer une **invitation distincte et explicitement confirmée**. Elle ne devra être proposée qu’après contrôle manuel du domaine et, selon le parcours choisi, de l’identité du propriétaire.
+
+---

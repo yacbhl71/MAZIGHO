@@ -1,34 +1,45 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router, publicProcedure } from "./_core/trpc";
+import { mayServeStorefront } from "./services/storeScope";
 import * as db from "./db";
+
+const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (ctx.store && !mayServeStorefront(ctx.store.status)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de panier ou commande." });
+  return next({ ctx });
+});
+
+const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (ctx.store && !mayServeStorefront(ctx.store.status)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de panier ou commande." });
+  return next({ ctx });
+});
 
 export const shopRouter = router({
   // Cart Management
   cart: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
+    get: storefrontProtectedProcedure.query(async ({ ctx }) => {
       return await db.getCart(ctx.user.id, ctx.store?.id);
     }),
-    addItem: protectedProcedure.input(z.object({
+    addItem: storefrontProtectedProcedure.input(z.object({
       productId: z.number(),
       quantity: z.number().min(1),
     })).mutation(async ({ ctx, input }) => {
       return await db.addToCart(ctx.user.id, input.productId, input.quantity, ctx.store?.id);
     }),
-    updateItem: protectedProcedure.input(z.object({
+    updateItem: storefrontProtectedProcedure.input(z.object({
       productId: z.number(),
       quantity: z.number().min(0),
     })).mutation(async ({ ctx, input }) => {
       return await db.updateCartItem(ctx.user.id, input.productId, input.quantity, ctx.store?.id);
     }),
-    clear: protectedProcedure.mutation(async ({ ctx }) => {
+    clear: storefrontProtectedProcedure.mutation(async ({ ctx }) => {
       return await db.clearCart(ctx.user.id, ctx.store?.id);
     }),
   }),
 
   // Promotions
   promotions: router({
-    validate: publicProcedure.input(z.object({
+    validate: storefrontProcedure.input(z.object({
       code: z.string().min(2),
       orderAmount: z.number().int().nonnegative(),
     })).mutation(async ({ input, ctx }) => {
@@ -48,7 +59,7 @@ export const shopRouter = router({
 
   // Orders Management
   orders: router({
-    create: protectedProcedure.input(z.object({
+    create: storefrontProtectedProcedure.input(z.object({
       shippingAddress: z.string(),
       billingAddress: z.string().optional(),
       paymentMethod: z.string(),
@@ -56,13 +67,13 @@ export const shopRouter = router({
     })).mutation(async ({ ctx, input }) => {
       return await db.createOrder(ctx.user.id, input, ctx.store?.id);
     }),
-    getMyOrders: protectedProcedure.query(async ({ ctx }) => {
+    getMyOrders: storefrontProtectedProcedure.query(async ({ ctx }) => {
       return await db.getUserOrders(ctx.user.id, ctx.store?.id);
     }),
-    getDetail: protectedProcedure.input(z.number()).query(async ({ ctx, input }) => {
+    getDetail: storefrontProtectedProcedure.input(z.number()).query(async ({ ctx, input }) => {
       return await db.getOrderDetail(ctx.user.id, input, ctx.store?.id);
     }),
-    requestReturn: protectedProcedure.input(z.object({
+    requestReturn: storefrontProtectedProcedure.input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().trim().min(5).max(1000),
     })).mutation(async ({ ctx, input }) => {
@@ -76,7 +87,7 @@ export const shopRouter = router({
         throw error;
       }
     }),
-    getMyReturns: protectedProcedure.query(async ({ ctx }) => {
+    getMyReturns: storefrontProtectedProcedure.query(async ({ ctx }) => {
       return await db.getUserReturnRequests(ctx.user.id, ctx.store?.id);
     }),
   }),

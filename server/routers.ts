@@ -2,12 +2,21 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminRouter } from "./adminRouter";
 import { staffRouter } from "./staffRouter";
 import { shopRouter } from "./shopRouter";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
+
+const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (ctx.store && !mayServeStorefront(ctx.store.status)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’est pas encore ouverte au public." });
+  }
+  return next({ ctx });
+});
 
 function parsePublicProductLocale(value: unknown): PublicProductLocale {
   if (value === undefined || value === null) return "fr";
@@ -71,7 +80,7 @@ export const appRouter = router({
 
   // Homepage content. A pending translation safely falls back to the French source.
   content: router({
-    getActiveBanners: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
+    getActiveBanners: storefrontProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedActiveBanners } = await import("./db");
       return await getLocalizedActiveBanners(locale, ctx.store?.id);
     }),
@@ -79,19 +88,19 @@ export const appRouter = router({
       const { getMaintenanceStatus } = await import("./db");
       return await getMaintenanceStatus();
     }),
-    getActiveCampaign: publicProcedure.query(async ({ ctx }) => {
+    getActiveCampaign: storefrontProcedure.query(async ({ ctx }) => {
       const { getActiveCampaign } = await import("./db");
       return await getActiveCampaign(ctx.store?.id);
     }),
-    getCheckoutShippingPolicy: publicProcedure.query(async ({ ctx }) => {
+    getCheckoutShippingPolicy: storefrontProcedure.query(async ({ ctx }) => {
       const { getCheckoutShippingPolicy } = await import("./db");
       return await getCheckoutShippingPolicy(ctx.store?.id);
     }),
-    getStoreCurrency: publicProcedure.query(async ({ ctx }) => {
+    getStoreCurrency: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreCurrencyConfig } = await import("./db");
       return await getStoreCurrencyConfig(ctx.store?.id);
     }),
-    getTrackingPixels: publicProcedure.query(async ({ ctx }) => {
+    getTrackingPixels: storefrontProcedure.query(async ({ ctx }) => {
       const { getTrackingPixels } = await import("./db");
       return await getTrackingPixels(ctx.store?.id);
     }),
@@ -99,7 +108,7 @@ export const appRouter = router({
 
   // Public visual customisation applied to the storefront
   design: router({
-    get: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
+    get: storefrontProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedDesignProfile } = await import("./db");
       return await getLocalizedDesignProfile(locale, ctx.store?.id);
     }),
@@ -107,7 +116,7 @@ export const appRouter = router({
 
   // Public legal information shown on the storefront
   legal: router({
-    get: publicProcedure.query(async ({ ctx }) => {
+    get: storefrontProcedure.query(async ({ ctx }) => {
       const { getLegalProfile } = await import("./db");
       return await getLegalProfile(ctx.store?.id);
     }),
@@ -115,11 +124,11 @@ export const appRouter = router({
 
   // Categories. The URL slug stays French and stable; only visible name and description are localized.
   categories: router({
-    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
+    getAll: storefrontProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getLocalizedCategories } = await import("./db");
       return await getLocalizedCategories(locale, ctx.store?.id);
     }),
-    getBySlug: publicProcedure.input((val: unknown) => {
+    getBySlug: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
         return { slug: val.slug, locale: parsePublicProductLocale(val) };
       }
@@ -129,7 +138,7 @@ export const appRouter = router({
       const { getLocalizedCategoryBySlug } = await import("./db");
       return await getLocalizedCategoryBySlug(input.slug, input.locale, ctx.store?.id);
     }),
-    getBySlugWithProducts: publicProcedure.input((val: unknown) => {
+    getBySlugWithProducts: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
         return { slug: val.slug, locale: parsePublicProductLocale(val) };
       }
@@ -147,15 +156,15 @@ export const appRouter = router({
 
   // Products. A non-French storefront only receives products whose current translation is ready.
   products: router({
-    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
+    getAll: storefrontProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getAllProducts } = await import("./db");
       return await enrichPublicProducts(await getAllProducts(ctx.store?.id), locale, ctx.store?.id);
     }),
-    getFeatured: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
+    getFeatured: storefrontProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getFeaturedProducts } = await import("./db");
       return await enrichPublicProducts(await getFeaturedProducts(8, ctx.store?.id), locale, ctx.store?.id);
     }),
-    getByCategory: publicProcedure.input((val: unknown) => {
+    getByCategory: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "categoryId" in val && typeof val.categoryId === "number") {
         return { categoryId: val.categoryId, locale: parsePublicProductLocale(val) };
       }
@@ -167,7 +176,7 @@ export const appRouter = router({
       const prods = await getProductsByCategory(input.categoryId, ctx.store?.id);
       return await enrichPublicProducts(prods, input.locale, ctx.store?.id);
     }),
-    getById: publicProcedure.input((val: unknown) => {
+    getById: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "id" in val && typeof val.id === "number" && Number.isInteger(val.id) && val.id > 0) {
         return { id: val.id, locale: parsePublicProductLocale(val) };
       }
@@ -186,7 +195,7 @@ export const appRouter = router({
       ]);
       return { ...localizedProduct, images, reviews, averageRating };
     }),
-    getBySlug: publicProcedure.input((val: unknown) => {
+    getBySlug: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
         return { slug: val.slug, locale: parsePublicProductLocale(val) };
       }
@@ -207,7 +216,7 @@ export const appRouter = router({
       ]);
       return { ...localizedProduct, images, reviews, averageRating };
     }),
-    submitReview: publicProcedure.input((val: unknown) => {
+    submitReview: storefrontProcedure.input((val: unknown) => {
       if (typeof val !== "object" || val === null) throw new Error("Invalid review payload");
       const value = val as Record<string, unknown>;
       const productId = typeof value.productId === "number" ? value.productId : Number(value.productId);
@@ -229,7 +238,7 @@ export const appRouter = router({
 
   // Contact
   contact: router({
-    send: publicProcedure.input((val: unknown) => {
+    send: storefrontProcedure.input((val: unknown) => {
       if (
         typeof val === "object" &&
         val !== null &&

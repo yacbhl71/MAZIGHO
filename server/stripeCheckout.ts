@@ -2,9 +2,17 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
+import { mayServeStorefront } from "./services/storeScope";
 import { createStripePendingOrder, getOrderForStripeSessionForStore, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { convertChfCents } from "../shared/storeCurrency";
+
+const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  if (ctx.store && !mayServeStorefront(ctx.store.status)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de paiement." });
+  }
+  return next({ ctx });
+});
 
 function getStripeTestClient() {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
@@ -19,7 +27,7 @@ function stripeUnavailable(operation: "create" | "retrieve") {
 }
 
 export const stripeCheckoutRouter = router({
-  createSession: protectedProcedure
+  createSession: storefrontProtectedProcedure
     .input(z.object({
       countryCode: z.string().length(2).regex(/^[A-Za-z]{2}$/),
       promoCode: z.string().trim().min(2).max(64).optional(),
@@ -130,7 +138,7 @@ export const stripeCheckoutRouter = router({
       }
     }),
 
-  getSessionStatus: protectedProcedure
+  getSessionStatus: storefrontProtectedProcedure
     .input(z.object({ sessionId: z.string().min(10) }))
     .query(async ({ input, ctx }) => {
       const stripe = getStripeTestClient();
