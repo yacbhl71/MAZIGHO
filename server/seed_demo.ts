@@ -26,6 +26,10 @@ async function seed() {
 
   console.log("Démarrage de l'injection des données de démonstration...");
 
+  const primaryStore = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
+  if (!primaryStore[0]) throw new Error("Boutique principale introuvable : appliquez d’abord la migration multi-boutique.");
+  const primaryStoreId = primaryStore[0].id;
+
   // 1. Injection des Catégories
   const demoCategories = [
     { name: "High-Tech & Gadgets", slug: "high-tech-gadgets", description: "Accessoires téléphone, Gadgets innovants, Charge & Câbles", icon: "📱", displayOrder: 1 },
@@ -37,17 +41,14 @@ async function seed() {
   ];
 
   for (const cat of demoCategories) {
-    const existing = await db.select().from(categories).where(eq(categories.slug, cat.slug)).limit(1);
+    const existing = await db.select().from(categories).where(and(eq(categories.storeId, primaryStoreId), eq(categories.slug, cat.slug))).limit(1);
     if (existing.length === 0) {
       console.log(`Création de la catégorie : ${cat.name}`);
-      await db.insert(categories).values(cat);
+      await db.insert(categories).values({ ...cat, storeId: primaryStoreId });
     }
   }
 
   // 2. Injection des Bannières — le jeu de démonstration historique appartient à la boutique principale.
-  const primaryStore = await db.select({ id: stores.id }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
-  if (!primaryStore[0]) throw new Error("Boutique principale introuvable : appliquez d’abord la migration multi-boutique.");
-  const primaryStoreId = primaryStore[0].id;
   const demoBanners = [
     { title: "Découvrez nos Meilleures Offres", subtitle: "Simplifiez votre quotidien avec style", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/boutique", active: 1, displayOrder: 1 },
     { title: "Mode & Accessoires", subtitle: "Les dernières tendances de la saison", imageUrl: DEFAULT_BANNER_IMAGE, linkUrl: "/categorie/mode", active: 1, displayOrder: 2 },

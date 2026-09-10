@@ -74,3 +74,35 @@ Les campagnes marketing, les devises, les politiques d’expédition, les pixels
 - Vérification de diff sans erreur d’espacement.
 - Le script de démonstration rattache désormais explicitement ses bannières à `primary-store`.
 - Le correctif différé de visibilité des catégories n’est pas inclus dans ce périmètre.
+
+## Étape 3 — catalogue, traductions et profils de livraison par boutique
+
+**Statut :** prête à publier. Cette étape fait du catalogue le second périmètre métier isolé, sans créer de boutique cliente ni modifier les paiements, les commandes fournisseurs ou les secrets.
+
+| Famille | Comportement désormais appliqué |
+|---|---|
+| Catégories | `categories.storeId` isole les slugs, l’ordre d’affichage, les lectures localisées et toutes les mutations d’administration. Les catégories créatives historiques restent créées uniquement pour `primary-store`. |
+| Produits | `products.storeId` isole les slugs, la catégorie principale, les listes publiques, les fiches, les listes d’administration, les imports et les opérations de lot. Une création ou modification vérifie que la catégorie appartient à la même boutique. |
+| Associations et médias | `productCategories` et `productImages` portent `storeId`. Les lectures groupées, remplacements et suppressions de médias ou catégories secondaires sont filtrés par la boutique active. |
+| Traductions produit | `productTranslations` porte `storeId`; sa clé d’unicité est désormais `(storeId, productId, locale)`. Les traductions manuelles et automatiques, y compris les tâches asynchrones, conservent leur boutique d’origine. |
+| Livraison et variantes | `productDeliveryProfiles` porte `storeId`. Les profils, les contrôles d’activation et les mises à jour de variantes CJ sont bornés au catalogue de la boutique active. Aucun sourcing, paiement ou ordre fournisseur n’est déclenché par ce changement. |
+| Imports et panneau | Les imports CJ, AliExpress et les outils collaborateurs propagent le contexte de boutique jusqu’aux lectures de doublons, créations de brouillons, curation, mise à jour et archivage. |
+| Storefront et panier | Les routes publiques transmettent la boutique résolue aux catégories, produits, images et traductions. Le panier n’affiche, n’ajoute, ne modifie et ne transforme en commande que les produits appartenant à la boutique active ; la structure transactionnelle du panier reste néanmoins à isoler dans sa propre étape. |
+| Reprise de MAZIGHO | La migration `0022_store_catalog_scope.sql` ajoute et remplit `storeId` sur les six tables catalogue existantes en les rattachant à `primary-store`, puis remplace les unicités globales de slug par des clés composées par boutique. |
+
+La migration SQL explicite demeure la voie normale de déploiement. Le bootstrap serveur applique les mêmes colonnes et index de manière idempotente seulement comme filet de compatibilité pour une instance existante qui démarrerait avant l’exécution manuelle de ses migrations.
+
+> Les commandes, lignes de commande, paniers en tant qu’entités propres, avis, promotions, clients, messages, comptabilité et dossiers fournisseurs restent globalement structurés. Leur isolation transactionnelle n’est pas encore réalisée ; il ne faut donc toujours pas créer une boutique cliente ou considérer le multi-tenant comme terminé.
+
+## Séquence obligatoire suivante
+
+La prochaine famille est la **relation client et les transactions** : paniers par boutique, commandes et lignes, avis, promotions et rédemptions, messages, puis les opérations de paiement, Odoo, fournisseurs et comptabilité. Cette étape devra préserver strictement Stripe Test, l’absence de paiement CJ automatisé et le principe de validation humaine.
+
+## Validation de l’étape 3
+
+- TypeScript sans erreur.
+- Suite Vitest : 15 fichiers / 45 tests validés.
+- Build de production Vite + serveur Node validé.
+- Vérification de diff sans erreur d’espacement.
+- Le correctif différé de visibilité des catégories reste exclu du périmètre.
+- Aucun produit, commande, paiement Stripe, synchronisation Odoo ou ordre fournisseur n’a été créé ou modifié pendant cette étape.

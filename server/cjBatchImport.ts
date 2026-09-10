@@ -398,7 +398,7 @@ function commercialFashionCopy(categorySlug: string, rawName: string): Commercia
  * naturellement invisibles pour ce produit. Le prix final couvre le fret le plus
  * élevé parmi les profils validés, afin qu’aucun coût ne soit ajouté au client.
  */
-export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Promise<CjCustomSourcingResult> {
+export async function importCjCustomDraftBatch(input: CjCustomSourcingInput, storeId?: number): Promise<CjCustomSourcingResult> {
   const categoryIds = Array.from(new Set(input.categoryIds));
   const countryCodes = Array.from(new Set(input.countryCodes));
   const warehouseCountryCodes = Array.from(new Set(input.warehouseCountryCodes.map(code => code.trim().toUpperCase()).filter(code => /^[A-Z]{2}$/.test(code))));
@@ -416,14 +416,14 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   if (!Number.isInteger(input.maxWeightG) || input.maxWeightG < CJ_CUSTOM_SOURCING_LIMITS.minWeightG || input.maxWeightG > CJ_CUSTOM_SOURCING_LIMITS.maxWeightG) throw new Error("CJ_CUSTOM_WEIGHT_INVALID");
   if (!Number.isFinite(input.priceMultiplier) || input.priceMultiplier < CJ_CUSTOM_SOURCING_LIMITS.minPriceMultiplier || input.priceMultiplier > CJ_CUSTOM_SOURCING_LIMITS.maxPriceMultiplier) throw new Error("CJ_CUSTOM_MULTIPLIER_INVALID");
 
-  const categories = await db.getAllCategories();
+  const categories = await db.getAllCategories(storeId);
   const selectedCategories = categoryIds.map(id => categories.find(item => item.id === id && item.catalogSection === "standard")).filter((item): item is NonNullable<typeof item> => Boolean(item));
   if (selectedCategories.length !== categoryIds.length || selectedCategories.length === 0) throw new Error("CJ_CUSTOM_CATEGORY_INVALID");
 
   const existingCounts = await Promise.all(selectedCategories.map(async category => ({
     categoryId: category.id,
     categoryName: category.name,
-    count: await db.countProductsBySupplierInCategory("CJdropshipping", category.id),
+    count: await db.countProductsBySupplierInCategory("CJdropshipping", category.id, storeId),
   })));
   // Un même brouillon est attaché à chaque catégorie cochée : la catégorie la
   // plus proche de son plafond fixe donc le nombre de créations possibles.
@@ -485,7 +485,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   const candidates = search.products.slice(candidateOffset, candidateOffset + CJ_CUSTOM_SOURCING_LIMITS.verificationWaveSize);
   for (const candidate of candidates) {
     if (result.imported >= target) break;
-    const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
+    const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id, storeId);
     if (existing) {
       result.skipped += 1;
       result.rejections.duplicates += 1;
@@ -605,7 +605,7 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
         supplierVariantMappings: variantStoreData.mappings,
         deliveryProfiles: selection.deliveryProfiles,
         lastSyncedAt: new Date(),
-      });
+      }, storeId);
       result.imported += 1;
       result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock, countryCodes: selection.deliveryProfiles.map(profile => profile.countryCode as CjCustomSourcingCountryCode) });
     } catch (error) {
@@ -631,17 +631,17 @@ export async function importCjCustomDraftBatch(input: CjCustomSourcingInput): Pr
   return result;
 }
 
-export async function importCjDraftBatchForCategory(categorySlug: BatchCategorySlug): Promise<CjBatchImportResult> {
+export async function importCjDraftBatchForCategory(categorySlug: BatchCategorySlug, storeId?: number): Promise<CjBatchImportResult> {
   const source = [...CJ_BATCH_CATEGORIES, ...CJ_FASHION_BATCH_CATEGORIES].find(item => item.categorySlug === categorySlug) as { categorySlug: BatchCategorySlug; queries: readonly string[]; targetCount?: number; maxPerQuery?: number } | undefined;
   if (!source) throw new Error("CJ_BATCH_CATEGORY_INVALID");
 
-  const categories = await db.getAllCategories();
+  const categories = await db.getAllCategories(storeId);
   const category = categories.find(item => item.slug === categorySlug && item.catalogSection === "standard");
   if (!category) throw new Error("CJ_BATCH_CATEGORY_NOT_FOUND");
 
   const targetCount = source.targetCount ?? TARGET_COUNT_PER_CATEGORY;
   const maxPerQuery = source.maxPerQuery ?? 1;
-  const existingCount = await db.countProductsBySupplierInCategory("CJdropshipping", category.id);
+  const existingCount = await db.countProductsBySupplierInCategory("CJdropshipping", category.id, storeId);
   const remainingCount = Math.max(0, targetCount - existingCount);
   const result: CjBatchImportResult = {
     category: category.name,
@@ -665,7 +665,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
         if (result.imported >= remainingCount || importedFromQuery >= maxPerQuery || consideredIds.has(candidate.id)) continue;
         consideredIds.add(candidate.id);
 
-        const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id);
+        const existing = await db.getProductBySupplierReference("CJdropshipping", candidate.id, storeId);
         if (existing) {
           result.skipped += 1;
           continue;
@@ -747,7 +747,7 @@ export async function importCjDraftBatchForCategory(categorySlug: BatchCategoryS
               ...deliveryDays,
             }],
             lastSyncedAt: new Date(),
-          });
+          }, storeId);
 
           result.imported += 1;
           result.products.push({ id: created.id, name: customerName, priceCents, stock: selection.stock });
@@ -775,8 +775,8 @@ const FASHION_CATEGORY_NAME_TO_SLUG: Record<string, string> = {
  * Les articles trop chers, hors univers ou mal classés sont archivés et restent
  * traçables en administration ; ils ne sont jamais publiés ni supprimés.
  */
-export async function curateCjFashionDrafts() {
-  const products = await db.getAllProductsAdmin();
+export async function curateCjFashionDrafts(storeId?: number) {
+  const products = await db.getAllProductsAdmin(storeId);
   const result = {
     reviewed: 0,
     enriched: 0,
@@ -797,7 +797,7 @@ export async function curateCjFashionDrafts() {
     const mustArchive = !copy || !isSuitableFashionProduct(categorySlug, product.name) || (priceCap != null && product.price > priceCap);
 
     if (mustArchive) {
-      await db.updateProduct(product.id, { status: "archived" });
+      await db.updateProduct(product.id, { status: "archived" }, storeId);
       result.archived += 1;
       categoryResult.archived += 1;
       byCategory.set(product.categoryName!, categoryResult);
@@ -808,7 +808,7 @@ export async function curateCjFashionDrafts() {
       name: copy.name,
       description: copy.description,
       longDescription: copy.longDescription,
-    });
+    }, storeId);
     result.enriched += 1;
     categoryResult.enriched += 1;
     byCategory.set(product.categoryName!, categoryResult);

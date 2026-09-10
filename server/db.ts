@@ -29,6 +29,7 @@ let _creativeCatalogSeedReady: Promise<void> | null = null;
 let _productTranslationSchemaReady: Promise<void> | null = null;
 let _publicContentTranslationSchemaReady: Promise<void> | null = null;
 let _storeContentScopeSchemaReady: Promise<void> | null = null;
+let _storeCatalogScopeSchemaReady: Promise<void> | null = null;
 let _staffRolesReady: Promise<void> | null = null;
 let _auditLogSchemaReady: Promise<void> | null = null;
 let _promotionAdvancedSchemaReady: Promise<void> | null = null;
@@ -280,7 +281,7 @@ export async function getOrderFulfillmentLog(orderId: number, storeId?: number) 
 }
 
 /** Bulk-create AliExpress-sourced DRAFT products from a list of item URLs. */
-export async function bulkCreateAliExpressDrafts(categoryId: number, urls: string[]) {
+export async function bulkCreateAliExpressDrafts(categoryId: number, urls: string[], storeId?: number) {
   let created = 0;
   const skipped: string[] = [];
   for (const url of urls) {
@@ -301,7 +302,7 @@ export async function bulkCreateAliExpressDrafts(categoryId: number, urls: strin
         supplierUrl: url,
         supplierProductId: pid,
         categoryIds: [categoryId],
-      });
+      }, storeId);
       created++;
     } catch {
       skipped.push(url);
@@ -311,17 +312,21 @@ export async function bulkCreateAliExpressDrafts(categoryId: number, urls: strin
 }
 
 
-export async function getProductNameById(id: number): Promise<string | null> {
+export async function getProductNameById(id: number, storeId?: number): Promise<string | null> {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select({ name: products.name }).from(products).where(eq(products.id, id)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select({ name: products.name }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
   return rows[0]?.name ?? null;
 }
 
-export async function getCategoryNameById(id: number): Promise<string | null> {
+export async function getCategoryNameById(id: number, storeId?: number): Promise<string | null> {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return null;
-  const rows = await db.select({ name: categories.name }).from(categories).where(eq(categories.id, id)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select({ name: categories.name }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, id))).limit(1);
   return rows[0]?.name ?? null;
 }
 
@@ -389,10 +394,52 @@ async function ensureProductTranslationSchema() {
   _productTranslationSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `locale` varchar(10) NOT NULL, `name` varchar(200) NOT NULL, `description` text, `longDescription` text, `options` text, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `product_translations_product_locale_unique` (`productId`, `locale`), INDEX `product_translations_product_idx` (`productId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productTranslations` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `productId` int NOT NULL, `locale` varchar(10) NOT NULL, `name` varchar(200) NOT NULL, `description` text, `longDescription` text, `options` text, `status` enum('ready','stale') NOT NULL DEFAULT 'ready', `machineGenerated` int NOT NULL DEFAULT 1, `sourceUpdatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `translatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `product_translations_store_product_locale_unique` (`storeId`, `productId`, `locale`), INDEX `product_translations_store_product_idx` (`storeId`, `productId`))"));
   })();
 
   return _productTranslationSchemaReady;
+}
+
+async function ensureStoreCatalogScopeSchema() {
+  if (_storeCatalogScopeSchemaReady) return _storeCatalogScopeSchemaReady;
+  _storeCatalogScopeSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    await ensureProductTranslationSchema();
+    await ensureProductCategorySchema();
+    await ensureDeliveryProfileSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const primaryStoreId = await getPrimaryStoreId();
+
+    const addAndBackfill = async (table: string, expression: string) => {
+      await db.execute(sql.raw(`ALTER TABLE \`${table}\` ADD COLUMN IF NOT EXISTS \`storeId\` int NULL`));
+      await db.execute(sql.raw(`UPDATE \`${table}\` SET \`storeId\` = ${expression} WHERE \`storeId\` IS NULL`));
+      await db.execute(sql.raw(`ALTER TABLE \`${table}\` MODIFY COLUMN \`storeId\` int NOT NULL`));
+    };
+    await addAndBackfill("categories", String(primaryStoreId));
+    await addAndBackfill("products", String(primaryStoreId));
+    await addAndBackfill("productCategories", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productCategories`.`productId` LIMIT 1)");
+    await addAndBackfill("productImages", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productImages`.`productId` LIMIT 1)");
+    await addAndBackfill("productTranslations", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productTranslations`.`productId` LIMIT 1)");
+    await addAndBackfill("productDeliveryProfiles", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productDeliveryProfiles`.`productId` LIMIT 1)");
+
+    try { await db.execute(sql.raw("ALTER TABLE `categories` DROP INDEX `categories_slug_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
+    try { await db.execute(sql.raw("ALTER TABLE `products` DROP INDEX `products_slug_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
+    try { await db.execute(sql.raw("ALTER TABLE `productTranslations` DROP INDEX `product_translations_product_locale_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
+    const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
+    await createIndex("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
+    await createIndex("CREATE INDEX `categories_store_order_idx` ON `categories` (`storeId`, `displayOrder`)");
+    await createIndex("CREATE UNIQUE INDEX `products_store_slug_unique` ON `products` (`storeId`, `slug`)");
+    await createIndex("CREATE INDEX `products_store_category_idx` ON `products` (`storeId`, `categoryId`)");
+    await createIndex("CREATE INDEX `products_store_supplier_idx` ON `products` (`storeId`, `supplier`, `supplierProductId`)");
+    await createIndex("CREATE UNIQUE INDEX `product_categories_store_product_category_unique` ON `productCategories` (`storeId`, `productId`, `categoryId`)");
+    await createIndex("CREATE INDEX `product_categories_store_product_idx` ON `productCategories` (`storeId`, `productId`)");
+    await createIndex("CREATE INDEX `product_images_store_product_order_idx` ON `productImages` (`storeId`, `productId`, `displayOrder`)");
+    await createIndex("CREATE UNIQUE INDEX `product_translations_store_product_locale_unique` ON `productTranslations` (`storeId`, `productId`, `locale`)");
+    await createIndex("CREATE INDEX `product_translations_store_product_idx` ON `productTranslations` (`storeId`, `productId`)");
+    await createIndex("CREATE INDEX `delivery_profiles_store_product_country_idx` ON `productDeliveryProfiles` (`storeId`, `productId`, `countryCode`)");
+  })();
+  return _storeCatalogScopeSchemaReady;
 }
 
 async function ensureStoreContentScopeSchema() {
@@ -519,9 +566,11 @@ async function ensureCreativeCatalogSeed() {
   if (_creativeCatalogSeedReady) return _creativeCatalogSeedReady;
 
   _creativeCatalogSeedReady = (async () => {
+    await ensureStoreCatalogScopeSchema();
     await ensureCatalogSectionSchema();
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
+    const primaryStoreId = await getPrimaryStoreId();
 
     const defaults = [
       { name: "T-shirts", slug: "t-shirts-creatifs", description: "Des motifs originaux à porter au quotidien.", icon: "👕", displayOrder: 101, catalogSection: "creations" as const },
@@ -532,9 +581,9 @@ async function ensureCreativeCatalogSeed() {
     ];
 
     for (const category of defaults) {
-      const existing = await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, category.slug)).limit(1);
+      const existing = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, primaryStoreId), eq(categories.slug, category.slug))).limit(1);
       if (existing.length === 0) {
-        await db.insert(categories).values(category);
+        await db.insert(categories).values({ ...category, storeId: primaryStoreId });
       }
     }
   })();
@@ -1162,30 +1211,31 @@ export async function repairOwnerAccount(input: {
 }
 
 // Categories queries
-export async function getAllCategories() {
+export async function getAllCategories(storeId?: number) {
   await ensureCreativeCatalogSeed();
   const db = await getDb();
   if (!db) return [];
-
-  return await db.select().from(categories).orderBy(asc(categories.displayOrder), asc(categories.name));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return await db.select().from(categories).where(eq(categories.storeId, effectiveStoreId)).orderBy(asc(categories.displayOrder), asc(categories.name));
 }
 
-export async function getCategoryBySlug(slug: string) {
+export async function getCategoryBySlug(slug: string, storeId?: number) {
   await ensureCreativeCatalogSeed();
   const db = await getDb();
   if (!db) return undefined;
-
-  const result = await db.select().from(categories).where(eq(categories.slug, slug)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const result = await db.select().from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.slug, slug))).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
 // Products queries
-export async function getProductDeliveryProfiles(productIds: number[]) {
+export async function getProductDeliveryProfiles(productIds: number[], storeId?: number) {
   if (productIds.length === 0) return [];
-  await ensureDeliveryProfileSchema();
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  return await db.select().from(productDeliveryProfiles).where(inArray(productDeliveryProfiles.productId, productIds));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return await db.select().from(productDeliveryProfiles).where(and(eq(productDeliveryProfiles.storeId, effectiveStoreId), inArray(productDeliveryProfiles.productId, productIds)));
 }
 
 export async function replaceProductDeliveryProfiles(productId: number, profiles: Array<{
@@ -1196,13 +1246,15 @@ export async function replaceProductDeliveryProfiles(productId: number, profiles
   deliveryMethod?: string | null;
   minDeliveryDays?: number | null;
   maxDeliveryDays?: number | null;
-}>) {
+}>, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await ensureDeliveryProfileSchema();
-  await db.delete(productDeliveryProfiles).where(eq(productDeliveryProfiles.productId, productId));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.delete(productDeliveryProfiles).where(and(eq(productDeliveryProfiles.storeId, effectiveStoreId), eq(productDeliveryProfiles.productId, productId)));
   if (profiles.length > 0) {
     await db.insert(productDeliveryProfiles).values(profiles.map(profile => ({
+      storeId: effectiveStoreId,
       productId,
       countryCode: profile.countryCode,
       supplierVariantId: profile.supplierVariantId ?? null,
@@ -1215,25 +1267,27 @@ export async function replaceProductDeliveryProfiles(productId: number, profiles
   }
   return { productId, count: profiles.length };
 }
-export async function getProductCategoryIds(productId: number) {
-  await ensureProductCategorySchema();
+export async function getProductCategoryIds(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  const rows = await db.select({ categoryId: productCategories.categoryId }).from(productCategories).where(eq(productCategories.productId, productId));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select({ categoryId: productCategories.categoryId }).from(productCategories).where(and(eq(productCategories.storeId, effectiveStoreId), eq(productCategories.productId, productId)));
   return rows.map(row => row.categoryId);
 }
 
-export async function replaceProductCategories(productId: number, categoryIds: number[]) {
-  await ensureProductCategorySchema();
+export async function replaceProductCategories(productId: number, categoryIds: number[], storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const uniqueCategoryIds = Array.from(new Set(categoryIds.filter(categoryId => Number.isInteger(categoryId) && categoryId > 0)));
   if (uniqueCategoryIds.length === 0) throw new Error("PRODUCT_CATEGORY_REQUIRED");
-  const validCategories = await db.select({ id: categories.id }).from(categories).where(inArray(categories.id, uniqueCategoryIds));
+  const validCategories = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), inArray(categories.id, uniqueCategoryIds)));
   if (validCategories.length !== uniqueCategoryIds.length) throw new Error("CATEGORY_NOT_FOUND");
-  await db.delete(productCategories).where(eq(productCategories.productId, productId));
-  await db.insert(productCategories).values(uniqueCategoryIds.map(categoryId => ({ productId, categoryId })));
-  await db.update(products).set({ categoryId: uniqueCategoryIds[0] }).where(eq(products.id, productId));
+  await db.delete(productCategories).where(and(eq(productCategories.storeId, effectiveStoreId), eq(productCategories.productId, productId)));
+  await db.insert(productCategories).values(uniqueCategoryIds.map(categoryId => ({ storeId: effectiveStoreId, productId, categoryId })));
+  await db.update(products).set({ categoryId: uniqueCategoryIds[0] }).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId)));
   return { productId, categoryIds: uniqueCategoryIds };
 }
 
@@ -1248,19 +1302,21 @@ export function isProductTranslationLocale(locale: string): locale is ProductTra
   return (PRODUCT_TRANSLATION_LOCALES as readonly string[]).includes(locale);
 }
 
-export async function getProductTranslations(productId: number) {
-  await ensureProductTranslationSchema();
+export async function getProductTranslations(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   return await db.select().from(productTranslations)
-    .where(eq(productTranslations.productId, productId))
+    .where(and(eq(productTranslations.storeId, effectiveStoreId), eq(productTranslations.productId, productId)))
     .orderBy(asc(productTranslations.locale));
 }
 
-export async function getProductTranslationOverview() {
-  await ensureProductTranslationSchema();
+export async function getProductTranslationOverview(storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
 
   const rows = await db.select({
     productId: products.id,
@@ -1271,7 +1327,8 @@ export async function getProductTranslationOverview() {
     translationStatus: productTranslations.status,
     translatedAt: productTranslations.translatedAt,
   }).from(products)
-    .leftJoin(productTranslations, eq(products.id, productTranslations.productId))
+    .leftJoin(productTranslations, and(eq(products.id, productTranslations.productId), eq(products.storeId, productTranslations.storeId)))
+    .where(eq(products.storeId, effectiveStoreId))
     .orderBy(desc(products.updatedAt));
 
   const grouped = new Map<number, {
@@ -1299,9 +1356,11 @@ export async function getProductTranslationOverview() {
   return Array.from(grouped.values());
 }
 
-export async function getProductTranslationSource(productId: number) {
+export async function getProductTranslationSource(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const result = await db.select({
     id: products.id,
     name: products.name,
@@ -1309,16 +1368,18 @@ export async function getProductTranslationSource(productId: number) {
     longDescription: products.longDescription,
     options: products.options,
     updatedAt: products.updatedAt,
-  }).from(products).where(eq(products.id, productId)).limit(1);
+  }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId))).limit(1);
   return result[0];
 }
 
-export async function getReadyProductTranslation(productId: number, locale: ProductTranslationLocale) {
-  await ensureProductTranslationSchema();
+export async function getReadyProductTranslation(productId: number, locale: ProductTranslationLocale, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const result = await db.select().from(productTranslations)
     .where(and(
+      eq(productTranslations.storeId, effectiveStoreId),
       eq(productTranslations.productId, productId),
       eq(productTranslations.locale, locale),
       eq(productTranslations.status, "ready"),
@@ -1336,12 +1397,15 @@ export async function saveProductTranslation(input: {
   options?: string | null;
   machineGenerated: boolean;
   sourceUpdatedAt: Date;
+  storeId?: number;
 }) {
-  await ensureProductTranslationSchema();
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
 
   await db.insert(productTranslations).values({
+    storeId: effectiveStoreId,
     productId: input.productId,
     locale: input.locale,
     name: input.name,
@@ -1365,14 +1429,15 @@ export async function saveProductTranslation(input: {
     },
   });
 
-  return await getReadyProductTranslation(input.productId, input.locale);
+  return await getReadyProductTranslation(input.productId, input.locale, effectiveStoreId);
 }
 
-export async function markProductTranslationsStale(productId: number) {
-  await ensureProductTranslationSchema();
+export async function markProductTranslationsStale(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(productTranslations).set({ status: "stale" }).where(eq(productTranslations.productId, productId));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await db.update(productTranslations).set({ status: "stale" }).where(and(eq(productTranslations.storeId, effectiveStoreId), eq(productTranslations.productId, productId)));
 }
 
 export const PUBLIC_CONTENT_TRANSLATION_LOCALES = ["de", "it", "en", "es", "nl", "ar"] as const;
@@ -1421,7 +1486,8 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
     return { title: banner.title, payload: { title: banner.title, subtitle: banner.subtitle ?? "" }, sourceUpdatedAt: new Date() };
   }
 
-  const rows = await db.select().from(categories).where(eq(categories.id, contentId)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const rows = await db.select().from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, contentId))).limit(1);
   const category = rows[0];
   if (!category) return undefined;
   return { title: category.name, payload: { name: category.name, description: category.description ?? "" }, sourceUpdatedAt: new Date() };
@@ -1454,7 +1520,7 @@ export async function getPublicContentTranslationOverview(storeId?: number) {
   const [design, allBanners, allCategories, translations] = await Promise.all([
     getPublicContentTranslationSource("design", 1, effectiveStoreId),
     getAllBanners(effectiveStoreId),
-    getAllCategories(),
+    getAllCategories(effectiveStoreId),
     (async () => { const db = await getDb(); return db ? db.select().from(publicContentTranslations).where(eq(publicContentTranslations.storeId, effectiveStoreId)) : []; })(),
   ]);
   const sources: Array<{ contentType: PublicContentType; contentId: number; title: string; fields: string[] }> = [];
@@ -1516,7 +1582,7 @@ export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTran
 }
 
 export async function getLocalizedCategories(locale: "fr" | PublicContentTranslationLocale, storeId?: number) {
-  const sourceCategories = await getAllCategories();
+  const sourceCategories = await getAllCategories(storeId);
   if (locale === "fr") return sourceCategories.map(category => ({ ...category, contentTranslationReady: true }));
   return await Promise.all(sourceCategories.map(async category => {
     const translation = await getPublicContentTranslation("category", category.id, locale, true, storeId);
@@ -1525,16 +1591,18 @@ export async function getLocalizedCategories(locale: "fr" | PublicContentTransla
 }
 
 export async function getLocalizedCategoryBySlug(slug: string, locale: "fr" | PublicContentTranslationLocale, storeId?: number) {
-  const category = await getCategoryBySlug(slug);
+  const category = await getCategoryBySlug(slug, storeId);
   if (!category) return category;
   if (locale === "fr") return { ...category, contentTranslationReady: true };
   const translation = await getPublicContentTranslation("category", category.id, locale, true, storeId);
   return translation ? { ...category, ...translation.payload, contentTranslationReady: true } : { ...category, contentTranslationReady: false };
 }
 
-export async function getAllProducts() {
+export async function getAllProducts(storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   
   const rows = await db.select({
     id: products.id,
@@ -1551,13 +1619,15 @@ export async function getAllProducts() {
     options: products.options,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
-  }).from(products).where(eq(products.status, "active"));
-  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
+  }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId));
 }
 
-export async function getFeaturedProducts(limit: number = 8) {
+export async function getFeaturedProducts(limit: number = 8, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   
   const { and } = await import("drizzle-orm");
   const rows = await db.select({
@@ -1576,16 +1646,17 @@ export async function getFeaturedProducts(limit: number = 8) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
-    .where(and(eq(products.featured, 1), eq(products.status, "active")))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.featured, 1), eq(products.status, "active")))
     .orderBy(desc(products.createdAt))
     .limit(limit);
-  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id)));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId));
 }
 
-export async function getProductsByCategory(categoryId: number) {
-  await ensureProductCategorySchema();
+export async function getProductsByCategory(categoryId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { and } = await import("drizzle-orm");
   const rows = await db.select({
     id: products.id,
@@ -1603,15 +1674,16 @@ export async function getProductsByCategory(categoryId: number) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
     }).from(products)
-    .where(eq(products.status, "active"));
-  const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id));
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
+  const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id), effectiveStoreId);
   const filteredRows = rows.filter(row => (categoryMap.get(row.id) || []).includes(categoryId));
-  return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id)));
+  return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id), effectiveStoreId));
 }
-export async function getProductBySlug(slug: string) {
-  await ensureCatalogSectionSchema();
+export async function getProductBySlug(slug: string, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   
   const { and } = await import("drizzle-orm");
   const result = await db.select({
@@ -1631,19 +1703,20 @@ export async function getProductBySlug(slug: string) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(eq(products.slug, slug), eq(products.status, "active")))
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.slug, slug), eq(products.status, "active")))
     .limit(1);
   if (result.length === 0) return undefined;
   const product = result[0];
-  const deliveryProfiles = await getProductDeliveryProfiles([product.id]);
+  const deliveryProfiles = await getProductDeliveryProfiles([product.id], effectiveStoreId);
   return { ...product, deliveryProfiles };
 }
 
-export async function getProductById(productId: number) {
-  await ensureCatalogSectionSchema();
+export async function getProductById(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
 
   const result = await db.select({
     id: products.id,
@@ -1662,21 +1735,21 @@ export async function getProductById(productId: number) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(eq(products.id, productId))
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId)))
     .limit(1);
   if (result.length === 0 || result[0].status !== "active") return undefined;
   const product = result[0];
-  return { ...product, deliveryProfiles: await getProductDeliveryProfiles([product.id]) };
+  return { ...product, deliveryProfiles: await getProductDeliveryProfiles([product.id], effectiveStoreId) };
 }
 
 // Product images queries
-export async function getProductImages(productId: number) {
+export async function getProductImages(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  
-  
-  return await db.select().from(productImages).where(eq(productImages.productId, productId)).orderBy(asc(productImages.displayOrder));
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  return await db.select().from(productImages).where(and(eq(productImages.storeId, effectiveStoreId), eq(productImages.productId, productId))).orderBy(asc(productImages.displayOrder));
 }
 
 // Reviews queries
@@ -1743,13 +1816,15 @@ export async function getProductReviewSummary(productId: number) {
 }
 
 // ---- Batched public-catalog helpers (avoid N+1 on storefront listings) ----
-export async function getProductImagesForProducts(ids: number[]) {
+export async function getProductImagesForProducts(ids: number[], storeId?: number) {
   const map = new Map<number, Array<typeof productImages.$inferSelect>>();
   if (ids.length === 0) return map;
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return map;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select().from(productImages)
-    .where(inArray(productImages.productId, ids))
+    .where(and(eq(productImages.storeId, effectiveStoreId), inArray(productImages.productId, ids)))
     .orderBy(asc(productImages.displayOrder));
   for (const row of rows) {
     if (!map.has(row.productId)) map.set(row.productId, []);
@@ -1782,14 +1857,16 @@ export async function getProductReviewsForProducts(ids: number[]) {
   return map;
 }
 
-export async function getReadyProductTranslationsForProducts(ids: number[], locale: ProductTranslationLocale) {
+export async function getReadyProductTranslationsForProducts(ids: number[], locale: ProductTranslationLocale, storeId?: number) {
   const map = new Map<number, typeof productTranslations.$inferSelect>();
   if (ids.length === 0) return map;
-  await ensureProductTranslationSchema();
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return map;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select().from(productTranslations)
     .where(and(
+      eq(productTranslations.storeId, effectiveStoreId),
       inArray(productTranslations.productId, ids),
       eq(productTranslations.locale, locale),
       eq(productTranslations.status, "ready"),
@@ -1798,14 +1875,15 @@ export async function getReadyProductTranslationsForProducts(ids: number[], loca
   return map;
 }
 
-export async function getProductCategoryIdsForProducts(ids: number[]) {
+export async function getProductCategoryIdsForProducts(ids: number[], storeId?: number) {
   const map = new Map<number, number[]>();
   if (ids.length === 0) return map;
-  await ensureProductCategorySchema();
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return map;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({ productId: productCategories.productId, categoryId: productCategories.categoryId })
-    .from(productCategories).where(inArray(productCategories.productId, ids));
+    .from(productCategories).where(and(eq(productCategories.storeId, effectiveStoreId), inArray(productCategories.productId, ids)));
   for (const row of rows) {
     if (!map.has(row.productId)) map.set(row.productId, []);
     map.get(row.productId)!.push(row.categoryId);
@@ -1985,15 +2063,17 @@ export type CjVariantSyncCandidate = { id: number; supplierProductId: string; st
  * Returns only draft or active CJ products explicitly chosen by an administrator
  * for a bounded variant refresh. Archived products stay immutable here.
  */
-export async function getCjVariantSyncCandidates(ids: number[]): Promise<CjVariantSyncCandidate[]> {
+export async function getCjVariantSyncCandidates(ids: number[], storeId?: number): Promise<CjVariantSyncCandidate[]> {
+  await ensureStoreCatalogScopeSchema();
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0))).slice(0, 10);
   if (!uniqueIds.length) return [];
   return await db.select({ id: products.id, supplierProductId: products.supplierProductId, status: products.status })
     .from(products)
-    .where(and(inArray(products.id, uniqueIds), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")))
+    .where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, uniqueIds), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")))
     .then(rows => rows.flatMap(row => row.supplierProductId && (row.status === "draft" || row.status === "active")
       ? [{ id: row.id, supplierProductId: row.supplierProductId, status: row.status }]
       : []));
@@ -2004,27 +2084,29 @@ export async function getCjVariantSyncCandidates(ids: number[]): Promise<CjVaria
  * for an explicitly selected active or draft product. It never changes prices,
  * stock, delivery profiles, publication state or supplier orders.
  */
-export async function updateCjVariantData(id: number, data: { options: string; supplierVariantMappings: string }) {
+export async function updateCjVariantData(id: number, data: { options: string; supplierVariantMappings: string }, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const result = await db.update(products).set({
     options: data.options,
     supplierVariantMappings: data.supplierVariantMappings,
     lastSyncedAt: new Date(),
-  }).where(and(eq(products.id, id), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")));
+  }).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id), inArray(products.status, ["draft", "active"]), eq(products.supplier, "CJdropshipping")));
   const affected = Number((result as any)?.[0]?.affectedRows ?? 0);
-  if (affected > 0) await markProductTranslationsStale(id);
+  if (affected > 0) await markProductTranslationsStale(id, effectiveStoreId);
   return affected > 0;
 }
 
-export async function getAllProductsAdmin() {
-  await ensureProductCategorySchema();
-  await ensureDeliveryProfileSchema();
+export async function getAllProductsAdmin(storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   await ensureSupplierWeightSchema();
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { products, categories } = await import("../drizzle/schema");
   
   
@@ -2052,14 +2134,15 @@ export async function getAllProductsAdmin() {
     lastSyncedAt: products.lastSyncedAt,
     createdAt: products.createdAt,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(eq(products.storeId, effectiveStoreId))
     .orderBy(desc(products.createdAt));
 
   return await Promise.all(rows.map(async (product) => ({
     ...product,
-    images: await getProductImages(product.id),
-    categoryIds: await getProductCategoryIds(product.id),
-    deliveryProfiles: await getProductDeliveryProfiles([product.id]),
+    images: await getProductImages(product.id, effectiveStoreId),
+    categoryIds: await getProductCategoryIds(product.id, effectiveStoreId),
+    deliveryProfiles: await getProductDeliveryProfiles([product.id], effectiveStoreId),
   })));
 }
 
@@ -2079,9 +2162,11 @@ export type OdooCatalogProduct = {
  * Returns the customer-facing catalogue data that can safely be exported to Odoo.
  * Supplier prices, supplier URLs and delivery quotes intentionally stay out of this payload.
  */
-export async function getProductsForOdooSync(): Promise<OdooCatalogProduct[]> {
+export async function getProductsForOdooSync(storeId?: number): Promise<OdooCatalogProduct[]> {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
 
   const rows = await db.select({
     id: products.id,
@@ -2093,26 +2178,32 @@ export async function getProductsForOdooSync(): Promise<OdooCatalogProduct[]> {
     status: products.status,
     categoryName: categories.name,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(eq(products.storeId, effectiveStoreId))
     .orderBy(asc(products.id));
 
   return await Promise.all(rows.map(async product => ({
     ...product,
-    images: await getProductImages(product.id),
+    images: await getProductImages(product.id, effectiveStoreId),
   })));
 }
 
-export async function getCatalogCategoriesForEditor() {
+export async function getCatalogCategoriesForEditor(storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   return await db.select({ id: categories.id, name: categories.name, catalogSection: categories.catalogSection })
     .from(categories)
+    .where(eq(categories.storeId, effectiveStoreId))
     .orderBy(asc(categories.displayOrder), asc(categories.name));
 }
 
-export async function getCatalogDraftsForEditor() {
+export async function getCatalogDraftsForEditor(storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return [];
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({
     id: products.id,
     name: products.name,
@@ -2126,10 +2217,10 @@ export async function getCatalogDraftsForEditor() {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(eq(products.status, "draft"))
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "draft")))
     .orderBy(desc(products.updatedAt));
-  return await Promise.all(rows.map(async product => ({ ...product, images: await getProductImages(product.id) })));
+  return await Promise.all(rows.map(async product => ({ ...product, images: await getProductImages(product.id, effectiveStoreId) })));
 }
 
 export async function createCatalogDraft(input: {
@@ -2140,7 +2231,7 @@ export async function createCatalogDraft(input: {
   longDescription?: string;
   options?: string;
   images?: string[];
-}) {
+}, storeId?: number) {
   return await createProduct({
     categoryId: input.categoryId,
     name: input.name.trim(),
@@ -2158,13 +2249,15 @@ export async function createCatalogDraft(input: {
     supplierProductId: null,
     supplierUrl: null,
     supplierPrice: null,
-  });
+  }, storeId);
 }
 
-async function ensureEditableCatalogDraft(id: number) {
+async function ensureEditableCatalogDraft(id: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.select({ status: products.status }).from(products).where(eq(products.id, id)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const result = await db.select({ status: products.status }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
   if (!result[0]) throw new Error("PRODUCT_NOT_FOUND");
   if (result[0].status !== "draft") throw new Error("PRODUCT_NOT_DRAFT");
 }
@@ -2177,14 +2270,14 @@ export async function updateCatalogDraft(id: number, input: {
   longDescription?: string;
   options?: string;
   images?: string[];
-}) {
-  await ensureEditableCatalogDraft(id);
-  return await updateProduct(id, input);
+}, storeId?: number) {
+  await ensureEditableCatalogDraft(id, storeId);
+  return await updateProduct(id, input, storeId);
 }
 
-export async function deleteCatalogDraft(id: number) {
-  await ensureEditableCatalogDraft(id);
-  return await deleteProduct(id);
+export async function deleteCatalogDraft(id: number, storeId?: number) {
+  await ensureEditableCatalogDraft(id, storeId);
+  return await deleteProduct(id, storeId);
 }
 
 const MAX_BULK_CATALOG_PRODUCTS = 100;
@@ -2195,140 +2288,152 @@ type BulkCatalogProductStatus = "active" | "draft" | "archived";
  * Les actions en lot s'appliquent aux trois statuts. Les opérations irréversibles
  * conservent toutefois leur garde-fou propre (suppression seulement après archivage).
  */
-async function ensureEditableCatalogProducts(ids: number[]) {
+async function ensureEditableCatalogProducts(ids: number[], storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const uniqueIds = Array.from(new Set(ids.filter(id => Number.isInteger(id) && id > 0)));
   if (uniqueIds.length === 0) throw new Error("PRODUCT_SELECTION_EMPTY");
   if (uniqueIds.length > MAX_BULK_CATALOG_PRODUCTS) throw new Error("PRODUCT_SELECTION_TOO_LARGE");
 
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({ id: products.id, name: products.name, status: products.status, price: products.price })
     .from(products)
-    .where(inArray(products.id, uniqueIds));
+    .where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, uniqueIds)));
   if (rows.length !== uniqueIds.length) throw new Error("PRODUCT_NOT_FOUND");
-  return { db, ids: uniqueIds, rows: rows as Array<{ id: number; name: string; status: BulkCatalogProductStatus; price: number }> };
+  return { db, ids: uniqueIds, storeId: effectiveStoreId, rows: rows as Array<{ id: number; name: string; status: BulkCatalogProductStatus; price: number }> };
 }
 
-async function ensureCatalogCategory(categoryId: number) {
+async function ensureCatalogCategory(categoryId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const category = await db.select({ id: categories.id }).from(categories).where(eq(categories.id, categoryId)).limit(1);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const category = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, categoryId))).limit(1);
   if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
 }
 
 /** Archive les brouillons ou produits actifs ; les éléments déjà archivés sont laissés intacts. */
-export async function archiveCatalogProductsBulk(ids: number[]) {
-  const { db, rows } = await ensureEditableCatalogProducts(ids);
+export async function archiveCatalogProductsBulk(ids: number[], storeId?: number) {
+  const { db, rows, storeId: effectiveStoreId } = await ensureEditableCatalogProducts(ids, storeId);
   const eligibleIds = rows.filter(product => product.status !== "archived").map(product => product.id);
   if (eligibleIds.length > 0) {
-    await db.update(products).set({ status: "archived" }).where(inArray(products.id, eligibleIds));
+    await db.update(products).set({ status: "archived" }).where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, eligibleIds)));
   }
   return { updated: eligibleIds.length, ids: eligibleIds };
 }
 
 /** Active ou réactive seulement les produits commercialement prêts. */
-export async function activateCatalogProductsBulk(ids: number[]) {
-  const { db, rows } = await ensureEditableCatalogProducts(ids);
+export async function activateCatalogProductsBulk(ids: number[], storeId?: number) {
+  const { db, rows, storeId: effectiveStoreId } = await ensureEditableCatalogProducts(ids, storeId);
   const eligibleRows = rows.filter(product => product.status !== "active");
   if (eligibleRows.length === 0) return { updated: 0, ids: [] as number[] };
 
-  await ensureDeliveryProfileSchema();
   const eligibleIds = eligibleRows.map(product => product.id);
   const profiles = await db.select({ productId: productDeliveryProfiles.productId })
     .from(productDeliveryProfiles)
-    .where(inArray(productDeliveryProfiles.productId, eligibleIds));
+    .where(and(eq(productDeliveryProfiles.storeId, effectiveStoreId), inArray(productDeliveryProfiles.productId, eligibleIds)));
   const productIdsWithDelivery = new Set(profiles.map(profile => profile.productId));
   const notReadyIds = eligibleRows
     .filter(product => product.price <= 0 || !productIdsWithDelivery.has(product.id))
     .map(product => product.id);
   if (notReadyIds.length > 0) throw new Error(`CATALOG_PRODUCT_NOT_READY_FOR_ACTIVATION:${notReadyIds.join(",")}`);
 
-  await db.update(products).set({ status: "active" }).where(inArray(products.id, eligibleIds));
+  await db.update(products).set({ status: "active" }).where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, eligibleIds)));
   return { updated: eligibleIds.length, ids: eligibleIds };
 }
 
 /** Modifie les attributs autorisés de brouillons, actifs ou archivés. */
-export async function updateCatalogProductsBulk(input: { ids: number[]; categoryId?: number; price?: number; stock?: number }) {
+export async function updateCatalogProductsBulk(input: { ids: number[]; categoryId?: number; price?: number; stock?: number }, storeId?: number) {
   const hasUpdate = input.categoryId != null || input.price != null || input.stock != null;
   if (!hasUpdate) throw new Error("BULK_UPDATE_EMPTY");
-  const { ids: selectedIds } = await ensureEditableCatalogProducts(input.ids);
-  if (input.categoryId != null) await ensureCatalogCategory(input.categoryId);
+  const { ids: selectedIds, storeId: effectiveStoreId } = await ensureEditableCatalogProducts(input.ids, storeId);
+  if (input.categoryId != null) await ensureCatalogCategory(input.categoryId, effectiveStoreId);
 
   for (const id of selectedIds) {
     await updateProduct(id, {
       ...(input.categoryId != null ? { categoryId: input.categoryId, categoryIds: [input.categoryId] } : {}),
       ...(input.price != null ? { price: input.price } : {}),
       ...(input.stock != null ? { stock: input.stock } : {}),
-    });
+    }, effectiveStoreId);
   }
   return { updated: selectedIds.length, ids: selectedIds };
 }
 
 /** Une suppression définitive nécessite un archivage préalable, même en lot. */
-export async function deleteCatalogArchivedProductsBulk(ids: number[]) {
-  const { rows } = await ensureEditableCatalogProducts(ids);
+export async function deleteCatalogArchivedProductsBulk(ids: number[], storeId?: number) {
+  const { rows, storeId: effectiveStoreId } = await ensureEditableCatalogProducts(ids, storeId);
   const nonArchivedIds = rows.filter(product => product.status !== "archived").map(product => product.id);
   if (nonArchivedIds.length > 0) throw new Error(`CATALOG_PRODUCT_MUST_BE_ARCHIVED:${nonArchivedIds.join(",")}`);
   const selectedIds = rows.map(product => product.id);
-  for (const id of selectedIds) await deleteProduct(id);
+  for (const id of selectedIds) await deleteProduct(id, effectiveStoreId);
   return { deleted: selectedIds.length, ids: selectedIds };
 }
 
-export async function countProductsBySupplierInCategory(supplier: string, categoryId: number) {
-  await ensureProductCategorySchema();
+export async function countProductsBySupplierInCategory(supplier: string, categoryId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return 0;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({ value: count() })
     .from(products)
-    .innerJoin(productCategories, eq(productCategories.productId, products.id))
-    .where(and(eq(products.supplier, supplier), eq(productCategories.categoryId, categoryId), ne(products.status, "archived")));
+    .innerJoin(productCategories, and(eq(productCategories.productId, products.id), eq(productCategories.storeId, products.storeId)))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.supplier, supplier), eq(productCategories.categoryId, categoryId), ne(products.status, "archived")));
   return Number(rows[0]?.value ?? 0);
 }
 
-export async function getProductBySupplierReference(supplier: string, supplierProductId: string) {
+export async function getProductBySupplierReference(supplier: string, supplierProductId: string, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({ id: products.id, name: products.name, slug: products.slug, status: products.status })
     .from(products)
-    .where(and(eq(products.supplier, supplier), eq(products.supplierProductId, supplierProductId)))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.supplier, supplier), eq(products.supplierProductId, supplierProductId)))
     .limit(1);
   return rows[0];
 }
 
-export async function createProduct(data: any) {
+export async function createProduct(data: any, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   await ensureSupplierWeightSchema();
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { products, productImages } = await import("../drizzle/schema");
-  
-  const { images, deliveryProfiles, categoryIds, ...productData } = data;
-  const result = await db.insert(products).values(productData);
-  const productId = (result as any)[0].insertId;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const { images, deliveryProfiles, categoryIds, storeId: _ignoredStoreId, ...productData } = data;
+  const category = await db.select({ id: categories.id }).from(categories)
+    .where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, productData.categoryId))).limit(1);
+  if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
+  const result = await db.insert(products).values({ ...productData, storeId: effectiveStoreId });
+  const productId = Number((result as any)[0].insertId);
 
   if (images && images.length > 0) {
     const imageValues = images.map((url: string, index: number) => ({
+      storeId: effectiveStoreId,
       productId,
       imageUrl: url,
       displayOrder: index,
     }));
     await db.insert(productImages).values(imageValues);
   }
-    if (deliveryProfiles && deliveryProfiles.length > 0) {
-    await replaceProductDeliveryProfiles(productId, deliveryProfiles);
+  if (deliveryProfiles && deliveryProfiles.length > 0) {
+    await replaceProductDeliveryProfiles(productId, deliveryProfiles, effectiveStoreId);
   }
   if (categoryIds && categoryIds.length > 0) {
-    await replaceProductCategories(productId, categoryIds);
+    await replaceProductCategories(productId, categoryIds, effectiveStoreId);
   }
   return { id: productId };
 }
 
-export async function getProductAdminStatusById(productId: number) {
+export async function getProductAdminStatusById(productId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select({ id: products.id, status: products.status, name: products.name })
     .from(products)
-    .where(eq(products.id, productId))
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId)))
     .limit(1);
   return rows[0];
 }
@@ -2346,16 +2451,18 @@ export type DraftSeoUpdate = {
  * This intentionally bypasses automatic translation: French source content is
  * reviewed first, then translations can be generated as a separate operation.
  */
-export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[]) {
+export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[], storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
 
   const uniqueUpdates = Array.from(new Map(updates.map(update => [update.id, update])).values());
   if (uniqueUpdates.length === 0) return { updated: 0, archived: 0, skipped: 0 };
 
   const existing = await db.select({ id: products.id, status: products.status })
     .from(products)
-    .where(inArray(products.id, uniqueUpdates.map(update => update.id)));
+    .where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, uniqueUpdates.map(update => update.id))));
   const statusById = new Map(existing.map(product => [product.id, product.status]));
 
   let updated = 0;
@@ -2367,7 +2474,7 @@ export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[]) {
       continue;
     }
     if (update.archive) {
-      await db.update(products).set({ status: "archived" }).where(and(eq(products.id, update.id), eq(products.status, "draft")));
+      await db.update(products).set({ status: "archived" }).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, update.id), eq(products.status, "draft")));
       archived += 1;
       continue;
     }
@@ -2379,7 +2486,7 @@ export async function applyDraftSeoUpdates(updates: DraftSeoUpdate[]) {
       name: update.name.trim(),
       description: update.description.trim(),
       longDescription: update.longDescription.trim(),
-    }).where(and(eq(products.id, update.id), eq(products.status, "draft")));
+    }).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, update.id), eq(products.status, "draft")));
     updated += 1;
   }
   return { updated, archived, skipped };
@@ -2398,9 +2505,11 @@ export type DraftCsvEditorialUpdate = {
  * atomically against the draft status to prevent an import from touching an
  * item that was activated or archived meanwhile.
  */
-export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUpdate[]) {
+export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUpdate[], storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Base de données non disponible");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
 
   const uniqueUpdates = Array.from(new Map(updates.map(update => [update.id, update])).values());
   if (uniqueUpdates.length === 0) {
@@ -2409,7 +2518,7 @@ export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUp
 
   const existing = await db.select({ id: products.id, status: products.status })
     .from(products)
-    .where(inArray(products.id, uniqueUpdates.map(update => update.id)));
+    .where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, uniqueUpdates.map(update => update.id))));
   const statusById = new Map(existing.map(product => [product.id, product.status]));
 
   let updated = 0;
@@ -2437,91 +2546,92 @@ export async function applyDraftCsvEditorialUpdates(updates: DraftCsvEditorialUp
       continue;
     }
 
-    await db.update(products).set(patch).where(and(eq(products.id, update.id), eq(products.status, "draft")));
-    await markProductTranslationsStale(update.id);
+    await db.update(products).set(patch).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, update.id), eq(products.status, "draft")));
+    await markProductTranslationsStale(update.id, effectiveStoreId);
     updated += 1;
   }
 
   return { updated, missing, skippedNotDraft, skippedEmpty };
 }
 
-export async function updateProduct(id: number, data: any) {
+export async function updateProduct(id: number, data: any, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   await ensureSupplierVariantMappingsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { products, productImages } = await import("../drizzle/schema");
-  
-  const { images, deliveryProfiles, categoryIds, id: _ignoredId, ...productData } = data;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const { images, deliveryProfiles, categoryIds, id: _ignoredId, storeId: _ignoredStoreId, ...productData } = data;
+  const product = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  if (productData.categoryId != null) {
+    const category = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, productData.categoryId))).limit(1);
+    if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
+  }
   const sourceTextChanged = ["name", "description", "longDescription", "options"].some(field => Object.prototype.hasOwnProperty.call(productData, field));
   if (Object.keys(productData).length > 0) {
-    await db.update(products).set(productData).where(eq(products.id, id));
+    await db.update(products).set(productData).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id)));
   }
-  if (sourceTextChanged) {
-    await markProductTranslationsStale(id);
-  }
+  if (sourceTextChanged) await markProductTranslationsStale(id, effectiveStoreId);
 
   if (images) {
-    await db.delete(productImages).where(eq(productImages.productId, id));
+    await db.delete(productImages).where(and(eq(productImages.storeId, effectiveStoreId), eq(productImages.productId, id)));
     if (images.length > 0) {
-      const imageValues = images.map((url: string, index: number) => ({
-        productId: id,
-        imageUrl: url,
-        displayOrder: index,
-      }));
+      const imageValues = images.map((url: string, index: number) => ({ storeId: effectiveStoreId, productId: id, imageUrl: url, displayOrder: index }));
       await db.insert(productImages).values(imageValues);
     }
-    }
-  if (deliveryProfiles) await replaceProductDeliveryProfiles(id, deliveryProfiles);
-  if (categoryIds) await replaceProductCategories(id, categoryIds);
-  return { success: true };
-}
-export async function deleteProduct(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const { products, productImages, productTranslations, productDeliveryProfiles, productCategories, reviews } = await import("../drizzle/schema");
-
-  await Promise.all([
-    db.delete(productImages).where(eq(productImages.productId, id)),
-    db.delete(productTranslations).where(eq(productTranslations.productId, id)),
-    db.delete(productDeliveryProfiles).where(eq(productDeliveryProfiles.productId, id)),
-    db.delete(productCategories).where(eq(productCategories.productId, id)),
-    db.delete(reviews).where(eq(reviews.productId, id)),
-    db.delete(products).where(eq(products.id, id)),
-  ]);
-
-  return { success: true };
-}
-
-export async function createCategory(data: any) {
-  await ensureCatalogSectionSchema();
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(categories).values(data);
-  return { id: (result as any)[0].insertId };
-}
-
-export async function updateCategory(id: number, data: any) {
-  await ensureCatalogSectionSchema();
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  await db.update(categories).set(data).where(eq(categories.id, id));
-  return { success: true };
-}
-
-export async function deleteCategory(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const { categories, products } = await import("../drizzle/schema");
-  
-  // Check if category has products
-  const productsInCategory = await db.select().from(products).where(eq(products.categoryId, id)).limit(1);
-  if (productsInCategory.length > 0) {
-    throw new Error("Cannot delete category with products");
   }
+  if (deliveryProfiles) await replaceProductDeliveryProfiles(id, deliveryProfiles, effectiveStoreId);
+  if (categoryIds) await replaceProductCategories(id, categoryIds, effectiveStoreId);
+  return { success: true };
+}
+export async function deleteProduct(id: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const product = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  await Promise.all([
+    db.delete(productImages).where(and(eq(productImages.storeId, effectiveStoreId), eq(productImages.productId, id))),
+    db.delete(productTranslations).where(and(eq(productTranslations.storeId, effectiveStoreId), eq(productTranslations.productId, id))),
+    db.delete(productDeliveryProfiles).where(and(eq(productDeliveryProfiles.storeId, effectiveStoreId), eq(productDeliveryProfiles.productId, id))),
+    db.delete(productCategories).where(and(eq(productCategories.storeId, effectiveStoreId), eq(productCategories.productId, id))),
+    db.delete(reviews).where(eq(reviews.productId, id)),
+    db.delete(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))),
+  ]);
+  return { success: true };
+}
 
-  await db.delete(categories).where(eq(categories.id, id));
+export async function createCategory(data: any, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const { storeId: _ignoredStoreId, ...categoryData } = data;
+  const result = await db.insert(categories).values({ ...categoryData, storeId: effectiveStoreId });
+  return { id: Number((result as any)[0].insertId) };
+}
+
+export async function updateCategory(id: number, data: any, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const { id: _ignoredId, storeId: _ignoredStoreId, ...categoryData } = data;
+  const result = await db.update(categories).set(categoryData).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, id)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("CATEGORY_NOT_FOUND");
+  return { success: true };
+}
+
+export async function deleteCategory(id: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const productsInCategory = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.categoryId, id))).limit(1);
+  if (productsInCategory.length > 0) throw new Error("Cannot delete category with products");
+  const result = await db.delete(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, id)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("CATEGORY_NOT_FOUND");
   return { success: true };
 }
 
@@ -2962,9 +3072,11 @@ export async function updateMessageStatus(id: number, status: any) {
 }
 
 // Shop Queries (Cart & Orders)
-export async function getCart(userId: number) {
+export async function getCart(userId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return null;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   
   
   // Get or create cart
@@ -2983,7 +3095,7 @@ export async function getCart(userId: number) {
     slug: products.slug,
   }).from(cartItems)
     .innerJoin(products, eq(cartItems.productId, products.id))
-    .where(eq(cartItems.cartId, cart[0].id));
+    .where(and(eq(cartItems.cartId, cart[0].id), eq(products.storeId, effectiveStoreId)));
 
   return {
     id: cart[0].id,
@@ -2991,15 +3103,16 @@ export async function getCart(userId: number) {
   };
 }
 
-export async function addToCart(userId: number, productId: number, quantity: number) {
+export async function addToCart(userId: number, productId: number, quantity: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { carts, cartItems } = await import("../drizzle/schema");
-  
-  const cart = await getCart(userId);
-  if (!cart) throw new Error("Cart not found");
-
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { and } = await import("drizzle-orm");
+  const product = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId), eq(products.status, "active"))).limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  const cart = await getCart(userId, effectiveStoreId);
+  if (!cart) throw new Error("Cart not found");
   const existingItem = await db.select().from(cartItems)
     .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)))
     .limit(1);
@@ -3019,15 +3132,16 @@ export async function addToCart(userId: number, productId: number, quantity: num
   return { success: true };
 }
 
-export async function updateCartItem(userId: number, productId: number, quantity: number) {
+export async function updateCartItem(userId: number, productId: number, quantity: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { carts, cartItems } = await import("../drizzle/schema");
-  
-  const cart = await getCart(userId);
-  if (!cart) throw new Error("Cart not found");
-
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { and } = await import("drizzle-orm");
+  const product = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId))).limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  const cart = await getCart(userId, effectiveStoreId);
+  if (!cart) throw new Error("Cart not found");
   if (quantity <= 0) {
     await db.delete(cartItems)
       .where(and(eq(cartItems.cartId, cart.id), eq(cartItems.productId, productId)));
@@ -3040,24 +3154,24 @@ export async function updateCartItem(userId: number, productId: number, quantity
   return { success: true };
 }
 
-export async function clearCart(userId: number) {
+export async function clearCart(userId: number, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { carts, cartItems } = await import("../drizzle/schema");
-  
-  const cart = await getCart(userId);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const cart = await getCart(userId, effectiveStoreId);
   if (!cart) return { success: true };
-
-  await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
+  const productIds = cart.items.map((item: any) => item.productId);
+  if (productIds.length > 0) await db.delete(cartItems).where(and(eq(cartItems.cartId, cart.id), inArray(cartItems.productId, productIds)));
   return { success: true };
 }
 
-export async function createOrder(userId: number, data: any) {
+export async function createOrder(userId: number, data: any, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const { orders, orderItems, products } = await import("../drizzle/schema");
-  
-  const cart = await getCart(userId);
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const cart = await getCart(userId, effectiveStoreId);
   if (!cart || cart.items.length === 0) throw new Error("Cart is empty");
 
   const subtotal = cart.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
@@ -3097,7 +3211,7 @@ export async function createOrder(userId: number, data: any) {
   }
   
   // Clear cart after order
-  await clearCart(userId);
+  await clearCart(userId, effectiveStoreId);
 
   return { id: orderId };
 }
@@ -3766,10 +3880,11 @@ export async function getYearToDatePaidSales(year: number): Promise<number> {
 }
 
 // --- Draft preview: fetch a product regardless of its status (admins only) ---
-export async function getProductForPreview(input: { id?: number; slug?: string }) {
-  await ensureCatalogSectionSchema();
+export async function getProductForPreview(input: { id?: number; slug?: string }, storeId?: number) {
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) return undefined;
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const condition = input.id != null ? eq(products.id, input.id) : input.slug ? eq(products.slug, input.slug) : null;
   if (!condition) return undefined;
   const result = await db.select({
@@ -3789,12 +3904,12 @@ export async function getProductForPreview(input: { id?: number; slug?: string }
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(condition)
+    .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+    .where(and(eq(products.storeId, effectiveStoreId), condition))
     .limit(1);
   if (result.length === 0) return undefined;
   const product = result[0];
-  const deliveryProfiles = await getProductDeliveryProfiles([product.id]);
+  const deliveryProfiles = await getProductDeliveryProfiles([product.id], effectiveStoreId);
   return { ...product, deliveryProfiles };
 }
 

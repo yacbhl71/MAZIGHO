@@ -153,10 +153,10 @@ const AUTO_TRANSLATE_LOCALES = ["de", "it", "en", "es", "nl", "ar"];
 // Fire-and-forget automatic translation on save. Never blocks or fails the
 // admin mutation: if the translation service (LLM) is unavailable, the content
 // is still saved and the error is only logged.
-function autoTranslateProduct(productId: number | undefined | null) {
+function autoTranslateProduct(productId: number | undefined | null, storeId?: number) {
   if (!productId) return;
   import("./productTranslation")
-    .then(m => m.translateProductFromFrench(productId, AUTO_TRANSLATE_LOCALES as any))
+    .then(m => m.translateProductFromFrench(productId, AUTO_TRANSLATE_LOCALES as any, storeId))
     .catch(err => console.error("[auto-translate:product]", productId, err instanceof Error ? err.message : err));
 }
 function autoTranslateContent(contentType: "design" | "banner" | "category", contentId: number | undefined | null, storeId?: number) {
@@ -324,32 +324,32 @@ export const adminRouter = router({
 
   // Products Management
   products: router({
-    getAll: catalogEditorProcedure.query(async () => {
-      return await db.getAllProductsAdmin();
+    getAll: catalogEditorProcedure.query(async ({ ctx }) => {
+      return await db.getAllProductsAdmin(ctx.store?.id);
     }),
     preview: catalogEditorProcedure.input(z.object({
       key: z.string().trim().min(1).max(220),
       locale: z.enum(["fr", "de", "it", "en", "es", "nl", "ar"]).default("fr"),
-    })).query(async ({ input }) => {
+    })).query(async ({ ctx, input }) => {
       const isId = /^\d+$/.test(input.key);
-      const product = await db.getProductForPreview(isId ? { id: Number(input.key) } : { slug: input.key });
+      const product = await db.getProductForPreview(isId ? { id: Number(input.key) } : { slug: input.key }, ctx.store?.id);
       if (!product) return null;
-      const translation = input.locale === "fr" ? null : await db.getReadyProductTranslation(product.id, input.locale);
+      const translation = input.locale === "fr" ? null : await db.getReadyProductTranslation(product.id, input.locale, ctx.store?.id);
       const localized = translation
         ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options }
         : product;
       const [images, reviews, averageRating] = await Promise.all([
-        db.getProductImages(product.id),
+        db.getProductImages(product.id, ctx.store?.id),
         db.getProductReviews(product.id),
         db.getAverageRating(product.id),
       ]);
       return { ...localized, images, reviews, averageRating };
     }),
-    getTranslations: catalogEditorProcedure.input(z.number().int().positive()).query(async ({ input }) => {
-      return await db.getProductTranslations(input);
+    getTranslations: catalogEditorProcedure.input(z.number().int().positive()).query(async ({ ctx, input }) => {
+      return await db.getProductTranslations(input, ctx.store?.id);
     }),
-    getTranslationOverview: catalogEditorProcedure.query(async () => {
-      return await db.getProductTranslationOverview();
+    getTranslationOverview: catalogEditorProcedure.query(async ({ ctx }) => {
+      return await db.getProductTranslationOverview(ctx.store?.id);
     }),
     applyDraftSeoBatch: catalogEditorProcedure.input(z.object({
       updates: z.array(z.object({
@@ -365,7 +365,7 @@ export const adminRouter = router({
         }
       })).min(1).max(20),
     })).mutation(async ({ ctx, input }) => {
-      const result = await db.applyDraftSeoUpdates(input.updates);
+      const result = await db.applyDraftSeoUpdates(input.updates, ctx.store?.id);
       logAudit(ctx, {
         action: "product.seo_batch_apply",
         entityType: "product",
@@ -397,7 +397,7 @@ export const adminRouter = router({
         description: update.description,
         longDescription: update.longDescription,
       }));
-      const result = await db.applyDraftCsvEditorialUpdates(updates);
+      const result = await db.applyDraftCsvEditorialUpdates(updates, ctx.store?.id);
       logAudit(ctx, {
         action: "product.draft_csv_import",
         entityType: "product",
@@ -410,7 +410,7 @@ export const adminRouter = router({
     syncCjDraftVariants: catalogEditorProcedure.input(z.object({
       productIds: z.array(z.number().int().positive()).min(1).max(10),
     })).mutation(async ({ ctx, input }) => {
-      const candidates = await db.getCjVariantSyncCandidates(input.productIds);
+      const candidates = await db.getCjVariantSyncCandidates(input.productIds, ctx.store?.id);
       let updated = 0;
       let noVariants = 0;
       let skipped = input.productIds.length - candidates.length;
@@ -441,7 +441,7 @@ export const adminRouter = router({
           const wrote = await db.updateCjVariantData(candidate.id, {
             options: variantData.options,
             supplierVariantMappings: variantData.mappings,
-          });
+          }, ctx.store?.id);
           if (wrote) updated += 1;
           else skipped += 1;
         } catch {
@@ -461,10 +461,10 @@ export const adminRouter = router({
     translate: catalogEditorProcedure.input(z.object({
       productId: z.number().int().positive(),
       locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
         const { translateProductFromFrench } = await import("./productTranslation");
-        return await translateProductFromFrench(input.productId, input.locales);
+        return await translateProductFromFrench(input.productId, input.locales, ctx.store?.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
         if (message.includes("Produit introuvable")) {
@@ -480,7 +480,7 @@ export const adminRouter = router({
       description: z.string().trim().max(10000).nullable().optional(),
       longDescription: z.string().trim().max(30000).nullable().optional(),
       options: z.string().trim().max(30000).nullable().optional(),
-    })).mutation(async ({ input }) => {
+    })).mutation(async ({ ctx, input }) => {
       try {
         const { saveManualProductTranslation } = await import("./productTranslation");
         return await saveManualProductTranslation({
@@ -488,6 +488,7 @@ export const adminRouter = router({
           description: input.description ?? null,
           longDescription: input.longDescription ?? null,
           options: input.options ?? null,
+          storeId: ctx.store?.id,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -518,9 +519,9 @@ export const adminRouter = router({
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ ctx, input }) => {
-      const createdProduct = await db.createProduct(input);
+      const createdProduct = await db.createProduct(input, ctx.store?.id);
       const newId = (createdProduct as any)?.id;
-      autoTranslateProduct(newId);
+      autoTranslateProduct(newId, ctx.store?.id);
       logAudit(ctx, { action: "product.create", entityType: "product", entityId: newId ?? null, summary: `Produit créé : « ${input.name} » (${(input.price / 100).toFixed(2)} CHF, ${input.status})` });
       return createdProduct;
     }),
@@ -545,9 +546,9 @@ export const adminRouter = router({
       categoryIds: z.array(z.number().int().positive()).min(1).max(20).optional(),
       deliveryProfiles: deliveryProfilesInput.optional(),
     })).mutation(async ({ ctx, input }) => {
-      const updatedProduct = await db.updateProduct(input.id, input);
-      autoTranslateProduct(input.id);
-      const name = input.name ?? (await db.getProductNameById(input.id)) ?? `#${input.id}`;
+      const updatedProduct = await db.updateProduct(input.id, input, ctx.store?.id);
+      autoTranslateProduct(input.id, ctx.store?.id);
+      const name = input.name ?? (await db.getProductNameById(input.id, ctx.store?.id)) ?? `#${input.id}`;
       const changes: string[] = [];
       if (input.price != null) changes.push(`prix ${(input.price / 100).toFixed(2)} CHF`);
       if (input.stock != null) changes.push(`stock ${input.stock}`);
@@ -558,8 +559,8 @@ export const adminRouter = router({
       return updatedProduct;
     }),
     delete: catalogEditorProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
-      const name = (await db.getProductNameById(input)) ?? `#${input}`;
-      const result = await db.deleteProduct(input);
+      const name = (await db.getProductNameById(input, ctx.store?.id)) ?? `#${input}`;
+      const result = await db.deleteProduct(input, ctx.store?.id);
       logAudit(ctx, { action: "product.delete", entityType: "product", entityId: input, summary: `Produit supprimé : « ${name} »` });
       return result;
     }),
@@ -567,7 +568,7 @@ export const adminRouter = router({
       categoryId: z.number().int().positive(),
       urls: z.array(z.string().trim().url()).min(1).max(50),
     })).mutation(async ({ ctx, input }) => {
-      const result = await db.bulkCreateAliExpressDrafts(input.categoryId, input.urls);
+      const result = await db.bulkCreateAliExpressDrafts(input.categoryId, input.urls, ctx.store?.id);
       logAudit(ctx, { action: "product.bulk_aliexpress_import", entityType: "product", entityId: null, summary: `${result.created} brouillon(s) AliExpress importé(s)`, metadata: { created: result.created, skipped: result.skipped.length } });
       return result;
     }),
@@ -575,7 +576,7 @@ export const adminRouter = router({
       ids: z.array(z.number().int().positive()).min(1).max(100),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await db.archiveCatalogProductsBulk(input.ids);
+        const result = await db.archiveCatalogProductsBulk(input.ids, ctx.store?.id);
         logAudit(ctx, { action: "product.bulk_archive", entityType: "product", entityId: null, summary: `${result.updated} produit(s) archivé(s)`, metadata: { productIds: result.ids } });
         return result;
       } catch {
@@ -586,7 +587,7 @@ export const adminRouter = router({
       ids: z.array(z.number().int().positive()).min(1).max(100),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await db.activateCatalogProductsBulk(input.ids);
+        const result = await db.activateCatalogProductsBulk(input.ids, ctx.store?.id);
         logAudit(ctx, { action: "product.bulk_activate", entityType: "product", entityId: null, summary: `${result.updated} produit(s) activé(s) ou réactivé(s)`, metadata: { productIds: result.ids } });
         return result;
       } catch (error) {
@@ -608,7 +609,7 @@ export const adminRouter = router({
       }
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await db.updateCatalogProductsBulk(input);
+        const result = await db.updateCatalogProductsBulk(input, ctx.store?.id);
         const changes = [input.categoryId != null ? "catégorie" : null, input.price != null ? "prix" : null, input.stock != null ? "stock" : null].filter(Boolean);
         logAudit(ctx, { action: "product.bulk_update", entityType: "product", entityId: null, summary: `${result.updated} produit(s) modifié(s) : ${changes.join(", ")}`, metadata: { productIds: result.ids, categoryId: input.categoryId, price: input.price, stock: input.stock } });
         return result;
@@ -620,7 +621,7 @@ export const adminRouter = router({
       ids: z.array(z.number().int().positive()).min(1).max(100),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await db.deleteCatalogArchivedProductsBulk(input.ids);
+        const result = await db.deleteCatalogArchivedProductsBulk(input.ids, ctx.store?.id);
         logAudit(ctx, { action: "product.bulk_delete_archived", entityType: "product", entityId: null, summary: `${result.deleted} produit(s) archivé(s) supprimé(s) définitivement`, metadata: { productIds: result.ids } });
         return result;
       } catch (error) {
@@ -640,8 +641,8 @@ export const adminRouter = router({
       }
       return await previewSupplierProduct(input.url);
     }),
-    importFromUrl: catalogEditorProcedure.input(importedProductInputSchema()).mutation(async ({ input }) => {
-      return await db.createProduct(normalizeImportedProduct(input));
+    importFromUrl: catalogEditorProcedure.input(importedProductInputSchema()).mutation(async ({ ctx, input }) => {
+      return await db.createProduct(normalizeImportedProduct(input), ctx.store?.id);
     }),
     importCjDraft: catalogEditorProcedure.input(z.object({
       categoryId: z.number().int().positive(),
@@ -675,7 +676,7 @@ export const adminRouter = router({
         });
       }),
     })).mutation(async ({ ctx, input }) => {
-      const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId);
+      const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId, ctx.store?.id);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: `Ce produit CJ est déjà enregistré dans MAZIGHO sous « ${existing.name} » (${existing.status === "draft" ? "brouillon" : existing.status}).` });
       }
@@ -700,7 +701,7 @@ export const adminRouter = router({
           maxDeliveryDays: profile.maxDeliveryDays ?? null,
         })),
         lastSyncedAt: new Date(),
-      });
+      }, ctx.store?.id);
       logAudit(ctx, { action: "product.import_cj", entityType: "product", entityId: (created as any)?.id ?? null, summary: `Brouillon CJ importé : « ${input.name} » (${(input.priceCents / 100).toFixed(2)} CHF)`, metadata: { supplierProductId: input.productId } });
       return created;
     }),
@@ -717,7 +718,7 @@ export const adminRouter = router({
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ ctx, input }) => {
-      const createdCategory = await db.createCategory(input);
+      const createdCategory = await db.createCategory(input, ctx.store?.id);
       autoTranslateContent("category", (createdCategory as any)?.id, ctx.store?.id);
       logAudit(ctx, { action: "category.create", entityType: "category", entityId: (createdCategory as any)?.id ?? null, summary: `Catégorie créée : « ${input.name} »` });
       return createdCategory;
@@ -732,16 +733,16 @@ export const adminRouter = router({
       displayOrder: z.number().optional(),
       catalogSection: z.enum(["standard", "creations"]).optional(),
     })).mutation(async ({ ctx, input }) => {
-      const category = await db.updateCategory(input.id, input);
+      const category = await db.updateCategory(input.id, input, ctx.store?.id);
       autoTranslateContent("category", input.id, ctx.store?.id);
       await db.markPublicContentTranslationsStale("category", input.id, ctx.store?.id);
-      const name = input.name ?? (await db.getCategoryNameById(input.id)) ?? `#${input.id}`;
+      const name = input.name ?? (await db.getCategoryNameById(input.id, ctx.store?.id)) ?? `#${input.id}`;
       logAudit(ctx, { action: "category.update", entityType: "category", entityId: input.id, summary: `Catégorie modifiée : « ${name} »` });
       return category;
     }),
     delete: catalogEditorProcedure.input(z.number()).mutation(async ({ ctx, input }) => {
-      const name = (await db.getCategoryNameById(input)) ?? `#${input}`;
-      const result = await db.deleteCategory(input);
+      const name = (await db.getCategoryNameById(input, ctx.store?.id)) ?? `#${input}`;
+      const result = await db.deleteCategory(input, ctx.store?.id);
       logAudit(ctx, { action: "category.delete", entityType: "category", entityId: input, summary: `Catégorie supprimée : « ${name} »` });
       return result;
     }),
@@ -1431,7 +1432,7 @@ export const adminRouter = router({
       }),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await importCjCustomDraftBatch(input);
+        const result = await importCjCustomDraftBatch(input, ctx.store?.id);
         logAudit(ctx, {
           action: "product.import_cj_custom",
           entityType: "category",
@@ -1476,7 +1477,7 @@ export const adminRouter = router({
       categorySlug: z.enum(["high-tech-gadgets", "maison-organisation", "beaute-bien-etre", "sport-fitness", "auto-accessoires", "mode", "mode-femme", "mode-homme", "mode-enfant"]),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const result = await importCjDraftBatchForCategory(input.categorySlug);
+        const result = await importCjDraftBatchForCategory(input.categorySlug, ctx.store?.id);
         logAudit(ctx, {
           action: "product.import_cj_batch",
           entityType: "category",
@@ -1503,7 +1504,7 @@ export const adminRouter = router({
     }),
     curateCjFashionDrafts: adminProcedure.mutation(async ({ ctx }) => {
       try {
-        const result = await curateCjFashionDrafts();
+        const result = await curateCjFashionDrafts(ctx.store?.id);
         logAudit(ctx, {
           action: "product.curate_cj_fashion_drafts",
           entityType: "product",

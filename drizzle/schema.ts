@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal } from "drizzle-orm/mysql-core";
+import { index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar, decimal } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -82,8 +82,9 @@ export type InsertAccountToken = typeof accountTokens.$inferInsert;
 // Categories table
 export const categories = mysqlTable("categories", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   name: varchar("name", { length: 100 }).notNull(),
-  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  slug: varchar("slug", { length: 100 }).notNull(),
   description: text("description"),
   imageUrl: varchar("imageUrl", { length: 500 }),
   icon: varchar("icon", { length: 20 }),
@@ -91,7 +92,10 @@ export const categories = mysqlTable("categories", {
   // Les catégories « creations » forment un univers client distinct des produits fournisseurs standards.
   catalogSection: mysqlEnum("catalogSection", ["standard", "creations"]).default("standard").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeSlugUnique: uniqueIndex("categories_store_slug_unique").on(table.storeId, table.slug),
+  storeOrderIndex: index("categories_store_order_idx").on(table.storeId, table.displayOrder),
+}));
 
 export type Category = typeof categories.$inferSelect;
 export type InsertCategory = typeof categories.$inferInsert;
@@ -99,9 +103,10 @@ export type InsertCategory = typeof categories.$inferInsert;
 // Products table
 export const products = mysqlTable("products", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   categoryId: int("categoryId").notNull(),
   name: varchar("name", { length: 200 }).notNull(),
-  slug: varchar("slug", { length: 200 }).notNull().unique(),
+  slug: varchar("slug", { length: 200 }).notNull(),
   description: text("description"),
   longDescription: text("longDescription"),
   price: int("price").notNull(), // Price in cents
@@ -120,7 +125,11 @@ export const products = mysqlTable("products", {
   lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeSlugUnique: uniqueIndex("products_store_slug_unique").on(table.storeId, table.slug),
+  storeCategoryIndex: index("products_store_category_idx").on(table.storeId, table.categoryId),
+  storeSupplierIndex: index("products_store_supplier_idx").on(table.storeId, table.supplier, table.supplierProductId),
+}));
 
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = typeof products.$inferInsert;
@@ -128,21 +137,28 @@ export type InsertProduct = typeof products.$inferInsert;
 // Additional category assignments; categoryId above remains the primary category.
 export const productCategories = mysqlTable("productCategories", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   categoryId: int("categoryId").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeProductCategoryUnique: uniqueIndex("product_categories_store_product_category_unique").on(table.storeId, table.productId, table.categoryId),
+  storeProductIndex: index("product_categories_store_product_idx").on(table.storeId, table.productId),
+}));
 export type ProductCategory = typeof productCategories.$inferSelect;
 export type InsertProductCategory = typeof productCategories.$inferInsert;
 
 // Product images table
 export const productImages = mysqlTable("productImages", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   imageUrl: varchar("imageUrl", { length: 500 }).notNull(),
   displayOrder: int("displayOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  storeProductOrderIndex: index("product_images_store_product_order_idx").on(table.storeId, table.productId, table.displayOrder),
+}));
 
 export type ProductImage = typeof productImages.$inferSelect;
 export type InsertProductImage = typeof productImages.$inferInsert;
@@ -150,6 +166,7 @@ export type InsertProductImage = typeof productImages.$inferInsert;
 // Customer-facing product translations. The French product record remains the administrator's source of truth.
 export const productTranslations = mysqlTable("productTranslations", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   locale: varchar("locale", { length: 10 }).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
@@ -161,7 +178,10 @@ export const productTranslations = mysqlTable("productTranslations", {
   sourceUpdatedAt: timestamp("sourceUpdatedAt").defaultNow().notNull(),
   translatedAt: timestamp("translatedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeProductLocaleUnique: uniqueIndex("product_translations_store_product_locale_unique").on(table.storeId, table.productId, table.locale),
+  storeProductIndex: index("product_translations_store_product_idx").on(table.storeId, table.productId),
+}));
 
 export type ProductTranslation = typeof productTranslations.$inferSelect;
 export type InsertProductTranslation = typeof productTranslations.$inferInsert;
@@ -188,6 +208,7 @@ export type InsertPublicContentTranslation = typeof publicContentTranslations.$i
 // Verified delivery profiles. One profile stores the supplier quote and the customer-facing charge for a product/variant/country.
 export const productDeliveryProfiles = mysqlTable("productDeliveryProfiles", {
   id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
   productId: int("productId").notNull(),
   countryCode: varchar("countryCode", { length: 2 }).notNull(),
   supplierVariantId: varchar("supplierVariantId", { length: 128 }),
@@ -199,7 +220,9 @@ export const productDeliveryProfiles = mysqlTable("productDeliveryProfiles", {
   quotedAt: timestamp("quotedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  storeProductCountryIndex: index("delivery_profiles_store_product_country_idx").on(table.storeId, table.productId, table.countryCode),
+}));
 
 export type ProductDeliveryProfile = typeof productDeliveryProfiles.$inferSelect;
 export type InsertProductDeliveryProfile = typeof productDeliveryProfiles.$inferInsert;

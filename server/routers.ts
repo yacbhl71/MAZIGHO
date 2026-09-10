@@ -21,13 +21,13 @@ function parsePublicProductLocale(value: unknown): PublicProductLocale {
 }
 
 // Enrich a public product list (images, reviews, localized text) with batched queries to avoid N+1.
-async function enrichPublicProducts(prods: any[], locale: PublicProductLocale) {
+async function enrichPublicProducts(prods: any[], locale: PublicProductLocale, storeId?: number) {
   const { getProductImagesForProducts, getProductReviewsForProducts, getReadyProductTranslationsForProducts } = await import("./db");
   const ids = prods.map((product: any) => product.id);
   const [imagesMap, reviewsMap, translationsMap] = await Promise.all([
-    getProductImagesForProducts(ids),
+    getProductImagesForProducts(ids, storeId),
     getProductReviewsForProducts(ids),
-    locale === "fr" ? Promise.resolve(new Map()) : getReadyProductTranslationsForProducts(ids, locale),
+    locale === "fr" ? Promise.resolve(new Map()) : getReadyProductTranslationsForProducts(ids, locale, storeId),
   ]);
   return prods.map((product: any) => {
     const translation = translationsMap.get(product.id);
@@ -120,21 +120,21 @@ export const appRouter = router({
       const { getLocalizedCategoryBySlug, getProductsByCategory } = await import("./db");
       const category = await getLocalizedCategoryBySlug(input.slug, input.locale, ctx.store?.id);
       if (!category) return { category: null, products: [] };
-      const prods = await getProductsByCategory(category.id);
-      const products = await enrichPublicProducts(prods, input.locale);
+      const prods = await getProductsByCategory(category.id, ctx.store?.id);
+      const products = await enrichPublicProducts(prods, input.locale, ctx.store?.id);
       return { category, products };
     }),
   }),
 
   // Products. A non-French storefront only receives products whose current translation is ready.
   products: router({
-    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+    getAll: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getAllProducts } = await import("./db");
-      return await enrichPublicProducts(await getAllProducts(), locale);
+      return await enrichPublicProducts(await getAllProducts(ctx.store?.id), locale, ctx.store?.id);
     }),
-    getFeatured: publicProcedure.input(parsePublicProductLocale).query(async ({ input: locale }) => {
+    getFeatured: publicProcedure.input(parsePublicProductLocale).query(async ({ ctx, input: locale }) => {
       const { getFeaturedProducts } = await import("./db");
-      return await enrichPublicProducts(await getFeaturedProducts(8), locale);
+      return await enrichPublicProducts(await getFeaturedProducts(8, ctx.store?.id), locale, ctx.store?.id);
     }),
     getByCategory: publicProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "categoryId" in val && typeof val.categoryId === "number") {
@@ -143,25 +143,25 @@ export const appRouter = router({
       // Compatible avec les appels français existants pendant le raccordement du contexte langue.
       if (typeof val === "number") return { categoryId: val, locale: "fr" as const };
       throw new Error("Invalid category ID");
-    }).query(async ({ input }) => {
+    }).query(async ({ ctx, input }) => {
       const { getProductsByCategory } = await import("./db");
-      const prods = await getProductsByCategory(input.categoryId);
-      return await enrichPublicProducts(prods, input.locale);
+      const prods = await getProductsByCategory(input.categoryId, ctx.store?.id);
+      return await enrichPublicProducts(prods, input.locale, ctx.store?.id);
     }),
     getById: publicProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "id" in val && typeof val.id === "number" && Number.isInteger(val.id) && val.id > 0) {
         return { id: val.id, locale: parsePublicProductLocale(val) };
       }
       throw new Error("Invalid product id");
-    }).query(async ({ input }) => {
+    }).query(async ({ ctx, input }) => {
       const { getProductById, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
-      const product = await getProductById(input.id);
+      const product = await getProductById(input.id, ctx.store?.id);
       if (!product) return null;
-      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
+      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale, ctx.store?.id);
       // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
-        getProductImages(product.id),
+        getProductImages(product.id, ctx.store?.id),
         getProductReviews(product.id),
         getAverageRating(product.id),
       ]);
@@ -174,15 +174,15 @@ export const appRouter = router({
       // Compatible avec les liens français existants pendant le raccordement du contexte langue.
       if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
-    }).query(async ({ input }) => {
+    }).query(async ({ ctx, input }) => {
       const { getProductBySlug, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
-      const product = await getProductBySlug(input.slug);
+      const product = await getProductBySlug(input.slug, ctx.store?.id);
       if (!product) return null;
-      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale);
+      const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale, ctx.store?.id);
       // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
       const [images, reviews, averageRating] = await Promise.all([
-        getProductImages(product.id),
+        getProductImages(product.id, ctx.store?.id),
         getProductReviews(product.id),
         getAverageRating(product.id),
       ]);
@@ -199,9 +199,9 @@ export const appRouter = router({
       if (!Number.isFinite(rating) || rating < 1 || rating > 5) throw new Error("Invalid rating");
       if (name.length < 2 || name.length > 120) throw new Error("Invalid name");
       return { productId, rating: Math.round(rating), name, comment: comment.slice(0, 1000) };
-    }).mutation(async ({ input }) => {
+    }).mutation(async ({ ctx, input }) => {
       const { createReview, getProductById } = await import("./db");
-      const product = await getProductById(input.productId);
+      const product = await getProductById(input.productId, ctx.store?.id);
       if (!product) throw new Error("Produit introuvable");
       await createReview({ productId: input.productId, authorName: input.name, rating: input.rating, comment: input.comment || null });
       return { success: true };

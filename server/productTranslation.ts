@@ -113,14 +113,14 @@ async function chooseTranslationModel() {
   }
 }
 
-export async function translateProductFromFrench(productId: number, requestedLocales: ProductTranslationLocale[]) {
+export async function translateProductFromFrench(productId: number, requestedLocales: ProductTranslationLocale[], storeId?: number) {
   const uniqueLocales = Array.from(new Set(requestedLocales)) as ProductTranslationLocale[];
   if (uniqueLocales.length === 0) throw new Error("Sélectionnez au moins une langue à traduire.");
   if (uniqueLocales.some(locale => !isProductTranslationLocale(locale))) {
     throw new Error("Une langue de traduction demandée n’est pas prise en charge.");
   }
 
-  const source = await getProductTranslationSource(productId);
+  const source = await getProductTranslationSource(productId, storeId);
   if (!source) throw new Error("Produit introuvable.");
 
   const model = await chooseTranslationModel();
@@ -189,18 +189,20 @@ export async function translateProductFromFrench(productId: number, requestedLoc
     productId,
     machineGenerated: true,
     sourceUpdatedAt: source.updatedAt,
+    storeId,
   })));
 
   return saved.filter((translation): translation is NonNullable<typeof translation> => Boolean(translation));
 }
 
-export async function saveManualProductTranslation(input: TranslationPayload & { productId: number }) {
-  const source = await getProductTranslationSource(input.productId);
+export async function saveManualProductTranslation(input: TranslationPayload & { productId: number; storeId?: number }) {
+  const source = await getProductTranslationSource(input.productId, input.storeId);
   if (!source) throw new Error("Produit introuvable.");
   return await saveProductTranslation({
     ...input,
     options: validatedOptions(source.options, input.options),
     machineGenerated: false,
     sourceUpdatedAt: source.updatedAt,
+    storeId: input.storeId,
   });
 }

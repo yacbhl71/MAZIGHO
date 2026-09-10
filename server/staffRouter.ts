@@ -23,26 +23,26 @@ function rethrowCatalogDraftError(error: unknown): never {
 
 export const staffRouter = router({
   catalog: router({
-    getCategories: catalogEditorProcedure.query(async () => await db.getCatalogCategoriesForEditor()),
-    getDrafts: catalogEditorProcedure.query(async () => await db.getCatalogDraftsForEditor()),
-    createDraft: catalogEditorProcedure.input(catalogDraftInput).mutation(async ({ input }) => {
+    getCategories: catalogEditorProcedure.query(async ({ ctx }) => await db.getCatalogCategoriesForEditor(ctx.store?.id)),
+    getDrafts: catalogEditorProcedure.query(async ({ ctx }) => await db.getCatalogDraftsForEditor(ctx.store?.id)),
+    createDraft: catalogEditorProcedure.input(catalogDraftInput).mutation(async ({ ctx, input }) => {
       try {
-        return await db.createCatalogDraft(input);
+        return await db.createCatalogDraft(input, ctx.store?.id);
       } catch (error) {
         return rethrowCatalogDraftError(error);
       }
     }),
-    updateDraft: catalogEditorProcedure.input(catalogDraftInput.partial().extend({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+    updateDraft: catalogEditorProcedure.input(catalogDraftInput.partial().extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const { id, ...draft } = input;
       try {
-        return await db.updateCatalogDraft(id, draft);
+        return await db.updateCatalogDraft(id, draft, ctx.store?.id);
       } catch (error) {
         return rethrowCatalogDraftError(error);
       }
     }),
-    deleteDraft: catalogEditorProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input }) => {
+    deleteDraft: catalogEditorProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.deleteCatalogDraft(input.id);
+        return await db.deleteCatalogDraft(input.id, ctx.store?.id);
       } catch (error) {
         return rethrowCatalogDraftError(error);
       }

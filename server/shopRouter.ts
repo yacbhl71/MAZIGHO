@@ -7,22 +7,22 @@ export const shopRouter = router({
   // Cart Management
   cart: router({
     get: protectedProcedure.query(async ({ ctx }) => {
-      return await db.getCart(ctx.user.id);
+      return await db.getCart(ctx.user.id, ctx.store?.id);
     }),
     addItem: protectedProcedure.input(z.object({
       productId: z.number(),
       quantity: z.number().min(1),
     })).mutation(async ({ ctx, input }) => {
-      return await db.addToCart(ctx.user.id, input.productId, input.quantity);
+      return await db.addToCart(ctx.user.id, input.productId, input.quantity, ctx.store?.id);
     }),
     updateItem: protectedProcedure.input(z.object({
       productId: z.number(),
       quantity: z.number().min(0),
     })).mutation(async ({ ctx, input }) => {
-      return await db.updateCartItem(ctx.user.id, input.productId, input.quantity);
+      return await db.updateCartItem(ctx.user.id, input.productId, input.quantity, ctx.store?.id);
     }),
     clear: protectedProcedure.mutation(async ({ ctx }) => {
-      return await db.clearCart(ctx.user.id);
+      return await db.clearCart(ctx.user.id, ctx.store?.id);
     }),
   }),
 
@@ -34,7 +34,7 @@ export const shopRouter = router({
     })).mutation(async ({ input, ctx }) => {
       let cartItems: db.PromotionCartItem[] | undefined;
       if (ctx.user) {
-        const cart = await db.getCart(ctx.user.id);
+        const cart = await db.getCart(ctx.user.id, ctx.store?.id);
         cartItems = (cart?.items ?? []).map((item: any) => ({ productId: item.productId, price: item.price, quantity: item.quantity }));
       }
       const result = await db.validatePromotion(input.code, input.orderAmount, { userId: ctx.user?.id, cartItems });
@@ -54,7 +54,7 @@ export const shopRouter = router({
       paymentMethod: z.string(),
       promoCode: z.string().optional(),
     })).mutation(async ({ ctx, input }) => {
-      return await db.createOrder(ctx.user.id, input);
+      return await db.createOrder(ctx.user.id, input, ctx.store?.id);
     }),
     getMyOrders: protectedProcedure.query(async ({ ctx }) => {
       return await db.getUserOrders(ctx.user.id);
