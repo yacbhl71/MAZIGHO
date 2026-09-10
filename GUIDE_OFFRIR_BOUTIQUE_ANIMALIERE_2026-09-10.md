@@ -182,3 +182,10 @@ La création d’une boutique offerte, l’accès propriétaire et l’ouverture
 Le parcours de brouillon puis de création en `setup` est identique pour une boutique bijoux ou vêtements. Une fois la boutique réellement créée, MAZIGHO Studio peut proposer un **kit de démonstration** correspondant à son univers. Il installe seulement une identité, trois catégories et une fiche non commerciale, après recopie du nom et confirmation explicite.
 
 Le kit ne peut être installé qu’une fois afin de ne pas écraser une personnalisation ultérieure. Comme pour la boutique animalière, il ne crée pas de domaine public, paiement, fournisseur, livraison, e-mail, commande ni activation. L’aperçu privé Studio permet ensuite de visualiser cette boutique tant qu’elle demeure en `setup`.
+
+
+### Suivre la préparation sans ouvrir la boutique
+
+Dans **`/admin/studio`**, le bloc **« Suivi privé de préparation »** permet de sélectionner une boutique offerte encore en `setup` et de voir l’état de ses bases : univers, identité, catalogue, devise, accès propriétaire et informations légales. Le bloc ne montre aucune coordonnée ni donnée commerciale ; il indique simplement ce qui est prêt, à compléter ou à vérifier.
+
+Cette lecture aide à organiser plusieurs boutiques de démonstration, par exemple animalier, bijoux et vêtements. Elle ne contrôle pas le domaine ou le DNS, ne remplace pas le prévol final d’activation et ne rend jamais une boutique publique.

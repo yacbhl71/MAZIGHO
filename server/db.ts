@@ -16,6 +16,7 @@ import { normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
+import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -837,6 +838,73 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
       featured: Boolean(product.featured),
       availability: "not_for_sale" as const,
     })),
+  };
+}
+
+export async function getStudioGiftStoreSetupReadiness(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_SETUP_READINESS");
+
+  const [settingRows, ownerRows, categoryRows, activeProductRows] = await Promise.all([
+    db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
+    db.select({ id: users.id }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId))
+      .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))).limit(1),
+    db.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
+    db.select({ total: count() }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+  ]);
+  const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select({ businessType: storeProvisioningDrafts.businessType, preferredCurrency: storeProvisioningDrafts.preferredCurrency })
+    .from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+
+  const ownDesignValue = settingsByKey.get("design_profile");
+  let brandName = "";
+  if (ownDesignValue) {
+    try { brandName = String((JSON.parse(ownDesignValue) as Record<string, unknown>).brandName || "").trim(); } catch { /* malformed profile remains not ready */ }
+  }
+  const ownLegalValue = settingsByKey.get("legal_profile");
+  let hasOwnLegalProfile = false;
+  if (ownLegalValue) {
+    try {
+      const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
+      const operatorName = String(legal.operatorName || "").trim();
+      const contactEmail = String(legal.contactEmail || "").trim();
+      hasOwnLegalProfile = operatorName.length >= 2
+        && contactEmail.includes("@")
+        && operatorName !== defaultLegalProfile.operatorName
+        && contactEmail !== defaultLegalProfile.contactEmail;
+    } catch { /* malformed legal profile remains a manual item */ }
+  }
+
+  return {
+    store: {
+      id: store.id,
+      displayName: store.displayName,
+      status: store.status,
+      currency: settingsByKey.get("store_currency_code") || draft.preferredCurrency,
+      businessType: draft.businessType,
+    },
+    readiness: buildStoreSetupReadiness({
+      status: store.status,
+      isGiftProvisioned: true,
+      businessType: draft.businessType,
+      hasActiveOwner: Boolean(ownerRows[0]),
+      hasOwnDesignProfile: Boolean(ownDesignValue),
+      brandName,
+      hasOwnLegalProfile,
+      categoryCount: Number(categoryRows[0]?.total ?? 0),
+      activeProductCount: Number(activeProductRows[0]?.total ?? 0),
+      hasCurrency: Boolean(settingsByKey.get("store_currency_code")),
+    }),
   };
 }
 

@@ -406,3 +406,23 @@ Les kits sont listés seulement pour les boutiques offertes, non plateforme, en 
 Les procédures `admin.studio.getGiftRetailDemoSetupCandidates` et `admin.studio.installGiftRetailDemoSetup` sont protégées par `platformProcedure`. L’inventaire de kits et leur installation sont donc refusés depuis une boutique cliente, comme le confirme le test de frontière Studio.
 
 > Un kit prépare uniquement des données locales de présentation. Il ne crée pas de boutique, n’utilise pas de domaine, ne modifie pas l’état `setup`, n’envoie pas d’e-mail et ne déclenche ni Stripe Test, ni Odoo, ni CJ, ni action fournisseur.
+
+
+---
+
+## Suivi privé de préparation — portefeuille de boutiques offertes
+
+**Statut :** prêt à publier. MAZIGHO Studio ajoute un suivi de préparation **en lecture seule** pour chaque boutique offerte encore en état `setup`, quel que soit l’univers pris en charge : animalier, bijoux ou vêtements.
+
+| Contrôle synthétisé | Donnée retournée | Limite appliquée |
+|---|---|---|
+| Boutique et origine | État `setup` et provenance « boutique offerte ». | N’expose ni domaine, ni propriétaire, ni brouillon source détaillé. |
+| Univers, identité et catalogue | État de préparation de l’univers, du profil visuel et de la base catalogue. | Ne retourne ni image, prix, stock, variante, fournisseur ou transport. |
+| Devise, accès et légal | États de présence de la devise, d’un propriétaire actif et des informations légales. | Ne retourne aucune coordonnée, adresse, e-mail, compte ou contenu légal. |
+| Ouverture publique | Rappel de contrôle manuel hors de ce module. | Aucun DNS, domaine, panier, paiement ou activation n’est évalué ou modifié. |
+
+La procédure `admin.studio.getGiftStoreSetupReadiness` est réservée à `platformProcedure`, comme les aperçus privés. Elle appelle un calculateur pur et retourne seulement des états `prêt`, `à compléter` ou `à vérifier`. Le suivi ne remplace pas le prévol d’activation animalier existant : il permet de piloter la préparation des trois univers sans étendre l’autorisation d’ouvrir une boutique publiquement.
+
+> Le choix d’une boutique dans le suivi ne produit aucun effet. La boutique demeure en `setup`, le storefront demeure fermé, et aucune action Stripe Test, Odoo, CJ, fournisseur, e-mail ou domaine n’est effectuée.
+
+Les tests dédiés garantissent notamment que `publicStorefront` reste toujours `false`, qu’un univers non pris en charge ne peut pas être considéré prêt pour l’aperçu et qu’un administrateur de boutique cliente est refusé par la frontière Studio.
