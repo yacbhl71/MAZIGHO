@@ -841,6 +841,82 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
   };
 }
 
+const studioGiftStoreTimelineLabels = {
+  "studio.gift_store.provision": {
+    title: "Boutique offerte préparée",
+    detail: "La boutique a été créée en préparation dans MAZIGHO Studio.",
+  },
+  "studio.gift_store.owner_handoff.prepare": {
+    title: "Accès propriétaire préparé",
+    detail: "Le parcours de propriété a été préparé sans exposer les coordonnées associées.",
+  },
+  "studio.gift_store.owner_handoff.reissue": {
+    title: "Accès propriétaire renouvelé",
+    detail: "Le parcours de propriété a été renouvelé sans exposer les coordonnées associées.",
+  },
+  "studio.gift_store.pet_demo.install": {
+    title: "Kit animalier installé",
+    detail: "L’identité et le catalogue de démonstration animalier ont été préparés.",
+  },
+  "studio.gift_store.retail_demo.install": {
+    title: "Kit de démonstration installé",
+    detail: "L’identité et le catalogue de démonstration ont été préparés pour cet univers.",
+  },
+  "studio.gift_store.legal_profile.copy_from_platform": {
+    title: "Profil légal isolé préparé",
+    detail: "Une fiche légale dédiée a été préparée sans afficher son contenu dans cet historique.",
+  },
+  "studio.gift_store.domain.update": {
+    title: "Domaine de boutique préparé",
+    detail: "Le domaine interne a été remplacé dans le registre de la boutique ; l’ouverture reste distincte.",
+  },
+  "studio.gift_store.activate": {
+    title: "Statut de boutique modifié",
+    detail: "Une modification de statut a été enregistrée dans le parcours Studio.",
+  },
+} as const;
+
+type StudioGiftStoreTimelineAction = keyof typeof studioGiftStoreTimelineLabels;
+
+/**
+ * Read-only, privacy-minimised timeline for a gift store in MAZIGHO Studio.
+ * It is deliberately limited to fixed, Studio-authored milestones and never
+ * exposes audit summaries, metadata, members, users, legal data, orders or integrations.
+ */
+export async function getStudioGiftStoreActivityTimeline(storeId: number) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  await ensureAuditLogSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("STORE_NOT_ELIGIBLE_FOR_PRIVATE_TIMELINE");
+
+  const settingRows = await db.select({ key: storeSettings.key, value: storeSettings.value })
+    .from(storeSettings)
+    .where(eq(storeSettings.storeId, store.id));
+  const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+
+  const actions = Object.keys(studioGiftStoreTimelineLabels) as StudioGiftStoreTimelineAction[];
+  const events = await db.select({ action: auditLogs.action, createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.storeId, store.id), inArray(auditLogs.action, actions)))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(20);
+
+  return {
+    privateTimeline: true as const,
+    store: { id: store.id, displayName: store.displayName, status: store.status },
+    events: events.flatMap(event => {
+      const activity = studioGiftStoreTimelineLabels[event.action as StudioGiftStoreTimelineAction];
+      return activity ? [{ action: event.action as StudioGiftStoreTimelineAction, title: activity.title, detail: activity.detail, occurredAt: event.createdAt }] : [];
+    }),
+  };
+}
+
 function normalizePublicStoreDomain(value: string) {
   const domain = value.trim().toLowerCase();
   if (!domain || domain.endsWith(".local") || domain.endsWith(".test") || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)) {

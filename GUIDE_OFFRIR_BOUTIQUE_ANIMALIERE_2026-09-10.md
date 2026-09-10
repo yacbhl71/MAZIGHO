@@ -203,3 +203,10 @@ Elle sert uniquement à vérifier la séparation des rôles. Le futur propriéta
 Lorsqu’un vrai domaine public est prêt dans Vercel, ouvrez la revue de préparation de la boutique dans Studio et utilisez **« Remplacer le domaine interne »**. Saisissez le nouveau domaine, recopiez le nom de la boutique et cochez la confirmation. Cette étape remplace uniquement l’adresse interne `.local` enregistrée au moment de la création.
 
 Avant de valider ce remplacement, attendez que Vercel reconnaisse le domaine et que le certificat HTTPS soit prêt. Le changement de domaine ne rend pas le site public : la boutique reste en `setup`, sans panier ou paiement, jusqu’à la confirmation d’activation distincte.
+
+
+### Consulter les jalons de préparation
+
+Dans **MAZIGHO Studio**, sélectionnez la boutique dans **« Suivi privé de préparation »**, puis consultez **« Historique privé de préparation »**. Cette vue affiche seulement les jalons Studio utiles — création, préparation de l’accès propriétaire, kit de démonstration, profil légal et domaine — avec leur date.
+
+Elle ne révèle aucun e-mail, acteur, détail juridique, client, commande, paiement, fournisseur ou métadonnée. Elle est informative uniquement : elle ne vérifie pas automatiquement le DNS, ne modifie aucun état et ne permet pas d’ouvrir une boutique.

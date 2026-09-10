@@ -309,6 +309,18 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getGiftStoreActivityTimeline: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioGiftStoreActivityTimeline(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_PRIVATE_TIMELINE", "STORE_NOT_GIFT_PROVISIONED"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Cet historique privé est réservé à une boutique offerte préparée dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     updateGiftStorePrimaryDomain: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

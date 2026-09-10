@@ -463,3 +463,20 @@ Cette page ne dispose d’aucune mutation et réutilise exclusivement les snapsh
 La mutation génère une trace d’audit non sensible contenant les anciens et nouveaux noms de domaine, sans donnée de client ou de secret. Elle ne rend pas le storefront public, ne touche pas au panier, à Stripe Test, Odoo, CJ, fournisseur, e-mail ou commande.
 
 > Le raccordement Vercel et le certificat HTTPS sont prérequis techniques distincts. Même après remplacement du domaine local, une boutique reste privée tant que l’opérateur ne confirme pas ultérieurement l’activation publique séparée.
+
+
+---
+
+## Historique privé de préparation d’une boutique offerte
+
+**Statut :** prêt à publier. MAZIGHO Studio dispose d’un historique de préparation en lecture seule par boutique offerte. Il est disponible via `admin.studio.getGiftStoreActivityTimeline` et est protégé par `platformProcedure`.
+
+| Élément | Règle appliquée |
+|---|---|
+| Éligibilité | Seules les boutiques non plateforme, issues du parcours « offerte », peuvent être consultées. |
+| Sources | L’historique ne retient que les jalons Studio explicitement reconnus : préparation, parcours propriétaire, kit, profil légal, domaine et éventuelle bascule de statut. |
+| Données retournées | Nom de la boutique, statut, type de jalon, libellé fixe, description fixe et date. |
+| Données exclues | Résumés bruts d’audit, métadonnées, acteur, utilisateur, e-mail, coordonnées légales, client, commande, prix, paiement, fournisseur et intégration. |
+| Effet | Lecture seule : aucun statut, domaine, accès, panier, paiement, e-mail, Stripe, Odoo, CJ ou fournisseur n’est modifié. |
+
+Les libellés affichés sont contrôlés par le code et ne reprennent jamais les textes bruts de journalisation. Cette règle évite qu’une donnée ajoutée à un audit ultérieur soit exposée automatiquement dans Studio.
