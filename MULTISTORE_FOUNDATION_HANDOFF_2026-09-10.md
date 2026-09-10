@@ -344,3 +344,14 @@ Le premier correctif empêchait l’échec si un ancien index global avait déj�
 Cette seconde correction ne modifie aucune donnée ; elle évite seulement qu’un rafraîchissement répété du panneau retente une création d’index déjà réalisée.
 
 ---
+
+## Kit de démonstration animalier pour une boutique offerte en setup
+
+Le parcours Studio inclut désormais un kit de démonstration uniquement pour une boutique offerte issue d’un brouillon `animalier` et encore en état `setup`. Avec une confirmation explicite du nom de boutique, il enregistre une identité propre à **Pattes & Compagnie**, les catégories **Chiens**, **Chats** et **Promenade**, ainsi qu’une fiche explicitement libellée comme démonstration. Le kit ne crée ni fournisseur, ni image, ni prix commercial, ni stock vendable, ni méthode de livraison, ni e-mail, ni paiement, ni commande CJ ou Odoo.
+
+L’installation du kit ne modifie jamais le statut `setup`. Les routes publiques, panier et checkout restent bloqués jusqu’aux prévols, au raccordement d’un domaine public et à la confirmation d’activation séparée.
+
+- Procédure : `admin.studio.installGiftPetDemoSetup`, réservée à `platformProcedure`.
+- Condition : boutique offerte animale en `setup`, liée à son brouillon Studio.
+- Suivi : audit `studio.gift_store.pet_demo.install`, sans secrets, liens, paiement ni action externe.
+

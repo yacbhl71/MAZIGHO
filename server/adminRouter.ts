@@ -297,6 +297,29 @@ export const adminRouter = router({
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
     getGiftStoreActivationPreflight: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreActivationPreflight(input.storeId)),
+    installGiftPetDemoSetup: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const installed = await db.installGiftPetDemoSetup(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.pet_demo.install",
+          entityType: "store",
+          entityId: installed.store.id,
+          summary: `Kit de démonstration animalier installé : ${installed.store.displayName}`,
+          metadata: { status: "setup", billing: "none", invitationsSent: 0, externalCalls: 0 },
+        });
+        return installed;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PET_SETUP_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
+        if (["STORE_NOT_ELIGIBLE_FOR_PET_SETUP", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir le kit animalier de démonstration." });
+        throw error;
+      }
+    }),
     activateGiftAnimalStore: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),
