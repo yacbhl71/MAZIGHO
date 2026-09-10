@@ -316,3 +316,15 @@ Deux contrôles restent **toujours manuels** : le raccordement effectif du domai
 > Le futur passage `setup → active` devra être une mutation séparée, atomique, réservée à MAZIGHO Studio, avec relecture du prévol, confirmation forte et audit. Il ne doit jamais être automatisé.
 
 ---
+
+## Étape 13 — mutation atomique d’activation publique, boutique offerte animalière
+
+**Statut :** prête à publier. MAZIGHO Studio dispose maintenant d’une mutation distincte `activateGiftAnimalStore`, réservée à la boutique plateforme. Elle n’est jamais appelée automatiquement ; elle ne devient accessible dans l’interface que lorsqu’un prévol local complet est affiché.
+
+La transaction relit les conditions au moment exact de l’activation : boutique non plateforme encore en `setup`, provenance cadeau, brouillon source `animalier`, propriétaire actif correspondant à l’e-mail confirmé, identité et légal propres, devise, catégorie et produit actif. Elle exige aussi la recopie du nom de boutique, la confirmation manuelle du domaine et une seconde confirmation d’ouverture. Le changement `setup → active` utilise une condition de statut dans la requête ; un conflit concurrent annule l’opération.
+
+Une trace non sensible `public_activation_record` est enregistrée avec l’horodatage et le fait que le domaine a été confirmé manuellement. Les données d’audit ne conservent pas le lien d’invitation ni l’e-mail recopié. Aucun paiement, abonnement, e-mail, produit, commande fournisseur, synchronisation Odoo ou appel de domaine externe n’est déclenché.
+
+> La confirmation DNS/Vercel reste volontairement humaine. La plateforme vérifie uniquement la cohérence locale et ne doit pas prétendre confirmer une résolution publique qu’elle n’a pas contrôlée.
+
+---

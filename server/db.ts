@@ -310,6 +310,81 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
   };
 }
 
+export async function activateGiftAnimalStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; activationAcknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
+    if (input.confirmationName.trim() !== store.displayName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
+    if (!input.domainVerified || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
+
+    const settingRows = await tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id));
+    const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+    const draftId = Number(settingsByKey.get("provisioning_draft_id"));
+    if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+    const [draft] = await tx.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+    if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+    if (draft.businessType !== "animalier") throw new Error("STORE_NOT_ANIMALIER");
+
+    const [ownerRows, categoryRows, activeProductRows] = await Promise.all([
+      tx.select({ id: users.id, email: users.email }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId)).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))),
+      tx.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
+      tx.select({ total: count() }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+    ]);
+    const expectedOwnerEmail = normaliseEmail(input.confirmationOwnerEmail);
+    if (!ownerRows.some(owner => owner.email && normaliseEmail(owner.email) === expectedOwnerEmail)) throw new Error("ACTIVATION_OWNER_CONFIRMATION_MISMATCH");
+
+    const ownDesignValue = settingsByKey.get("design_profile");
+    let brandName = "";
+    if (ownDesignValue) {
+      try { brandName = String((JSON.parse(ownDesignValue) as Record<string, unknown>).brandName || "").trim(); } catch { /* the preflight blocks invalid own profile */ }
+    }
+    const ownLegalValue = settingsByKey.get("legal_profile");
+    let hasOwnLegalProfile = false;
+    if (ownLegalValue) {
+      try {
+        const legal = JSON.parse(ownLegalValue) as Record<string, unknown>;
+        const companyName = String(legal.companyName || "").trim();
+        const supportEmail = String(legal.supportEmail || "").trim();
+        hasOwnLegalProfile = companyName.length >= 2 && supportEmail.includes("@") && !companyName.includes("à renseigner");
+      } catch { /* the preflight blocks invalid own legal profile */ }
+    }
+    const preflight = buildStoreActivationPreflight({
+      status: store.status,
+      isGiftProvisioned: true,
+      businessType: draft.businessType,
+      primaryDomain: store.primaryDomain,
+      hasActiveOwner: true,
+      hasOwnDesignProfile: Boolean(ownDesignValue),
+      brandName,
+      hasOwnLegalProfile,
+      categoryCount: Number(categoryRows[0]?.total ?? 0),
+      activeProductCount: Number(activeProductRows[0]?.total ?? 0),
+      hasCurrency: Boolean(settingsByKey.get("store_currency_code")),
+    });
+    if (!preflight.locallyReadyForManualActivation) throw new Error("ACTIVATION_PREFLIGHT_INCOMPLETE");
+
+    const now = new Date();
+    const activated = await tx.update(stores).set({ status: "active" }).where(and(eq(stores.id, store.id), eq(stores.status, "setup")));
+    const affectedRows = Number((activated as any)?.[0]?.affectedRows ?? (activated as any)?.affectedRows ?? 0);
+    if (affectedRows !== 1) throw new Error("STORE_ACTIVATION_CONFLICT");
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "public_activation_record",
+      value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true }),
+      description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio.",
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio." } });
+
+    return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: "active" as const }, activatedAt: now };
+  });
+}
+
 export async function reissueGiftStoreOwnerInvitation(input: { storeId: number; confirmationEmail: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();

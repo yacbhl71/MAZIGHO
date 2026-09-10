@@ -297,6 +297,33 @@ export const adminRouter = router({
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
     getGiftStoreActivationPreflight: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreActivationPreflight(input.storeId)),
+    activateGiftAnimalStore: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      confirmationOwnerEmail: z.string().trim().email().max(320),
+      domainVerified: z.literal(true),
+      activationAcknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const activated = await db.activateGiftAnimalStore(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.activate",
+          entityType: "store",
+          entityId: activated.store.id,
+          summary: `Boutique offerte animalière activée : ${activated.store.displayName}`,
+          metadata: { domain: activated.store.primaryDomain, status: "active", billing: "none", invitationsSent: 0 },
+        });
+        return activated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer l’activation." });
+        if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Le propriétaire actif ne correspond pas à l’e-mail confirmé." });
+        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les deux confirmations d’activation sont obligatoires." });
+        if (["STORE_NOT_ELIGIBLE_FOR_ACTIVATION", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER", "ACTIVATION_PREFLIGHT_INCOMPLETE", "STORE_ACTIVATION_CONFLICT"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les critères de sécurité de l’activation ne sont pas tous remplis." });
+        throw error;
+      }
+    }),
     getGiftStoreOwnerHandoff: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => db.getGiftStoreOwnerHandoffPreflight(input.storeId)),
     reissueGiftStoreOwnerInvitation: platformProcedure.input(z.object({ storeId: z.number().int().positive(), confirmationEmail: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
       try {
