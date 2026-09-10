@@ -957,9 +957,12 @@ async function ensureStoreCatalogScopeSchema() {
     await addAndBackfill("productTranslations", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productTranslations`.`productId` LIMIT 1)");
     await addAndBackfill("productDeliveryProfiles", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productDeliveryProfiles`.`productId` LIMIT 1)");
 
-    try { await db.execute(sql.raw("ALTER TABLE `categories` DROP INDEX `categories_slug_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
-    try { await db.execute(sql.raw("ALTER TABLE `products` DROP INDEX `products_slug_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
-    try { await db.execute(sql.raw("ALTER TABLE `productTranslations` DROP INDEX `product_translations_product_locale_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
+    // TiDB does not always include an English "doesn't exist" marker in a failed
+    // DROP INDEX error. Use the database-level idempotent syntax instead of relying
+    // on fragile text matching, so already-migrated installations keep serving.
+    await db.execute(sql.raw("ALTER TABLE `categories` DROP INDEX IF EXISTS `categories_slug_unique`"));
+    await db.execute(sql.raw("ALTER TABLE `products` DROP INDEX IF EXISTS `products_slug_unique`"));
+    await db.execute(sql.raw("ALTER TABLE `productTranslations` DROP INDEX IF EXISTS `product_translations_product_locale_unique`"));
     const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
     await createIndex("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
     await createIndex("CREATE INDEX `categories_store_order_idx` ON `categories` (`storeId`, `displayOrder`)");

@@ -328,3 +328,11 @@ Une trace non sensible `public_activation_record` est enregistrée avec l’horo
 > La confirmation DNS/Vercel reste volontairement humaine. La plateforme vérifie uniquement la cohérence locale et ne doit pas prétendre confirmer une résolution publique qu’elle n’a pas contrôlée.
 
 ---
+
+## Correctif urgent — index global de catégories absent
+
+Une installation déjà migrée pouvait ne plus posséder l’index historique `categories_slug_unique`. Le bootstrap runtime tentait encore de le supprimer avec une instruction non idempotente, ce qui bloquait toutes les lectures catalogue avant même l’affichage des produits.
+
+Le correctif utilise désormais `DROP INDEX IF EXISTS` pour les anciens index globaux des catégories, produits et traductions. Il ne modifie aucune ligne de catégorie, aucun produit, aucune commande ni aucun réglage : les index composés par boutique existants restent la structure cible. Cette précaution doit être conservée dans toute reprise ou migration multi-boutique future.
+
+---
