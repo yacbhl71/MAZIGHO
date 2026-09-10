@@ -305,9 +305,9 @@ export default function AdminStudio() {
             </Button>
           </div>
 
-          {inventoryQuery.isLoading ? (
+          {inventoryQuery.isLoading && !inventory ? (
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl bg-slate-100" />)}</div>
-          ) : inventoryQuery.isError ? (
+          ) : inventoryQuery.isError && !inventory ? (
             <div className="mt-6 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /><p>Les indicateurs Studio ne sont pas disponibles pour le moment. Le panneau quotidien de MAZIGHO reste inchangé ; vous pouvez réessayer cette lecture sans modifier aucune donnée.</p></div>
           ) : (
             <>
