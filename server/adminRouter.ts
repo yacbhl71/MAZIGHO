@@ -351,6 +351,45 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerNavigationDraft: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerNavigationDraft(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "La navigation privée est réservée à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
+    saveOwnerNavigationDraft: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      items: z.array(z.object({
+        pageId: z.enum(["home", "about", "faq", "contact", "lookbook"]),
+        label: z.string().trim().min(2).max(40),
+        visible: z.boolean(),
+      })).length(5),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerNavigationDraft(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_navigation.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: "Navigation privée du créateur enregistrée",
+          metadata: { status: "setup", publicStorefront: false, publicationExecuted: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "La navigation privée est réservée à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     getOwnerPageDrafts: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerPageDrafts(input.storeId);

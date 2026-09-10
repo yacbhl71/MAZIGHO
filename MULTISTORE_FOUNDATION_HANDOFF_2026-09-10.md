@@ -563,3 +563,11 @@ Le téléversement et la sauvegarde restent protégés par `platformProcedure`. 
 MAZIGHO Studio comprend une checklist visuelle par boutique offerte en `setup`. Elle calcule des états réels et minimisés pour l’identité sauvegardée, les pages de présentation enregistrées, les images de couverture éventuellement préparées, le catalogue de démonstration et le domaine renseigné. Chaque carte fournit uniquement un lien vers son étape Studio correspondante ; aucune carte ne modifie une donnée.
 
 Le snapshot de checklist ne retourne ni domaine en clair, contenu des pages, URL de médias, coordonnées de propriétaire, profil légal détaillé, commandes, clients ou secrets. Il est protégé par `platformProcedure` et refuse les administrateurs de boutiques clientes. L’étape **Ouverture publique** reste volontairement manuelle : la checklist ne vérifie ni DNS, ni certificat, ni paiement, ni panier, ni activation.
+
+---
+
+## Navigation privée de la boutique en préparation
+
+Le créateur Studio comprend un atelier de navigation privé. Il organise un menu limité à **Accueil**, **À propos**, **FAQ**, **Contact** et **Inspiration**. L’accueil reste toujours présent et en première position ; les autres entrées peuvent être renommées, affichées, masquées et ordonnées uniquement lorsqu’elles font partie de la structure de pages préparée dans le créateur.
+
+Le réglage `owner_navigation_draft` ne stocke que l’identifiant fermé de la page, un libellé court et sa visibilité. Il ne contient ni URL libre, ni lien externe, ni action de panier, paiement ou publication. Il est lu et sauvegardé uniquement par `platformProcedure` pour une boutique offerte en `setup`; son rendu actuel est strictement un aperçu privé Studio.

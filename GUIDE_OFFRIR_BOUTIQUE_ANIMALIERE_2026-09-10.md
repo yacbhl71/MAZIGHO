@@ -248,3 +248,9 @@ Cette image n’est pas publiée sur le domaine de la boutique tant que celle-ci
 Depuis le **panneau propriétaire — simulation**, ouvrez **Suivi de préparation**. Cette page indique les étapes déjà sauvegardées — identité, pages, médias, catalogue et domaine — puis propose un lien vers l’atelier correspondant. Elle est utile pour reprendre la préparation sans chercher dans les différents écrans Studio.
 
 La checklist ne met rien en ligne. Sa dernière carte rappelle que l’ouverture publique, le contrôle DNS, le certificat, le panier et le paiement restent des décisions distinctes à confirmer ultérieurement.
+
+### Organiser le menu privé
+
+Dans le créateur de boutique, choisissez **Organiser le menu**. Vous pouvez renommer les entrées de page, masquer celles qui ne doivent pas apparaître et changer l’ordre des pages. La page **Accueil** reste toujours présente afin que le futur menu conserve un point de départ clair.
+
+Le menu n’accepte pas de lien externe et reste visible uniquement dans son aperçu privé Studio. Il ne change pas la navigation publique, le domaine, le panier ou le paiement tant que la boutique reste en `setup`.

@@ -18,6 +18,7 @@ import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLau
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
 import { buildStorePreparationChecklist } from "./services/storePreparationChecklist";
+import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./services/storeNavigationDraft";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1159,6 +1160,41 @@ export async function getStudioGiftStorePreparationChecklist(storeId: number) {
   };
 }
 
+/**
+ * Private navigation draft for a future offered-store owner. It is separate
+ * from public navigation and contains no URL, menu action or publication flag.
+ */
+export async function getStudioOwnerNavigationDraft(storeId: number) {
+  const pageDrafts = await getStudioOwnerPageDrafts(storeId);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [stored] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_navigation_draft")))
+    .limit(1);
+  let savedNavigation: unknown = null;
+  try {
+    savedNavigation = stored?.value ? JSON.parse(stored.value) : null;
+  } catch {
+    savedNavigation = null;
+  }
+  return {
+    privateNavigation: true as const,
+    publicStorefront: false as const,
+    hasSavedNavigation: Boolean(stored?.value),
+    store: pageDrafts.store,
+    activePageIds: pageDrafts.activePageIds,
+    items: normalizeStudioNavigationDraft(savedNavigation, pageDrafts.activePageIds),
+  };
+}
+
+export async function saveStudioOwnerNavigationDraft(input: { storeId: number; items: StudioNavigationItem[] }) {
+  const snapshot = await getStudioOwnerNavigationDraft(input.storeId);
+  const pageDrafts = await getStudioOwnerPageDrafts(input.storeId);
+  const items = normalizeStudioNavigationDraft(input.items, pageDrafts.activePageIds);
+  await setStoreSettingValue(input.storeId, "owner_navigation_draft", JSON.stringify(items), "Navigation privée du créateur de boutique ; sans publication automatique");
+  return { privateNavigation: true as const, publicStorefront: false as const, store: snapshot.store, items, hasSavedNavigation: true as const };
+}
+
 const studioGiftStoreTimelineLabels = {
   "studio.gift_store.provision": {
     title: "Boutique offerte préparée",
@@ -1199,6 +1235,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.owner_page_image.upload": {
     title: "Image de couverture préparée",
     detail: "Un média de page a été préparé dans l’espace privé, sans publication publique.",
+  },
+  "studio.gift_store.owner_navigation.save": {
+    title: "Navigation privée enregistrée",
+    detail: "La structure de navigation a été préparée dans l’espace privé, sans publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",
