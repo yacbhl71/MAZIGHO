@@ -336,3 +336,11 @@ Une installation déjà migrée pouvait ne plus posséder l’index historique `
 Le correctif utilise désormais `DROP INDEX IF EXISTS` pour les anciens index globaux des catégories, produits et traductions. Il ne modifie aucune ligne de catégorie, aucun produit, aucune commande ni aucun réglage : les index composés par boutique existants restent la structure cible. Cette précaution doit être conservée dans toute reprise ou migration multi-boutique future.
 
 ---
+
+### Stabilisation complémentaire
+
+Le premier correctif empêchait l’échec si un ancien index global avait déjà disparu. Les captures suivantes ont montré un second cas : après cette suppression, une requête serverless pouvait tenter de recréer l’index composé déjà présent. Le bootstrap catalogue transforme maintenant toutes ses créations d’index en `CREATE INDEX IF NOT EXISTS` ou `CREATE UNIQUE INDEX IF NOT EXISTS`.
+
+Cette seconde correction ne modifie aucune donnée ; elle évite seulement qu’un rafraîchissement répété du panneau retente une création d’index déjà réalisée.
+
+---

@@ -963,7 +963,12 @@ async function ensureStoreCatalogScopeSchema() {
     await db.execute(sql.raw("ALTER TABLE `categories` DROP INDEX IF EXISTS `categories_slug_unique`"));
     await db.execute(sql.raw("ALTER TABLE `products` DROP INDEX IF EXISTS `products_slug_unique`"));
     await db.execute(sql.raw("ALTER TABLE `productTranslations` DROP INDEX IF EXISTS `product_translations_product_locale_unique`"));
-    const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
+    const createIndex = async (statement: string) => {
+      // Keep repeated serverless requests safe even when TiDB returns a
+      // locale-specific duplicate-index message that cannot be matched reliably.
+      const idempotentStatement = statement.replace(/^CREATE (UNIQUE )?INDEX /, (_match, uniquePrefix?: string) => `CREATE ${uniquePrefix || ""}INDEX IF NOT EXISTS `);
+      await db.execute(sql.raw(idempotentStatement));
+    };
     await createIndex("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
     await createIndex("CREATE INDEX `categories_store_order_idx` ON `categories` (`storeId`, `displayOrder`)");
     await createIndex("CREATE UNIQUE INDEX `products_store_slug_unique` ON `products` (`storeId`, `slug`)");
