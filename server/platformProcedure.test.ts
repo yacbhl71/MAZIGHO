@@ -45,6 +45,7 @@ describe("MAZIGHO Studio platform guard", () => {
       businessType: "autre",
       preferredCurrency: "CHF",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getLaunchPreflight({ draftId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuses technical platform controls from a non-administrator", async () => {

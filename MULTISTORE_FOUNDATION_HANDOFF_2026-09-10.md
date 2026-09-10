@@ -232,3 +232,23 @@ Le statut `ready_for_confirmation` de la revue signifie seulement que les donné
 Les tests `storeProvisioningReview.test.ts` couvrent une préparation locale complète, les données incomplètes et un conflit entre deux brouillons. Aucune requête réseau ni vérification auprès d’un registrar n’est réalisée par cette étape.
 
 ---
+
+## Étape 9 — prévol de lancement d’une boutique offerte
+
+**Statut :** prête à publier. MAZIGHO Studio permet désormais de sélectionner un brouillon et d’afficher un **prévol de boutique offerte**. Ce prévol est une lecture interne protégée ; il ne crée aucune boutique.
+
+| Élément contrôlé localement | Résultat du prévol | Limite appliquée |
+|---|---|---|
+| Brouillon | Réutilise sa revue locale et son univers métier | Ne modifie pas son statut et ne copie aucun contenu. |
+| Slug | Propose un slug normalisé et cherche un conflit dans `stores` | N’insère pas de boutique dans le registre. |
+| Domaine | Cherche uniquement un domaine déjà utilisé dans le registre MAZIGHO | Ne vérifie pas la disponibilité publique, DNS ou registrar. |
+| Bénéficiaire | Indique si l’e-mail correspond déjà à un compte local | Ne crée pas de compte, membership, token ou invitation. |
+| Offre | Affiche un lancement prévu en mode « boutique offerte », état futur `setup`, sans facturation | Aucun abonnement, licence, prélèvement ou paiement n’est configuré. |
+
+Le prévol conserve toujours deux contrôles comme **en attente** : la disponibilité/raccordement réel du domaine et la confirmation explicite de lancement. Même un prévol sans conflit local ne peut donc pas créer une boutique, attribuer un propriétaire ni envoyer une invitation.
+
+Les tests `storeLaunchPreflight.test.ts` couvrent le cas d’une offre localement cohérente, les collisions de slug et de domaine, ainsi que la normalisation du slug. La garde `platformProcedure` bloque aussi la lecture de prévol depuis une boutique cliente.
+
+> Lorsque vous souhaiterez effectivement offrir une première boutique, il faudra fournir ou vérifier le nom de la boutique, le domaine, le nom et l’e-mail du bénéficiaire, puis confirmer explicitement la création. Cette action future devra utiliser une transaction atomique, créer la boutique en état `setup`, attacher le propriétaire ou préparer une invitation séparée, sans activer de facturation.
+
+---

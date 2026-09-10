@@ -14,6 +14,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
+import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -97,6 +98,43 @@ export async function getStudioProvisioningDraftReviews() {
     ...draft,
     review: reviewStoreProvisioningDraft(draft, domainCounts.get(draft.requestedDomain.trim().toLowerCase()) ?? 0),
   }));
+}
+
+export async function getStudioStoreLaunchPreflight(draftId: number) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
+  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+  if (draft.status === "archived") throw new Error("PROVISIONING_DRAFT_ARCHIVED");
+
+  const allDrafts = await getStudioProvisioningDrafts();
+  const normalizedDraftDomain = draft.requestedDomain.trim().toLowerCase();
+  const matchingDomainCount = allDrafts.filter(candidate => candidate.requestedDomain.trim().toLowerCase() === normalizedDraftDomain).length;
+  const review = reviewStoreProvisioningDraft(draft, matchingDomainCount);
+  const proposedSlug = suggestStoreSlug(draft.displayName);
+  const normalizedEmail = draft.ownerEmail.trim().toLowerCase();
+
+  const [slugCollision, domainCollision, recipient] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.slug, proposedSlug)).limit(1),
+    db.select({ id: stores.id }).from(stores).where(eq(stores.primaryDomain, normalizedDraftDomain)).limit(1),
+    db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1),
+  ]);
+
+  return {
+    draft,
+    review,
+    preflight: buildStoreLaunchPreflight({
+      displayName: draft.displayName,
+      requestedDomain: normalizedDraftDomain,
+      status: draft.status,
+      localReviewReady: review.readiness === "ready_for_confirmation",
+      slugExists: Boolean(slugCollision[0]),
+      domainExists: Boolean(domainCollision[0]),
+      recipientAlreadyHasAccount: Boolean(recipient[0]),
+    }),
+  };
 }
 
 export async function createStudioProvisioningDraft(input: {
