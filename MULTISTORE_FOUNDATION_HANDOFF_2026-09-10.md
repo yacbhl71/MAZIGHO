@@ -644,3 +644,10 @@ Le parcours Studio comprend désormais une **simulation privée de panier** acce
 Le calcul est une lecture tRPC réservée à `platformProcedure`. Il ne consulte ni n’écrit les tables `carts` ou `cartItems`, ne crée aucun client, checkout, paiement, commande ou opération fournisseur, et ne retourne ni référence ni nom de fournisseur. Les quantités proposées sont plafonnées par la quantité de préparation ; les fiches « à confirmer » ou indisponibles sont refusées par le calculateur. Les totaux excluent livraison, taxes, remises et tout moyen de paiement.
 
 La simulation ne constitue pas un passage à la vente. Le catalogue et le panier publics restent fermés tant que la boutique conserve son statut `setup`; toute publication, activation ou configuration de paiement demeure une décision distincte et manuelle.
+
+
+## Prévol commercial privé — 11 septembre 2026
+
+Le parcours Studio ajoute une **revue commerciale privée** atteignable depuis le panier simulé. Elle consolide uniquement des indicateurs déjà isolés : identité sauvegardée, collections, fiches et prix de préparation, disponibilités et capacité de simulation. Elle affiche les points prêts, bloqués et les deux jalons qui exigent une intervention humaine : revue de publication catalogue, puis ouverture publique distincte.
+
+Ce prévol est strictement en lecture, derrière `platformProcedure`. Il ne copie aucun brouillon vers le catalogue réel, ne modifie pas `products`, `carts`, `cartItems`, commandes, paiements, fournisseurs ou domaines, et expose explicitement les indicateurs `cataloguePublicationExecuted`, `publicCartExecuted` et `publicActivationExecuted` à `false`. Une boutique en `setup` reste donc fermée au public.

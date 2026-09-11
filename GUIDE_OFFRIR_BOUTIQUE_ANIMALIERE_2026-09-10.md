@@ -315,3 +315,10 @@ Ces informations servent uniquement à préparer un futur test privé de panier.
 Après avoir préparé des **Fiches produits**, puis renseigné leur disponibilité dans **Stock et fournisseur**, ouvrez **Tester le panier privé**. Ajoutez ou retirez des unités pour vérifier les quantités admises et le total de présentation.
 
 Cette page est uniquement une maquette Studio : elle ne crée pas de panier persistant, client, paiement, commande, facture ni action fournisseur. Les produits sans disponibilité préparée ou marqués indisponibles ne peuvent pas être retenus. Les frais de livraison, taxes et remises ne sont volontairement pas calculés à ce stade.
+
+
+### Revue commerciale privée
+
+Depuis la page **Tester le panier privé**, choisissez **Revoir la préparation commerciale**. Cette page indique ce qui est prêt, ce qui manque et les étapes qui devront être revues manuellement avant toute publication. Elle reste disponible uniquement dans MAZIGHO Studio pour une boutique offerte en `setup`.
+
+Même lorsqu’elle indique que les brouillons sont prêts pour une revue, elle ne publie aucun produit, n’ouvre ni storefront ni panier réel, et n’active pas la boutique. La future publication de catalogue et l’ouverture publique restent deux décisions séparées, après contrôle des visuels, variantes, règles de livraison, stock et éléments commerciaux nécessaires.

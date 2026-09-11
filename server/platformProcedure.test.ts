@@ -71,6 +71,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getOwnerProductOperationDrafts({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerProductOperationDrafts({ storeId: 1, operations: [{ productId: "product-1", stockState: "to_confirm", stockQuantity: 0, supplierName: "", supplierReference: "" }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerPrivateCartSimulation({ storeId: 1, lines: [{ productId: "product-1", quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getOwnerCommercialPublicationPreflight({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerFullPagePreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerNavigationDraft({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerNavigationDraft({ storeId: 1, items: [{ pageId: "home", label: "Accueil", visible: true }, { pageId: "about", label: "À propos", visible: true }, { pageId: "faq", label: "FAQ", visible: true }, { pageId: "contact", label: "Contact", visible: true }, { pageId: "lookbook", label: "Inspiration", visible: false }] })).rejects.toMatchObject({ code: "FORBIDDEN" });

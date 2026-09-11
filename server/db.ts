@@ -24,6 +24,7 @@ import { normalizeStudioCollectionDrafts, type StudioCollectionDraft } from "./s
 import { normalizeStudioProductDrafts, type StudioProductDraft } from "./services/storeProductDraft";
 import { normalizeStudioProductOperationDrafts, type StudioProductOperationDraft } from "./services/storeProductOperationsDraft";
 import { buildStudioPrivateCartSimulation, type StudioPrivateCartLineInput } from "./services/storePrivateCartSimulation";
+import { buildStoreCommercialPublicationPreflight } from "./services/storeCommercialPublicationPreflight";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1288,6 +1289,46 @@ export async function getStudioOwnerPrivateCartSimulation(input: { storeId: numb
     ...simulation,
     store: productSnapshot.store,
     currencyCode: productSnapshot.currencyCode,
+  };
+}
+
+/**
+ * Commercial publication preflight for Studio preparation only. It is a
+ * read-only review and does not copy drafts to products or enable a cart.
+ */
+export async function getStudioOwnerCommercialPublicationPreflight(storeId: number) {
+  const [builder, collections, products, operations] = await Promise.all([
+    getStudioOwnerBuilderConfiguration(storeId),
+    getStudioOwnerCollectionDrafts(storeId),
+    getStudioOwnerProductDrafts(storeId),
+    getStudioOwnerProductOperationDrafts(storeId),
+  ]);
+  const simulation = buildStudioPrivateCartSimulation({
+    products: products.products,
+    collections: products.collections,
+    operations: operations.operations,
+    lines: [],
+  });
+  const cartEligibleProductCount = simulation.catalog.filter(product => product.maxQuantity > 0).length;
+  const preflight = buildStoreCommercialPublicationPreflight({
+    status: builder.store.status,
+    hasSavedBuilderConfiguration: builder.hasSavedConfiguration,
+    collectionCount: collections.collections.length,
+    hasSavedProducts: products.hasSavedProducts,
+    productCount: products.products.length,
+    pricedProductCount: products.products.filter(product => product.priceCents > 0).length,
+    hasSavedOperations: operations.hasSavedOperations,
+    cartEligibleProductCount,
+  });
+
+  return {
+    privateCommercialPreflight: true as const,
+    publicStorefront: false as const,
+    cataloguePublicationExecuted: false as const,
+    publicCartExecuted: false as const,
+    publicActivationExecuted: false as const,
+    store: builder.store,
+    preflight,
   };
 }
 
