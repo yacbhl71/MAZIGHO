@@ -25,6 +25,7 @@ import { normalizeStudioProductDrafts, type StudioProductDraft } from "./service
 import { normalizeStudioProductOperationDrafts, type StudioProductOperationDraft } from "./services/storeProductOperationsDraft";
 import { buildStudioPrivateCartSimulation, type StudioPrivateCartLineInput } from "./services/storePrivateCartSimulation";
 import { buildStoreCommercialPublicationPreflight } from "./services/storeCommercialPublicationPreflight";
+import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1329,6 +1330,22 @@ export async function getStudioOwnerCommercialPublicationPreflight(storeId: numb
     publicActivationExecuted: false as const,
     store: builder.store,
     preflight,
+  };
+}
+
+/**
+ * Read-only isolation review for an offered store. This does not probe, open,
+ * publish or mutate any public endpoint; it simply reports the guarded state.
+ */
+export async function getStudioOwnerSetupIsolationReview(storeId: number) {
+  const builder = await getStudioOwnerBuilderConfiguration(storeId);
+  return {
+    privateIsolationReview: true as const,
+    publicStorefront: false as const,
+    publicCart: false as const,
+    publicCheckout: false as const,
+    store: builder.store,
+    review: buildStoreSetupIsolationReview({ status: builder.store.status }),
   };
 }
 

@@ -651,3 +651,8 @@ La simulation ne constitue pas un passage à la vente. Le catalogue et le panier
 Le parcours Studio ajoute une **revue commerciale privée** atteignable depuis le panier simulé. Elle consolide uniquement des indicateurs déjà isolés : identité sauvegardée, collections, fiches et prix de préparation, disponibilités et capacité de simulation. Elle affiche les points prêts, bloqués et les deux jalons qui exigent une intervention humaine : revue de publication catalogue, puis ouverture publique distincte.
 
 Ce prévol est strictement en lecture, derrière `platformProcedure`. Il ne copie aucun brouillon vers le catalogue réel, ne modifie pas `products`, `carts`, `cartItems`, commandes, paiements, fournisseurs ou domaines, et expose explicitement les indicateurs `cataloguePublicationExecuted`, `publicCartExecuted` et `publicActivationExecuted` à `false`. Une boutique en `setup` reste donc fermée au public.
+
+
+## Revue d’étanchéité `setup` — 11 septembre 2026
+
+Après le prévol commercial, MAZIGHO Studio propose une **revue d’étanchéité** en lecture seule. Elle traduit la règle `mayServeStorefront` pour l’état `setup`, rappelle que le storefront, le panier, le checkout et la publication catalogue restent indisponibles, puis liste trois contrôles humains à effectuer hors session. Cette revue ne sonde pas le domaine, ne crée aucune donnée et ne change aucun statut.

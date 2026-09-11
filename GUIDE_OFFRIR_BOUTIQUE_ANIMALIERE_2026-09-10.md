@@ -322,3 +322,8 @@ Cette page est uniquement une maquette Studio : elle ne crée pas de panier pers
 Depuis la page **Tester le panier privé**, choisissez **Revoir la préparation commerciale**. Cette page indique ce qui est prêt, ce qui manque et les étapes qui devront être revues manuellement avant toute publication. Elle reste disponible uniquement dans MAZIGHO Studio pour une boutique offerte en `setup`.
 
 Même lorsqu’elle indique que les brouillons sont prêts pour une revue, elle ne publie aucun produit, n’ouvre ni storefront ni panier réel, et n’active pas la boutique. La future publication de catalogue et l’ouverture publique restent deux décisions séparées, après contrôle des visuels, variantes, règles de livraison, stock et éléments commerciaux nécessaires.
+
+
+### Vérification d’étanchéité
+
+Depuis **Revoir la préparation commerciale**, cliquez sur **Vérifier l’étanchéité**. L’écran rappelle que la boutique en `setup` ne sert pas de storefront public et que panier, checkout et publication catalogue restent indisponibles. Il propose ensuite les contrôles manuels à faire dans une session privée ; il ne teste pas le domaine automatiquement et ne change ni statut ni contenu.
