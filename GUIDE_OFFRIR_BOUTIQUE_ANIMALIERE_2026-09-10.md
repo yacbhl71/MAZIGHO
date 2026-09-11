@@ -327,3 +327,8 @@ Même lorsqu’elle indique que les brouillons sont prêts pour une revue, elle 
 ### Vérification d’étanchéité
 
 Depuis **Revoir la préparation commerciale**, cliquez sur **Vérifier l’étanchéité**. L’écran rappelle que la boutique en `setup` ne sert pas de storefront public et que panier, checkout et publication catalogue restent indisponibles. Il propose ensuite les contrôles manuels à faire dans une session privée ; il ne teste pas le domaine automatiquement et ne change ni statut ni contenu.
+
+
+### Revue manuelle de passage commercial
+
+Après la vérification d’étanchéité, cliquez sur **Préparer la revue de passage**. La page distingue ce qui est préparé de ce qui doit être confirmé manuellement : visuels, variantes, livraison, stock, retours, éléments légaux et domaine. Son résultat ne publie aucun catalogue, n’ouvre aucun panier ou paiement et n’active jamais la boutique.

@@ -656,3 +656,8 @@ Ce prévol est strictement en lecture, derrière `platformProcedure`. Il ne copi
 ## Revue d’étanchéité `setup` — 11 septembre 2026
 
 Après le prévol commercial, MAZIGHO Studio propose une **revue d’étanchéité** en lecture seule. Elle traduit la règle `mayServeStorefront` pour l’état `setup`, rappelle que le storefront, le panier, le checkout et la publication catalogue restent indisponibles, puis liste trois contrôles humains à effectuer hors session. Cette revue ne sonde pas le domaine, ne crée aucune donnée et ne change aucun statut.
+
+
+## Revue manuelle de passage commercial — 12 septembre 2026
+
+La dernière étape privée consolide le prévol commercial et la revue d’étanchéité. Elle sépare les signaux déjà prêts des confirmations humaines obligatoires : visuels et variantes, livraison/stock/retours, informations légales et domaine, puis décision explicite de publication. Même si les brouillons peuvent être soumis à cette revue, les indicateurs de publication catalogue, panier public et activation restent tous à `false`.

@@ -26,6 +26,7 @@ import { normalizeStudioProductOperationDrafts, type StudioProductOperationDraft
 import { buildStudioPrivateCartSimulation, type StudioPrivateCartLineInput } from "./services/storePrivateCartSimulation";
 import { buildStoreCommercialPublicationPreflight } from "./services/storeCommercialPublicationPreflight";
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
+import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1346,6 +1347,32 @@ export async function getStudioOwnerSetupIsolationReview(storeId: number) {
     publicCheckout: false as const,
     store: builder.store,
     review: buildStoreSetupIsolationReview({ status: builder.store.status }),
+  };
+}
+
+/**
+ * Final private handoff review. It combines two read-only Studio reviews and
+ * leaves every publication, checkout and activation action unavailable.
+ */
+export async function getStudioOwnerManualCommercialPassageReview(storeId: number) {
+  const [commercial, isolation] = await Promise.all([
+    getStudioOwnerCommercialPublicationPreflight(storeId),
+    getStudioOwnerSetupIsolationReview(storeId),
+  ]);
+  const review = buildStoreManualCommercialPassageReview({
+    commercialPreparationReady: commercial.preflight.locallyReadyForManualCommercialReview,
+    commercialBlockedCount: commercial.preflight.blockedCount,
+    setupIsolated: isolation.review.protectedSetup,
+  });
+
+  return {
+    privateManualCommercialPassageReview: true as const,
+    publicStorefront: false as const,
+    cataloguePublicationExecuted: false as const,
+    publicCartExecuted: false as const,
+    publicActivationExecuted: false as const,
+    store: commercial.store,
+    review,
   };
 }
 
