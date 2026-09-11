@@ -3,18 +3,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, ClipboardCheck, Eye, FileText, FolderKanban, Globe2, Image, LockKeyhole, Paintbrush, Package, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, CheckCircle2, CircleAlert, ClipboardCheck, Eye, FileText, FolderKanban, Globe2, Image, LockKeyhole, Paintbrush, Package, ShieldCheck } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 
 type ChecklistItem = {
-  key: "identity" | "collections" | "pages" | "media" | "catalogue" | "domain" | "private_preview" | "public_opening";
+  key: "identity" | "collections" | "pages" | "media" | "catalogue" | "operations" | "domain" | "private_preview" | "public_opening";
   label: string;
   state: "ready" | "action" | "optional" | "manual";
   detail: string;
-  action: "builder" | "collections" | "pages" | "storefront_preview" | "studio" | null;
+  action: "builder" | "collections" | "pages" | "operations" | "storefront_preview" | "studio" | null;
 };
 
-const itemIcons = { identity: Paintbrush, collections: FolderKanban, pages: FileText, media: Image, catalogue: Package, domain: Globe2, private_preview: Eye, public_opening: LockKeyhole };
+const itemIcons = { identity: Paintbrush, collections: FolderKanban, pages: FileText, media: Image, catalogue: Package, operations: Boxes, domain: Globe2, private_preview: Eye, public_opening: LockKeyhole };
 const stateStyles = {
   ready: { badge: "border-emerald-200 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500", label: "Prêt" },
   action: { badge: "border-violet-200 bg-violet-50 text-violet-800", dot: "bg-violet-500", label: "À préparer" },
@@ -26,6 +26,7 @@ function actionHref(action: ChecklistItem["action"], storeId: number) {
   if (action === "builder") return `/admin/studio/constructeur/${storeId}`;
   if (action === "collections") return `/admin/studio/collections/${storeId}`;
   if (action === "pages") return `/admin/studio/pages/${storeId}`;
+  if (action === "operations") return `/admin/studio/stock-fournisseurs/${storeId}`;
   if (action === "storefront_preview") return `/admin/studio/apercu/${storeId}`;
   return "/admin/studio";
 }
@@ -34,6 +35,7 @@ function actionLabel(action: ChecklistItem["action"]) {
   if (action === "builder") return "Ouvrir le créateur";
   if (action === "collections") return "Préparer les collections";
   if (action === "pages") return "Préparer les pages";
+  if (action === "operations") return "Préparer stock et fournisseur";
   if (action === "storefront_preview") return "Voir l’aperçu privé";
   return "Ouvrir MAZIGHO Studio";
 }

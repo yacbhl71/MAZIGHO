@@ -301,3 +301,10 @@ Dans **Brouillons enregistrés**, la règle est la suivante :
 | Boutique déjà créée en `setup` | Appuyez sur **Continuer la préparation**. N’essayez plus de modifier ou supprimer l’ancien brouillon : il est désormais l’historique de cette vraie boutique. |
 
 Les boutons de reprise, suppression et vérification ont une hauteur tactile accrue. Une vraie boutique `setup` reste privée et non vendable tant qu’une ouverture publique distincte n’est pas confirmée.
+
+
+## Préparer stock et fournisseur sans déclencher d’action externe
+
+Après avoir enregistré les **Fiches produits**, cliquez sur **Stock et fournisseur**. Pour chaque fiche, choisissez un état de préparation — à confirmer, disponible, stock limité ou indisponible — puis, si nécessaire, indiquez une quantité de travail, un nom de fournisseur de référence et un code interne. Enregistrez ensuite la préparation.
+
+Ces informations servent uniquement à préparer un futur test privé de panier. Elles ne mettent à jour aucun stock réel, n’envoient aucune demande à un fournisseur et n’acceptent ni URL, contact, prix d’achat, accès API, transport, variante, commande ou synchronisation CJ, AliExpress ou Odoo. Tant que la boutique reste en `setup`, aucune de ces données n’est exposée publiquement.

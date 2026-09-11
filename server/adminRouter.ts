@@ -434,6 +434,47 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerProductOperationDrafts: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerProductOperationDrafts(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "La préparation de stock et fournisseur est réservée à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
+    saveOwnerProductOperationDrafts: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      operations: z.array(z.object({
+        productId: z.string().trim().min(1).max(32),
+        stockState: z.enum(["to_confirm", "in_stock", "limited", "out_of_stock"]),
+        stockQuantity: z.number().int().min(0).max(999_999),
+        supplierName: z.string().trim().max(96),
+        supplierReference: z.string().trim().max(128),
+      })).max(24),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerProductOperationDrafts(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.owner_product_operations.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: "Préparation privée du stock et fournisseur enregistrée",
+          metadata: { status: "setup", publicStorefront: false, supplierIntegrationExecuted: false, publicationExecuted: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "La préparation de stock et fournisseur est réservée à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     getOwnerFullPagePreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerFullPagePreview(input.storeId);

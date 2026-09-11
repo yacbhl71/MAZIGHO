@@ -22,6 +22,7 @@ import { buildStoreLaunchCenter } from "./services/storeLaunchCenter";
 import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./services/storeNavigationDraft";
 import { normalizeStudioCollectionDrafts, type StudioCollectionDraft } from "./services/storeCollectionDraft";
 import { normalizeStudioProductDrafts, type StudioProductDraft } from "./services/storeProductDraft";
+import { normalizeStudioProductOperationDrafts, type StudioProductOperationDraft } from "./services/storeProductOperationsDraft";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1224,14 +1225,58 @@ export async function saveStudioOwnerProductDrafts(input: { storeId: number; pro
 }
 
 /**
+ * Private operational preparation for product concepts. It never writes the
+ * actual products table and never calls a supplier or a stock provider.
+ */
+export async function getStudioOwnerProductOperationDrafts(storeId: number) {
+  const productSnapshot = await getStudioOwnerProductDrafts(storeId);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [stored] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_product_operation_drafts")))
+    .limit(1);
+  let storedDrafts: unknown = null;
+  try {
+    storedDrafts = stored?.value ? JSON.parse(stored.value) : null;
+  } catch {
+    storedDrafts = null;
+  }
+  const products = productSnapshot.products.map(product => ({ id: product.id, name: product.name }));
+  const operations = normalizeStudioProductOperationDrafts(storedDrafts, products);
+  return {
+    privateProductOperationsEditor: true as const,
+    publicStorefront: false as const,
+    hasSavedOperations: Boolean(stored?.value),
+    store: productSnapshot.store,
+    products,
+    operations,
+  };
+}
+
+export async function saveStudioOwnerProductOperationDrafts(input: { storeId: number; operations: StudioProductOperationDraft[] }) {
+  const snapshot = await getStudioOwnerProductOperationDrafts(input.storeId);
+  const operations = normalizeStudioProductOperationDrafts(input.operations, snapshot.products);
+  await setStoreSettingValue(input.storeId, "owner_product_operation_drafts", JSON.stringify(operations), "Stock et références fournisseur de préparation ; sans stock réel, intégration fournisseur, commande ni publication automatique");
+  return {
+    privateProductOperationsEditor: true as const,
+    publicStorefront: false as const,
+    store: snapshot.store,
+    products: snapshot.products,
+    operations,
+    hasSavedOperations: true as const,
+  };
+}
+
+/**
  * Private progress checklist for one offered store in setup. It returns only
  * minimized preparation states; it never verifies or changes public opening.
  */
 export async function getStudioGiftStorePreparationChecklist(storeId: number) {
-  const [builder, collectionDrafts, pageDrafts, readiness] = await Promise.all([
+  const [builder, collectionDrafts, pageDrafts, productOperations, readiness] = await Promise.all([
     getStudioOwnerBuilderConfiguration(storeId),
     getStudioOwnerCollectionDrafts(storeId),
     getStudioOwnerPageDrafts(storeId),
+    getStudioOwnerProductOperationDrafts(storeId),
     getStudioGiftStoreSetupReadiness(storeId),
   ]);
   const db = await getDb();
@@ -1254,6 +1299,8 @@ export async function getStudioGiftStorePreparationChecklist(storeId: number) {
     hasSavedPageDrafts: pageDrafts.hasSavedDrafts,
     enabledPageCount,
     pagesWithCoverImageCount,
+    hasSavedProductOperations: productOperations.hasSavedOperations,
+    operationProductCount: productOperations.operations.length,
   });
 
   return {
@@ -1396,6 +1443,10 @@ const studioGiftStoreTimelineLabels = {
   "studio.gift_store.owner_collections.save": {
     title: "Collections privées enregistrées",
     detail: "La structure des collections a été préparée dans l’espace privé, sans catégories réelles ni publication publique.",
+  },
+  "studio.gift_store.owner_product_operations.save": {
+    title: "Préparation opérationnelle enregistrée",
+    detail: "La disponibilité et les références internes ont été préparées sans stock réel, intégration fournisseur ni publication publique.",
   },
   "studio.gift_store.activate": {
     title: "Statut de boutique modifié",

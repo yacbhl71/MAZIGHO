@@ -629,3 +629,9 @@ Le contrat serveur normalise la liste fermée des champs et ignore toute propri�
 Les cartes de brouillon de mise en service disposent maintenant de commandes plus visibles et adaptées à une tablette. **« Reprendre et modifier »** charge les valeurs du brouillon et fait défiler automatiquement vers le formulaire. **« Supprimer le brouillon »** reste soumis à une recopie du nom. Si le brouillon a déjà créé une vraie boutique en `setup`, il n’est plus modifiable ni supprimable : une action unique **« Continuer la préparation »** mène au créateur privé de cette boutique. Cette distinction évite de confondre une fiche de préparation avec une boutique déjà créée.
 
 > Ces changements ne modifient ni le domaine, ni l’état public, ni les paiements, commandes, fournisseurs, Stripe, Odoo, CJ ou une autre boutique.
+
+### Atelier privé « Stock et fournisseur de préparation »
+
+Le créateur de boutique comprend désormais un atelier Studio privé de préparation opérationnelle, accessible après les fiches produits. Il stocke uniquement, pour chaque fiche produit privée, un état de disponibilité (`à confirmer`, `disponible`, `stock limité` ou `indisponible`), une quantité indicative et deux repères internes : nom de fournisseur et référence fournisseur. Ces données sont enregistrées sous la clé isolée `owner_product_operation_drafts`; elles ne créent aucune ligne de la table `products`, ne modifient aucun stock réel et ne sont lues par aucune route storefront.
+
+Le contrat est volontairement fermé. Il exclut URL fournisseur, contact, coût d’achat, identifiant, secret, transport, variante, commande, synchronisation CJ/AliExpress/Odoo et action externe. La checklist privée ne connaît que le fait qu’une préparation opérationnelle a été enregistrée et le nombre de fiches concernées ; elle ne divulgue ni quantité ni référence. Le nouvel atelier et les procédures tRPC correspondantes restent derrière `platformProcedure`.

@@ -1,11 +1,11 @@
 import type { StoreSetupReadinessCheck } from "./storeSetupReadiness";
 
 export type StudioPreparationChecklistItem = {
-  key: "identity" | "collections" | "pages" | "media" | "catalogue" | "domain" | "private_preview" | "public_opening";
+  key: "identity" | "collections" | "pages" | "media" | "catalogue" | "operations" | "domain" | "private_preview" | "public_opening";
   label: string;
   state: "ready" | "action" | "optional" | "manual";
   detail: string;
-  action: "builder" | "collections" | "pages" | "storefront_preview" | "studio" | null;
+  action: "builder" | "collections" | "pages" | "operations" | "storefront_preview" | "studio" | null;
 };
 
 export type StorePreparationChecklistInput = {
@@ -18,6 +18,8 @@ export type StorePreparationChecklistInput = {
   hasSavedPageDrafts: boolean;
   enabledPageCount: number;
   pagesWithCoverImageCount: number;
+  hasSavedProductOperations: boolean;
+  operationProductCount: number;
 };
 
 function hasReadyCheck(checks: StoreSetupReadinessCheck[], key: string) {
@@ -39,6 +41,7 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
   const domainPrepared = isPreparedPublicDomain(input.primaryDomain);
   const pagesReady = input.hasSavedPageDrafts && input.enabledPageCount > 0;
   const collectionsReady = input.hasSavedCollections && input.collectionCount > 0;
+  const operationsReady = input.hasSavedProductOperations && input.operationProductCount > 0;
 
   const items: StudioPreparationChecklistItem[] = [
     {
@@ -85,6 +88,15 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
         ? "La boutique contient une base de catégories et de fiches isolées."
         : "Installez ou préparez un kit de démonstration depuis MAZIGHO Studio.",
       action: "studio",
+    },
+    {
+      key: "operations",
+      label: "Stock et fournisseur de préparation",
+      state: operationsReady ? "ready" : "action",
+      detail: operationsReady
+        ? `${input.operationProductCount} fiche${input.operationProductCount > 1 ? "s" : ""} possède/possèdent un état opérationnel privé, sans stock réel ni intégration fournisseur.`
+        : "Préparez la disponibilité et les références internes avant une future simulation privée de panier.",
+      action: "operations",
     },
     {
       key: "domain",
