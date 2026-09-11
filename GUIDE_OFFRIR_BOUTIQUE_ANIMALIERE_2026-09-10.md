@@ -308,3 +308,10 @@ Les boutons de reprise, suppression et vérification ont une hauteur tactile acc
 Après avoir enregistré les **Fiches produits**, cliquez sur **Stock et fournisseur**. Pour chaque fiche, choisissez un état de préparation — à confirmer, disponible, stock limité ou indisponible — puis, si nécessaire, indiquez une quantité de travail, un nom de fournisseur de référence et un code interne. Enregistrez ensuite la préparation.
 
 Ces informations servent uniquement à préparer un futur test privé de panier. Elles ne mettent à jour aucun stock réel, n’envoient aucune demande à un fournisseur et n’acceptent ni URL, contact, prix d’achat, accès API, transport, variante, commande ou synchronisation CJ, AliExpress ou Odoo. Tant que la boutique reste en `setup`, aucune de ces données n’est exposée publiquement.
+
+
+### Simulation privée de panier
+
+Après avoir préparé des **Fiches produits**, puis renseigné leur disponibilité dans **Stock et fournisseur**, ouvrez **Tester le panier privé**. Ajoutez ou retirez des unités pour vérifier les quantités admises et le total de présentation.
+
+Cette page est uniquement une maquette Studio : elle ne crée pas de panier persistant, client, paiement, commande, facture ni action fournisseur. Les produits sans disponibilité préparée ou marqués indisponibles ne peuvent pas être retenus. Les frais de livraison, taxes et remises ne sont volontairement pas calculés à ce stade.

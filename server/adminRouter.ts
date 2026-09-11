@@ -475,6 +475,24 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerPrivateCartSimulation: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      lines: z.array(z.object({
+        productId: z.string().trim().min(1).max(32),
+        quantity: z.number().int().min(1).max(99),
+      })).max(24),
+    })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerPrivateCartSimulation(input);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "La simulation privée de panier est réservée à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
     getOwnerFullPagePreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerFullPagePreview(input.storeId);

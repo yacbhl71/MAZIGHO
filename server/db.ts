@@ -23,6 +23,7 @@ import { normalizeStudioNavigationDraft, type StudioNavigationItem } from "./ser
 import { normalizeStudioCollectionDrafts, type StudioCollectionDraft } from "./services/storeCollectionDraft";
 import { normalizeStudioProductDrafts, type StudioProductDraft } from "./services/storeProductDraft";
 import { normalizeStudioProductOperationDrafts, type StudioProductOperationDraft } from "./services/storeProductOperationsDraft";
+import { buildStudioPrivateCartSimulation, type StudioPrivateCartLineInput } from "./services/storePrivateCartSimulation";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1264,6 +1265,29 @@ export async function saveStudioOwnerProductOperationDrafts(input: { storeId: nu
     products: snapshot.products,
     operations,
     hasSavedOperations: true as const,
+  };
+}
+
+/**
+ * Read-only cart simulation for the Studio creator. It never queries or writes
+ * carts, cart items, customers, checkout sessions, orders or suppliers.
+ */
+export async function getStudioOwnerPrivateCartSimulation(input: { storeId: number; lines: StudioPrivateCartLineInput[] }) {
+  const [productSnapshot, operationSnapshot] = await Promise.all([
+    getStudioOwnerProductDrafts(input.storeId),
+    getStudioOwnerProductOperationDrafts(input.storeId),
+  ]);
+  const simulation = buildStudioPrivateCartSimulation({
+    products: productSnapshot.products,
+    collections: productSnapshot.collections,
+    operations: operationSnapshot.operations,
+    lines: input.lines,
+  });
+
+  return {
+    ...simulation,
+    store: productSnapshot.store,
+    currencyCode: productSnapshot.currencyCode,
   };
 }
 

@@ -635,3 +635,12 @@ Les cartes de brouillon de mise en service disposent maintenant de commandes plu
 Le créateur de boutique comprend désormais un atelier Studio privé de préparation opérationnelle, accessible après les fiches produits. Il stocke uniquement, pour chaque fiche produit privée, un état de disponibilité (`à confirmer`, `disponible`, `stock limité` ou `indisponible`), une quantité indicative et deux repères internes : nom de fournisseur et référence fournisseur. Ces données sont enregistrées sous la clé isolée `owner_product_operation_drafts`; elles ne créent aucune ligne de la table `products`, ne modifient aucun stock réel et ne sont lues par aucune route storefront.
 
 Le contrat est volontairement fermé. Il exclut URL fournisseur, contact, coût d’achat, identifiant, secret, transport, variante, commande, synchronisation CJ/AliExpress/Odoo et action externe. La checklist privée ne connaît que le fait qu’une préparation opérationnelle a été enregistrée et le nombre de fiches concernées ; elle ne divulgue ni quantité ni référence. Le nouvel atelier et les procédures tRPC correspondantes restent derrière `platformProcedure`.
+
+
+## Simulation privée de panier — 11 septembre 2026
+
+Le parcours Studio comprend désormais une **simulation privée de panier** accessible depuis l’atelier « Stock et fournisseur ». Elle s’appuie exclusivement sur les fiches produits privées, leurs prix de préparation, leurs collections et les états de disponibilité préparatoires de la même boutique offerte en `setup`.
+
+Le calcul est une lecture tRPC réservée à `platformProcedure`. Il ne consulte ni n’écrit les tables `carts` ou `cartItems`, ne crée aucun client, checkout, paiement, commande ou opération fournisseur, et ne retourne ni référence ni nom de fournisseur. Les quantités proposées sont plafonnées par la quantité de préparation ; les fiches « à confirmer » ou indisponibles sont refusées par le calculateur. Les totaux excluent livraison, taxes, remises et tout moyen de paiement.
+
+La simulation ne constitue pas un passage à la vente. Le catalogue et le panier publics restent fermés tant que la boutique conserve son statut `setup`; toute publication, activation ou configuration de paiement demeure une décision distincte et manuelle.

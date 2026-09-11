@@ -38,6 +38,7 @@ const AdminStudioLaunchCenter = lazy(() => import("./pages/admin/AdminStudioLaun
 const AdminStudioOwnerCollections = lazy(() => import("./pages/admin/AdminStudioOwnerCollections"));
 const AdminStudioOwnerProducts = lazy(() => import("./pages/admin/AdminStudioOwnerProducts"));
 const AdminStudioOwnerProductOperations = lazy(() => import("./pages/admin/AdminStudioOwnerProductOperations"));
+const AdminStudioOwnerPrivateCartSimulation = lazy(() => import("./pages/admin/AdminStudioOwnerPrivateCartSimulation"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
 const AdminDropshipping = lazy(() => import("./pages/admin/AdminDropshipping"));
 const AdminCjImport = lazy(() => import("./pages/admin/AdminCjImport"));
@@ -181,7 +182,7 @@ function BrowserTitle() {
       "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
-    document.title = pathname.startsWith("/admin/studio/stock-fournisseurs/") ? "MAZIGHO Studio | Stock et fournisseur" : pathname.startsWith("/admin/studio/produits/") ? "MAZIGHO Studio | Fiches produits" : pathname.startsWith("/admin/studio/collections/") ? "MAZIGHO Studio | Collections de boutique" : pathname.startsWith("/admin/studio/lancement/") ? "MAZIGHO Studio | Centre de lancement" : pathname.startsWith("/admin/studio/page-preview/") ? "MAZIGHO Studio | Aperçu complet" : pathname.startsWith("/admin/studio/navigation/") ? "MAZIGHO Studio | Navigation de boutique" : pathname.startsWith("/admin/studio/checklist/") ? "MAZIGHO Studio | Checklist de préparation" : pathname.startsWith("/admin/studio/pages/") ? "MAZIGHO Studio | Éditeur de pages" : pathname.startsWith("/admin/studio/constructeur/") ? "MAZIGHO Studio | Créateur de boutique" : pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
+    document.title = pathname.startsWith("/admin/studio/panier-simulation/") ? "MAZIGHO Studio | Panier simulé" : pathname.startsWith("/admin/studio/stock-fournisseurs/") ? "MAZIGHO Studio | Stock et fournisseur" : pathname.startsWith("/admin/studio/produits/") ? "MAZIGHO Studio | Fiches produits" : pathname.startsWith("/admin/studio/collections/") ? "MAZIGHO Studio | Collections de boutique" : pathname.startsWith("/admin/studio/lancement/") ? "MAZIGHO Studio | Centre de lancement" : pathname.startsWith("/admin/studio/page-preview/") ? "MAZIGHO Studio | Aperçu complet" : pathname.startsWith("/admin/studio/navigation/") ? "MAZIGHO Studio | Navigation de boutique" : pathname.startsWith("/admin/studio/checklist/") ? "MAZIGHO Studio | Checklist de préparation" : pathname.startsWith("/admin/studio/pages/") ? "MAZIGHO Studio | Éditeur de pages" : pathname.startsWith("/admin/studio/constructeur/") ? "MAZIGHO Studio | Créateur de boutique" : pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : adminTitles[pathname] || publicTitles[pathname] || "MAZIGHO | Boutique en ligne";
   }, [location]);
 
   return null;
@@ -255,6 +256,7 @@ function Router() {
         <Route path={"/admin/studio/collections/:storeId"} component={AdminStudioOwnerCollections} />
         <Route path={"/admin/studio/produits/:storeId"} component={AdminStudioOwnerProducts} />
         <Route path={"/admin/studio/stock-fournisseurs/:storeId"} component={AdminStudioOwnerProductOperations} />
+        <Route path={"/admin/studio/panier-simulation/:storeId"} component={AdminStudioOwnerPrivateCartSimulation} />
         <Route path={"/admin/studio/lancement/:storeId"} component={AdminStudioLaunchCenter} />
         <Route path={"/admin/studio/page-preview/:storeId"} component={AdminStudioOwnerFullPagePreview} />
         <Route path={"/admin/studio/navigation/:storeId"} component={AdminStudioOwnerNavigation} />
