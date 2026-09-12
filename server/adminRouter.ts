@@ -497,6 +497,23 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    issueOwnerTemporaryPassword: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationEmail: z.string().trim().email().max(320),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const issued = await db.issueStudioGiftStoreOwnerTemporaryPassword({ storeId: input.storeId, confirmationEmail: input.confirmationEmail });
+        logAudit(ctx, { action: "studio.gift_store.owner.temporary_password.issue", entityType: "user", entityId: 0, summary: "Mot de passe temporaire propriétaire généré dans Studio", metadata: { storeId: input.storeId, secretStored: false } });
+        return issued;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "FORBIDDEN", message: "L’adresse ne correspond pas au propriétaire actif de cette boutique." });
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_STOREFRONT_CONTENT", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette action est réservée à une boutique offerte gérée depuis MAZIGHO Studio." });
+        throw error;
+      }
+    }),
     saveOwnerPublicStorefrontProfile: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       profile: z.object({

@@ -28,6 +28,7 @@ import { buildStoreCommercialPublicationPreflight } from "./services/storeCommer
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
+import { hashPassword } from "./localAuth";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -3470,6 +3471,55 @@ export async function createPasswordUser(input: {
   });
 
   return getUserByOpenId(input.openId);
+}
+
+export async function issueStudioGiftStoreOwnerTemporaryPassword(input: { storeId: number; confirmationEmail: string }) {
+  const studioStore = await getStudioGiftStoreContentContext(input.storeId);
+  await ensurePasswordHashColumn();
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const expectedEmail = normaliseEmail(input.confirmationEmail);
+  const [owner] = await db
+    .select({ openId: users.openId, email: users.email, accountStatus: users.accountStatus })
+    .from(storeMemberships)
+    .innerJoin(users, eq(users.id, storeMemberships.userId))
+    .where(and(
+      eq(storeMemberships.storeId, studioStore.store.id),
+      eq(storeMemberships.role, "owner"),
+      eq(storeMemberships.status, "active"),
+    ))
+    .limit(1);
+
+  if (!owner || !owner.email || normaliseEmail(owner.email) !== expectedEmail) throw new Error("OWNER_CONFIRMATION_MISMATCH");
+
+  const temporaryPassword = `Mzg-${randomBytes(15).toString("base64url")}-A9!`;
+  await db.update(users).set({
+    passwordHash: await hashPassword(temporaryPassword),
+    loginMethod: "password",
+    accountStatus: "active",
+    lastSignedIn: new Date(),
+  }).where(eq(users.openId, owner.openId));
+
+  const resetAt = new Date();
+  await db.insert(storeSettings).values({
+    storeId: studioStore.store.id,
+    key: "owner_temporary_password_record",
+    value: JSON.stringify({ resetAt: resetAt.toISOString(), source: "mazigho_studio_confirmed_temporary_password", ownerAccessActivated: true }),
+    description: "Trace sans secret de création d’un mot de passe temporaire propriétaire depuis MAZIGHO Studio.",
+  }).onDuplicateKeyUpdate({
+    set: {
+      value: JSON.stringify({ resetAt: resetAt.toISOString(), source: "mazigho_studio_confirmed_temporary_password", ownerAccessActivated: true }),
+      description: "Trace sans secret de création d’un mot de passe temporaire propriétaire depuis MAZIGHO Studio.",
+    },
+  });
+
+  return {
+    store: { id: studioStore.store.id, displayName: studioStore.store.displayName },
+    temporaryPassword,
+    resetAt,
+  };
 }
 
 export async function updatePasswordUser(input: {
