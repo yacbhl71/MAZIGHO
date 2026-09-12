@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, CheckCircle2, CircleAlert, Eye, LockKeyhole, PackageCheck, ShieldAlert, Store, TriangleAlert } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 
 type PublicationPlan = {
@@ -28,6 +28,7 @@ export default function AdminStudioOwnerCataloguePublication() {
   const utils = trpc.useUtils();
   const previewQuery = trpc.admin.studio.getOwnerCataloguePublicationPreview.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false, refetchOnWindowFocus: false });
   const activationQuery = trpc.admin.studio.getGiftStoreActivationPreflight.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false, refetchOnWindowFocus: false });
+  const activeStoreQuery = trpc.admin.studio.getOwnerPublicStorefrontContent.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false, refetchOnWindowFocus: false });
   const [confirmationName, setConfirmationName] = useState("");
   const [previewAcknowledged, setPreviewAcknowledged] = useState(false);
   const [mediaAcknowledged, setMediaAcknowledged] = useState(false);
@@ -40,6 +41,10 @@ export default function AdminStudioOwnerCataloguePublication() {
   const [shippingReturnsReviewed, setShippingReturnsReviewed] = useState(false);
   const [activationAcknowledged, setActivationAcknowledged] = useState(false);
   const [activated, setActivated] = useState(false);
+
+  useEffect(() => {
+    if (activeStoreQuery.data?.store.status === "active") setLocation(`/admin/studio/gestion-boutique/${storeId}`);
+  }, [activeStoreQuery.data?.store.status, setLocation, storeId]);
 
   const publishMutation = trpc.admin.studio.publishOwnerCatalogueFromPreview.useMutation({
     onSuccess: result => {
@@ -56,6 +61,7 @@ export default function AdminStudioOwnerCataloguePublication() {
   });
 
   if (!validStoreId) return <DashboardLayout><main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8"><Unavailable /></main></DashboardLayout>;
+  if (activeStoreQuery.data?.store.status === "active") return <DashboardLayout><main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8"><Card className="border-emerald-200 bg-emerald-50"><CardContent className="p-5 text-sm leading-6 text-emerald-950">Cette boutique est déjà active. Redirection vers son espace de gestion…</CardContent></Card></main></DashboardLayout>;
   const preview = previewQuery.data;
   const plan = preview?.plan as PublicationPlan | undefined;
   const storeName = preview?.store.displayName || "";

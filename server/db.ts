@@ -1613,11 +1613,12 @@ function uniqueStudioExistingCatalogueSlug(value: string, used: Set<string>, fal
 }
 
 /**
- * Controlled Studio view of the existing real catalogue. It intentionally
- * excludes supplier, customer, order and payment data and remains setup-only.
+ * Controlled Studio view of a gift store's real catalogue. It intentionally
+ * excludes supplier, customer, order and payment data and remains available
+ * after activation for ongoing store management.
  */
 export async function getStudioOwnerExistingCatalogue(storeId: number) {
-  const builder = await getStudioOwnerBuilderConfiguration(storeId);
+  const ownerContext = await getStudioGiftStoreContentContext(storeId);
   await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1633,7 +1634,7 @@ export async function getStudioOwnerExistingCatalogue(storeId: number) {
     publicStorefront: false as const,
     publicCart: false as const,
     publicCheckout: false as const,
-    store: builder.store,
+    store: { id: ownerContext.store.id, displayName: ownerContext.store.displayName, status: ownerContext.store.status },
     categories: categoryRows,
     products: productRows.map(product => ({ ...product, featured: Boolean(product.featured), images: imagesByProductId.get(product.id) || [] })),
   };
