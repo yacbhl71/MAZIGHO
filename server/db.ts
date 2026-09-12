@@ -965,7 +965,7 @@ export async function getStudioOwnerPublicStorefrontContent(storeId: number) {
   };
 }
 
-export async function saveStudioOwnerPublicStorefrontProfile(input: { storeId: number; profile: DesignProfile }) {
+export async function saveStudioOwnerPublicStorefrontProfile(input: { storeId: number; profile: DesignProfileInput }) {
   const { store } = await getStudioGiftStoreContentContext(input.storeId);
   return await updateDesignProfile(input.profile, store.id);
 }
@@ -6091,6 +6091,27 @@ type NavigationLabelSet = {
 
 export type ButtonRadius = "flat" | "rounded" | "full";
 
+export type StoreNavigationItem = {
+  id: string;
+  label: string;
+  href: string;
+  visible: boolean;
+  kind: "system" | "custom";
+};
+
+const defaultStoreNavigationItems: StoreNavigationItem[] = [
+  { id: "home", label: "", href: "/", visible: true, kind: "system" },
+  { id: "shop", label: "", href: "/boutique", visible: true, kind: "system" },
+  { id: "categories", label: "", href: "/boutique", visible: true, kind: "system" },
+  { id: "creations", label: "", href: "/creations", visible: true, kind: "system" },
+  { id: "new", label: "", href: "/nouveautes", visible: true, kind: "system" },
+  { id: "best-sellers", label: "", href: "/best-sellers", visible: true, kind: "system" },
+  { id: "promos", label: "", href: "/promos", visible: true, kind: "system" },
+  { id: "contact", label: "", href: "/contact", visible: true, kind: "system" },
+];
+
+export type DesignProfileInput = Omit<DesignProfile, "navigationItems"> & { navigationItems?: StoreNavigationItem[] };
+
 export type HomeTextBanner = {
   id: string;
   eyebrow: string;
@@ -6123,6 +6144,7 @@ export type DesignProfile = {
   navigationCreations: string;
   navigationContact: string;
   navigationTranslations: Partial<Record<NavigationTranslationLocale, NavigationLabelSet>>;
+  navigationItems: StoreNavigationItem[];
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -6159,6 +6181,7 @@ export const defaultDesignProfile: DesignProfile = {
   navigationCreations: "Créations",
   navigationContact: "Contact",
   navigationTranslations: {},
+  navigationItems: defaultStoreNavigationItems.map(item => ({ ...item })),
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,
@@ -6215,6 +6238,30 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
       }
     }
   }
+  const navigationItems: StoreNavigationItem[] = [];
+  const systemItems = new Map(defaultStoreNavigationItems.map(item => [item.id, item]));
+  const sourceNavigation = Array.isArray(source.navigationItems) ? source.navigationItems : [];
+  const seenNavigation = new Set<string>();
+  for (const raw of sourceNavigation.slice(0, 16)) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const id = typeof item.id === "string" ? item.id.trim().slice(0, 60) : "";
+    if (!id || seenNavigation.has(id)) continue;
+    const system = systemItems.get(id);
+    const kind = system ? "system" : item.kind === "custom" ? "custom" : null;
+    if (!kind) continue;
+    const hrefCandidate = typeof item.href === "string" ? item.href.trim().slice(0, 300) : "";
+    const href = system ? system.href : hrefCandidate;
+    if (!system && !(href.startsWith("/") || /^https:\/\//i.test(href))) continue;
+    const label = typeof item.label === "string" ? item.label.trim().slice(0, 40) : "";
+    navigationItems.push({ id, label, href, visible: typeof item.visible === "boolean" ? item.visible : true, kind });
+    seenNavigation.add(id);
+  }
+  for (const system of defaultStoreNavigationItems) {
+    if (!seenNavigation.has(system.id)) navigationItems.push({ ...system });
+  }
+  normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
+
   for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
@@ -6281,8 +6328,9 @@ export async function getDesignProfile(storeId?: number): Promise<DesignProfile>
   }
 }
 
-export async function updateDesignProfile(data: DesignProfile, storeId?: number): Promise<DesignProfile> {
-  const profile = normalizeDesignProfile(data);
+export async function updateDesignProfile(data: DesignProfileInput, storeId?: number): Promise<DesignProfile> {
+  const existing = await getDesignProfile(storeId);
+  const profile = normalizeDesignProfile({ ...data, navigationItems: data.navigationItems ?? existing.navigationItems });
   await setStoreSettingValue(storeId, "design_profile", JSON.stringify(profile), "Personnalisation visuelle publique propre à cette boutique");
   return profile;
 }

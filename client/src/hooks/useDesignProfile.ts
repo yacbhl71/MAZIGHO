@@ -11,6 +11,14 @@ export type NavigationLabels = {
 
 export type ButtonRadius = "flat" | "rounded" | "full";
 
+export type StoreNavigationItem = {
+  id: string;
+  label: string;
+  href: string;
+  visible: boolean;
+  kind: "system" | "custom";
+};
+
 export type HomeTextBanner = {
   id: string;
   eyebrow: string;
@@ -43,6 +51,7 @@ export type DesignProfile = {
   navigationCreations: string;
   navigationContact: string;
   navigationTranslations: Partial<Record<"de" | "it" | "en" | "es" | "nl" | "ar", NavigationLabels>>;
+  navigationItems: StoreNavigationItem[];
   showDiscovery: boolean;
   showStory: boolean;
   showTestimonials: boolean;
@@ -80,6 +89,16 @@ export const defaultDesignProfile: DesignProfile = {
   navigationCreations: "Créations",
   navigationContact: "Contact",
   navigationTranslations: {},
+  navigationItems: [
+    { id: "home", label: "", href: "/", visible: true, kind: "system" },
+    { id: "shop", label: "", href: "/boutique", visible: true, kind: "system" },
+    { id: "categories", label: "", href: "/boutique", visible: true, kind: "system" },
+    { id: "creations", label: "", href: "/creations", visible: true, kind: "system" },
+    { id: "new", label: "", href: "/nouveautes", visible: true, kind: "system" },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: true, kind: "system" },
+    { id: "promos", label: "", href: "/promos", visible: true, kind: "system" },
+    { id: "contact", label: "", href: "/contact", visible: true, kind: "system" },
+  ],
   showDiscovery: true,
   showStory: true,
   showTestimonials: true,

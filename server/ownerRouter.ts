@@ -5,6 +5,33 @@ import { storagePut } from "./storage";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 
+const systemNavigationTargets = {
+  home: "/",
+  shop: "/boutique",
+  categories: "/boutique",
+  creations: "/creations",
+  new: "/nouveautes",
+  "best-sellers": "/best-sellers",
+  promos: "/promos",
+  contact: "/contact",
+} as const;
+
+const navigationItem = z.object({
+  id: z.string().trim().min(1).max(60).regex(/^[a-z0-9-]+$/),
+  label: z.string().trim().max(40),
+  href: z.string().trim().max(300),
+  visible: z.boolean(),
+  kind: z.enum(["system", "custom"]),
+}).superRefine((item, ctx) => {
+  const expectedTarget = systemNavigationTargets[item.id as keyof typeof systemNavigationTargets];
+  if (item.kind === "system") {
+    if (!expectedTarget || item.href !== expectedTarget) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Onglet système invalide." });
+    return;
+  }
+  if (!item.id.startsWith("custom-") || !item.label) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Onglet personnalisé invalide." });
+  if (!((item.href.startsWith("/") && !item.href.startsWith("//")) || /^https:\/\//i.test(item.href))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Destination de menu non autorisée." });
+});
+
 const productFields = z.object({
   categoryId: z.number().int().positive(),
   name: z.string().trim().min(2).max(200),
@@ -39,6 +66,12 @@ export const ownerRouter = router({
   }),
   getCustomerOverview: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);
+  }),
+  saveNavigation: storeOwnerProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
+    const uniqueIds = new Set(input.items.map(item => item.id));
+    if (uniqueIds.size !== input.items.length) throw new Error("NAVIGATION_DUPLICATE_ID");
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, navigationItems: input.items }, ctx.store!.id);
   }),
   createProduct: storeOwnerProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
