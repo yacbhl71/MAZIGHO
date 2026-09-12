@@ -487,6 +487,55 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerPublicStorefrontContent: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerPublicStorefrontContent(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_STOREFRONT_CONTENT", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Le contenu public est réservé à une boutique offerte gérée depuis MAZIGHO Studio." });
+        throw error;
+      }
+    }),
+    saveOwnerPublicStorefrontProfile: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      profile: z.object({
+        paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]), typographyId: z.enum(["editorial", "modern", "classic"]),
+        brandName: z.string().trim().min(2).max(48), brandMessage: z.string().trim().max(120), brandLogoUrl: z.union([z.literal(""), visualUrlSchema]),
+        highlightEyebrow: z.string().trim().min(2).max(120), highlightTitle: z.string().trim().min(2).max(180), highlightText: z.string().trim().min(2).max(600), highlightImageUrl: visualUrlSchema,
+        storyTitle: z.string().trim().min(2).max(180), storyText: z.string().trim().min(2).max(1000), storyImageUrl: visualUrlSchema,
+        editorialEyebrow: z.string().trim().min(2).max(120), editorialTitle: z.string().trim().min(2).max(180), editorialImageUrl: visualUrlSchema,
+        navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40),
+        navigationTranslations: z.object({ de: z.any().optional(), it: z.any().optional(), en: z.any().optional(), es: z.any().optional(), nl: z.any().optional(), ar: z.any().optional() }).default({}),
+        showDiscovery: z.boolean(), showStory: z.boolean(), showTestimonials: z.boolean(), showEditorial: z.boolean(), showFeatured: z.boolean(),
+        customColorsEnabled: z.boolean(), customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), buttonRadius: z.enum(["flat", "rounded", "full"]),
+        homeOrder: z.array(z.string().max(60)).max(40), textBanners: z.array(z.object({ id: z.string().trim().min(1).max(60), eyebrow: z.string().trim().max(120), title: z.string().trim().min(1).max(180), text: z.string().trim().max(600), buttonLabel: z.string().trim().max(60), buttonUrl: z.string().trim().max(300), enabled: z.boolean() })).max(8),
+      }),
+    })).mutation(async ({ ctx, input }) => {
+      const profile = await db.saveStudioOwnerPublicStorefrontProfile({ storeId: input.storeId, profile: input.profile });
+      logAudit(ctx, { action: "studio.gift_store.storefront.profile.save", entityType: "design", entityId: 1, summary: "Contenu public de boutique enregistré dans Studio", metadata: { storeId: input.storeId, publicStorefront: true, hasBrandLogo: Boolean(input.profile.brandLogoUrl) } });
+      return profile;
+    }),
+    saveOwnerPublicStorefrontBanner: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(), bannerId: z.number().int().positive().optional(), title: z.string().trim().min(2).max(180), subtitle: z.string().trim().max(600).optional(), imageUrl: visualUrlSchema, linkUrl: z.string().trim().max(300).optional(), active: z.number().int().min(0).max(1), displayOrder: z.number().int().min(0).max(100),
+    })).mutation(async ({ ctx, input }) => {
+      const saved = await db.saveStudioOwnerPublicStorefrontBanner(input);
+      logAudit(ctx, { action: "studio.gift_store.storefront.banner.save", entityType: "banner", entityId: input.bannerId ?? 0, summary: "Bannière publique de boutique enregistrée dans Studio", metadata: { storeId: input.storeId, publicStorefront: true, active: Boolean(input.active) } });
+      return saved;
+    }),
+    deleteOwnerPublicStorefrontBanner: platformProcedure.input(z.object({ storeId: z.number().int().positive(), bannerId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const deleted = await db.deleteStudioOwnerPublicStorefrontBanner(input);
+      logAudit(ctx, { action: "studio.gift_store.storefront.banner.delete", entityType: "banner", entityId: input.bannerId, summary: "Bannière publique de boutique supprimée dans Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
+      return deleted;
+    }),
+    uploadOwnerPublicStorefrontImage: platformProcedure.input(z.object({ storeId: z.number().int().positive(), dataUrl: z.string().max(7_100_000), fileName: z.string().trim().min(1).max(160) })).mutation(async ({ ctx, input }) => {
+      await db.getStudioOwnerPublicStorefrontContent(input.storeId);
+      const image = decodeDesignImage(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "visuel";
+      const { url } = await storagePut(`studio-storefront/${input.storeId}/${Date.now()}-${safeName}.${image.extension}`, image.buffer, image.contentType);
+      logAudit(ctx, { action: "studio.gift_store.storefront.image.upload", entityType: "design", entityId: 1, summary: "Visuel storefront téléversé dans Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
+      return { url };
+    }),
     getOwnerExistingCatalogue: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerExistingCatalogue(input.storeId);

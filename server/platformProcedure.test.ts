@@ -76,6 +76,9 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getOwnerManualCommercialPassageReview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerCataloguePublicationPreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.publishOwnerCatalogueFromPreview({ storeId: 1, planToken: "a".repeat(24), confirmationName: "Boutique cliente", previewAcknowledged: true, missingMediaVariantsAcknowledged: true, operationsLegalDomainAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getOwnerPublicStorefrontContent({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.saveOwnerPublicStorefrontBanner({ storeId: 1, title: "Bannière privée", subtitle: "Texte privé", imageUrl: "/studio-assets/prive.webp", linkUrl: "/boutique", active: 1, displayOrder: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.uploadOwnerPublicStorefrontImage({ storeId: 1, fileName: "visuel.png", dataUrl: "data:image/png;base64,aGVsbG8=" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerExistingCatalogue({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerExistingCatalogueCategory({ storeId: 1, categoryId: 1, name: "Catégorie privée", description: "Description privée." })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveOwnerExistingCatalogueProduct({ storeId: 1, productId: 1, categoryId: 1, name: "Produit privé", description: "Description privée.", longDescription: "Description détaillée privée.", priceCents: 1990, stock: 3, featured: false, images: [], options: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });

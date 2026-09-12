@@ -354,3 +354,7 @@ Dans chaque fiche du catalogue existant, ajoutez jusqu’à huit images par URL 
 ### Prévol final avant l’ouverture publique
 
 Le prévol d’ouverture bloque maintenant si aucune fiche active n’a un prix et un stock supérieurs à zéro, ou si une fiche active ne possède pas d’image. Lorsque les blocages sont levés, confirmez séparément le domaine, la revue des variantes, la revue des informations de livraison et retours, puis l’ouverture elle-même. Recopiez également le nom de la boutique et l’e-mail du propriétaire actif. L’activation reste la seule étape qui rend le storefront public.
+
+### Personnaliser la vitrine après activation
+
+Depuis MAZIGHO Studio, ouvrez **Publication contrôlée**, puis **Personnaliser bannières et textes**. L’éditeur `/admin/studio/contenu-public/300004` permet de changer le nom, logo, palette, textes d’accueil, images éditoriales et bannières propres à Pattes & Compagnie. Ces changements sont isolés : ils ne modifient jamais MAZIGHO principal. Vérifiez ensuite le rendu sur `animalerie.mazigho.ch`.

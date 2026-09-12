@@ -683,3 +683,9 @@ L’éditeur Studio du catalogue existant gère désormais jusqu’à huit image
 ## Prévol final d’activation publique — 12 septembre 2026
 
 Avant toute activation d’une boutique offerte animalière, le prévol vérifie désormais qu’au moins une fiche active est réellement vendable (prix et stock supérieurs à zéro) et que chaque fiche active possède au moins une image. Les variantes client et les informations de livraison / retours restent des décisions humaines explicites : elles apparaissent dans le prévol et requièrent leurs propres confirmations, avec le domaine, l’e-mail propriétaire, la recopie du nom et la confirmation d’ouverture. La mutation d’activation réévalue les critères dans sa transaction ; elle ne peut donc pas être contournée via l’interface.
+
+## Personnalisation publique par boutique — 12 septembre 2026
+
+MAZIGHO Studio dispose désormais d’un éditeur de contenu storefront par boutique offerte, accessible via `/admin/studio/contenu-public/:storeId`. Il permet de gérer séparément le nom, les textes éditoriaux, le logo, les images et les bannières d’accueil. Les données sont enregistrées par `storeId` et n’affectent jamais MAZIGHO principal ; les procédures restent protégées par `platformProcedure`.
+
+Pour Pattes & Compagnie, les contenus MAZIGHO encore génériques doivent être remplacés depuis cet éditeur, puis vérifiés sur `animalerie.mazigho.ch`.
