@@ -16,10 +16,10 @@ type VariantOption = { name: string; values: string[] };
 type Product = { id: number; categoryId: number; name: string; slug: string; description: string | null; longDescription: string | null; price: number; stock: number; featured: boolean; status: "active" | "draft" | "archived"; images: string[]; options: string | null };
 type ProductInput = { categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: VariantOption[] };
 
-export default function AdminStudioOwnerExistingCatalogueEditor() {
+export default function AdminStudioOwnerExistingCatalogueEditor({ storeIdOverride, params: routeParams }: { storeIdOverride?: number; params?: { storeId?: string } } = {}) {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/admin/studio/catalogue-existant/:storeId");
-  const storeId = Number(params?.storeId);
+  const [, matchedParams] = useRoute("/admin/studio/catalogue-existant/:storeId");
+  const storeId = storeIdOverride ?? Number(routeParams?.storeId ?? matchedParams?.storeId);
   const validStoreId = Number.isInteger(storeId) && storeId > 0;
   const utils = trpc.useUtils();
   const query = trpc.admin.studio.getOwnerExistingCatalogue.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false, refetchOnWindowFocus: false });

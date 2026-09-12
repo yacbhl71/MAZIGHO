@@ -57,10 +57,10 @@ function BannerEditor({ value, onSave, onDelete, onUpload, pending }: { value: B
   </CardContent></Card>;
 }
 
-export default function AdminStudioOwnerPublicStorefrontContent() {
+export default function AdminStudioOwnerPublicStorefrontContent({ storeIdOverride, params: routeParams }: { storeIdOverride?: number; params?: { storeId?: string } } = {}) {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/admin/studio/contenu-public/:storeId");
-  const storeId = Number(params?.storeId);
+  const [, matchedParams] = useRoute("/admin/studio/contenu-public/:storeId");
+  const storeId = storeIdOverride ?? Number(routeParams?.storeId ?? matchedParams?.storeId);
   const isValidStoreId = Number.isInteger(storeId) && storeId > 0;
   const contentQuery = trpc.admin.studio.getOwnerPublicStorefrontContent.useQuery({ storeId: isValidStoreId ? storeId : 0 }, { enabled: isValidStoreId, retry: false });
   const utils = trpc.useUtils();

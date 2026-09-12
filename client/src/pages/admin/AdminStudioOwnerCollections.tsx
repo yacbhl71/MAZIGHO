@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CircleAlert, Eye, FolderKanban, GripVertical, LockKeyhole, PackagePlus, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CircleAlert, Eye, FolderKanban, GripVertical, LockKeyhole, PackagePlus, Palette, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import AdminStudioOwnerExistingCatalogueEditor from "./AdminStudioOwnerExistingCatalogueEditor";
+import AdminStudioOwnerPublicStorefrontContent from "./AdminStudioOwnerPublicStorefrontContent";
 import { Link, useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
 
@@ -25,6 +27,7 @@ export default function AdminStudioOwnerCollections() {
   const validStoreId = Number.isInteger(storeId) && storeId > 0;
   const utils = trpc.useUtils();
   const query = trpc.admin.studio.getOwnerCollectionDrafts.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false });
+  const activeStoreQuery = trpc.admin.studio.getOwnerPublicStorefrontContent.useQuery({ storeId: validStoreId ? storeId : 0 }, { enabled: validStoreId, retry: false });
   const [collections, setCollections] = useState<Collection[]>([]);
   const [initialCollections, setInitialCollections] = useState<Collection[]>([]);
 
@@ -59,6 +62,7 @@ export default function AdminStudioOwnerCollections() {
   const add = () => setCollections(current => current.length >= 8 ? current : [...current, { id: `draft-${Date.now()}`, title: `Nouvelle collection ${current.length + 1}`, description: "Présentez en quelques mots l’idée, le style ou la sélection de cette collection.", featured: false }]);
 
   if (!validStoreId) return <DashboardLayout><main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8"><Unavailable /></main></DashboardLayout>;
+  if (activeStoreQuery.data?.store.status === "active") return <ActiveStoreManagementFromCollections storeId={storeId} storeName={activeStoreQuery.data.store.displayName} domain={activeStoreQuery.data.store.primaryDomain} />;
 
   return <DashboardLayout><main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 md:px-8 md:py-8">
     <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><Badge className="border-0 bg-slate-950 text-white hover:bg-slate-950"><LockKeyhole className="mr-1.5 h-3.5 w-3.5" /> Atelier privé Studio</Badge><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-900">Collections de présentation</Badge></div><h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Préparer les collections</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Organisez les univers visibles dans votre future boutique. Cette étape prépare uniquement une structure éditoriale ; elle ne crée ni catégorie réelle ni produit vendable.</p></div><div className="flex flex-wrap gap-2"><Button type="button" onClick={() => setLocation(`/admin/studio/produits/${storeId}`)} className="w-fit bg-slate-950 text-white hover:bg-slate-800"><PackagePlus className="mr-2 h-4 w-4" /> Fiches produits</Button><Button type="button" variant="outline" onClick={() => setLocation(`/admin/studio/constructeur/${storeId}`)} className="w-fit border-slate-300 bg-white text-slate-800 hover:bg-slate-50"><ArrowLeft className="mr-2 h-4 w-4" /> Créateur de boutique</Button></div></header>
@@ -75,6 +79,17 @@ export default function AdminStudioOwnerCollections() {
         </aside>
       </section>
     </>}
+  </main></DashboardLayout>;
+}
+
+function ActiveStoreManagementFromCollections({ storeId, storeName, domain }: { storeId: number; storeName: string; domain: string | null }) {
+  const [section, setSection] = useState<"home" | "catalogue" | "storefront">("home");
+  if (section === "catalogue") return <AdminStudioOwnerExistingCatalogueEditor storeIdOverride={storeId} />;
+  if (section === "storefront") return <AdminStudioOwnerPublicStorefrontContent storeIdOverride={storeId} />;
+  return <DashboardLayout><main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-8 md:py-8">
+    <header><div className="flex flex-wrap items-center gap-2"><Badge className="border-0 bg-slate-950 text-white hover:bg-slate-950">MAZIGHO Studio</Badge><Badge className="border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-50">Gestion active</Badge></div><h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Gérer {storeName}</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Cette boutique est active : les ateliers de brouillons sont terminés. Choisissez ce que vous souhaitez modifier réellement.</p></header>
+    <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-950"><p className="font-bold">Boutique active et isolée</p><p className="mt-1">Les modifications resteront propres à {storeName}. {domain ? `Domaine : ${domain}.` : ""}</p></section>
+    <section className="grid gap-5 md:grid-cols-2"><Card className="border-slate-200"><CardHeader><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-orange-50 text-orange-700"><PackagePlus className="h-5 w-5" /></div><div><CardDescription>Catalogue réel</CardDescription><CardTitle className="mt-1">Produits, images et variantes</CardTitle></div></div></CardHeader><CardContent><p className="text-sm leading-6 text-slate-600">Modifiez les catégories, prix, stock, photos et variantes du catalogue actif.</p><Button type="button" onClick={() => setSection("catalogue")} className="mt-5 min-h-11 bg-slate-950 text-white hover:bg-slate-800">Gérer le catalogue</Button></CardContent></Card><Card className="border-slate-200"><CardHeader><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><Palette className="h-5 w-5" /></div><div><CardDescription>Vitrine publique</CardDescription><CardTitle className="mt-1">Bannières, images et textes</CardTitle></div></div></CardHeader><CardContent><p className="text-sm leading-6 text-slate-600">Remplacez l’univers générique MAZIGHO par l’identité animalier de Pattes & Compagnie.</p><Button type="button" onClick={() => setSection("storefront")} className="mt-5 min-h-11 bg-violet-700 text-white hover:bg-violet-800">Personnaliser la vitrine</Button></CardContent></Card></section>
   </main></DashboardLayout>;
 }
 
