@@ -487,6 +487,77 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerExistingCatalogue: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerExistingCatalogue(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "L’éditeur de catalogue est réservé à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        throw error;
+      }
+    }),
+    saveOwnerExistingCatalogueCategory: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      categoryId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(100),
+      description: z.string().trim().max(2000),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerExistingCatalogueCategory(input);
+        logAudit(ctx, { action: "studio.gift_store.catalogue.category.save", entityType: "category", entityId: input.categoryId, summary: "Catégorie du catalogue existant modifiée dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CATEGORY_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Catégorie introuvable dans cette boutique." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette modification est réservée à une boutique offerte encore en préparation." });
+        throw error;
+      }
+    }),
+    saveOwnerExistingCatalogueProduct: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      categoryId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(200),
+      description: z.string().trim().max(2000),
+      longDescription: z.string().trim().max(6000),
+      priceCents: z.number().int().min(0).max(10_000_000),
+      stock: z.number().int().min(0).max(999_999),
+      featured: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioOwnerExistingCatalogueProduct(input);
+        logAudit(ctx, { action: "studio.gift_store.catalogue.product.save", entityType: "product", entityId: input.productId, summary: "Produit du catalogue existant modifié dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "PRODUCT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+        if (code === "CATEGORY_NOT_FOUND") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez une catégorie de cette boutique." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette modification est réservée à une boutique offerte encore en préparation." });
+        throw error;
+      }
+    }),
+    createOwnerExistingCatalogueProduct: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      categoryId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(200),
+      description: z.string().trim().max(2000),
+      longDescription: z.string().trim().max(6000),
+      priceCents: z.number().int().min(1).max(10_000_000),
+      stock: z.number().int().min(0).max(999_999),
+      featured: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const created = await db.createStudioOwnerExistingCatalogueProduct(input);
+        logAudit(ctx, { action: "studio.gift_store.catalogue.product.create", entityType: "product", entityId: created.productId, summary: "Produit ajouté au catalogue existant depuis Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
+        return created;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CATEGORY_NOT_FOUND") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez une catégorie de cette boutique." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cet ajout est réservé à une boutique offerte encore en préparation." });
+        throw error;
+      }
+    }),
     getOwnerCataloguePublicationPreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerCataloguePublicationPreview(input.storeId);

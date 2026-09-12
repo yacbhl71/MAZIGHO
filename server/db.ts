@@ -1509,6 +1509,82 @@ export async function publishStudioOwnerCatalogueFromPreview(input: {
   });
 }
 
+function studioExistingCatalogueSlug(value: string, fallback: string) {
+  const base = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 180) || fallback;
+  return base;
+}
+
+function uniqueStudioExistingCatalogueSlug(value: string, used: Set<string>, fallback: string) {
+  const base = studioExistingCatalogueSlug(value, fallback);
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${base.slice(0, Math.max(1, 195 - String(suffix).length))}-${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+/**
+ * Controlled Studio view of the existing real catalogue. It intentionally
+ * excludes supplier, customer, order and payment data and remains setup-only.
+ */
+export async function getStudioOwnerExistingCatalogue(storeId: number) {
+  const builder = await getStudioOwnerBuilderConfiguration(storeId);
+  await ensureStoreCatalogScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [categoryRows, productRows] = await Promise.all([
+    db.select({ id: categories.id, name: categories.name, slug: categories.slug, description: categories.description, displayOrder: categories.displayOrder }).from(categories).where(eq(categories.storeId, storeId)).orderBy(asc(categories.displayOrder), asc(categories.name)),
+    db.select({ id: products.id, categoryId: products.categoryId, name: products.name, slug: products.slug, description: products.description, longDescription: products.longDescription, price: products.price, stock: products.stock, featured: products.featured, status: products.status }).from(products).where(eq(products.storeId, storeId)).orderBy(desc(products.featured), asc(products.name)),
+  ]);
+  return {
+    privateExistingCatalogueEditor: true as const,
+    publicStorefront: false as const,
+    publicCart: false as const,
+    publicCheckout: false as const,
+    store: builder.store,
+    categories: categoryRows,
+    products: productRows.map(product => ({ ...product, featured: Boolean(product.featured) })),
+  };
+}
+
+export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId: number; categoryId: number; name: string; description: string }) {
+  const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
+  const current = snapshot.categories.find(category => category.id === input.categoryId);
+  if (!current) throw new Error("CATEGORY_NOT_FOUND");
+  const used = new Set(snapshot.categories.filter(category => category.id !== input.categoryId).map(category => category.slug));
+  const slug = uniqueStudioExistingCatalogueSlug(input.name, used, `categorie-${input.categoryId}`);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(categories).set({ name: input.name, description: input.description, slug }).where(and(eq(categories.storeId, input.storeId), eq(categories.id, input.categoryId)));
+  return getStudioOwnerExistingCatalogue(input.storeId);
+}
+
+export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean }) {
+  const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
+  const current = snapshot.products.find(product => product.id === input.productId);
+  if (!current) throw new Error("PRODUCT_NOT_FOUND");
+  if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
+  const used = new Set(snapshot.products.filter(product => product.id !== input.productId).map(product => product.slug));
+  const slug = uniqueStudioExistingCatalogueSlug(input.name, used, `produit-${input.productId}`);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0 }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
+  await markProductTranslationsStale(input.productId, input.storeId);
+  return getStudioOwnerExistingCatalogue(input.storeId);
+}
+
+export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean }) {
+  const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
+  if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
+  const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: "active" });
+  return { productId: Number((result as any)[0].insertId), catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
+}
+
 /**
  * Private progress checklist for one offered store in setup. It returns only
  * minimized preparation states; it never verifies or changes public opening.

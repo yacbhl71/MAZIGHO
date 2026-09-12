@@ -339,3 +339,8 @@ Après la vérification d’étanchéité, cliquez sur **Préparer la revue de p
 Depuis **Revue manuelle de passage commercial**, choisissez **Visualiser la publication contrôlée**. Vérifiez les catégories et les fiches affichées. Pour créer réellement le catalogue, cochez les trois confirmations et recopiez exactement le nom de la boutique. La publication ne peut pas remplacer un catalogue déjà existant ; elle crée uniquement les champs présents dans les brouillons et signale donc explicitement l’absence éventuelle d’images ou de variantes.
 
 Après publication, la boutique reste en `setup` et demeure fermée au public. Le second bloc **Ouvrir la boutique** lance le prévol d’activation déjà existant. Son bouton ne devient disponible qu’après validation des contrôles, de la vérification manuelle du domaine, de l’e-mail du propriétaire actif, de la recopie du nom et de la confirmation finale. Ces deux actions sont indépendantes.
+
+
+### Conserver et compléter le catalogue animalier
+
+Lorsque la publication contrôlée indique qu’un catalogue réel existe déjà, choisissez **Compléter le catalogue existant**. Vous pouvez modifier les catégories et la fiche de démonstration, ou ajouter de nouvelles fiches ; aucune suppression n’est proposée dans ce parcours. Les enregistrements restent non publics tant que la boutique est en `setup`.

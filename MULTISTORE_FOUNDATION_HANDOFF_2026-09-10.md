@@ -668,3 +668,8 @@ La dernière étape privée consolide le prévol commercial et la revue d’éta
 MAZIGHO Studio offre désormais une **publication réelle de catalogue**, précédée d’un aperçu privé. Le plan convertit uniquement les champs disponibles dans les brouillons Studio : collections, nom, description, prix, mise en avant et disponibilité préparatoire. Il affiche explicitement que les images et variantes ne font pas partie de ces brouillons et exige une confirmation humaine dédiée avant toute copie.
 
 La mutation exige le jeton de l’aperçu, la recopie du nom de boutique et trois confirmations. Elle refuse de remplacer un catalogue réel déjà présent, laisse la boutique en `setup`, et consigne une trace dédiée. Le storefront, le panier et le checkout restent donc fermés après publication du catalogue. L’ouverture publique demeure la mutation `activateGiftAnimalStore`, soumise à son propre prévol, la vérification manuelle du domaine, l’e-mail du propriétaire actif, la recopie du nom et une confirmation finale.
+
+
+## Éditeur du catalogue existant — 12 septembre 2026
+
+Pattes & Compagnie conserve ses trois catégories et sa fiche animalière de démonstration. Une publication automatisée est bloquée lorsqu’un catalogue réel existe, afin d’empêcher tout écrasement. MAZIGHO Studio fournit désormais un éditeur isolé pour modifier ces catégories et produits, ou ajouter de nouvelles fiches, avec des mutations limitées au texte, prix, stock, catégorie et mise en avant. Aucune suppression n’est proposée et la boutique demeure en `setup`.
