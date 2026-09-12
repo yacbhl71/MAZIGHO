@@ -344,3 +344,8 @@ Après publication, la boutique reste en `setup` et demeure fermée au public. L
 ### Conserver et compléter le catalogue animalier
 
 Lorsque la publication contrôlée indique qu’un catalogue réel existe déjà, choisissez **Compléter le catalogue existant**. Vous pouvez modifier les catégories et la fiche de démonstration, ou ajouter de nouvelles fiches ; aucune suppression n’est proposée dans ce parcours. Les enregistrements restent non publics tant que la boutique est en `setup`.
+
+
+### Ajouter images et variantes
+
+Dans chaque fiche du catalogue existant, ajoutez jusqu’à huit images par URL ou par téléversement JPEG, PNG ou WebP ; la première image est la principale et son ordre est ajustable. Ajoutez ensuite des variantes client telles que **Couleur** ou **Taille**, avec leurs valeurs séparées par des virgules. Ces modifications restent privées tant que Pattes & Compagnie est en `setup`.

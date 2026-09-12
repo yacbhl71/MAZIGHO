@@ -524,6 +524,8 @@ export const adminRouter = router({
       priceCents: z.number().int().min(0).max(10_000_000),
       stock: z.number().int().min(0).max(999_999),
       featured: z.boolean(),
+      images: z.array(z.string().trim().max(1000).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne.")).max(8),
+      options: z.array(z.object({ name: z.string().trim().min(1).max(60), values: z.array(z.string().trim().min(1).max(60)).min(1).max(30) })).max(4),
     })).mutation(async ({ ctx, input }) => {
       try {
         const saved = await db.saveStudioOwnerExistingCatalogueProduct(input);
@@ -546,6 +548,8 @@ export const adminRouter = router({
       priceCents: z.number().int().min(1).max(10_000_000),
       stock: z.number().int().min(0).max(999_999),
       featured: z.boolean(),
+      images: z.array(z.string().trim().max(1000).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne.")).max(8),
+      options: z.array(z.object({ name: z.string().trim().min(1).max(60), values: z.array(z.string().trim().min(1).max(60)).min(1).max(30) })).max(4),
     })).mutation(async ({ ctx, input }) => {
       try {
         const created = await db.createStudioOwnerExistingCatalogueProduct(input);
@@ -557,6 +561,21 @@ export const adminRouter = router({
         if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cet ajout est réservé à une boutique offerte encore en préparation." });
         throw error;
       }
+    }),
+    uploadOwnerExistingCatalogueProductImage: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      dataUrl: z.string().max(7_100_000),
+      fileName: z.string().trim().min(1).max(160),
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      const image = decodeDesignImage(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "produit";
+      const key = `studio-catalogue/${input.storeId}/${input.productId}/${Date.now()}-${safeName}.${image.extension}`;
+      const { url } = await storagePut(key, image.buffer, image.contentType);
+      logAudit(ctx, { action: "studio.gift_store.catalogue.image.upload", entityType: "product", entityId: input.productId, summary: "Image produit téléversée dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
+      return { url };
     }),
     getOwnerCataloguePublicationPreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {

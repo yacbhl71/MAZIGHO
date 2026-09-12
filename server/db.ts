@@ -1534,10 +1534,13 @@ export async function getStudioOwnerExistingCatalogue(storeId: number) {
   await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const [categoryRows, productRows] = await Promise.all([
+  const [categoryRows, productRows, imageRows] = await Promise.all([
     db.select({ id: categories.id, name: categories.name, slug: categories.slug, description: categories.description, displayOrder: categories.displayOrder }).from(categories).where(eq(categories.storeId, storeId)).orderBy(asc(categories.displayOrder), asc(categories.name)),
-    db.select({ id: products.id, categoryId: products.categoryId, name: products.name, slug: products.slug, description: products.description, longDescription: products.longDescription, price: products.price, stock: products.stock, featured: products.featured, status: products.status }).from(products).where(eq(products.storeId, storeId)).orderBy(desc(products.featured), asc(products.name)),
+    db.select({ id: products.id, categoryId: products.categoryId, name: products.name, slug: products.slug, description: products.description, longDescription: products.longDescription, price: products.price, stock: products.stock, featured: products.featured, status: products.status, options: products.options }).from(products).where(eq(products.storeId, storeId)).orderBy(desc(products.featured), asc(products.name)),
+    db.select({ productId: productImages.productId, imageUrl: productImages.imageUrl, displayOrder: productImages.displayOrder }).from(productImages).where(eq(productImages.storeId, storeId)).orderBy(asc(productImages.displayOrder)),
   ]);
+  const imagesByProductId = new Map<number, string[]>();
+  for (const image of imageRows) imagesByProductId.set(image.productId, [...(imagesByProductId.get(image.productId) || []), image.imageUrl]);
   return {
     privateExistingCatalogueEditor: true as const,
     publicStorefront: false as const,
@@ -1545,7 +1548,7 @@ export async function getStudioOwnerExistingCatalogue(storeId: number) {
     publicCheckout: false as const,
     store: builder.store,
     categories: categoryRows,
-    products: productRows.map(product => ({ ...product, featured: Boolean(product.featured) })),
+    products: productRows.map(product => ({ ...product, featured: Boolean(product.featured), images: imagesByProductId.get(product.id) || [] })),
   };
 }
 
@@ -1561,7 +1564,7 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
-export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean }) {
+export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const current = snapshot.products.find(product => product.id === input.productId);
   if (!current) throw new Error("PRODUCT_NOT_FOUND");
@@ -1570,19 +1573,23 @@ export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: 
   const slug = uniqueStudioExistingCatalogueSlug(input.name, used, `produit-${input.productId}`);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0 }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
+  await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, options: input.options.length ? JSON.stringify(input.options) : null }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
+  await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, input.productId)));
+  if (input.images.length) await db.insert(productImages).values(input.images.map((imageUrl, displayOrder) => ({ storeId: input.storeId, productId: input.productId, imageUrl, displayOrder })));
   await markProductTranslationsStale(input.productId, input.storeId);
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
-export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean }) {
+export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
   const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit");
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: "active" });
-  return { productId: Number((result as any)[0].insertId), catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
+  const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: "active", options: input.options.length ? JSON.stringify(input.options) : null });
+  const productId = Number((result as any)[0].insertId);
+  if (input.images.length) await db.insert(productImages).values(input.images.map((imageUrl, displayOrder) => ({ storeId: input.storeId, productId, imageUrl, displayOrder })));
+  return { productId, catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
 }
 
 /**

@@ -673,3 +673,8 @@ La mutation exige le jeton de l’aperçu, la recopie du nom de boutique et troi
 ## Éditeur du catalogue existant — 12 septembre 2026
 
 Pattes & Compagnie conserve ses trois catégories et sa fiche animalière de démonstration. Une publication automatisée est bloquée lorsqu’un catalogue réel existe, afin d’empêcher tout écrasement. MAZIGHO Studio fournit désormais un éditeur isolé pour modifier ces catégories et produits, ou ajouter de nouvelles fiches, avec des mutations limitées au texte, prix, stock, catégorie et mise en avant. Aucune suppression n’est proposée et la boutique demeure en `setup`.
+
+
+## Images et variantes du catalogue existant — 12 septembre 2026
+
+L’éditeur Studio du catalogue existant gère désormais jusqu’à huit images ordonnées par produit, via URL contrôlée ou téléversement JPEG/PNG/WebP vers le stockage isolé, ainsi que jusqu’à quatre options client (par exemple couleur ou taille). Ces données restent propres au catalogue de la boutique, sans mapping fournisseur ni action d’achat. Les images et variantes ne rendent pas la boutique publiquement servable : l’état `setup` demeure le garde-fou d’exposition.
