@@ -399,6 +399,21 @@ export default function AdminStudio() {
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
   const giftSetupStores = useMemo(() => (inventory?.stores ?? []).filter(store => store.status === "setup" && store.giftProvisioned), [inventory?.stores]);
   const inventoryStoreById = useMemo(() => new Map((inventory?.stores ?? []).map(store => [store.id, store])), [inventory?.stores]);
+  const storeHealth = useMemo(() => (inventory?.stores ?? []).map(store => {
+    if (["limited", "suspended", "closed"].includes(store.status)) {
+      return { id: store.id, label: "Accès à surveiller", detail: `Statut ${store.status} · revue opérateur requise`, tone: "rose", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
+    }
+    if (store.status === "setup") {
+      return { id: store.id, label: "Préparation en cours", detail: `${store.activeOwners} propriétaire actif · ${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""}`, tone: "amber", href: `/admin/studio/lancement/${store.id}` };
+    }
+    if (store.activeOwners === 0) {
+      return { id: store.id, label: "Propriétaire à vérifier", detail: "Aucun propriétaire actif détecté dans le registre", tone: "rose", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
+    }
+    if (!store.isPlatformStore && store.activeProductCount === 0) {
+      return { id: store.id, label: "Catalogue à compléter", detail: "Aucune fiche active détectée dans le registre", tone: "amber", href: `/admin/studio/gestion-boutique/${store.id}` };
+    }
+    return { id: store.id, label: "Base opérationnelle", detail: `${store.activeOwners} propriétaire actif · ${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""}`, tone: "emerald", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
+  }), [inventory?.stores]);
   const operatorPriorities = useMemo(() => (inventory?.stores ?? []).map(store => {
     if (store.isPlatformStore) {
       return {
@@ -519,6 +534,22 @@ export default function AdminStudio() {
           {inventoryQuery.isLoading && !inventory ? <div className="mt-5 grid gap-3 lg:grid-cols-3"><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /></div> : operatorPriorities.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Les priorités apparaîtront ici dès qu’une boutique sera enregistrée.</div> : <div className="mt-5 grid gap-3 lg:grid-cols-3">{operatorPriorities.map(priority => {
             const palette = priority.tone === "amber" ? { card: "border-amber-200 bg-amber-50", label: "text-amber-800", action: "text-amber-900" } : priority.tone === "rose" ? { card: "border-rose-200 bg-rose-50", label: "text-rose-800", action: "text-rose-900" } : priority.tone === "teal" ? { card: "border-teal-200 bg-teal-50", label: "text-teal-800", action: "text-teal-900" } : priority.tone === "sky" ? { card: "border-sky-200 bg-sky-50", label: "text-sky-800", action: "text-sky-900" } : { card: "border-slate-200 bg-slate-50", label: "text-slate-700", action: "text-slate-950" };
             return <Link key={priority.id} href={priority.href} className={`group rounded-2xl border p-4 transition-colors hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${palette.card}`}><div className="flex items-start justify-between gap-3"><div><p className={`text-xs font-bold uppercase tracking-[0.14em] ${palette.label}`}>{priority.label}</p><p className="mt-1 text-base font-semibold text-slate-950">{priority.title}</p></div><ArrowUpRight className={`h-5 w-5 shrink-0 ${palette.action}`} /></div><p className="mt-3 text-sm leading-6 text-slate-700">{priority.detail}</p><p className={`mt-4 text-sm font-semibold ${palette.action}`}>{priority.action}</p></Link>;
+          })}</div>}
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">Santé du parc</p>
+              <h2 id="studio-health-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Voir ce qui est prêt, à compléter ou à surveiller.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Cette lecture ne mesure ni les ventes futures, ni la qualité commerciale. Elle rend simplement visibles les signaux structurels déjà connus de Studio.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-emerald-200 bg-emerald-50 text-emerald-800">Indicateurs agrégés</Badge>
+          </div>
+          {inventoryQuery.isLoading && !inventory ? <div className="mt-5 h-28 animate-pulse rounded-2xl bg-slate-100" /> : storeHealth.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">La santé du parc apparaîtra ici dès qu’une boutique sera enregistrée.</div> : <div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200">{storeHealth.map(health => {
+            const store = inventoryStoreById.get(health.id);
+            const palette = health.tone === "rose" ? { badge: "border-rose-200 bg-rose-50 text-rose-800", dot: "bg-rose-500" } : health.tone === "amber" ? { badge: "border-amber-200 bg-amber-50 text-amber-800", dot: "bg-amber-500" } : { badge: "border-emerald-200 bg-emerald-50 text-emerald-800", dot: "bg-emerald-500" };
+            return <Link key={health.id} href={health.href} className="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-start gap-3"><span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${palette.dot}`} /><div className="min-w-0"><p className="truncate font-semibold text-slate-950">{store?.displayName}</p><p className="mt-1 text-sm leading-5 text-slate-600">{health.detail}</p></div></div><div className="flex shrink-0 items-center gap-3"><Badge variant="outline" className={palette.badge}>{health.label}</Badge><ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-slate-900" /></div></Link>;
           })}</div>}
         </section>
 
