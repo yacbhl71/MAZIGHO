@@ -5124,6 +5124,30 @@ export async function deleteCategory(id: number, storeId?: number) {
   return { success: true };
 }
 
+/**
+ * Owner-facing, privacy-minimised order list. The owner can see operational
+ * status and totals for the current store only; customer identities, addresses,
+ * notes, supplier fields and payment references never leave this helper.
+ */
+export async function getOwnerOrderSummaries(storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  await ensureOrderCurrencySchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select({
+    id: orders.id,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    totalAmount: orders.totalAmount,
+    currencyCode: orders.currencyCode,
+    createdAt: orders.createdAt,
+  }).from(orders)
+    .where(eq(orders.storeId, storeId))
+    .orderBy(desc(orders.createdAt))
+    .limit(100);
+}
+
 export async function getAllOrdersAdmin(storeId?: number) {
   await ensureStoreRelationshipScopeSchema();
   await ensureFulfillmentSchema();
