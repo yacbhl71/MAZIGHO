@@ -37,6 +37,9 @@ export const ownerRouter = router({
   getOrdersOverview: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),
+  getCustomerOverview: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerCustomerSummaries(ctx.store!.id);
+  }),
   createProduct: storeOwnerProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
   }),

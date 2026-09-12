@@ -5148,6 +5148,33 @@ export async function getOwnerOrderSummaries(storeId: number) {
     .limit(100);
 }
 
+/**
+ * Owner-facing customer overview. Deliberately anonymous: this exposes only a
+ * store-scoped reference and aggregated order activity, never names, emails,
+ * addresses, account status or communication preferences.
+ */
+export async function getOwnerCustomerSummaries(storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select({
+    userId: orders.userId,
+    orderCount: count(),
+    lastOrderAt: sql<Date | null>`MAX(${orders.createdAt})`,
+  }).from(orders)
+    .where(eq(orders.storeId, storeId))
+    .groupBy(orders.userId)
+    .orderBy(desc(sql<Date | null>`MAX(${orders.createdAt})`))
+    .limit(100);
+
+  return rows.filter(row => row.userId != null).map(row => ({
+    reference: `CL-${String(row.userId).padStart(6, "0")}`,
+    orderCount: Number(row.orderCount ?? 0),
+    lastOrderAt: row.lastOrderAt,
+  }));
+}
+
 export async function getAllOrdersAdmin(storeId?: number) {
   await ensureStoreRelationshipScopeSchema();
   await ensureFulfillmentSchema();
