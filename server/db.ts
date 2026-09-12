@@ -5129,6 +5129,29 @@ export async function deleteCategory(id: number, storeId?: number) {
  * status and totals for the current store only; customer identities, addresses,
  * notes, supplier fields and payment references never leave this helper.
  */
+export async function getOwnerStoreSettingsSummary(storeId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [storeRows, settingRows] = await Promise.all([
+    db.select({ displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, createdAt: stores.createdAt, updatedAt: stores.updatedAt })
+      .from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), inArray(storeSettings.key, ["store_currency_code", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "legal_profile"]))),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  const values = new Map(settingRows.map(row => [row.key, row.value]));
+  return {
+    store,
+    currencyCode: values.get("store_currency_code")?.trim().toUpperCase() || "CHF",
+    shippingConfigured: Boolean(values.get("shipping_policy") || values.get("free_shipping_threshold") || values.get("flat_shipping_rate")),
+    legalProfileConfigured: Boolean(values.get("legal_profile")),
+    paymentsConfigured: false,
+    supplierConfigured: false,
+  };
+}
+
 export async function getOwnerOrderSummaries(storeId: number) {
   await ensureStoreRelationshipScopeSchema();
   await ensureOrderCurrencySchema();

@@ -67,6 +67,9 @@ export const ownerRouter = router({
   getCustomerOverview: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);
   }),
+  getSettingsSummary: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
+  }),
   saveNavigation: storeOwnerProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));
     if (uniqueIds.size !== input.items.length) throw new Error("NAVIGATION_DUPLICATE_ID");
