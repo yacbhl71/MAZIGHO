@@ -449,25 +449,26 @@ export default function AdminStudio() {
               </div>
 
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                <div className="grid min-w-[760px] grid-cols-[minmax(220px,1.4fr)_150px_100px_120px_120px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                  <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Commandes</span>
+                <div className="grid min-w-[900px] grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_105px_150px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Commandes</span><span>Action Studio</span>
                 </div>
                 <div className="overflow-x-auto">
-                  <div className="min-w-[760px] divide-y divide-slate-100">
+                  <div className="min-w-[900px] divide-y divide-slate-100">
                     {(inventory?.stores ?? []).map(store => {
                       const status = storeStatusPresentation[store.status];
-                      return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.4fr)_150px_100px_120px_120px] items-center gap-4 px-5 py-4">
+                      return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_105px_150px] items-center gap-4 px-5 py-4">
                         <div className="min-w-0"><div className="flex items-center gap-2"><Store className="h-4 w-4 shrink-0 text-slate-500" /><p className="truncate font-semibold text-slate-900">{store.displayName}</p>{Boolean(store.isPlatformStore) && <Badge className="border-0 bg-slate-900 text-white hover:bg-slate-900">Plateforme</Badge>}</div><p className="mt-1 truncate text-xs text-slate-500">{store.primaryDomain} · {store.slug}</p></div>
                         <div><Badge variant="outline" className={status.className}>{status.label}</Badge><p className="mt-1.5 text-xs text-slate-500">{store.setupCompleted ? "Profil initial complété" : "Profil initial à compléter"}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
+                        <div>{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link>}</div>
                       </div>;
                     })}
                   </div>
                 </div>
               </div>
-              {(inventory?.summary.client ?? 0) === 0 && <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-orange-200 bg-orange-50/60 p-4 text-sm leading-6 text-orange-950"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-orange-700" /><p><strong>Aucune boutique cliente n’est encore ouverte.</strong> C’est volontaire : Studio vous montre aujourd’hui la boutique plateforme réelle et prépare le dispositif d’accompagnement avant la première mise en service.</p></div>}
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p><strong>Le registre est désormais le point d’entrée Studio.</strong> Une boutique en <code>setup</code> mène vers son centre de préparation ; une boutique active mène vers ses outils Studio de gestion. Aucun lien ne renvoie vers les anciens ateliers de préparation après activation.</p></div>
             </>
           )}
         </section>

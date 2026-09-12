@@ -261,7 +261,6 @@ function Router() {
       <Route path="/confidentialite" component={PrivacyPolicy} />
       <Route path="/conditions-generales" component={TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
-        <Route path={"/admin"} component={AdminDashboard} />
         <Route path={"/admin/studio/collections/:storeId"} component={AdminStudioOwnerCollections} />
         <Route path={"/admin/studio/produits/:storeId"} component={AdminStudioOwnerProducts} />
         <Route path={"/admin/studio/stock-fournisseurs/:storeId"} component={AdminStudioOwnerProductOperations} />
@@ -315,6 +314,7 @@ function Router() {
         <Route path={"/admin/catalogue-brouillons"} component={StaffCatalog} />
         <Route path={"/admin/assistance"} component={StaffSupport} />
         <Route path={"/admin/operations-commandes"} component={StaffOrders} />
+        <Route path={"/admin"} component={AdminDashboard} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
