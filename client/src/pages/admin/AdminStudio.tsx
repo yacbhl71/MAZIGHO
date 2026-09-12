@@ -522,7 +522,7 @@ export default function AdminStudio() {
           </nav>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priority-board-title">
+        <section id="studio-priorities" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priority-board-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Priorités opérateur</p>
@@ -537,7 +537,7 @@ export default function AdminStudio() {
           })}</div>}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
+        <section id="studio-health" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">Santé du parc</p>
@@ -553,7 +553,7 @@ export default function AdminStudio() {
           })}</div>}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
+        <section id="studio-boutiques" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parc réel de la plateforme</p>

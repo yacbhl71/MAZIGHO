@@ -78,6 +78,9 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     tone: "violet",
     items: [
       { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
+      { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
+      { icon: TrendingUp, label: "Priorités Studio", path: "/admin/studio#studio-priorities" },
+      { icon: Activity, label: "Santé des boutiques", path: "/admin/studio#studio-health" },
     ],
   },
   {
@@ -395,8 +398,9 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0 overflow-y-auto">
             {menuSections.map(section => {
               const items = section.items.filter(item => {
-                if (item.path === "/admin/studio" && !isPlatformOperator) return false;
-                return isPathAllowed((user as any)?.role || "admin", item.path);
+                const isStudioShortcut = item.path === "/admin/studio" || item.path.startsWith("/admin/studio#");
+                if (isStudioShortcut && !isPlatformOperator) return false;
+                return isPathAllowed((user as any)?.role || "admin", item.path.split("#")[0]);
               });
               const tone = sidebarToneClasses[section.tone];
               if (items.length === 0) return null;
@@ -413,7 +417,11 @@ function DashboardLayoutContent({
                         <SidebarMenuItem key={item.path}>
                           <SidebarMenuButton
                             isActive={isActive}
-                            onClick={() => setLocation(item.path)}
+                            onClick={() => {
+                              const [path, targetId] = item.path.split("#");
+                              setLocation(path);
+                              if (targetId) window.setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                            }}
                             tooltip={item.label}
                             className={`h-10 transition-all duration-150 ${isActive ? tone.active : tone.idle}`}
                           >
