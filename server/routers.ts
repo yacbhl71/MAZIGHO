@@ -6,6 +6,7 @@ import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
+import { ownerRouter } from "./ownerRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
@@ -57,6 +58,7 @@ export const appRouter = router({
   staff: staffRouter,
   shop: shopRouter,
   auth: authRouter,
+  owner: ownerRouter,
   checkout: stripeCheckoutRouter,
 
   // Minimal host-scoped availability signal used before rendering any public or admin shell.

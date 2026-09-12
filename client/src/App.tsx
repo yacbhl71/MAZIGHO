@@ -25,6 +25,7 @@ const Nouveautes = lazy(() => import("./pages/Nouveautes"));
 const BestSellers = lazy(() => import("./pages/BestSellers"));
 const Promos = lazy(() => import("./pages/Promos"));
 const Account = lazy(() => import("./pages/Account"));
+const OwnerStorePanel = lazy(() => import("./pages/OwnerStorePanel"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminStudioPreview = lazy(() => import("./pages/admin/AdminStudioPreview"));
@@ -246,6 +247,7 @@ function Router() {
       <Route path={"/meilleures-ventes"} component={BestSellers} />
       <Route path={"/promos"} component={Promos} />
       <Route path={"/mon-compte"} component={Account} />
+      <Route path={"/gestion-boutique"} component={OwnerStorePanel} />
       <Route path={"/favoris"} component={Favorites} />
       <Route path={"/commandes"} component={Orders} />
       <Route path={"/parametres"} component={SettingsPage} />

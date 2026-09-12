@@ -7,12 +7,15 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getAccountCopy } from "@/lib/accountCopy";
+import { trpc } from "@/lib/trpc";
 
 export default function Account() {
   const [, navigate] = useLocation();
   const { user, loading: isLoading, isAuthenticated, logout } = useAuth();
   const { locale } = useLocale();
   const copy = getAccountCopy(locale);
+  const workspace = trpc.workspace.getCurrent.useQuery(undefined, { enabled: isAuthenticated });
+  const isStoreOwner = Boolean(workspace.data?.store && !workspace.data.store.isPlatformStore && workspace.data.membership?.role === "owner" && workspace.data.membership.status === "active");
 
   if (isLoading) {
     return <div className="flex min-h-screen flex-col bg-white"><Header /><main className="flex flex-1 items-center justify-center"><p className="text-gray-600">{copy.loading}</p></main><Footer /></div>;
@@ -51,6 +54,7 @@ export default function Account() {
                   <AccountLink href="/commandes" icon={<ShoppingBag className="h-6 w-6 text-blue-600" />} iconClass="bg-blue-100" title={copy.ordersTitle} description={copy.ordersText} />
                   <AccountLink href="/favoris" icon={<Heart className="h-6 w-6 text-red-600" />} iconClass="bg-red-100" title={copy.favoritesTitle} description={copy.favoritesText} />
                   <AccountLink href="/parametres" icon={<Settings className="h-6 w-6 text-green-600" />} iconClass="bg-green-100" title={copy.settingsTitle} description={copy.settingsText} />
+                  {isStoreOwner && <AccountLink href="/gestion-boutique" icon={<LayoutDashboard className="h-6 w-6 text-teal-700" />} iconClass="bg-teal-100" title="Gérer ma boutique" description="Produits, images, bannières, textes et identité de votre boutique." className="border-teal-200 bg-teal-50/40" />}
                   {(user as any)?.role === "admin" && <AccountLink href="/admin" icon={<LayoutDashboard className="h-6 w-6 text-orange-600" />} iconClass="bg-orange-100" title={copy.adminTitle} description={copy.adminText} className="border-orange-200 bg-orange-50/30" />}
                   {staffWorkspace && <AccountLink href={staffWorkspace.href} icon={<LayoutDashboard className="h-6 w-6 text-orange-600" />} iconClass="bg-orange-100" title={staffWorkspace.title} description={staffWorkspace.description} className="border-orange-200 bg-orange-50/30" />}
                   <Card role="button" tabIndex={0} className="cursor-pointer transition-shadow hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2" onClick={handleLogout} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleLogout(); } }}><CardContent className="p-6"><div className="flex items-start gap-4"><div className="rounded-lg bg-gray-100 p-3"><LogOut className="h-6 w-6 text-gray-600" /></div><div><h2 className="mb-1 font-semibold text-gray-800">{copy.logoutTitle}</h2><p className="text-sm text-gray-600">{copy.logoutText}</p></div></div></CardContent></Card>

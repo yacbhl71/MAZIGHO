@@ -56,6 +56,19 @@ export const catalogEditorProcedure = staffProcedureFor("admin", "catalog_editor
 export const supportAgentProcedure = staffProcedureFor("admin", "support_agent");
 export const orderOperatorProcedure = staffProcedureFor("admin", "order_operator");
 
+export const storeOwnerProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    requireOpenStoreForPanels(ctx);
+    if (!ctx.store || ctx.store.isPlatformStore) throw new TRPCError({ code: "FORBIDDEN", message: "Cet espace est réservé au propriétaire de sa boutique." });
+    const { getStoreMembershipForUser } = await import("../db");
+    const membership = await getStoreMembershipForUser(ctx.store.id, ctx.user.id);
+    if (!membership || membership.status !== "active" || membership.role !== "owner") throw new TRPCError({ code: "FORBIDDEN", message: "Accès réservé au propriétaire actif de cette boutique." });
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }),
+);
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
