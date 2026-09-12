@@ -215,6 +215,10 @@ export default function AdminStudio() {
   const [temporaryOwnerAccessAcknowledged, setTemporaryOwnerAccessAcknowledged] = useState(false);
   const [temporaryOwnerAccessEmail, setTemporaryOwnerAccessEmail] = useState("");
   const [issuedTemporaryOwnerPassword, setIssuedTemporaryOwnerPassword] = useState<{ password: string; email: string } | null>(null);
+  const [directAccessStoreId, setDirectAccessStoreId] = useState<string>("");
+  const [directAccessEmail, setDirectAccessEmail] = useState("");
+  const [directAccessAcknowledged, setDirectAccessAcknowledged] = useState(false);
+  const [directAccessPassword, setDirectAccessPassword] = useState<string | null>(null);
   const [legalCopyOpen, setLegalCopyOpen] = useState(false);
   const [legalCopyConfirmationName, setLegalCopyConfirmationName] = useState("");
   const [legalCopyAcknowledged, setLegalCopyAcknowledged] = useState(false);
@@ -331,6 +335,16 @@ export default function AdminStudio() {
       utils.admin.studio.getGiftStoreOwnerHandoff.invalidate();
     },
     onError: error => toast.error(error.message || "Le mot de passe temporaire n’a pas pu être généré."),
+  });
+  const directOwnerTemporaryPasswordMutation = trpc.admin.studio.issueOwnerTemporaryPassword.useMutation({
+    onSuccess: result => {
+      setDirectAccessPassword(result.temporaryPassword);
+      setDirectAccessEmail("");
+      setDirectAccessAcknowledged(false);
+      toast.success("Mot de passe temporaire généré. Copiez-le maintenant.");
+      utils.admin.studio.getInventory.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le mot de passe temporaire n’a pas pu être généré pour cette boutique."),
   });
   const provisionGiftMutation = trpc.admin.studio.provisionGiftStore.useMutation({
     onSuccess: result => {
@@ -457,6 +471,8 @@ export default function AdminStudio() {
             </>
           )}
         </section>
+
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm md:p-6" data-testid="studio-direct-owner-access"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-800">Accès direct opérateur</p><h2 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-amber-950"><LockKeyhole className="h-6 w-6" /> Créer un accès temporaire à une boutique offerte</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-amber-950">Utilisez ce bloc pour une boutique offerte déjà créée, y compris si ses anciens ateliers de préparation ne sont plus accessibles. Le mot de passe est généré une seule fois, n’est jamais envoyé par e-mail et le client doit le remplacer après connexion.</p></div><Badge className="w-fit border-0 bg-amber-700 text-white hover:bg-amber-700">Studio uniquement</Badge></div>{(inventory?.stores ?? []).filter(store => !store.isPlatformStore).length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-amber-300 bg-white/70 p-4 text-sm leading-6 text-amber-950">Aucune boutique offerte n’est disponible pour le moment.</div> : <div className="mt-5 space-y-4 rounded-2xl border border-amber-200 bg-white p-4 md:p-5"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="direct-owner-store">Boutique offerte</Label><Select value={directAccessStoreId} onValueChange={value => { setDirectAccessStoreId(value); setDirectAccessPassword(null); }}><SelectTrigger id="direct-owner-store"><SelectValue placeholder="Choisir une boutique" /></SelectTrigger><SelectContent>{(inventory?.stores ?? []).filter(store => !store.isPlatformStore).map(store => <SelectItem key={store.id} value={String(store.id)}>{store.displayName} · {store.status}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="direct-owner-email">E-mail du propriétaire à confirmer</Label><Input id="direct-owner-email" type="email" value={directAccessEmail} onChange={event => setDirectAccessEmail(event.target.value)} placeholder="proprietaire@exemple.ch" autoCapitalize="none" /></div></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><input type="checkbox" checked={directAccessAcknowledged} onChange={event => setDirectAccessAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-600" /><span>Je confirme créer un mot de passe temporaire pour le propriétaire de cette boutique. Je le transmettrai manuellement et lui demanderai de le remplacer dès sa première connexion.</span></label>{directAccessPassword ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-4"><p className="text-sm font-bold text-amber-950">Mot de passe temporaire — copiez-le maintenant</p><div className="mt-3 flex gap-2"><Input value={directAccessPassword} readOnly className="bg-white font-mono text-sm" aria-label="Mot de passe temporaire direct" /><Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(directAccessPassword); toast.success("Mot de passe copié dans le presse-papiers."); }} aria-label="Copier le mot de passe temporaire"><Copy className="h-4 w-4" /></Button></div></div> : <Button type="button" className="min-h-11 bg-amber-700 hover:bg-amber-800" disabled={!directAccessStoreId || !directAccessEmail.includes("@") || !directAccessAcknowledged || directOwnerTemporaryPasswordMutation.isPending} onClick={() => directOwnerTemporaryPasswordMutation.mutate({ storeId: Number(directAccessStoreId), confirmationEmail: directAccessEmail, acknowledged: true })}>{directOwnerTemporaryPasswordMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}Générer le mot de passe temporaire</Button>}</div>}</section>
 
         <section className="grid gap-5 lg:grid-cols-[.9fr_1.1fr]" data-testid="studio-owner-handoff">
           <Card className="border-violet-200 shadow-sm">
