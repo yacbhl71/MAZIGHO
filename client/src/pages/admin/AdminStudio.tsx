@@ -424,6 +424,34 @@ export default function AdminStudio() {
           </div>
         </section>
 
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priorities-title">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parcours Studio</p>
+              <h2 id="studio-priorities-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Ce dont vous avez besoin maintenant, sans perdre la suite.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Commencez par gérer le parc de boutiques. Lorsque vous préparez une nouvelle offre, les outils de mise en service restent disponibles. Les capacités SaaS plus avancées sont conservées plus bas, sans être confondues avec les actions du jour.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-800">Aucun outil supprimé</Badge>
+          </div>
+          <nav className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="Priorités MAZIGHO Studio">
+            <a href="#studio-inventory" className="group rounded-2xl border border-slate-900 bg-slate-950 p-4 text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-300">1. Aujourd’hui</p><p className="mt-1 text-lg font-semibold">Gérer les boutiques</p></div><Store className="h-5 w-5 text-orange-300" /></div>
+              <p className="mt-3 text-sm leading-6 text-slate-300">MAZIGHO principal, boutiques actives et préparations en cours : chaque ligne ouvre le bon parcours.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-orange-200">Ouvrir le registre <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-provisioning" className="group rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-800">2. Prochaine boutique</p><p className="mt-1 text-lg font-semibold">Préparer et remettre</p></div><ClipboardPlus className="h-5 w-5 text-amber-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-amber-900">Brouillon, propriétaire, accès temporaire et contrôles de préparation, sans ouverture ni facture automatique.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-amber-900">Voir la mise en service <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-future-saas" className="group rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950 transition-colors hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-800">3. Pour la suite</p><p className="mt-1 text-lg font-semibold">Construire le SaaS</p></div><Layers3 className="h-5 w-5 text-violet-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-violet-900">Kits métier, aperçus, prévols et principes de séparation plateforme / boutique, conservés pour vos futures offres.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-violet-900">Voir la feuille de route <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+          </nav>
+        </section>
+
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -549,7 +577,7 @@ export default function AdminStudio() {
           <DialogContent className="max-w-lg"><DialogHeader><DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-emerald-700" /> Activer publiquement la boutique</DialogTitle><DialogDescription>Cette action basculera une boutique offerte animalière de `setup` à `active`. Elle ne crée aucun paiement, abonnement, e-mail, produit ou commande fournisseur.</DialogDescription></DialogHeader>{activationPreflightQuery.data && <div className="space-y-3"><div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p><strong>Boutique :</strong> {activationPreflightQuery.data.store.displayName}</p><p><strong>Domaine :</strong> {activationPreflightQuery.data.store.primaryDomain}</p><p className="mt-1 text-xs">Vous confirmez que le domaine est bien raccordé, résout vers la boutique et a été vérifié par vos soins.</p></div><div className="space-y-2"><Label htmlFor="activation-name">Recopiez le nom de la boutique</Label><Input id="activation-name" value={activationConfirmationName} onChange={event => setActivationConfirmationName(event.target.value)} placeholder={activationPreflightQuery.data.store.displayName} /></div><div className="space-y-2"><Label htmlFor="activation-owner-email">Recopiez l’e-mail du propriétaire actif</Label><Input id="activation-owner-email" type="email" value={activationOwnerEmail} onChange={event => setActivationOwnerEmail(event.target.value)} placeholder="E-mail du propriétaire" /></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={activationDomainVerified} onChange={event => setActivationDomainVerified(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600" /><span>Je confirme avoir vérifié manuellement le domaine, son DNS, son rattachement Vercel et l’accès attendu avant l’ouverture.</span></label><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={activationVariantsReviewed} onChange={event => setActivationVariantsReviewed(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600" /><span>Je confirme avoir revu les variantes affichées au client, ou validé qu’aucune variante n’est nécessaire pour chaque fiche active.</span></label><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={activationShippingReturnsReviewed} onChange={event => setActivationShippingReturnsReviewed(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600" /><span>Je confirme avoir revu les informations de livraison, délais et retours qui seront affichées au client.</span></label><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={activationAcknowledged} onChange={event => setActivationAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-700 focus:ring-emerald-600" /><span>Je confirme ouvrir publiquement cette boutique animalière. Son statut passera à `active` ; aucun paiement, abonnement ni e-mail ne sera créé par cette action.</span></label></div>}<DialogFooter><Button type="button" variant="outline" onClick={() => setActivationConfirmOpen(false)} disabled={activateGiftStoreMutation.isPending}>Annuler</Button><Button type="button" className="bg-emerald-700 hover:bg-emerald-800" disabled={!activationPreflightQuery.data || activationConfirmationName.trim() !== activationPreflightQuery.data.store.displayName || !activationOwnerEmail.trim() || !activationDomainVerified || !activationVariantsReviewed || !activationShippingReturnsReviewed || !activationAcknowledged || activateGiftStoreMutation.isPending} onClick={() => activationPreflightQuery.data && activateGiftStoreMutation.mutate({ storeId: activationPreflightQuery.data.store.id, confirmationName: activationConfirmationName, confirmationOwnerEmail: activationOwnerEmail, domainVerified: true, variantsReviewed: true, shippingReturnsReviewed: true, activationAcknowledged: true })}>{activateGiftStoreMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Activer la boutique</Button></DialogFooter></DialogContent>
         </Dialog>
 
-        <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]" data-testid="studio-provisioning">
+        <section id="studio-provisioning" className="grid gap-5 xl:grid-cols-[1.15fr_.85fr] scroll-mt-6" data-testid="studio-provisioning">
           <Card className="border-orange-200 shadow-sm">
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -611,7 +639,7 @@ export default function AdminStudio() {
           </DialogContent>
         </Dialog>
 
-        <section className="grid gap-5 xl:grid-cols-[1.06fr_.94fr]">
+        <section id="studio-future-saas" className="grid gap-5 xl:grid-cols-[1.06fr_.94fr] scroll-mt-6">
           <Card className="border-orange-100 shadow-sm">
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
