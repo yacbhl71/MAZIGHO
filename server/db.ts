@@ -2778,6 +2778,23 @@ async function ensureStoreOperationsScopeSchema() {
   return _storeOperationsScopeSchemaReady;
 }
 
+function isAlreadyAppliedSchemaError(error: unknown) {
+  const messages: string[] = [];
+  const visit = (value: unknown, depth = 0): void => {
+    if (depth > 3 || value === null || value === undefined) return;
+    if (typeof value === "string") { messages.push(value); return; }
+    if (value instanceof Error) { messages.push(value.message); visit(value.cause, depth + 1); return; }
+    if (typeof value === "object") {
+      const candidate = value as Record<string, unknown>;
+      visit(candidate.message, depth + 1);
+      visit(candidate.cause, depth + 1);
+      visit(candidate.error, depth + 1);
+    }
+  };
+  visit(error);
+  return /duplicate key name|already exists|duplicate index|duplicate key/i.test(messages.join(" "));
+}
+
 async function ensureStoreContentScopeSchema() {
   if (_storeContentScopeSchemaReady) return _storeContentScopeSchemaReady;
   _storeContentScopeSchemaReady = (async () => {
@@ -2792,7 +2809,7 @@ async function ensureStoreContentScopeSchema() {
     await db.execute(sql.raw(`UPDATE \`banners\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
     await db.execute(sql.raw("ALTER TABLE `banners` MODIFY COLUMN `storeId` int NOT NULL"));
     try { await db.execute(sql.raw("CREATE INDEX `banners_store_active_order_idx` ON `banners` (`storeId`, `active`, `displayOrder`)")); } catch (error) {
-      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+      if (!isAlreadyAppliedSchemaError(error)) throw error;
     }
 
     await db.execute(sql.raw("ALTER TABLE `publicContentTranslations` ADD COLUMN IF NOT EXISTS `storeId` int NULL"));
@@ -2802,10 +2819,10 @@ async function ensureStoreContentScopeSchema() {
       if (!/check that column\/key exists|doesn't exist|cannot drop/i.test(String(error))) throw error;
     }
     try { await db.execute(sql.raw("CREATE UNIQUE INDEX `public_content_translations_store_content_locale_unique` ON `publicContentTranslations` (`storeId`, `contentType`, `contentId`, `locale`)")); } catch (error) {
-      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+      if (!isAlreadyAppliedSchemaError(error)) throw error;
     }
     try { await db.execute(sql.raw("CREATE INDEX `public_content_translations_store_content_idx` ON `publicContentTranslations` (`storeId`, `contentType`, `contentId`)")); } catch (error) {
-      if (!/duplicate key name|already exists/i.test(String(error))) throw error;
+      if (!isAlreadyAppliedSchemaError(error)) throw error;
     }
   })();
   return _storeContentScopeSchemaReady;
