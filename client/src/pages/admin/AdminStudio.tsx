@@ -399,6 +399,61 @@ export default function AdminStudio() {
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
   const giftSetupStores = useMemo(() => (inventory?.stores ?? []).filter(store => store.status === "setup" && store.giftProvisioned), [inventory?.stores]);
   const inventoryStoreById = useMemo(() => new Map((inventory?.stores ?? []).map(store => [store.id, store])), [inventory?.stores]);
+  const operatorPriorities = useMemo(() => (inventory?.stores ?? []).map(store => {
+    if (store.isPlatformStore) {
+      return {
+        id: store.id,
+        label: "Pilotage plateforme",
+        title: "Piloter MAZIGHO principal",
+        detail: `${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""} · ${store.orderCount} commande${store.orderCount > 1 ? "s" : ""}`,
+        href: "/admin",
+        action: "Gérer MAZIGHO",
+        tone: "slate",
+      };
+    }
+    if (store.status === "setup") {
+      return {
+        id: store.id,
+        label: "À préparer",
+        title: `Poursuivre ${store.displayName}`,
+        detail: `${store.activeOwners} propriétaire actif · ${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""}`,
+        href: `/admin/studio/lancement/${store.id}`,
+        action: "Ouvrir la préparation",
+        tone: "amber",
+      };
+    }
+    if (["limited", "suspended", "closed"].includes(store.status)) {
+      return {
+        id: store.id,
+        label: "Accès à vérifier",
+        title: `Revoir le statut de ${store.displayName}`,
+        detail: `État actuel : ${store.status} · ${store.activeOwners} propriétaire actif`,
+        href: `/admin/studio/gestion-boutique/${store.id}`,
+        action: "Gérer la boutique",
+        tone: "rose",
+      };
+    }
+    if (store.activeProductCount <= 1 || store.orderCount === 0) {
+      return {
+        id: store.id,
+        label: "Développement boutique",
+        title: `Compléter ${store.displayName}`,
+        detail: `${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""} · ${store.orderCount === 0 ? "aucune commande enregistrée" : `${store.orderCount} commande${store.orderCount > 1 ? "s" : ""}`}`,
+        href: `/admin/studio/gestion-boutique/${store.id}`,
+        action: "Gérer la boutique",
+        tone: "teal",
+      };
+    }
+    return {
+      id: store.id,
+      label: "Suivi régulier",
+      title: `Suivre ${store.displayName}`,
+      detail: `${store.activeProductCount} fiches actives · ${store.orderCount} commandes`,
+      href: `/admin/studio/gestion-boutique/${store.id}`,
+      action: "Ouvrir le suivi",
+      tone: "sky",
+    };
+  }), [inventory?.stores]);
 
   return (
     <DashboardLayout>
@@ -450,6 +505,21 @@ export default function AdminStudio() {
               <p className="mt-4 inline-flex items-center text-sm font-semibold text-violet-900">Voir la feuille de route <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
             </a>
           </nav>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priority-board-title">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Priorités opérateur</p>
+              <h2 id="studio-priority-board-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Les prochaines actions, boutique par boutique.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Cette synthèse utilise uniquement les indicateurs déjà présents dans Studio. Elle n’ouvre aucune donnée interne et ne modifie rien.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-teal-200 bg-teal-50 text-teal-800">Lecture et orientation</Badge>
+          </div>
+          {inventoryQuery.isLoading && !inventory ? <div className="mt-5 grid gap-3 lg:grid-cols-3"><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /><div className="h-36 animate-pulse rounded-2xl bg-slate-100" /></div> : operatorPriorities.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Les priorités apparaîtront ici dès qu’une boutique sera enregistrée.</div> : <div className="mt-5 grid gap-3 lg:grid-cols-3">{operatorPriorities.map(priority => {
+            const palette = priority.tone === "amber" ? { card: "border-amber-200 bg-amber-50", label: "text-amber-800", action: "text-amber-900" } : priority.tone === "rose" ? { card: "border-rose-200 bg-rose-50", label: "text-rose-800", action: "text-rose-900" } : priority.tone === "teal" ? { card: "border-teal-200 bg-teal-50", label: "text-teal-800", action: "text-teal-900" } : priority.tone === "sky" ? { card: "border-sky-200 bg-sky-50", label: "text-sky-800", action: "text-sky-900" } : { card: "border-slate-200 bg-slate-50", label: "text-slate-700", action: "text-slate-950" };
+            return <Link key={priority.id} href={priority.href} className={`group rounded-2xl border p-4 transition-colors hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${palette.card}`}><div className="flex items-start justify-between gap-3"><div><p className={`text-xs font-bold uppercase tracking-[0.14em] ${palette.label}`}>{priority.label}</p><p className="mt-1 text-base font-semibold text-slate-950">{priority.title}</p></div><ArrowUpRight className={`h-5 w-5 shrink-0 ${palette.action}`} /></div><p className="mt-3 text-sm leading-6 text-slate-700">{priority.detail}</p><p className={`mt-4 text-sm font-semibold ${palette.action}`}>{priority.action}</p></Link>;
+          })}</div>}
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
