@@ -487,6 +487,48 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getOwnerCataloguePublicationPreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioOwnerCataloguePublicationPreview(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "L’aperçu de publication est réservé à une boutique offerte encore en préparation dans MAZIGHO Studio." });
+        }
+        throw error;
+      }
+    }),
+    publishOwnerCatalogueFromPreview: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      planToken: z.string().trim().length(24),
+      confirmationName: z.string().trim().min(2).max(160),
+      previewAcknowledged: z.literal(true),
+      missingMediaVariantsAcknowledged: z.literal(true),
+      operationsLegalDomainAcknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const published = await db.publishStudioOwnerCatalogueFromPreview(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.catalogue.publish",
+          entityType: "store",
+          entityId: published.store.id,
+          summary: "Catalogue Studio publié après aperçu et confirmations explicites",
+          metadata: { status: published.store.status, categoryCount: published.categoryCount, productCount: published.productCount, publicStorefront: false, publicCart: false, publicCheckout: false },
+        });
+        return published;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (["STORE_NOT_ELIGIBLE_FOR_CATALOGUE_PUBLICATION", "STORE_NOT_GIFT_PROVISIONED"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "La publication catalogue est réservée à une boutique offerte encore en préparation." });
+        if (code === "CATALOGUE_PUBLICATION_EXISTING_CATALOGUE") throw new TRPCError({ code: "CONFLICT", message: "Un catalogue réel existe déjà. Cette publication ne remplace ni ne supprime de données existantes." });
+        if (code === "CATALOGUE_PUBLICATION_PREVIEW_STALE") throw new TRPCError({ code: "CONFLICT", message: "L’aperçu a changé. Rechargez-le et relisez-le avant de confirmer." });
+        if (code === "CATALOGUE_PUBLICATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer." });
+        if (code === "CATALOGUE_PUBLICATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Toutes les confirmations de publication sont requises." });
+        if (code === "CATALOGUE_PUBLICATION_PREFLIGHT_INCOMPLETE") throw new TRPCError({ code: "CONFLICT", message: "La préparation actuelle ne peut pas encore être publiée. Consultez les blocages de l’aperçu." });
+        throw error;
+      }
+    }),
     getOwnerManualCommercialPassageReview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioOwnerManualCommercialPassageReview(input.storeId);

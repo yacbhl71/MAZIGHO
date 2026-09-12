@@ -661,3 +661,10 @@ Après le prévol commercial, MAZIGHO Studio propose une **revue d’étanchéit
 ## Revue manuelle de passage commercial — 12 septembre 2026
 
 La dernière étape privée consolide le prévol commercial et la revue d’étanchéité. Elle sépare les signaux déjà prêts des confirmations humaines obligatoires : visuels et variantes, livraison/stock/retours, informations légales et domaine, puis décision explicite de publication. Même si les brouillons peuvent être soumis à cette revue, les indicateurs de publication catalogue, panier public et activation restent tous à `false`.
+
+
+## Publication catalogue contrôlée et ouverture distincte — 12 septembre 2026
+
+MAZIGHO Studio offre désormais une **publication réelle de catalogue**, précédée d’un aperçu privé. Le plan convertit uniquement les champs disponibles dans les brouillons Studio : collections, nom, description, prix, mise en avant et disponibilité préparatoire. Il affiche explicitement que les images et variantes ne font pas partie de ces brouillons et exige une confirmation humaine dédiée avant toute copie.
+
+La mutation exige le jeton de l’aperçu, la recopie du nom de boutique et trois confirmations. Elle refuse de remplacer un catalogue réel déjà présent, laisse la boutique en `setup`, et consigne une trace dédiée. Le storefront, le panier et le checkout restent donc fermés après publication du catalogue. L’ouverture publique demeure la mutation `activateGiftAnimalStore`, soumise à son propre prévol, la vérification manuelle du domaine, l’e-mail du propriétaire actif, la recopie du nom et une confirmation finale.

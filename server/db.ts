@@ -27,6 +27,7 @@ import { buildStudioPrivateCartSimulation, type StudioPrivateCartLineInput } fro
 import { buildStoreCommercialPublicationPreflight } from "./services/storeCommercialPublicationPreflight";
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
+import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
@@ -1374,6 +1375,138 @@ export async function getStudioOwnerManualCommercialPassageReview(storeId: numbe
     store: commercial.store,
     review,
   };
+}
+
+/**
+ * Read-only plan for a future controlled catalogue publication. It lists only
+ * the restricted Studio draft fields that can be copied into the real catalogue.
+ */
+export async function getStudioOwnerCataloguePublicationPreview(storeId: number) {
+  const [commercial, collections, productDrafts, operations] = await Promise.all([
+    getStudioOwnerCommercialPublicationPreflight(storeId),
+    getStudioOwnerCollectionDrafts(storeId),
+    getStudioOwnerProductDrafts(storeId),
+    getStudioOwnerProductOperationDrafts(storeId),
+  ]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [categoryRows, productRows] = await Promise.all([
+    db.select({ total: count() }).from(categories).where(eq(categories.storeId, storeId)),
+    db.select({ total: count() }).from(products).where(eq(products.storeId, storeId)),
+  ]);
+  const plan = buildStoreCataloguePublicationPlan({
+    status: commercial.store.status,
+    privatePreparationReady: commercial.preflight.locallyReadyForManualCommercialReview,
+    existingCategoryCount: Number(categoryRows[0]?.total ?? 0),
+    existingProductCount: Number(productRows[0]?.total ?? 0),
+    collections: collections.collections,
+    products: productDrafts.products,
+    operations: operations.operations,
+  });
+  const planToken = createHash("sha256").update(JSON.stringify({
+    categories: plan.categories,
+    products: plan.products,
+    blockers: plan.blockers,
+  })).digest("hex").slice(0, 24);
+
+  return {
+    privateCataloguePublicationPreview: true as const,
+    publicStorefront: false as const,
+    publicCart: false as const,
+    publicCheckout: false as const,
+    cataloguePublicationExecuted: false as const,
+    store: commercial.store,
+    planToken,
+    existingCatalogue: { categoryCount: Number(categoryRows[0]?.total ?? 0), productCount: Number(productRows[0]?.total ?? 0) },
+    plan,
+  };
+}
+
+/**
+ * Writes a catalogue only after a preview token and every manual confirmation
+ * match. It never activates the store; active catalogue rows stay private while
+ * the store remains in setup.
+ */
+export async function publishStudioOwnerCatalogueFromPreview(input: {
+  storeId: number;
+  planToken: string;
+  confirmationName: string;
+  previewAcknowledged: boolean;
+  missingMediaVariantsAcknowledged: boolean;
+  operationsLegalDomainAcknowledged: boolean;
+}) {
+  const preview = await getStudioOwnerCataloguePublicationPreview(input.storeId);
+  if (!preview.plan.canPublishCatalogue) throw new Error("CATALOGUE_PUBLICATION_PREFLIGHT_INCOMPLETE");
+  if (input.planToken !== preview.planToken) throw new Error("CATALOGUE_PUBLICATION_PREVIEW_STALE");
+  if (input.confirmationName.trim() !== preview.store.displayName.trim()) throw new Error("CATALOGUE_PUBLICATION_NAME_CONFIRMATION_MISMATCH");
+  if (!input.previewAcknowledged || !input.missingMediaVariantsAcknowledged || !input.operationsLegalDomainAcknowledged) {
+    throw new Error("CATALOGUE_PUBLICATION_CONFIRMATION_INCOMPLETE");
+  }
+
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_CATALOGUE_PUBLICATION");
+    const [settingsRows, existingCategoryRows, existingProductRows] = await Promise.all([
+      tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
+      tx.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
+      tx.select({ total: count() }).from(products).where(eq(products.storeId, store.id)),
+    ]);
+    const settingsByKey = new Map(settingsRows.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+    if (Number(existingCategoryRows[0]?.total ?? 0) > 0 || Number(existingProductRows[0]?.total ?? 0) > 0) throw new Error("CATALOGUE_PUBLICATION_EXISTING_CATALOGUE");
+
+    const categoryIds = new Map<string, number>();
+    for (const category of preview.plan.categories) {
+      const result = await tx.insert(categories).values({
+        storeId: store.id,
+        name: category.title,
+        slug: category.slug,
+        description: category.description,
+        displayOrder: category.displayOrder,
+        catalogSection: "standard",
+      });
+      categoryIds.set(category.sourceId, Number((result as any)[0].insertId));
+    }
+    for (const product of preview.plan.products) {
+      const categoryId = categoryIds.get(product.categorySourceId);
+      if (!categoryId) throw new Error("CATALOGUE_PUBLICATION_CATEGORY_MAPPING_MISSING");
+      await tx.insert(products).values({
+        storeId: store.id,
+        categoryId,
+        name: product.name,
+        slug: product.slug,
+        description: product.description,
+        longDescription: product.description,
+        price: product.priceCents,
+        stock: product.stock,
+        featured: product.featured ? 1 : 0,
+        status: "active",
+      });
+    }
+    const publishedAt = new Date();
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "studio_catalogue_publication_record",
+      value: JSON.stringify({ publishedAt: publishedAt.toISOString(), source: "mazigho_studio_confirmed_catalogue_publication", planToken: preview.planToken, categoryCount: preview.plan.categories.length, productCount: preview.plan.products.length }),
+      description: "Trace de publication catalogue confirmée depuis MAZIGHO Studio ; la boutique reste en setup jusqu’à activation distincte.",
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ publishedAt: publishedAt.toISOString(), source: "mazigho_studio_confirmed_catalogue_publication", planToken: preview.planToken, categoryCount: preview.plan.categories.length, productCount: preview.plan.products.length }), description: "Trace de publication catalogue confirmée depuis MAZIGHO Studio ; la boutique reste en setup jusqu’à activation distincte." } });
+
+    return {
+      store: { id: store.id, displayName: store.displayName, status: "setup" as const },
+      publishedAt,
+      categoryCount: preview.plan.categories.length,
+      productCount: preview.plan.products.length,
+      publicStorefront: false as const,
+      publicCart: false as const,
+      publicCheckout: false as const,
+    };
+  });
 }
 
 /**
