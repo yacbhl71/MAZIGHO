@@ -937,6 +937,8 @@ export const adminRouter = router({
       confirmationName: z.string().trim().min(2).max(160),
       confirmationOwnerEmail: z.string().trim().email().max(320),
       domainVerified: z.literal(true),
+      variantsReviewed: z.literal(true),
+      shippingReturnsReviewed: z.literal(true),
       activationAcknowledged: z.literal(true),
     })).mutation(async ({ ctx, input }) => {
       try {
@@ -954,7 +956,7 @@ export const adminRouter = router({
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
         if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer l’activation." });
         if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Le propriétaire actif ne correspond pas à l’e-mail confirmé." });
-        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les deux confirmations d’activation sont obligatoires." });
+        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les confirmations de domaine, variantes, livraison et activation sont obligatoires." });
         if (["STORE_NOT_ELIGIBLE_FOR_ACTIVATION", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER", "ACTIVATION_PREFLIGHT_INCOMPLETE", "STORE_ACTIVATION_CONFLICT"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les critères de sécurité de l’activation ne sont pas tous remplis." });
         throw error;
       }

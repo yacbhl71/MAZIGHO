@@ -349,3 +349,8 @@ Lorsque la publication contrôlée indique qu’un catalogue réel existe déjà
 ### Ajouter images et variantes
 
 Dans chaque fiche du catalogue existant, ajoutez jusqu’à huit images par URL ou par téléversement JPEG, PNG ou WebP ; la première image est la principale et son ordre est ajustable. Ajoutez ensuite des variantes client telles que **Couleur** ou **Taille**, avec leurs valeurs séparées par des virgules. Ces modifications restent privées tant que Pattes & Compagnie est en `setup`.
+
+
+### Prévol final avant l’ouverture publique
+
+Le prévol d’ouverture bloque maintenant si aucune fiche active n’a un prix et un stock supérieurs à zéro, ou si une fiche active ne possède pas d’image. Lorsque les blocages sont levés, confirmez séparément le domaine, la revue des variantes, la revue des informations de livraison et retours, puis l’ouverture elle-même. Recopiez également le nom de la boutique et l’e-mail du propriétaire actif. L’activation reste la seule étape qui rend le storefront public.

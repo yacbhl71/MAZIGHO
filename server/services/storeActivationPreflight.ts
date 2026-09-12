@@ -11,6 +11,9 @@ export type StoreActivationPreflightInput = {
   hasOwnLegalProfile: boolean;
   categoryCount: number;
   activeProductCount: number;
+  sellableProductCount: number;
+  activeProductWithImageCount: number;
+  productWithVariantsCount: number;
   hasCurrency: boolean;
 };
 
@@ -82,6 +85,30 @@ export function buildStoreActivationPreflight(input: StoreActivationPreflightInp
       label: "Catalogue animalier prêt",
       state: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "ready" : "blocked",
       detail: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "Au moins une catégorie et un produit actif sont disponibles ; vérifiez manuellement leur pertinence animale et leur qualité." : "Ajoutez au moins une catégorie et un produit actif avant l’ouverture.",
+    },
+    {
+      key: "sellable_catalogue",
+      label: "Au moins une fiche vendable",
+      state: input.sellableProductCount >= 1 ? "ready" : "blocked",
+      detail: input.sellableProductCount >= 1 ? "Au moins une fiche active possède un prix supérieur à zéro et un stock disponible." : "Ajoutez un prix supérieur à zéro et un stock disponible à au moins une fiche active avant l’ouverture.",
+    },
+    {
+      key: "product_images",
+      label: "Visuels des fiches actives",
+      state: input.activeProductCount > 0 && input.activeProductWithImageCount >= input.activeProductCount ? "ready" : "blocked",
+      detail: input.activeProductCount > 0 && input.activeProductWithImageCount >= input.activeProductCount ? "Chaque fiche active possède au moins un visuel enregistré." : "Ajoutez au moins une image à chaque fiche active avant l’ouverture.",
+    },
+    {
+      key: "variants_manual",
+      label: "Variantes client revues",
+      state: "manual",
+      detail: input.productWithVariantsCount > 0 ? `${input.productWithVariantsCount} fiche(s) comportent des variantes : confirmez manuellement les libellés, valeurs et disponibilités.` : "Confirmez manuellement que chaque fiche ne nécessitant pas de variante peut être vendue sans choix client.",
+    },
+    {
+      key: "shipping_returns_manual",
+      label: "Livraison et retours revus",
+      state: "manual",
+      detail: "Vérifiez manuellement les règles de livraison, délais, retours et information client avant l’ouverture ; ce prévol ne crée aucune règle logistique.",
     },
     {
       key: "currency",

@@ -696,6 +696,16 @@ export async function copyPlatformLegalProfileToGiftStore(input: { storeId: numb
   });
 }
 
+function countProductsWithClientVariants(rows: Array<{ options: string | null }>) {
+  return rows.filter(row => {
+    if (!row.options) return false;
+    try {
+      const parsed = JSON.parse(row.options);
+      return Array.isArray(parsed) && parsed.some(option => option && typeof option.name === "string" && Array.isArray(option.values) && option.values.length > 0);
+    } catch { return false; }
+  }).length;
+}
+
 export async function getGiftStoreActivationPreflight(storeId: number) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
@@ -706,11 +716,12 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
   if (!store) throw new Error("STORE_NOT_FOUND");
   if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION_REVIEW");
 
-  const [settingRows, ownerRows, categoryRows, activeProductRows] = await Promise.all([
+  const [settingRows, ownerRows, categoryRows, activeProductRows, activeImageRows] = await Promise.all([
     db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
     db.select({ id: users.id }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId)).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))).limit(1),
     db.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
-    db.select({ total: count() }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+    db.select({ id: products.id, price: products.price, stock: products.stock, options: products.options }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+    db.select({ productId: productImages.productId }).from(productImages).innerJoin(products, and(eq(productImages.productId, products.id), eq(productImages.storeId, products.storeId))).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
   ]);
   const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
   if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
@@ -748,7 +759,10 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
     brandName,
     hasOwnLegalProfile,
     categoryCount: Number(categoryRows[0]?.total ?? 0),
-    activeProductCount: Number(activeProductRows[0]?.total ?? 0),
+    activeProductCount: activeProductRows.length,
+    sellableProductCount: activeProductRows.filter(product => product.price > 0 && product.stock > 0).length,
+    activeProductWithImageCount: new Set(activeImageRows.map(image => image.productId)).size,
+    productWithVariantsCount: countProductsWithClientVariants(activeProductRows),
     hasCurrency: Boolean(settingsByKey.get("store_currency_code")),
   });
 
@@ -1929,7 +1943,7 @@ export async function getStudioGiftStoreSetupReadiness(storeId: number) {
   };
 }
 
-export async function activateGiftAnimalStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; activationAcknowledged: boolean }) {
+export async function activateGiftAnimalStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; variantsReviewed: boolean; shippingReturnsReviewed: boolean; activationAcknowledged: boolean }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
   const db = await getDb();
@@ -1940,7 +1954,7 @@ export async function activateGiftAnimalStore(input: { storeId: number; confirma
     if (!store) throw new Error("STORE_NOT_FOUND");
     if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
     if (input.confirmationName.trim() !== store.displayName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
-    if (!input.domainVerified || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
+    if (!input.domainVerified || !input.variantsReviewed || !input.shippingReturnsReviewed || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
 
     const settingRows = await tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id));
     const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
@@ -1951,10 +1965,11 @@ export async function activateGiftAnimalStore(input: { storeId: number; confirma
     if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
     if (draft.businessType !== "animalier") throw new Error("STORE_NOT_ANIMALIER");
 
-    const [ownerRows, categoryRows, activeProductRows] = await Promise.all([
+    const [ownerRows, categoryRows, activeProductRows, activeImageRows] = await Promise.all([
       tx.select({ id: users.id, email: users.email }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId)).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))),
       tx.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
-      tx.select({ total: count() }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+      tx.select({ id: products.id, price: products.price, stock: products.stock, options: products.options }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+      tx.select({ productId: productImages.productId }).from(productImages).innerJoin(products, and(eq(productImages.productId, products.id), eq(productImages.storeId, products.storeId))).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
     ]);
     const expectedOwnerEmail = normaliseEmail(input.confirmationOwnerEmail);
     if (!ownerRows.some(owner => owner.email && normaliseEmail(owner.email) === expectedOwnerEmail)) throw new Error("ACTIVATION_OWNER_CONFIRMATION_MISMATCH");
@@ -1987,7 +2002,10 @@ export async function activateGiftAnimalStore(input: { storeId: number; confirma
       brandName,
       hasOwnLegalProfile,
       categoryCount: Number(categoryRows[0]?.total ?? 0),
-      activeProductCount: Number(activeProductRows[0]?.total ?? 0),
+      activeProductCount: activeProductRows.length,
+      sellableProductCount: activeProductRows.filter(product => product.price > 0 && product.stock > 0).length,
+      activeProductWithImageCount: new Set(activeImageRows.map(image => image.productId)).size,
+      productWithVariantsCount: countProductsWithClientVariants(activeProductRows),
       hasCurrency: Boolean(settingsByKey.get("store_currency_code")),
     });
     if (!preflight.locallyReadyForManualActivation) throw new Error("ACTIVATION_PREFLIGHT_INCOMPLETE");

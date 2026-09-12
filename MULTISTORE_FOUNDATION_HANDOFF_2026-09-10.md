@@ -678,3 +678,8 @@ Pattes & Compagnie conserve ses trois catégories et sa fiche animalière de dé
 ## Images et variantes du catalogue existant — 12 septembre 2026
 
 L’éditeur Studio du catalogue existant gère désormais jusqu’à huit images ordonnées par produit, via URL contrôlée ou téléversement JPEG/PNG/WebP vers le stockage isolé, ainsi que jusqu’à quatre options client (par exemple couleur ou taille). Ces données restent propres au catalogue de la boutique, sans mapping fournisseur ni action d’achat. Les images et variantes ne rendent pas la boutique publiquement servable : l’état `setup` demeure le garde-fou d’exposition.
+
+
+## Prévol final d’activation publique — 12 septembre 2026
+
+Avant toute activation d’une boutique offerte animalière, le prévol vérifie désormais qu’au moins une fiche active est réellement vendable (prix et stock supérieurs à zéro) et que chaque fiche active possède au moins une image. Les variantes client et les informations de livraison / retours restent des décisions humaines explicites : elles apparaissent dans le prévol et requièrent leurs propres confirmations, avec le domaine, l’e-mail propriétaire, la recopie du nom et la confirmation d’ouverture. La mutation d’activation réévalue les critères dans sa transaction ; elle ne peut donc pas être contournée via l’interface.
