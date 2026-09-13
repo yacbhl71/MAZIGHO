@@ -943,14 +943,22 @@ async function getStudioGiftStoreContentContext(storeId: number) {
     .from(storeSettings)
     .where(eq(storeSettings.storeId, store.id));
   const settingsByKey = new Map(settings.map(row => [row.key, row.value]));
-  if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
-  const draftId = Number(settingsByKey.get("provisioning_draft_id"));
-  if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
-  const [draft] = await db.select({ id: storeProvisioningDrafts.id })
+  const configuredDraftId = Number(settingsByKey.get("provisioning_draft_id"));
+  const [linkedDraft] = await db.select({ id: storeProvisioningDrafts.id })
+    .from(storeProvisioningDrafts)
+    .where(eq(storeProvisioningDrafts.provisionedStoreId, store.id))
+    .limit(1);
+  const draftId = Number.isInteger(configuredDraftId) && configuredDraftId > 0
+    ? configuredDraftId
+    : linkedDraft?.id;
+  const isGiftProvisioned = settingsByKey.get("provisioning_mode") === "gift" || Boolean(linkedDraft);
+  if (!isGiftProvisioned) throw new Error("STORE_NOT_GIFT_PROVISIONED");
+  if (!draftId) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
+  const [draft] = await db.select({ id: storeProvisioningDrafts.id, provisionedStoreId: storeProvisioningDrafts.provisionedStoreId })
     .from(storeProvisioningDrafts)
     .where(eq(storeProvisioningDrafts.id, draftId))
     .limit(1);
-  if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
+  if (!draft || draft.provisionedStoreId !== store.id) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
   return { store };
 }
 
