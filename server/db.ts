@@ -974,11 +974,26 @@ async function getStudioActiveStoreManagementContext(storeId: number) {
 /** Public-facing content remains editable by MAZIGHO Studio for any identified store. */
 export async function getStudioOwnerPublicStorefrontContent(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
-  const [profile, banners] = await Promise.all([getDesignProfile(store.id), getAllBanners(store.id)]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  // This management read deliberately bypasses the historical content-schema
+  // migration. Opening a Studio page must never attempt DDL/index work.
+  const [profileRows, bannerRows] = await Promise.all([
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, store.id), eq(storeSettings.key, "design_profile"))).limit(1),
+    db.select().from(banners).where(eq(banners.storeId, store.id))
+      .orderBy(asc(banners.displayOrder), desc(banners.createdAt)),
+  ]);
+  let profile: DesignProfile = { ...defaultDesignProfile };
+  try {
+    if (profileRows[0]?.value) profile = normalizeDesignProfile(JSON.parse(profileRows[0].value));
+  } catch {
+    profile = { ...defaultDesignProfile };
+  }
   return {
     store: { id: store.id, displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
     profile,
-    banners,
+    banners: bannerRows,
   };
 }
 
@@ -1637,7 +1652,6 @@ function uniqueStudioExistingCatalogueSlug(value: string, used: Set<string>, fal
  */
 export async function getStudioOwnerExistingCatalogue(storeId: number) {
   const ownerContext = await getStudioActiveStoreManagementContext(storeId);
-  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const [categoryRows, productRows, imageRows] = await Promise.all([
