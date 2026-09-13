@@ -962,9 +962,19 @@ async function getStudioGiftStoreContentContext(storeId: number) {
   return { store };
 }
 
-/** Public-facing content remains editable by the platform after a gift store is live. */
+async function getStudioActiveStoreManagementContext(storeId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore || !["active", "limited"].includes(store.status)) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVE_MANAGEMENT");
+  return { store };
+}
+
+/** Public-facing content remains editable by the platform after a customer store is live. */
 export async function getStudioOwnerPublicStorefrontContent(storeId: number) {
-  const { store } = await getStudioGiftStoreContentContext(storeId);
+  const { store } = await getStudioActiveStoreManagementContext(storeId);
   const [profile, banners] = await Promise.all([getDesignProfile(store.id), getAllBanners(store.id)]);
   return {
     store: { id: store.id, displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
@@ -974,7 +984,7 @@ export async function getStudioOwnerPublicStorefrontContent(storeId: number) {
 }
 
 export async function saveStudioOwnerPublicStorefrontProfile(input: { storeId: number; profile: DesignProfileInput }) {
-  const { store } = await getStudioGiftStoreContentContext(input.storeId);
+  const { store } = await getStudioActiveStoreManagementContext(input.storeId);
   return await updateDesignProfile(input.profile, store.id);
 }
 
@@ -988,7 +998,7 @@ export async function saveStudioOwnerPublicStorefrontBanner(input: {
   active: number;
   displayOrder: number;
 }) {
-  const { store } = await getStudioGiftStoreContentContext(input.storeId);
+  const { store } = await getStudioActiveStoreManagementContext(input.storeId);
   const payload = {
     title: input.title,
     subtitle: input.subtitle,
@@ -1004,7 +1014,7 @@ export async function saveStudioOwnerPublicStorefrontBanner(input: {
 }
 
 export async function deleteStudioOwnerPublicStorefrontBanner(input: { storeId: number; bannerId: number }) {
-  const { store } = await getStudioGiftStoreContentContext(input.storeId);
+  const { store } = await getStudioActiveStoreManagementContext(input.storeId);
   const existing = await getBannerById(input.bannerId, store.id);
   if (!existing) throw new Error("BANNER_NOT_FOUND");
   return await deleteBanner(input.bannerId, store.id);
@@ -1627,7 +1637,7 @@ function uniqueStudioExistingCatalogueSlug(value: string, used: Set<string>, fal
  * after activation for ongoing store management.
  */
 export async function getStudioOwnerExistingCatalogue(storeId: number) {
-  const ownerContext = await getStudioGiftStoreContentContext(storeId);
+  const ownerContext = await getStudioActiveStoreManagementContext(storeId);
   await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
