@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CampaignBar } from "@/components/CampaignBar";
 import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import SearchBar from "./SearchBar";
 import { useCart } from "@/hooks/useCart";
@@ -40,7 +40,19 @@ export default function Header() {
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const storeSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
+  useEffect(() => {
+    if (!storeSeo.data || location.startsWith("/produit/")) return;
+    document.title = storeSeo.data.title;
+    let description = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
+    if (!description) {
+      description = document.createElement("meta");
+      description.name = "description";
+      document.head.appendChild(description);
+    }
+    description.content = storeSeo.data.description;
+  }, [location, storeSeo.data?.description, storeSeo.data?.title]);
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";

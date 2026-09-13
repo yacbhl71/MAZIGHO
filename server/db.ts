@@ -5959,6 +5959,59 @@ export async function upsertStorefrontSetting(data: { key: typeof STOREFRONT_SET
   return setStoreSettingValue(storeId, data.key, data.value, data.description);
 }
 
+export type StoreSeoProfile = { title: string; description: string };
+export const defaultStoreSeoProfile: StoreSeoProfile = {
+  title: "Boutique en ligne",
+  description: "Découvrez une sélection soignée de produits et de créations pour le quotidien.",
+};
+
+function normalizeStoreSeoProfile(input: Partial<StoreSeoProfile>): StoreSeoProfile {
+  return {
+    title: input.title?.trim().slice(0, 120) || defaultStoreSeoProfile.title,
+    description: input.description?.trim().slice(0, 320) || defaultStoreSeoProfile.description,
+  };
+}
+
+/** Lecture SEO publique tolérante, sans migration de schéma au chargement. */
+export async function getStoreSeoProfile(storeId?: number): Promise<StoreSeoProfile> {
+  const db = await getDb();
+  if (!db) return { ...defaultStoreSeoProfile };
+  if (!storeId) return { ...defaultStoreSeoProfile };
+  try {
+    const effectiveStoreId = storeId;
+    const rows = await db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, effectiveStoreId), inArray(storeSettings.key, ["seo_default_title", "seo_default_description"])))
+      .orderBy(asc(storeSettings.key));
+    const settings = new Map(rows.map(row => [row.key, row.value]));
+    return normalizeStoreSeoProfile({
+      title: settings.get("seo_default_title"),
+      description: settings.get("seo_default_description"),
+    });
+  } catch (error) {
+    console.warn("[StoreSeo] Unable to read optional SEO profile", error);
+    return { ...defaultStoreSeoProfile };
+  }
+}
+
+/** Sauvegarde les métadonnées publiques de la boutique courante, sans secrets ni suivi publicitaire. */
+export async function saveStoreSeoProfile(storeId: number, input: StoreSeoProfile): Promise<StoreSeoProfile> {
+  const profile = normalizeStoreSeoProfile(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const updates: Array<{ key: "seo_default_title" | "seo_default_description"; value: string; description: string }> = [
+    { key: "seo_default_title", value: profile.title, description: "Titre SEO public propre à cette boutique" },
+    { key: "seo_default_description", value: profile.description, description: "Méta-description SEO publique propre à cette boutique" },
+  ];
+  for (const update of updates) {
+    const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, update.key)))
+      .limit(1);
+    if (existing) await db.update(storeSettings).set({ value: update.value, description: update.description }).where(eq(storeSettings.id, existing.id));
+    else await db.insert(storeSettings).values({ storeId, key: update.key, value: update.value, description: update.description });
+  }
+  return profile;
+}
+
 export async function getCheckoutShippingPolicy(storeId?: number) {
   const allSettings = await getAllStorefrontSettings(storeId);
   return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));

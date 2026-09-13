@@ -114,6 +114,10 @@ export const appRouter = router({
       const { getStoreCurrencyConfig } = await import("./db");
       return await getStoreCurrencyConfig(ctx.store?.id);
     }),
+    getStoreSeo: storefrontProcedure.query(async ({ ctx }) => {
+      const { getStoreSeoProfile } = await import("./db");
+      return await getStoreSeoProfile(ctx.store?.id);
+    }),
     getTrackingPixels: storefrontProcedure.query(async ({ ctx }) => {
       const { getTrackingPixels } = await import("./db");
       return await getTrackingPixels(ctx.store?.id);

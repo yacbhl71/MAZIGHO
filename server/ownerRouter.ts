@@ -32,6 +32,11 @@ const navigationItem = z.object({
   if (!((item.href.startsWith("/") && !item.href.startsWith("//")) || /^https:\/\//i.test(item.href))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Destination de menu non autorisée." });
 });
 
+const ownerSeoProfile = z.object({
+  title: z.string().trim().min(10, "Le titre doit comporter au moins 10 caractères.").max(120),
+  description: z.string().trim().min(10, "La description doit comporter au moins 10 caractères.").max(320),
+});
+
 const ownerLegalContactProfile = z.object({
   operatorName: z.string().trim().min(2).max(120),
   country: z.string().trim().min(2).max(80),
@@ -103,6 +108,12 @@ export const ownerRouter = router({
   }),
   getLegalContactProfile: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerLegalContactProfile(ctx.store!.id);
+  }),
+  getSeoProfile: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getStoreSeoProfile(ctx.store!.id);
+  }),
+  saveSeoProfile: storeOwnerProcedure.input(ownerSeoProfile).mutation(async ({ ctx, input }) => {
+    return await db.saveStoreSeoProfile(ctx.store!.id, input);
   }),
   saveLegalContactProfile: storeOwnerProcedure.input(ownerLegalContactProfile).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerLegalContactProfile(ctx.store!.id, input);
