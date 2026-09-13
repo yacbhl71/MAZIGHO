@@ -4,6 +4,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { trpc } from "@/lib/trpc";
+import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
 
 type NotFoundCopy = {
   eyebrow: string;
@@ -30,9 +32,10 @@ const copy: Record<StorefrontLocale, NotFoundCopy> = {
 export default function NotFound() {
   const { locale } = useLocale();
   const { profile } = useDesignProfile(locale);
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const t = copy[locale] ?? copy.fr;
   const brandName = profile.brandName?.trim() || "MAZIGHO";
-  const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
+  const brandLogoUrl = storeAvailability.data?.isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : (profile.brandLogoUrl?.trim() || "");
   const direction = locale === "ar" ? "rtl" : "ltr";
 
   return (
