@@ -11,6 +11,7 @@ import { buildAliExpressPreparationManifest } from "./services/aliExpressManifes
 import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
+import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
@@ -5168,7 +5169,7 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
     db.select({ displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, createdAt: stores.createdAt, updatedAt: stores.updatedAt })
       .from(stores).where(eq(stores.id, storeId)).limit(1),
     db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-      .where(and(eq(storeSettings.storeId, storeId), inArray(storeSettings.key, ["store_currency_code", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "legal_profile"]))),
+      .where(and(eq(storeSettings.storeId, storeId), inArray(storeSettings.key, ["store_currency_code", "shipping_policy", "free_shipping_threshold", "flat_shipping_rate", "owner_shipping_returns_profile", "legal_profile"]))),
   ]);
   const store = storeRows[0];
   if (!store) throw new Error("STORE_NOT_FOUND");
@@ -5176,11 +5177,55 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
   return {
     store,
     currencyCode: values.get("store_currency_code")?.trim().toUpperCase() || "CHF",
-    shippingConfigured: Boolean(values.get("shipping_policy") || values.get("free_shipping_threshold") || values.get("flat_shipping_rate")),
+    shippingConfigured: Boolean(values.get("shipping_policy") || values.get("free_shipping_threshold") || values.get("flat_shipping_rate") || values.get("owner_shipping_returns_profile")),
     legalProfileConfigured: Boolean(values.get("legal_profile")),
     paymentsConfigured: false,
     supplierConfigured: false,
   };
+}
+
+/**
+ * Owner-only delivery and returns profile. It is deliberately independent from
+ * checkout, payment, carrier, supplier and fulfillment activation.
+ * The read does not run any schema migration so an unavailable legacy row falls
+ * back to a safe empty profile instead of blocking the owner panel.
+ */
+export async function getOwnerShippingReturnsSettings(storeId: number): Promise<OwnerShippingReturnsSettings> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  try {
+    const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_shipping_returns_profile")))
+      .limit(1);
+    return parseOwnerShippingReturnsSettings(row?.value);
+  } catch (error) {
+    console.warn("[OwnerShippingReturns] Unable to read optional profile", error);
+    return parseOwnerShippingReturnsSettings(null);
+  }
+}
+
+/** Saves only the current store's non-sensitive delivery and returns profile. */
+export async function saveOwnerShippingReturnsSettings(storeId: number, input: OwnerShippingReturnsSettings): Promise<OwnerShippingReturnsSettings> {
+  const settings = normalizeOwnerShippingReturnsSettings(input);
+  if (settings.mode === "flat_rate" && settings.flatShippingRateCents <= 0) {
+    throw new Error("OWNER_SHIPPING_RATE_REQUIRED");
+  }
+
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const key = "owner_shipping_returns_profile";
+  const value = JSON.stringify(settings);
+  const description = "Configuration livraison et retours propre à cette boutique ; sans paiement, transporteur, fournisseur ni activation automatique";
+  const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
+    .limit(1);
+
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key, value, description });
+  }
+  return settings;
 }
 
 export async function getOwnerOrderSummaries(storeId: number) {

@@ -32,6 +32,23 @@ const navigationItem = z.object({
   if (!((item.href.startsWith("/") && !item.href.startsWith("//")) || /^https:\/\//i.test(item.href))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Destination de menu non autorisée." });
 });
 
+const shippingReturnsSettings = z.object({
+  mode: z.enum(["included", "flat_rate"]),
+  freeShippingThresholdCents: z.number().int().min(0).max(10_000_000),
+  flatShippingRateCents: z.number().int().min(0).max(10_000_000),
+  servedCountries: z.array(z.string().trim().min(2).max(3).regex(/^[A-Za-z]{2,3}$/, "Utilisez un code pays de 2 ou 3 lettres.")).min(1, "Sélectionnez au moins un pays ou une zone.").max(25),
+  deliveryLeadTime: z.string().trim().max(120),
+  returnsSummary: z.string().trim().max(1_500),
+}).superRefine((input, ctx) => {
+  if (input.mode === "flat_rate" && input.flatShippingRateCents <= 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flatShippingRateCents"], message: "Indiquez un tarif fixe supérieur à zéro." });
+  }
+  const normalizedCountries = input.servedCountries.map(country => country.toUpperCase());
+  if (new Set(normalizedCountries).size !== normalizedCountries.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["servedCountries"], message: "Chaque pays ne peut être indiqué qu’une seule fois." });
+  }
+});
+
 const productFields = z.object({
   categoryId: z.number().int().positive(),
   name: z.string().trim().min(2).max(200),
@@ -69,6 +86,15 @@ export const ownerRouter = router({
   }),
   getSettingsSummary: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
+  }),
+  getShippingReturnsSettings: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
+  }),
+  saveShippingReturnsSettings: storeOwnerProcedure.input(shippingReturnsSettings).mutation(async ({ ctx, input }) => {
+    return await db.saveOwnerShippingReturnsSettings(ctx.store!.id, {
+      ...input,
+      servedCountries: input.servedCountries.map(country => country.toUpperCase()),
+    });
   }),
   saveNavigation: storeOwnerProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));
