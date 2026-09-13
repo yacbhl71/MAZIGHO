@@ -968,11 +968,11 @@ async function getStudioActiveStoreManagementContext(storeId: number) {
   if (!db) throw new Error("Database unavailable");
   const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
   if (!store) throw new Error("STORE_NOT_FOUND");
-  if (store.isPlatformStore || !["setup", "active", "limited"].includes(store.status)) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVE_MANAGEMENT");
+  if (store.isPlatformStore) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVE_MANAGEMENT");
   return { store };
 }
 
-/** Public-facing content remains editable by the platform after a customer store is live. */
+/** Public-facing content remains editable by the platform for any customer store. */
 export async function getStudioOwnerPublicStorefrontContent(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   const [profile, banners] = await Promise.all([getDesignProfile(store.id), getAllBanners(store.id)]);
