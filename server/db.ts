@@ -5162,7 +5162,7 @@ export async function deleteCategory(id: number, storeId?: number) {
  * notes, supplier fields and payment references never leave this helper.
  */
 export async function getOwnerStoreSettingsSummary(storeId: number) {
-  await ensureMultiStoreSchema();
+  // Cette lecture est appelée à l’ouverture du panneau propriétaire : ne jamais lancer de DDL ici.
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const [storeRows, settingRows] = await Promise.all([
@@ -6177,6 +6177,77 @@ export async function updateLegalProfile(data: LegalProfile, storeId?: number) {
   const profile = normalizeLegalProfile(data);
   await setStoreSettingValue(storeId, "legal_profile", JSON.stringify(profile), "Informations légales publiques propres à cette boutique");
   return profile;
+}
+
+/**
+ * Sous-ensemble légal éditable par le propriétaire de la boutique.
+ * L’adresse et la localité existantes restent volontairement hors de ce panneau
+ * afin d’éviter d’exposer des coordonnées personnelles.
+ */
+export type OwnerLegalContactProfile = Pick<LegalProfile,
+  "operatorName" | "country" | "contactEmail" | "businessStatus" | "ideVatNumber" |
+  "deliveryZones" | "deliveryDetails" | "returnsPolicy"
+>;
+
+function toOwnerLegalContactProfile(profile: LegalProfile): OwnerLegalContactProfile {
+  return {
+    operatorName: profile.operatorName,
+    country: profile.country,
+    contactEmail: profile.contactEmail,
+    businessStatus: profile.businessStatus,
+    ideVatNumber: profile.ideVatNumber,
+    deliveryZones: profile.deliveryZones,
+    deliveryDetails: profile.deliveryDetails,
+    returnsPolicy: profile.returnsPolicy,
+  };
+}
+
+function parseStoredLegalProfile(value: string | null | undefined): LegalProfile {
+  if (!value) return { ...defaultLegalProfile };
+  try {
+    return normalizeLegalProfile(JSON.parse(value));
+  } catch {
+    return { ...defaultLegalProfile };
+  }
+}
+
+/** Lecture propriétaire tolérante, sans migration de schéma au chargement. */
+export async function getOwnerLegalContactProfile(storeId: number): Promise<OwnerLegalContactProfile> {
+  const db = await getDb();
+  if (!db) return toOwnerLegalContactProfile(defaultLegalProfile);
+  try {
+    const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "legal_profile")))
+      .limit(1);
+    return toOwnerLegalContactProfile(parseStoredLegalProfile(row?.value));
+  } catch (error) {
+    console.warn("[OwnerLegal] Unable to read optional legal profile", error);
+    return toOwnerLegalContactProfile(defaultLegalProfile);
+  }
+}
+
+/**
+ * Sauvegarde uniquement les champs publics de la boutique courante. Les champs
+ * d’adresse restent préservés en base et ne sont jamais renvoyés au propriétaire.
+ */
+export async function saveOwnerLegalContactProfile(storeId: number, input: OwnerLegalContactProfile): Promise<OwnerLegalContactProfile> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const key = "legal_profile";
+  const [existing] = await db.select({ id: storeSettings.id, value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
+    .limit(1);
+  const current = parseStoredLegalProfile(existing?.value);
+  const next = normalizeLegalProfile({ ...current, ...input });
+  const value = JSON.stringify(next);
+  const description = "Informations légales publiques propres à cette boutique ; coordonnées personnelles non exposées au panneau propriétaire";
+
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key, value, description });
+  }
+  return toOwnerLegalContactProfile(next);
 }
 
 type NavigationTranslationLocale = "de" | "it" | "en" | "es" | "nl" | "ar";

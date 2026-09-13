@@ -16,6 +16,7 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import ThemeToggle from "./ThemeToggle";
+import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
 
 const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸" };
 const languageFlags: Record<string, string> = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", en: "🇬🇧", es: "🇪🇸", nl: "🇳🇱", ar: "🌐" };
@@ -38,6 +39,8 @@ export default function Header() {
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
@@ -108,10 +111,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
             <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
-              {brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" /> : null}
-              <span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">{brandName}</span>
-              {!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true" />}
-              {brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline">{brandMessage}</span> : null}
+              {isPlatformStore ? <div className="flex h-11 w-12 shrink-0 flex-col items-center justify-center" aria-label="MAZIGHO Boutique"><img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-7 w-7 object-contain" /><span className="mt-0.5 text-[8px] font-extrabold leading-none tracking-[0.16em] text-slate-900">MAZIGHO</span></div> : <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">{brandName}</span>{!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline">{brandMessage}</span> : null}</>}
             </div>
           </Link>
 

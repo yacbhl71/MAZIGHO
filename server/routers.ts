@@ -67,6 +67,9 @@ export const appRouter = router({
     getAvailability: publicProcedure.query(({ ctx }) => ({
       publicStorefront: Boolean(ctx.store && (ctx.store.isPlatformStore || mayServeStorefront(ctx.store.status))),
       hasResolvedStore: Boolean(ctx.store),
+      // Boolean de présentation uniquement : permet de garder l’identité plateforme
+      // hors des storefronts clients sans exposer de donnée commerciale ou personnelle.
+      isPlatformStore: Boolean(ctx.store?.isPlatformStore),
     })),
   }),
 

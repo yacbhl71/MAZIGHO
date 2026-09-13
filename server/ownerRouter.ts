@@ -32,6 +32,17 @@ const navigationItem = z.object({
   if (!((item.href.startsWith("/") && !item.href.startsWith("//")) || /^https:\/\//i.test(item.href))) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Destination de menu non autorisée." });
 });
 
+const ownerLegalContactProfile = z.object({
+  operatorName: z.string().trim().min(2).max(120),
+  country: z.string().trim().min(2).max(80),
+  contactEmail: z.string().trim().email("Indiquez une adresse e-mail publique valide.").max(320),
+  businessStatus: z.string().trim().min(2).max(160),
+  ideVatNumber: z.string().trim().min(2).max(160),
+  deliveryZones: z.string().trim().min(2).max(300),
+  deliveryDetails: z.string().trim().min(2).max(3_000),
+  returnsPolicy: z.string().trim().min(2).max(3_000),
+});
+
 const shippingReturnsSettings = z.object({
   mode: z.enum(["included", "flat_rate"]),
   freeShippingThresholdCents: z.number().int().min(0).max(10_000_000),
@@ -89,6 +100,12 @@ export const ownerRouter = router({
   }),
   getShippingReturnsSettings: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
+  }),
+  getLegalContactProfile: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerLegalContactProfile(ctx.store!.id);
+  }),
+  saveLegalContactProfile: storeOwnerProcedure.input(ownerLegalContactProfile).mutation(async ({ ctx, input }) => {
+    return await db.saveOwnerLegalContactProfile(ctx.store!.id, input);
   }),
   saveShippingReturnsSettings: storeOwnerProcedure.input(shippingReturnsSettings).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerShippingReturnsSettings(ctx.store!.id, {
