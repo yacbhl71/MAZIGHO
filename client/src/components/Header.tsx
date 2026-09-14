@@ -56,6 +56,14 @@ export default function Header() {
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
+  const faviconUrl = isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : brandLogoUrl;
+  useEffect(() => {
+    if (!faviconUrl || typeof document === "undefined") return;
+    const icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+    const appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null;
+    if (icon) icon.href = faviconUrl;
+    if (appleTouchIcon) appleTouchIcon.href = faviconUrl;
+  }, [faviconUrl]);
   const copy = getPublicCopy(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
   const savedNavigation = locale === "fr" ? undefined : profile.navigationTranslations[locale];
