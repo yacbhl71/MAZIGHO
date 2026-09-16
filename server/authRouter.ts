@@ -157,7 +157,7 @@ export const authRouter = router({
           passwordHash: await hashPassword(input.password),
         });
         await createSession(ctx, user);
-        const ownerStore = await getFirstActiveOwnerStoreForUser(user.id);
+        const ownerStore = user.role === "user" ? await getFirstActiveOwnerStoreForUser(user.id) : null;
         return { user: safeUser(user), ownerStore };
       } catch (error) {
         return rethrowTokenError(error);
