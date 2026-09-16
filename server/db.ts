@@ -12,6 +12,7 @@ import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./servic
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
+import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
@@ -5233,6 +5234,43 @@ export async function saveOwnerShippingReturnsSettings(storeId: number, input: O
     .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
     .limit(1);
 
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key, value, description });
+  }
+  return settings;
+}
+
+/**
+ * Owner-only stock alert setting. It is a visual threshold only: no stock is
+ * reserved and no notification, supplier, payment or order action is triggered.
+ */
+export async function getOwnerStockAlertSettings(storeId: number): Promise<OwnerStockAlertSettings> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  try {
+    const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_stock_alert_profile")))
+      .limit(1);
+    return parseOwnerStockAlertSettings(row?.value);
+  } catch (error) {
+    console.warn("[OwnerStockAlert] Unable to read optional profile", error);
+    return parseOwnerStockAlertSettings(null);
+  }
+}
+
+/** Saves only the current store's display threshold for stock alerts. */
+export async function saveOwnerStockAlertSettings(storeId: number, input: OwnerStockAlertSettings): Promise<OwnerStockAlertSettings> {
+  const settings = normalizeOwnerStockAlertSettings(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const key = "owner_stock_alert_profile";
+  const value = JSON.stringify(settings);
+  const description = "Seuil visuel de stock faible propre à cette boutique ; sans alerte automatique, réservation, fournisseur ni commande";
+  const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
+    .limit(1);
   if (existing) {
     await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
   } else {

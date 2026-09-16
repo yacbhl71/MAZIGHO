@@ -48,6 +48,10 @@ const ownerLegalContactProfile = z.object({
   returnsPolicy: z.string().trim().min(2).max(3_000),
 });
 
+const stockAlertSettings = z.object({
+  lowStockThreshold: z.number().int().min(0).max(10_000),
+});
+
 const shippingReturnsSettings = z.object({
   mode: z.enum(["included", "flat_rate"]),
   freeShippingThresholdCents: z.number().int().min(0).max(10_000_000),
@@ -106,6 +110,9 @@ export const ownerRouter = router({
   getShippingReturnsSettings: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
   }),
+  getStockAlertSettings: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerStockAlertSettings(ctx.store!.id);
+  }),
   getLegalContactProfile: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerLegalContactProfile(ctx.store!.id);
   }),
@@ -123,6 +130,9 @@ export const ownerRouter = router({
       ...input,
       servedCountries: input.servedCountries.map(country => country.toUpperCase()),
     });
+  }),
+  saveStockAlertSettings: storeOwnerProcedure.input(stockAlertSettings).mutation(async ({ ctx, input }) => {
+    return await db.saveOwnerStockAlertSettings(ctx.store!.id, input);
   }),
   saveNavigation: storeOwnerProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));
