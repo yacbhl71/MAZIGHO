@@ -2322,6 +2322,19 @@ export async function resolveStoreForHost(host?: string | null): Promise<StoreSc
   }
 }
 
+export async function getFirstActiveOwnerStoreForUser(userId: number) {
+  if (!Number.isInteger(userId) || userId <= 0) return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain })
+    .from(storeMemberships)
+    .innerJoin(stores, eq(stores.id, storeMemberships.storeId))
+    .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(stores.isPlatformStore, 0)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function getStoreMembershipForUser(storeId: number, userId: number) {
   await ensureMultiStoreSchema();
   const db = await getDb();

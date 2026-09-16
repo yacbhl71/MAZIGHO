@@ -9,6 +9,7 @@ import {
   activateAccountFromInvitation,
   createPasswordUser,
   getUserByEmail,
+  getFirstActiveOwnerStoreForUser,
   markUserSignedIn,
   requestPasswordResetToken,
   resetPasswordFromToken,
@@ -156,7 +157,8 @@ export const authRouter = router({
           passwordHash: await hashPassword(input.password),
         });
         await createSession(ctx, user);
-        return { user: safeUser(user) };
+        const ownerStore = await getFirstActiveOwnerStoreForUser(user.id);
+        return { user: safeUser(user), ownerStore };
       } catch (error) {
         return rethrowTokenError(error);
       }
