@@ -26,7 +26,7 @@ et écrase `main` avec la mauvaise arborescence -> build Vercel cassé (404).
 ## Notes
 - Base de données (TiDB) et variables .env ne sont JAMAIS incluses dans un push git.
   Les nouvelles tables/colonnes se créent automatiquement au runtime (fonctions `ensure*` dans server/db.ts).
-- Env vars Vercel optionnelles (mode dégradé sinon): RESEND_API_KEY + MAZIGHO_EMAIL_FROM (emails),
+- Env vars Vercel optionnelles (mode dégradé sinon): BREVO_API_KEY + BREVO_SENDER_EMAIL + BREVO_SENDER_NAME (e-mails),
   STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET (paiement/remboursement).
 - Points de restauration GitHub connus (mentionnés par support): branche `restore-backup-2026-08-27`,
   tag `restore/mazigho-validated-2026-08-24`.

@@ -3,7 +3,8 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, platformProcedure, router } from "./_core/trpc";
 import * as db from "./db";
-import { getAccountInvitationLink } from "./transactionalEmail";
+import { getAccountInvitationLink, isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
+import { createBrevoMarketingCampaignDraft, getBrevoMarketingStatus, listBrevoMarketingLists } from "./brevoMarketing";
 import { storagePut } from "./storage";
 import { buildCjVariantStoreData, checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
 import { CJ_CUSTOM_SOURCING_COUNTRIES, CJ_CUSTOM_SOURCING_LIMITS, CJ_CUSTOM_SOURCING_RULES, CJ_CUSTOM_SOURCING_SHIPPING_METHODS, curateCjFashionDrafts, importCjCustomDraftBatch, importCjDraftBatchForCategory, listCjBatchCategories, listCjFashionBatchCategories } from "./cjBatchImport";
@@ -116,6 +117,12 @@ function rethrowUserManagementError(error: unknown): never {
   }
   if (code.includes("INVITATION_NOT_PENDING")) {
     throw new TRPCError({ code: "CONFLICT", message: "Ce compte n’est pas en attente d’invitation." });
+  }
+  if (code.includes("EMAIL_NOT_CONFIGURED")) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "L’envoi e-mail n’est pas encore configuré. Vérifiez la clé Brevo et l’adresse expéditrice vérifiée." });
+  }
+  if (code.includes("EMAIL_DELIVERY_FAILED")) {
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "L’e-mail n’a pas pu être envoyé. Vérifiez l’expéditeur vérifié dans Brevo puis réessayez." });
   }
   throw error;
 }
@@ -1953,7 +1960,8 @@ export const adminRouter = router({
           success: true,
           invitationLink: getAccountInvitationLink(invitation.invitation.token),
           invitationExpiresAt: invitation.invitation.expiresAt,
-          recipient: { name: invitation.name, email: invitation.email, role: invitation.role },
+          recipient: { id: invitation.userId, name: invitation.name, email: invitation.email, role: invitation.role },
+          emailDeliveryAvailable: isTransactionalEmailConfigured(),
         };
       } catch (error) {
         return rethrowUserManagementError(error);
@@ -1966,7 +1974,40 @@ export const adminRouter = router({
           success: true,
           invitationLink: getAccountInvitationLink(invitation.invitation.token),
           invitationExpiresAt: invitation.invitation.expiresAt,
-          recipient: { name: invitation.name, email: invitation.email },
+          recipient: { id: invitation.userId, name: invitation.name, email: invitation.email },
+          emailDeliveryAvailable: isTransactionalEmailConfigured(),
+        };
+      } catch (error) {
+        return rethrowUserManagementError(error);
+      }
+    }),
+    sendInvitationEmail: orderOperatorProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (!isTransactionalEmailConfigured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "L’envoi e-mail n’est pas encore configuré. Vérifiez la clé Brevo et l’adresse expéditrice vérifiée." });
+      }
+      try {
+        // Creating the token only at dispatch time keeps email delivery explicit
+        // and invalidates any previously copied personal link.
+        const invitation = await db.reissuePendingInvitation(input.id);
+        const delivery = await sendAccountInvitationEmail({
+          email: invitation.email,
+          name: invitation.name,
+          token: invitation.invitation.token,
+          tokenId: invitation.invitation.id,
+        });
+        if (!delivery.delivered) throw new Error(delivery.reason);
+        logAudit(ctx, {
+          action: "user.invitation.email.send",
+          entityType: "user",
+          entityId: invitation.userId,
+          summary: `Invitation envoyée par e-mail à ${invitation.email}`,
+          metadata: { provider: "brevo", messageId: delivery.id },
+        });
+        return {
+          success: true,
+          invitationLink: getAccountInvitationLink(invitation.invitation.token),
+          invitationExpiresAt: invitation.invitation.expiresAt,
+          recipient: { id: invitation.userId, name: invitation.name, email: invitation.email },
         };
       } catch (error) {
         return rethrowUserManagementError(error);
@@ -2127,7 +2168,7 @@ export const adminRouter = router({
         items: cart.items,
       });
       if (!outcome.delivered) {
-        if (outcome.reason === "EMAIL_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Service e-mail non configuré (ajoutez RESEND_API_KEY et MAZIGHO_EMAIL_FROM)." });
+        if (outcome.reason === "EMAIL_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Service e-mail non configuré (ajoutez BREVO_API_KEY et une adresse expéditrice Brevo vérifiée)." });
         if (outcome.reason === "TEMPLATE_DISABLED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le modèle « panier abandonné » est désactivé." });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "L'envoi de la relance a échoué." });
       }
@@ -2144,6 +2185,48 @@ export const adminRouter = router({
         templates: await db.getAllEmailTemplates(),
         emailConfigured: (await import("./transactionalEmail")).isTransactionalEmailConfigured(),
       };
+    }),
+    marketingStatus: platformProcedure.query(() => getBrevoMarketingStatus()),
+    getMarketingLists: platformProcedure.query(async () => {
+      const status = getBrevoMarketingStatus();
+      if (!status.configured) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Brevo n’est pas encore configuré. Ajoutez la clé API et un expéditeur vérifié au déploiement." });
+      }
+      try {
+        return { lists: await listBrevoMarketingLists() };
+      } catch (error) {
+        console.error("[Brevo] marketing-list lookup failed", String(error));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Les listes Brevo sont indisponibles. Vérifiez la configuration Brevo puis réessayez." });
+      }
+    }),
+    createMarketingDraft: platformProcedure.input(z.object({
+      name: z.string().trim().min(3).max(120),
+      subject: z.string().trim().min(3).max(200),
+      previewText: z.string().trim().max(180).optional(),
+      htmlContent: z.string().trim().min(11).max(900_000),
+      listIds: z.array(z.number().int().positive()).min(1).max(20),
+    })).mutation(async ({ ctx, input }) => {
+      const status = getBrevoMarketingStatus();
+      if (!status.configured) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Brevo n’est pas encore configuré. Ajoutez la clé API et un expéditeur vérifié au déploiement." });
+      }
+      try {
+        // Brevo creates this endpoint's result in draft status. The application
+        // deliberately offers no send action: a human reviews recipients,
+        // unsubscribe settings and content in Brevo before any campaign launch.
+        const campaign = await createBrevoMarketingCampaignDraft(input);
+        logAudit(ctx, {
+          action: "brevo.marketing_campaign.draft.create",
+          entityType: "email_campaign",
+          entityId: campaign.id,
+          summary: `Brouillon Brevo créé : ${input.name}`,
+          metadata: { provider: "brevo", listIds: input.listIds, sent: false },
+        });
+        return { success: true, campaignId: campaign.id, mode: "draft_only" as const };
+      } catch (error) {
+        console.error("[Brevo] marketing draft creation failed", String(error));
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le brouillon Brevo n’a pas pu être créé. Vérifiez l’expéditeur, les listes et la configuration Brevo." });
+      }
     }),
     save: adminProcedure.input(z.object({
       type: z.enum(["order_confirmation", "order_shipped", "abandoned_cart"]),

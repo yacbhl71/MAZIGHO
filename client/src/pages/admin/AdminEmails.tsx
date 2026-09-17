@@ -9,12 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Save, RotateCcw, AlertTriangle } from "lucide-react";
+import { AlertTriangle, FilePenLine, ListChecks, Mail, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 type TemplateType = "order_confirmation" | "order_shipped" | "abandoned_cart";
 type Template = { subject: string; heading: string; body: string; buttonLabel: string; enabled: boolean };
+type MarketingList = { id: number; name: string; totalBlacklisted: number; totalSubscribers: number };
 
 const TEMPLATE_META: Record<TemplateType, { label: string; description: string; variables: string[] }> = {
   order_confirmation: { label: "Confirmation de commande", description: "Envoyé automatiquement dès qu'une commande est payée.", variables: ["prenom", "commande", "total", "lignes"] },
@@ -46,12 +47,57 @@ function TemplateEditor({ type, initial, fallback, onSaved }: { type: TemplateTy
       <div className="space-y-2"><Label>Libellé du bouton</Label><Input value={form.buttonLabel} onChange={e => update("buttonLabel", e.target.value)} /></div>
       <div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs text-sky-900">
         <p className="font-semibold">Variables disponibles :</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">{meta.variables.map(v => <button key={v} type="button" onClick={() => update("body", `${form.body}{{${v}}}`)} className="rounded bg-white px-2 py-1 font-mono hover:bg-sky-100">{`{{${v}}}`}</button>)}</div>
+        <div className="mt-2 flex flex-wrap gap-1.5">{meta.variables.map(variable => <button key={variable} type="button" onClick={() => update("body", `${form.body}{{${variable}}}`)} className="rounded bg-white px-2 py-1 font-mono hover:bg-sky-100">{`{{${variable}}}`}</button>)}</div>
       </div>
       <div className="flex justify-between">
         <Button type="button" variant="outline" onClick={() => setForm(fallback)} data-testid={`email-reset-${type}`}><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
         <Button className="bg-orange-500 hover:bg-orange-600" disabled={save.isPending} onClick={() => save.mutate({ type, ...form })} data-testid={`email-save-${type}`}><Save className="mr-2 h-4 w-4" /> Enregistrer</Button>
       </div>
+    </div>
+  );
+}
+
+function MarketingDraftBuilder({ configured }: { configured: boolean }) {
+  const [name, setName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [previewText, setPreviewText] = useState("");
+  const [htmlContent, setHtmlContent] = useState("<p>Bonjour,</p><p>Votre contenu marketing ici.</p>");
+  const [selectedListIds, setSelectedListIds] = useState<number[]>([]);
+  const [createdCampaignId, setCreatedCampaignId] = useState<number | null>(null);
+  const listsQuery = trpc.admin.emailTemplates.getMarketingLists.useQuery(undefined, { enabled: configured, retry: false });
+  const createDraft = trpc.admin.emailTemplates.createMarketingDraft.useMutation({
+    onSuccess: result => {
+      setCreatedCampaignId(result.campaignId);
+      toast.success(`Brouillon Brevo #${result.campaignId} créé. Aucun e-mail n’a été envoyé.`);
+    },
+    onError: error => toast.error(error.message || "Création du brouillon impossible."),
+  });
+  const lists = (listsQuery.data?.lists || []) as MarketingList[];
+  const toggleList = (id: number, checked: boolean) => setSelectedListIds(current => checked ? (current.includes(id) ? current : [...current, id]) : current.filter(value => value !== id));
+  const canCreate = configured && name.trim().length >= 3 && subject.trim().length >= 3 && htmlContent.trim().length >= 11 && selectedListIds.length > 0;
+
+  if (!configured) {
+    return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">Configurez Brevo dans le déploiement avant de créer un brouillon de campagne.</div>;
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        <p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" /> Protection commerciale</p>
+        <p className="mt-1">Cette action crée uniquement un <strong>brouillon</strong> dans Brevo. Aucun e-mail, SMS ou automatisation n’est envoyé depuis MAZIGHO. Sélectionnez exclusivement des listes composées de contacts ayant consenti à recevoir des communications marketing.</p>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2"><Label htmlFor="marketing-name">Nom interne de la campagne</Label><Input id="marketing-name" value={name} onChange={event => setName(event.target.value)} placeholder="Lancement collection automne" /></div>
+        <div className="space-y-2"><Label htmlFor="marketing-subject">Objet e-mail</Label><Input id="marketing-subject" value={subject} onChange={event => setSubject(event.target.value)} placeholder="Découvrez nos nouveautés" /></div>
+      </div>
+      <div className="space-y-2"><Label htmlFor="marketing-preview">Aperçu boîte de réception</Label><Input id="marketing-preview" value={previewText} onChange={event => setPreviewText(event.target.value)} placeholder="Texte affiché après l’objet (facultatif)" maxLength={180} /></div>
+      <div className="space-y-2"><Label htmlFor="marketing-html">Contenu HTML</Label><Textarea id="marketing-html" rows={12} value={htmlContent} onChange={event => setHtmlContent(event.target.value)} className="font-mono text-sm" /><p className="text-xs text-muted-foreground">Le contenu sera importé dans un brouillon Brevo, où vous pourrez le relire avant toute diffusion.</p></div>
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+        <div><Label className="flex items-center gap-2"><ListChecks className="h-4 w-4 text-violet-700" /> Listes de destinataires consentants</Label><p className="mt-1 text-xs text-muted-foreground">Les listes viennent de Brevo. MAZIGHO ne transfère aucun contact automatiquement à cette étape.</p></div>
+        {listsQuery.isLoading ? <Skeleton className="h-20 w-full" /> : listsQuery.isError ? <p className="text-sm text-destructive">Les listes Brevo n’ont pas pu être chargées.</p> : lists.length === 0 ? <p className="text-sm text-muted-foreground">Aucune liste Brevo disponible. Créez d’abord une liste de contacts consentants dans Brevo.</p> : <div className="space-y-2">{lists.map(list => <label key={list.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-100 p-3 hover:bg-slate-50"><input type="checkbox" checked={selectedListIds.includes(list.id)} onChange={event => toggleList(list.id, event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500" /><span className="flex-1"><span className="font-medium text-slate-900">{list.name}</span><span className="mt-0.5 block text-xs text-muted-foreground">{list.totalSubscribers} inscrit(s) · {list.totalBlacklisted} désinscription(s)</span></span></label>)}</div>}
+      </div>
+      {createdCampaignId && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><strong>Brouillon Brevo #{createdCampaignId} créé.</strong> Ouvrez Brevo pour contrôler le contenu, la liste, le lien de désinscription et planifier ou envoyer la campagne.</div>}
+      <Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!canCreate || createDraft.isPending} onClick={() => createDraft.mutate({ name: name.trim(), subject: subject.trim(), previewText: previewText.trim() || undefined, htmlContent: htmlContent.trim(), listIds: selectedListIds })}>{createDraft.isPending ? <FilePenLine className="mr-2 h-4 w-4 animate-pulse" /> : <FilePenLine className="mr-2 h-4 w-4" />}Créer le brouillon dans Brevo</Button>
     </div>
   );
 }
@@ -67,44 +113,31 @@ export default function AdminEmails() {
         <section className="overflow-hidden rounded-2xl border border-orange-100 bg-gradient-to-r from-orange-50 via-white to-amber-50">
           <div className="p-6 md:p-8">
             <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-orange-700"><Mail className="h-4 w-4" /> Communication client</p>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">E-mails transactionnels</h1>
-            <p className="mt-2 max-w-2xl text-slate-600">Personnalisez l'objet et le contenu des e-mails envoyés à vos clients, avec des variables dynamiques.</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">E-mails & campagnes</h1>
+            <p className="mt-2 max-w-2xl text-slate-600">Personnalisez vos messages transactionnels et préparez les campagnes commerciales dans Brevo avec un contrôle humain avant tout envoi.</p>
           </div>
         </section>
 
         {!emailConfigured && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" data-testid="emails-warning">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-            <p>Vos modèles sont enregistrés, mais l'envoi réel nécessite <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> et <code className="rounded bg-amber-100 px-1">MAZIGHO_EMAIL_FROM</code> sur Vercel.</p>
+            <p>Vos modèles sont enregistrés, mais l’envoi réel nécessite <code className="rounded bg-amber-100 px-1">BREVO_API_KEY</code>, <code className="rounded bg-amber-100 px-1">BREVO_SENDER_EMAIL</code> et une adresse expéditrice vérifiée dans Brevo.</p>
           </div>
         )}
 
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 pb-5">
-            <CardTitle className="text-xl text-slate-900">Modèles</CardTitle>
-            <CardDescription>Choisissez un modèle à personnaliser.</CardDescription>
-          </CardHeader>
           <CardContent className="p-5">
-            {query.isLoading ? <Skeleton className="h-96 w-full" /> : (
-              <Tabs defaultValue="order_confirmation">
-                <TabsList className="mb-5">
-                  {ORDER.map(type => {
-                    const entry = templates.find(t => t.type === type);
-                    return <TabsTrigger key={type} value={type} data-testid={`email-tab-${type}`}>{TEMPLATE_META[type].label}{entry && !entry.template.enabled ? <Badge className="ml-2 border-0 bg-slate-200 text-[10px] text-slate-600">off</Badge> : null}</TabsTrigger>;
-                  })}
-                </TabsList>
-                {ORDER.map(type => {
-                  const entry = templates.find(t => t.type === type);
-                  if (!entry) return null;
-                  return (
-                    <TabsContent key={type} value={type}>
-                      <p className="mb-4 text-sm text-muted-foreground">{TEMPLATE_META[type].description}</p>
-                      <TemplateEditor type={type} initial={entry.template} fallback={entry.default} onSaved={() => query.refetch()} />
-                    </TabsContent>
-                  );
-                })}
-              </Tabs>
-            )}
+            <Tabs defaultValue="transactional">
+              <TabsList className="mb-5"><TabsTrigger value="transactional">Transactionnels</TabsTrigger><TabsTrigger value="marketing">Campagnes Brevo</TabsTrigger></TabsList>
+              <TabsContent value="transactional">
+                <CardHeader className="mb-5 border-b border-slate-100 px-0 pt-0 pb-5"><CardTitle className="text-xl text-slate-900">Modèles transactionnels</CardTitle><CardDescription>Choisissez un modèle à personnaliser.</CardDescription></CardHeader>
+                {query.isLoading ? <Skeleton className="h-96 w-full" /> : <Tabs defaultValue="order_confirmation"><TabsList className="mb-5">{ORDER.map(type => { const entry = templates.find(item => item.type === type); return <TabsTrigger key={type} value={type} data-testid={`email-tab-${type}`}>{TEMPLATE_META[type].label}{entry && !entry.template.enabled ? <Badge className="ml-2 border-0 bg-slate-200 text-[10px] text-slate-600">off</Badge> : null}</TabsTrigger>; })}</TabsList>{ORDER.map(type => { const entry = templates.find(item => item.type === type); if (!entry) return null; return <TabsContent key={type} value={type}><p className="mb-4 text-sm text-muted-foreground">{TEMPLATE_META[type].description}</p><TemplateEditor type={type} initial={entry.template} fallback={entry.default} onSaved={() => query.refetch()} /></TabsContent>; })}</Tabs>}
+              </TabsContent>
+              <TabsContent value="marketing">
+                <CardHeader className="mb-5 border-b border-slate-100 px-0 pt-0 pb-5"><CardTitle className="text-xl text-slate-900">Campagnes commerciales</CardTitle><CardDescription>Préparez une campagne dans Brevo. Son envoi reste volontairement séparé et se fait après revue dans Brevo.</CardDescription></CardHeader>
+                <MarketingDraftBuilder configured={emailConfigured} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>

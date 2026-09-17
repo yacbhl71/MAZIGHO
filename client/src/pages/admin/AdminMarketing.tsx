@@ -54,7 +54,7 @@ export default function AdminMarketing() {
         {!emailConfigured && (
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" data-testid="marketing-email-warning">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
-            <p>Le service e-mail n'est pas encore configuré. Ajoutez <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> et <code className="rounded bg-amber-100 px-1">MAZIGHO_EMAIL_FROM</code> sur Vercel pour activer l'envoi des relances.</p>
+            <p>Le service e-mail n'est pas encore configuré. Ajoutez <code className="rounded bg-amber-100 px-1">BREVO_API_KEY</code> et une adresse expéditrice Brevo vérifiée sur Vercel pour activer l'envoi des relances.</p>
           </div>
         )}
 

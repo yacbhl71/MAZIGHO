@@ -10,34 +10,57 @@ type DeliveryResult =
   | { delivered: true; id: string }
   | { delivered: false; reason: "EMAIL_NOT_CONFIGURED" };
 
+type TransactionalSender = {
+  email: string;
+  name: string;
+};
+
 const defaultPublicUrl = "https://www.mazigho.ch";
+const defaultSenderName = "MAZIGHO";
 
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+    .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
 
+function parseSender(value: string | undefined, configuredName: string | undefined): TransactionalSender | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+
+  const formattedSender = /^(.*?)\s*<([^<>\s]+@[^<>\s]+)>$/.exec(raw);
+  const email = (formattedSender?.[2] || raw).trim();
+  const name = (configuredName?.trim() || formattedSender?.[1]?.trim() || defaultSenderName).trim();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  return { email, name: name || defaultSenderName };
+}
+
 export { escapeHtml };
+
+function getMailConfiguration() {
+  const apiKey = process.env.BREVO_API_KEY?.trim();
+  // MAZIGHO_EMAIL_FROM remains accepted to make the provider switch safe for an
+  // existing deployment. Prefer the explicit Brevo variables for new installs.
+  const sender = parseSender(
+    process.env.BREVO_SENDER_EMAIL || process.env.MAZIGHO_EMAIL_FROM,
+    process.env.BREVO_SENDER_NAME
+  );
+  const publicUrl = (process.env.MAZIGHO_PUBLIC_URL?.trim() || defaultPublicUrl).replace(/\/$/, "");
+
+  return { apiKey, sender, publicUrl };
+}
 
 export function getPublicUrl(): string {
   return getMailConfiguration().publicUrl;
 }
 
-function getMailConfiguration() {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.MAZIGHO_EMAIL_FROM?.trim();
-  const publicUrl = (process.env.MAZIGHO_PUBLIC_URL?.trim() || defaultPublicUrl).replace(/\/$/, "");
-
-  return { apiKey, from, publicUrl };
-}
-
 export function isTransactionalEmailConfigured(): boolean {
-  const { apiKey, from } = getMailConfiguration();
-  return Boolean(apiKey && from);
+  const { apiKey, sender } = getMailConfiguration();
+  return Boolean(apiKey && sender);
 }
 
 export function getAccountInvitationLink(token: string): string {
@@ -46,37 +69,40 @@ export function getAccountInvitationLink(token: string): string {
 }
 
 export async function sendTransactionalEmail(input: TransactionalEmailInput): Promise<DeliveryResult> {
-  const { apiKey, from } = getMailConfiguration();
-  if (!apiKey || !from) {
+  const { apiKey, sender } = getMailConfiguration();
+  if (!apiKey || !sender) {
     return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
       "Content-Type": "application/json",
-      "Idempotency-Key": input.idempotencyKey,
+      "api-key": apiKey,
     },
     body: JSON.stringify({
-      from,
-      to: [input.to],
+      sender,
+      to: [{ email: input.to }],
       subject: input.subject,
-      html: input.html,
-      text: input.text,
+      htmlContent: input.html,
+      textContent: input.text,
+      // This tag keeps account-security emails easy to identify in Brevo without
+      // turning them into a marketing campaign or storing application secrets.
+      tags: ["mazigho-account-security"],
     }),
   });
 
-  const payload = (await response.json().catch(() => null)) as { id?: string; message?: string } | null;
-  if (!response.ok || !payload?.id) {
-    console.error("[Email] Transactional email delivery failed", {
+  const payload = (await response.json().catch(() => null)) as { messageId?: string; code?: string; message?: string } | null;
+  if (!response.ok || !payload?.messageId) {
+    console.error("[Email] Brevo transactional delivery failed", {
       status: response.status,
-      message: payload?.message ?? "Unknown provider error",
+      code: payload?.code ?? "UNKNOWN_PROVIDER_ERROR",
     });
     throw new Error("EMAIL_DELIVERY_FAILED");
   }
 
-  return { delivered: true, id: payload.id };
+  return { delivered: true, id: payload.messageId };
 }
 
 export async function sendAccountInvitationEmail(input: {

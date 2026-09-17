@@ -55,7 +55,7 @@ type UserRow = {
   lastPaidOrderAt?: Date | string | null;
 };
 type SensitiveAction = "block" | "unblock" | "demote" | "promote" | "delete";
-type ManualInvitation = { name: string; email: string; role?: Role; link: string; expiresAt: Date | string };
+type ManualInvitation = { userId: number; name: string; email: string; role?: Role; link: string; expiresAt: Date | string; emailDeliveryAvailable: boolean };
 
 function getActionLabel(action: SensitiveAction) {
   switch (action) {
@@ -97,13 +97,15 @@ export default function AdminUsers() {
   const createUser = trpc.admin.users.create.useMutation({
     onSuccess: async result => {
       setManualInvitation({
+        userId: result.recipient.id,
         name: result.recipient.name,
         email: result.recipient.email,
         role: result.recipient.role as Role,
         link: result.invitationLink,
         expiresAt: result.invitationExpiresAt,
+        emailDeliveryAvailable: result.emailDeliveryAvailable,
       });
-      toast.success("Invitation créée. Copiez maintenant le lien personnel.");
+      toast.success("Invitation créée. Choisissez maintenant son mode d’envoi.");
       setIsCreateOpen(false);
       setCreateForm({ name: "", email: "", role: "user" });
       await refetch();
@@ -114,15 +116,32 @@ export default function AdminUsers() {
   const resendInvitation = trpc.admin.users.resendInvitation.useMutation({
     onSuccess: async result => {
       setManualInvitation({
+        userId: result.recipient.id,
         name: result.recipient.name,
         email: result.recipient.email,
         link: result.invitationLink,
         expiresAt: result.invitationExpiresAt,
+        emailDeliveryAvailable: result.emailDeliveryAvailable,
       });
       toast.success("Nouveau lien créé. L’ancien lien a été invalidé.");
       await refetch();
     },
     onError: error => toast.error(error.message || "Renvoi impossible."),
+  });
+
+  const sendInvitationEmail = trpc.admin.users.sendInvitationEmail.useMutation({
+    onSuccess: async result => {
+      setManualInvitation(current => current ? {
+        ...current,
+        name: result.recipient.name,
+        email: result.recipient.email,
+        link: result.invitationLink,
+        expiresAt: result.invitationExpiresAt,
+      } : current);
+      toast.success(`Invitation envoyée à ${result.recipient.email}.`);
+      await refetch();
+    },
+    onError: error => toast.error(error.message || "L’e-mail n’a pas pu être envoyé."),
   });
 
   const updateProfile = trpc.admin.users.updateProfile.useMutation({
@@ -164,12 +183,12 @@ export default function AdminUsers() {
     onError: error => toast.error(error.message || "Suppression impossible."),
   });
 
-  const mutationPending = createUser.isPending || resendInvitation.isPending || updateProfile.isPending || updateRole.isPending || setAccountStatus.isPending || deleteUser.isPending;
+  const mutationPending = createUser.isPending || resendInvitation.isPending || sendInvitationEmail.isPending || updateProfile.isPending || updateRole.isPending || setAccountStatus.isPending || deleteUser.isPending;
   const copyInvitationLink = async () => {
     if (!manualInvitation) return;
     try {
       await navigator.clipboard.writeText(manualInvitation.link);
-      toast.success("Lien copié. Envoyez-le vous-même au collaborateur.");
+      toast.success("Lien copié. Envoyez-le uniquement au bon destinataire.");
     } catch {
       toast.info("Copiez le lien affiché manuellement.");
     }
@@ -335,7 +354,7 @@ export default function AdminUsers() {
                       {isSelf ? <span className="text-xs text-muted-foreground">Votre compte</span> : (
                         <div className="flex flex-wrap justify-end gap-2">
                           <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => openEdit(user)}><Pencil className="mr-1 h-4 w-4" /> Modifier</Button>
-                          {user.accountStatus === "pending_invitation" && <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => resendInvitation.mutate({ id: user.id })}><Mail className="mr-1 h-4 w-4" /> Renvoyer l’invitation</Button>}
+                          {user.accountStatus === "pending_invitation" && <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => resendInvitation.mutate({ id: user.id })}><Mail className="mr-1 h-4 w-4" /> Nouveau lien</Button>}
                           {user.role !== "admin" && <select aria-label={`Rôle de ${user.email || user.name || "cet utilisateur"}`} value={user.role} onChange={event => updateRole.mutate({ id: user.id, role: event.target.value as Role })} disabled={mutationPending} className="h-8 max-w-44 rounded-md border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{assignableRoles.filter(role => role !== "admin").map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select>}
                           <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.role === "admin" ? "demote" : "promote" })}><UserCog className="mr-1 h-4 w-4" /> {user.role === "admin" ? "Rétrograder" : "Élever admin"}</Button>
                           <Button variant="outline" size="sm" disabled={mutationPending} onClick={() => setSensitive({ target: user, action: user.accountStatus === "blocked" ? "unblock" : "block" })}><ShieldBan className="mr-1 h-4 w-4" /> {user.accountStatus === "blocked" ? "Débloquer" : "Bloquer"}</Button>
@@ -353,11 +372,11 @@ export default function AdminUsers() {
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Inviter un utilisateur</DialogTitle><DialogDescription>Le compte restera en attente jusqu’au choix de son mot de passe depuis un lien personnel.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Inviter un utilisateur</DialogTitle><DialogDescription>Le compte restera en attente jusqu’au choix de son mot de passe depuis un lien personnel. Après création, vous choisissez explicitement l’envoi par e-mail ou la copie manuelle du lien.</DialogDescription></DialogHeader>
           <form onSubmit={submitCreate} className="space-y-4 py-4">
             <div className="space-y-2"><Label htmlFor="invite-name">Nom complet</Label><Input id="invite-name" value={createForm.name} onChange={event => setCreateForm({ ...createForm, name: event.target.value })} placeholder="Jean Dupont" required /></div>
             <div className="space-y-2"><Label htmlFor="invite-email">Adresse e-mail</Label><div className="relative"><Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" /><Input id="invite-email" type="email" className="pl-10" value={createForm.email} onChange={event => setCreateForm({ ...createForm, email: event.target.value })} placeholder="jean.dupont@exemple.ch" required /></div></div>
-            <div className="space-y-2"><Label htmlFor="invite-role">Rôle à attribuer</Label><select id="invite-role" value={createForm.role} onChange={event => setCreateForm({ ...createForm, role: event.target.value as Role })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{assignableRoles.map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select><p className="text-xs text-muted-foreground">La personne recevra un lien personnel et ne verra que les écrans nécessaires à sa mission.</p></div>
+            <div className="space-y-2"><Label htmlFor="invite-role">Rôle à attribuer</Label><select id="invite-role" value={createForm.role} onChange={event => setCreateForm({ ...createForm, role: event.target.value as Role })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{assignableRoles.map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select><p className="text-xs text-muted-foreground">La personne ne verra que les écrans nécessaires à sa mission. L’e-mail n’est jamais expédié sans votre clic explicite.</p></div>
             <DialogFooter><Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>Annuler</Button><Button type="submit" className="bg-orange-500 hover:bg-orange-600" disabled={createUser.isPending}>{createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Créer l’invitation</Button></DialogFooter>
           </form>
         </DialogContent>
@@ -365,9 +384,9 @@ export default function AdminUsers() {
 
       <Dialog open={Boolean(manualInvitation)} onOpenChange={open => !open && setManualInvitation(null)}>
         <DialogContent className="sm:max-w-xl">
-          <DialogHeader><DialogTitle>Lien personnel prêt à envoyer</DialogTitle><DialogDescription>Vous êtes le seul à voir ce lien. Copiez-le, puis envoyez-le vous-même à la bonne personne par le canal de votre choix.</DialogDescription></DialogHeader>
-          {manualInvitation && <div className="space-y-4 py-3"><div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-orange-950"><p><strong>Destinataire :</strong> {manualInvitation.name} · {manualInvitation.email}</p>{manualInvitation.role && <p className="mt-1"><strong>Mission :</strong> {roleLabels[manualInvitation.role]}</p>}<p className="mt-1"><strong>Expiration :</strong> {new Date(manualInvitation.expiresAt).toLocaleString("fr-CH")}</p></div><div className="space-y-2"><Label htmlFor="manual-invitation-link">Lien d’activation personnel</Label><Textarea id="manual-invitation-link" value={manualInvitation.link} readOnly rows={4} className="font-mono text-xs" /></div><p className="text-xs leading-5 text-muted-foreground">Le lien est valable une journée. Un nouveau lien invalide immédiatement le précédent. Ne le publiez jamais dans un espace public.</p></div>}
-          <DialogFooter><Button type="button" variant="outline" onClick={() => setManualInvitation(null)}>Fermer</Button><Button type="button" className="bg-orange-600 hover:bg-orange-700" onClick={copyInvitationLink}>Copier le lien</Button></DialogFooter>
+          <DialogHeader><DialogTitle>Invitation prête</DialogTitle><DialogDescription>Choisissez maintenant un seul canal d’envoi. Chaque nouvel envoi génère un nouveau lien et invalide l’ancien.</DialogDescription></DialogHeader>
+          {manualInvitation && <div className="space-y-4 py-3"><div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-orange-950"><p><strong>Destinataire :</strong> {manualInvitation.name} · {manualInvitation.email}</p>{manualInvitation.role && <p className="mt-1"><strong>Mission :</strong> {roleLabels[manualInvitation.role]}</p>}<p className="mt-1"><strong>Expiration :</strong> {new Date(manualInvitation.expiresAt).toLocaleString("fr-CH")}</p></div>{manualInvitation.emailDeliveryAvailable ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-5 text-emerald-950"><strong>Brevo est configuré.</strong> L’envoi ci-dessous est transactionnel et personnel ; il ne crée ni campagne ni liste marketing.</div> : <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-5 text-amber-950"><strong>Envoi e-mail indisponible.</strong> Configurez la clé Brevo et une adresse expéditrice vérifiée dans le déploiement, ou copiez le lien manuellement.</div>}<div className="space-y-2"><Label htmlFor="manual-invitation-link">Lien d’activation personnel</Label><Textarea id="manual-invitation-link" value={manualInvitation.link} readOnly rows={4} className="font-mono text-xs" /></div><p className="text-xs leading-5 text-muted-foreground">Le lien est valable une journée. Ne le publiez jamais dans un espace public.</p></div>}
+          <DialogFooter className="gap-2 sm:gap-0"><Button type="button" variant="outline" onClick={() => setManualInvitation(null)}>Fermer</Button><Button type="button" className="bg-orange-600 hover:bg-orange-700" onClick={copyInvitationLink}>Copier le lien</Button>{manualInvitation?.emailDeliveryAvailable && <Button type="button" className="bg-emerald-700 hover:bg-emerald-800" disabled={sendInvitationEmail.isPending} onClick={() => sendInvitationEmail.mutate({ id: manualInvitation.userId })}>{sendInvitationEmail.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Envoyer par e-mail</Button>}</DialogFooter>
         </DialogContent>
       </Dialog>
 
