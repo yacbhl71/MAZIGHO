@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, storeOwnerProcedure } from "./_core/trpc";
+import { router, storeManagementProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut } from "./storage";
 
@@ -84,70 +84,72 @@ const productFields = z.object({
 });
 
 export const ownerRouter = router({
-  getWorkspace: storeOwnerProcedure.query(async ({ ctx }) => {
+  getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
-    const [products, categories, profile] = await Promise.all([
+    const [products, categories, profile, membership] = await Promise.all([
       db.getAllProductsAdmin(storeId),
       db.getAllCategories(storeId),
       db.getDesignProfile(storeId),
+      db.getStoreMembershipForUser(storeId, ctx.user.id),
     ]);
     return {
       store: { id: ctx.store!.id, displayName: ctx.store!.displayName, primaryDomain: ctx.store!.primaryDomain, status: ctx.store!.status },
+      membership: membership ? { role: membership.role, status: membership.status } : null,
       products,
       categories,
       profile,
     };
   }),
-  getOrdersOverview: storeOwnerProcedure.query(async ({ ctx }) => {
+  getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),
-  getCustomerOverview: storeOwnerProcedure.query(async ({ ctx }) => {
+  getCustomerOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);
   }),
-  getSettingsSummary: storeOwnerProcedure.query(async ({ ctx }) => {
+  getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
   }),
-  getShippingReturnsSettings: storeOwnerProcedure.query(async ({ ctx }) => {
+  getShippingReturnsSettings: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
   }),
-  getStockAlertSettings: storeOwnerProcedure.query(async ({ ctx }) => {
+  getStockAlertSettings: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStockAlertSettings(ctx.store!.id);
   }),
-  getLegalContactProfile: storeOwnerProcedure.query(async ({ ctx }) => {
+  getLegalContactProfile: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerLegalContactProfile(ctx.store!.id);
   }),
-  getSeoProfile: storeOwnerProcedure.query(async ({ ctx }) => {
+  getSeoProfile: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreSeoProfile(ctx.store!.id);
   }),
-  saveSeoProfile: storeOwnerProcedure.input(ownerSeoProfile).mutation(async ({ ctx, input }) => {
+  saveSeoProfile: storeManagementProcedure.input(ownerSeoProfile).mutation(async ({ ctx, input }) => {
     return await db.saveStoreSeoProfile(ctx.store!.id, input);
   }),
-  saveLegalContactProfile: storeOwnerProcedure.input(ownerLegalContactProfile).mutation(async ({ ctx, input }) => {
+  saveLegalContactProfile: storeManagementProcedure.input(ownerLegalContactProfile).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerLegalContactProfile(ctx.store!.id, input);
   }),
-  saveShippingReturnsSettings: storeOwnerProcedure.input(shippingReturnsSettings).mutation(async ({ ctx, input }) => {
+  saveShippingReturnsSettings: storeManagementProcedure.input(shippingReturnsSettings).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerShippingReturnsSettings(ctx.store!.id, {
       ...input,
       servedCountries: input.servedCountries.map(country => country.toUpperCase()),
     });
   }),
-  saveStockAlertSettings: storeOwnerProcedure.input(stockAlertSettings).mutation(async ({ ctx, input }) => {
+  saveStockAlertSettings: storeManagementProcedure.input(stockAlertSettings).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerStockAlertSettings(ctx.store!.id, input);
   }),
-  saveNavigation: storeOwnerProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
+  saveNavigation: storeManagementProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));
     if (uniqueIds.size !== input.items.length) throw new Error("NAVIGATION_DUPLICATE_ID");
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, navigationItems: input.items }, ctx.store!.id);
   }),
-  createProduct: storeOwnerProcedure.input(productFields).mutation(async ({ ctx, input }) => {
+  createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
   }),
-  updateProduct: storeOwnerProcedure.input(productFields.extend({ id: z.number().int().positive() }).partial({ categoryId: true, name: true, slug: true, price: true, stock: true, featured: true, status: true, images: true })).mutation(async ({ ctx, input }) => {
+  updateProduct: storeManagementProcedure.input(productFields.extend({ id: z.number().int().positive() }).partial({ categoryId: true, name: true, slug: true, price: true, stock: true, featured: true, status: true, images: true })).mutation(async ({ ctx, input }) => {
     const { id, ...changes } = input;
     return await db.updateProduct(id, changes, ctx.store!.id);
   }),
-  createCategory: storeOwnerProcedure.input(z.object({
+  createCategory: storeManagementProcedure.input(z.object({
     name: z.string().trim().min(2).max(100),
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     description: z.string().trim().max(2000).optional(),
@@ -155,7 +157,7 @@ export const ownerRouter = router({
   })).mutation(async ({ ctx, input }) => {
     return await db.createCategory({ ...input, catalogSection: "standard" }, ctx.store!.id);
   }),
-  updateCategory: storeOwnerProcedure.input(z.object({
+  updateCategory: storeManagementProcedure.input(z.object({
     id: z.number().int().positive(),
     name: z.string().trim().min(2).max(100).optional(),
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
@@ -165,7 +167,7 @@ export const ownerRouter = router({
     const { id, ...changes } = input;
     return await db.updateCategory(id, changes, ctx.store!.id);
   }),
-  uploadImage: storeOwnerProcedure.input(z.object({
+  uploadImage: storeManagementProcedure.input(z.object({
     dataUrl: z.string().max(7_100_000),
     fileName: z.string().trim().min(1).max(160),
   })).mutation(async ({ ctx, input }) => {
@@ -179,7 +181,7 @@ export const ownerRouter = router({
     const { url } = await storagePut(`owner-storefront/${ctx.store!.id}/${Date.now()}-${safeName}.${extension}`, buffer, contentType);
     return { url };
   }),
-  saveStorefront: storeOwnerProcedure.input(z.object({
+  saveStorefront: storeManagementProcedure.input(z.object({
     brandName: z.string().trim().min(2).max(48),
     brandMessage: z.string().trim().max(120),
     brandLogoUrl: z.union([z.literal(""), visualUrl]),

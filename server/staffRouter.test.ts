@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const membershipState = vi.hoisted(() => ({ current: null as { role: string; status: string } | null }));
+
 vi.mock("./db", () => ({
+  getStoreMembershipForUser: vi.fn(async () => membershipState.current),
   getCatalogCategoriesForEditor: vi.fn(async () => []),
   getCatalogDraftsForEditor: vi.fn(async () => []),
   createCatalogDraft: vi.fn(async () => ({ id: 1 })),
@@ -17,56 +20,65 @@ vi.mock("./db", () => ({
 
 import { staffRouter } from "./staffRouter";
 
-function callerFor(role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin") {
+function callerForPlatform(role: "user" | "catalog_editor" | "support_agent" | "order_operator" | "admin") {
   return staffRouter.createCaller({
     user: { id: 7, role, name: "Test", email: "test@mazigho.ch" },
-    store: { id: 1, slug: "boutique-ouverte", displayName: "Boutique ouverte", primaryDomain: "ouverte.example.ch", status: "active", isPlatformStore: 0 },
+    store: { id: 1, slug: "mazigho", displayName: "MAZIGHO", primaryDomain: "mazigho.example.ch", status: "active", isPlatformStore: 1 },
+  } as any);
+}
+
+function callerForClientStore(userRole: "user" | "admin" = "user", status: "active" | "setup" = "active") {
+  return staffRouter.createCaller({
+    user: { id: 7, role: userRole, name: "Test", email: "test@mazigho.ch" },
+    store: { id: 2, slug: "boutique-cliente", displayName: "Boutique cliente", primaryDomain: "client.example.ch", status, isPlatformStore: 0 },
   } as any);
 }
 
 describe("staffRouter", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    membershipState.current = null;
+    vi.clearAllMocks();
+  });
 
-  it("autorise l’éditeur catalogue uniquement sur les brouillons", async () => {
-    const caller = callerFor("catalog_editor");
+  it("keeps existing platform staff missions separated", async () => {
+    const caller = callerForPlatform("catalog_editor");
     await expect(caller.catalog.getDrafts()).resolves.toEqual([]);
     await expect(caller.support.getMessages()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.getOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("autorise le service client uniquement sur messages et avis", async () => {
-    const caller = callerFor("support_agent");
-    await expect(caller.support.getMessages()).resolves.toEqual([]);
-    await expect(caller.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  it("keeps platform support and operations missions separated", async () => {
+    const support = callerForPlatform("support_agent");
+    await expect(support.support.getMessages()).resolves.toEqual([]);
+    await expect(support.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const operations = callerForPlatform("order_operator");
+    await expect(operations.operations.getOrders()).resolves.toEqual([]);
+    await expect(operations.support.getReviews()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows an active client-store catalog editor only in the catalog mission", async () => {
+    membershipState.current = { role: "catalog_editor", status: "active" };
+    const caller = callerForClientStore();
+    await expect(caller.catalog.getDrafts()).resolves.toEqual([]);
+    await expect(caller.support.getMessages()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.getOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("autorise l’opérateur commandes uniquement sur le suivi opérationnel", async () => {
-    const caller = callerFor("order_operator");
-    await expect(caller.operations.getOrders()).resolves.toEqual([]);
-    await expect(caller.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.support.getReviews()).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-
-  it("laisse l’administrateur propriétaire contrôler les trois espaces", async () => {
-    const caller = callerFor("admin");
+  it("allows an active client-store manager across the operational missions of that boutique", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    const caller = callerForClientStore();
     await expect(caller.catalog.getDrafts()).resolves.toEqual([]);
     await expect(caller.support.getMessages()).resolves.toEqual([]);
     await expect(caller.operations.getOrders()).resolves.toEqual([]);
   });
 
-  it("ferme les espaces collaborateur lorsqu’une boutique est encore en préparation", async () => {
-    const caller = staffRouter.createCaller({
-      user: { id: 7, role: "catalog_editor", name: "Test", email: "test@mazigho.ch" },
-      store: { id: 2, slug: "boutique-setup", displayName: "Boutique en préparation", primaryDomain: "setup.example.ch", status: "setup", isPlatformStore: 0 },
-    } as any);
-    await expect(caller.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  it("refuses a global administrator on a client store without an active membership", async () => {
+    await expect(callerForClientStore("admin").catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("refuse tout accès collaborateur à un compte client", async () => {
-    const caller = callerFor("user");
-    await expect(caller.catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.support.getMessages()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.operations.getOrders()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  it("closes client-staff spaces while a boutique is in preparation", async () => {
+    membershipState.current = { role: "catalog_editor", status: "active" };
+    await expect(callerForClientStore("user", "setup").catalog.getDrafts()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
