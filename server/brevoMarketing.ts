@@ -21,6 +21,7 @@ type ConfiguredBrevoMarketingConfiguration = {
 };
 
 const defaultSenderName = "MAZIGHO";
+const BREVO_REQUEST_TIMEOUT_MS = 10_000;
 
 function parseSender(value: string | undefined, configuredName: string | undefined): BrevoSender | null {
   const raw = value?.trim();
@@ -50,15 +51,24 @@ function configuredOrThrow(): ConfiguredBrevoMarketingConfiguration {
 
 async function brevoRequest(path: string, init: RequestInit): Promise<Response> {
   const configuration = configuredOrThrow();
-  return fetch(`https://api.brevo.com/v3${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "api-key": configuration.apiKey,
-      ...(init.headers || {}),
-    },
-  });
+  try {
+    return await fetch(`https://api.brevo.com/v3${path}`, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": configuration.apiKey,
+        ...(init.headers || {}),
+      },
+      signal: AbortSignal.timeout(BREVO_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    console.error("[Brevo] Request did not complete", {
+      path,
+      reason: error instanceof Error && error.name === "TimeoutError" ? "TIMEOUT" : "REQUEST_FAILED",
+    });
+    throw new Error("BREVO_MARKETING_UNAVAILABLE");
+  }
 }
 
 export function getBrevoMarketingStatus() {

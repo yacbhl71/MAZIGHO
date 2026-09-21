@@ -17,6 +17,7 @@ type TransactionalSender = {
 
 const defaultPublicUrl = "https://www.mazigho.ch";
 const defaultSenderName = "MAZIGHO";
+export const BREVO_REQUEST_TIMEOUT_MS = 10_000;
 
 function escapeHtml(value: string): string {
   return value
@@ -74,24 +75,33 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
     return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
   }
 
-  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "api-key": apiKey,
-    },
-    body: JSON.stringify({
-      sender,
-      to: [{ email: input.to }],
-      subject: input.subject,
-      htmlContent: input.html,
-      textContent: input.text,
-      // This tag keeps account-security emails easy to identify in Brevo without
-      // turning them into a marketing campaign or storing application secrets.
-      tags: ["mazigho-account-security"],
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "api-key": apiKey,
+      },
+      signal: AbortSignal.timeout(BREVO_REQUEST_TIMEOUT_MS),
+      body: JSON.stringify({
+        sender,
+        to: [{ email: input.to }],
+        subject: input.subject,
+        htmlContent: input.html,
+        textContent: input.text,
+        // This tag keeps account-security emails easy to identify in Brevo without
+        // turning them into a marketing campaign or storing application secrets.
+        tags: ["mazigho-account-security"],
+      }),
+    });
+  } catch (error) {
+    console.error("[Email] Brevo transactional request did not complete", {
+      reason: error instanceof Error && error.name === "TimeoutError" ? "TIMEOUT" : "REQUEST_FAILED",
+    });
+    throw new Error("EMAIL_DELIVERY_FAILED");
+  }
 
   const payload = (await response.json().catch(() => null)) as { messageId?: string; code?: string; message?: string } | null;
   if (!response.ok || !payload?.messageId) {

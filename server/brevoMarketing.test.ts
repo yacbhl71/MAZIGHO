@@ -58,4 +58,13 @@ describe("brevoMarketing", () => {
       { id: 7, name: "Clients consentants", totalBlacklisted: 1, totalSubscribers: 24 },
     ]);
   });
+
+  it("stops a marketing request when Brevo does not respond", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "marketing@mazigho.ch");
+    const timeoutError = Object.assign(new Error("request timed out"), { name: "TimeoutError" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeoutError));
+
+    await expect(listBrevoMarketingLists()).rejects.toThrow("BREVO_MARKETING_UNAVAILABLE");
+  });
 });

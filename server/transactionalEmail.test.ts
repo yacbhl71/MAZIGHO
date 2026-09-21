@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isTransactionalEmailConfigured, sendTransactionalEmail } from "./transactionalEmail";
+import { BREVO_REQUEST_TIMEOUT_MS, isTransactionalEmailConfigured, sendTransactionalEmail } from "./transactionalEmail";
 
 describe("transactionalEmail", () => {
   afterEach(() => {
@@ -35,6 +35,7 @@ describe("transactionalEmail", () => {
     const [url, request] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.brevo.com/v3/smtp/email");
     expect(request.headers).toMatchObject({ "api-key": "test-brevo-key", Accept: "application/json", "Content-Type": "application/json" });
+    expect(request.signal).toBeInstanceOf(AbortSignal);
     expect(JSON.parse(String(request.body))).toMatchObject({
       sender: { email: "securite@mazigho.ch", name: "MAZIGHO Sécurité" },
       to: [{ email: "client@example.com" }],
@@ -57,5 +58,21 @@ describe("transactionalEmail", () => {
       text: "Bonjour",
       idempotencyKey: "test/2",
     })).rejects.toThrow("EMAIL_DELIVERY_FAILED");
+  });
+
+  it("fails with the same safe result when the Brevo request times out", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    const timeoutError = Object.assign(new Error("request timed out"), { name: "TimeoutError" });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(timeoutError));
+
+    await expect(sendTransactionalEmail({
+      to: "client@example.com",
+      subject: "Sécurité du compte",
+      html: "<p>Bonjour</p>",
+      text: "Bonjour",
+      idempotencyKey: "test/timeout",
+    })).rejects.toThrow("EMAIL_DELIVERY_FAILED");
+    expect(BREVO_REQUEST_TIMEOUT_MS).toBe(10_000);
   });
 });
