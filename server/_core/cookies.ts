@@ -39,14 +39,13 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  // SameSite=None requires Secure (browsers drop it otherwise). On HTTPS
-  // (production) keep None+Secure for maximum compatibility; on plain-http
-  // local dev fall back to Lax so the session cookie is retained.
+  // Lax keeps the session available after normal top-level GET returns from
+  // Stripe or OAuth while withholding it from cross-site POST requests.
   const secure = isSecureRequest(req);
   return {
     httpOnly: true,
     path: "/",
-    sameSite: secure ? "none" : "lax",
+    sameSite: "lax",
     secure,
   };
 }
