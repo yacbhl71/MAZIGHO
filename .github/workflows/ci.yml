@@ -34,6 +34,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Scan tracked files for credentials
+        run: npm run security:secrets
+
       - name: TypeScript
         run: npm run check
 
