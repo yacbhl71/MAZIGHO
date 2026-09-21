@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Check, CircleAlert, Eye, FileText, Globe2, Image
 import { Link, useLocation, useRoute } from "wouter";
 
 type StageState = "ready" | "action" | "optional" | "manual";
-type StageAction = "builder" | "pages" | "media" | "navigation" | "storefront_preview" | "studio" | null;
+type StageAction = "builder" | "pages" | "media" | "navigation" | "catalogue" | "storefront_preview" | "public_opening" | "studio" | null;
 type LaunchStage = { key: string; label: string; state: StageState; detail: string; action: StageAction };
 
 const stageIcons: Record<string, typeof Palette> = {
@@ -31,7 +31,9 @@ function destinationFor(action: StageAction, storeId: number) {
   if (action === "builder") return `/admin/studio/constructeur/${storeId}`;
   if (action === "pages" || action === "media") return `/admin/studio/pages/${storeId}`;
   if (action === "navigation") return `/admin/studio/navigation/${storeId}`;
+  if (action === "catalogue") return `/admin/studio/catalogue-existant/${storeId}`;
   if (action === "storefront_preview") return `/admin/studio/page-preview/${storeId}`;
+  if (action === "public_opening") return `/admin/studio/publication-catalogue/${storeId}`;
   if (action === "studio") return "/admin/studio";
   return null;
 }
@@ -41,7 +43,9 @@ function actionLabel(action: StageAction) {
   if (action === "pages") return "Préparer les pages";
   if (action === "media") return "Gérer les médias";
   if (action === "navigation") return "Organiser le menu";
+  if (action === "catalogue") return "Préparer le catalogue";
   if (action === "storefront_preview") return "Voir l’aperçu";
+  if (action === "public_opening") return "Préparer l’ouverture";
   if (action === "studio") return "Revenir à Studio";
   return "Aucune action";
 }

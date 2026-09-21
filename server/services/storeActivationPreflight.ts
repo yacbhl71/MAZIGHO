@@ -45,12 +45,6 @@ export function buildStoreActivationPreflight(input: StoreActivationPreflightInp
       detail: input.isGiftProvisioned ? "Le parcours est relié à une boutique offerte créée depuis MAZIGHO Studio." : "Cette boutique ne provient pas du parcours cadeau contrôlé.",
     },
     {
-      key: "animalier_scope",
-      label: "Univers animalier confirmé",
-      state: input.businessType === "animalier" ? "ready" : "blocked",
-      detail: input.businessType === "animalier" ? "La boutique suit l’univers animalier retenu pour ce premier parcours." : "Le brouillon source n’est pas identifié comme boutique animalière.",
-    },
-    {
       key: "owner",
       label: "Propriétaire actif",
       state: input.hasActiveOwner ? "ready" : "blocked",
@@ -82,9 +76,9 @@ export function buildStoreActivationPreflight(input: StoreActivationPreflightInp
     },
     {
       key: "catalogue",
-      label: "Catalogue animalier prêt",
+      label: "Catalogue prêt",
       state: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "ready" : "blocked",
-      detail: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "Au moins une catégorie et un produit actif sont disponibles ; vérifiez manuellement leur pertinence animale et leur qualité." : "Ajoutez au moins une catégorie et un produit actif avant l’ouverture.",
+      detail: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "Au moins une catégorie et un produit actif sont disponibles ; vérifiez manuellement leur pertinence et leur qualité." : "Ajoutez au moins une catégorie et un produit actif avant l’ouverture.",
     },
     {
       key: "sellable_catalogue",

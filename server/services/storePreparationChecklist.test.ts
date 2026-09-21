@@ -27,7 +27,7 @@ describe("buildStorePreparationChecklist", () => {
     expect(result.readyEssentialCount).toBe(5);
     expect(result.items.find(item => item.key === "media")?.state).toBe("ready");
     expect(result.items.find(item => item.key === "operations")).toMatchObject({ state: "ready", action: "operations" });
-    expect(result.items.find(item => item.key === "public_opening")).toMatchObject({ state: "manual", action: null });
+    expect(result.items.find(item => item.key === "public_opening")).toMatchObject({ state: "manual", action: "public_opening" });
   });
 
   it("garde l’identité, les pages et la préparation opérationnelle à compléter quand rien n’a été sauvegardé", () => {

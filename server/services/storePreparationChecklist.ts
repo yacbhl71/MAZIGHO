@@ -5,7 +5,7 @@ export type StudioPreparationChecklistItem = {
   label: string;
   state: "ready" | "action" | "optional" | "manual";
   detail: string;
-  action: "builder" | "collections" | "pages" | "operations" | "storefront_preview" | "studio" | null;
+  action: "builder" | "collections" | "pages" | "catalogue" | "operations" | "storefront_preview" | "public_opening" | "studio" | null;
 };
 
 export type StorePreparationChecklistInput = {
@@ -86,8 +86,8 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
       state: catalogueReady ? "ready" : "action",
       detail: catalogueReady
         ? "La boutique contient une base de catégories et de fiches isolées."
-        : "Installez ou préparez un kit de démonstration depuis MAZIGHO Studio.",
-      action: "studio",
+        : "Créez une première catégorie puis une fiche produit depuis l’éditeur de catalogue Studio.",
+      action: "catalogue",
     },
     {
       key: "operations",
@@ -121,7 +121,7 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
       label: "Ouverture publique",
       state: "manual",
       detail: "Toujours séparée : aucune action de cette checklist ne vérifie DNS, certificat, paiement, panier ou activation.",
-      action: null,
+      action: "public_opening",
     },
   ];
 

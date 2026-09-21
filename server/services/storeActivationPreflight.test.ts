@@ -43,10 +43,11 @@ describe("store activation preflight", () => {
     expect(result.checks.filter(check => check.state === "blocked").map(check => check.key)).toEqual(expect.arrayContaining(["owner", "brand", "legal", "catalogue", "sellable_catalogue", "product_images"]));
   });
 
-  it("rejects a local or test domain and the wrong business universe", () => {
-    const result = buildStoreActivationPreflight({ ...readyAnimalGift, primaryDomain: "animalier.local", businessType: "bijoux" });
+  it("rejects a local or test domain while allowing every configured boutique universe", () => {
+    const result = buildStoreActivationPreflight({ ...readyAnimalGift, primaryDomain: "atelier.local", businessType: "autre" });
     expect(result.locallyReadyForManualActivation).toBe(false);
     expect(result.checks.find(check => check.key === "domain_format")?.state).toBe("blocked");
-    expect(result.checks.find(check => check.key === "animalier_scope")?.state).toBe("blocked");
+    expect(result.checks.find(check => check.key === "catalogue")?.state).toBe("ready");
+    expect(result.checks.some(check => check.key === "animalier_scope")).toBe(false);
   });
 });

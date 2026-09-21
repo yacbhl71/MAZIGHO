@@ -1690,6 +1690,27 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
+/**
+ * Creates the first (or an additional) category for a boutique prepared in
+ * Studio. It is store-scoped and deliberately does not publish the storefront.
+ */
+export async function createStudioOwnerExistingCatalogueCategory(input: { storeId: number; name: string; description: string }) {
+  const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
+  const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.categories.map(category => category.slug)), "nouvelle-categorie");
+  const displayOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(categories).values({
+    storeId: input.storeId,
+    name: input.name,
+    slug,
+    description: input.description || null,
+    displayOrder,
+    catalogSection: "standard",
+  });
+  return getStudioOwnerExistingCatalogue(input.storeId);
+}
+
 export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const current = snapshot.products.find(product => product.id === input.productId);
@@ -2055,7 +2076,13 @@ export async function getStudioGiftStoreSetupReadiness(storeId: number) {
   };
 }
 
-export async function activateGiftAnimalStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; variantsReviewed: boolean; shippingReturnsReviewed: boolean; activationAcknowledged: boolean }) {
+/**
+ * Activates one gift-provisioned store only after a Studio operator has
+ * completed the explicit preflight and confirmations. It is universe-neutral:
+ * the required catalogue, identity, legal, owner and domain checks remain the
+ * same for every client boutique.
+ */
+export async function activateGiftStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; variantsReviewed: boolean; shippingReturnsReviewed: boolean; activationAcknowledged: boolean }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
   const db = await getDb();
@@ -2075,7 +2102,6 @@ export async function activateGiftAnimalStore(input: { storeId: number; confirma
     if (!Number.isInteger(draftId) || draftId <= 0) throw new Error("STORE_PROVISIONING_SOURCE_MISSING");
     const [draft] = await tx.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
     if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
-    if (draft.businessType !== "animalier") throw new Error("STORE_NOT_ANIMALIER");
 
     const [ownerRows, categoryRows, activeProductRows, activeImageRows] = await Promise.all([
       tx.select({ id: users.id, email: users.email }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId)).where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active"))),

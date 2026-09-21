@@ -281,7 +281,7 @@ export default function AdminStudio() {
     },
     onError: error => toast.error(error.message || "Le domaine n’a pas pu être remplacé."),
   });
-  const activateGiftStoreMutation = trpc.admin.studio.activateGiftAnimalStore.useMutation({
+  const activateGiftStoreMutation = trpc.admin.studio.activateGiftStore.useMutation({
     onSuccess: result => {
       toast.success(`Boutique activée : ${result.store.displayName}. Le storefront est maintenant éligible à la diffusion publique.`);
       setActivationConfirmOpen(false);

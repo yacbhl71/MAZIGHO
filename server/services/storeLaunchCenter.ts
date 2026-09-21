@@ -6,7 +6,7 @@ export type StudioLaunchCenterStage = {
   label: string;
   state: "ready" | "action" | "optional" | "manual";
   detail: string;
-  action: "builder" | "pages" | "media" | "navigation" | "storefront_preview" | "studio" | null;
+  action: "builder" | "pages" | "media" | "navigation" | "catalogue" | "storefront_preview" | "public_opening" | "studio" | null;
 };
 
 export type StoreLaunchCenterInput = {
@@ -61,7 +61,7 @@ export function buildStoreLaunchCenter(input: StoreLaunchCenterInput) {
       label: "3. Vérifier le catalogue",
       state: catalogue?.state ?? "action",
       detail: catalogue?.detail ?? "Préparez une base de catégories et de fiches de démonstration isolées.",
-      action: "studio",
+      action: "catalogue",
     },
     {
       key: "domain",
@@ -82,7 +82,7 @@ export function buildStoreLaunchCenter(input: StoreLaunchCenterInput) {
       label: "6. Décider de l’ouverture publique",
       state: "manual",
       detail: "Étape séparée et manuelle : elle n’est jamais déclenchée ici. DNS, certificat, informations légales et confirmation opérateur restent contrôlés dans la revue Studio dédiée.",
-      action: null,
+      action: "public_opening",
     },
   ];
 

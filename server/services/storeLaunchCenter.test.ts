@@ -8,10 +8,10 @@ describe("buildStoreLaunchCenter", () => {
         { key: "identity", label: "Identité", state: "ready", detail: "ok", action: "builder" },
         { key: "pages", label: "Pages", state: "ready", detail: "ok", action: "pages" },
         { key: "media", label: "Médias", state: "optional", detail: "optionnel", action: "pages" },
-        { key: "catalogue", label: "Catalogue", state: "ready", detail: "ok", action: "studio" },
+        { key: "catalogue", label: "Catalogue", state: "ready", detail: "ok", action: "catalogue" },
         { key: "domain", label: "Domaine", state: "ready", detail: "ok", action: "studio" },
         { key: "private_preview", label: "Aperçu", state: "ready", detail: "ok", action: "storefront_preview" },
-        { key: "public_opening", label: "Ouverture", state: "manual", detail: "manuel", action: null },
+        { key: "public_opening", label: "Ouverture", state: "manual", detail: "manuel", action: "public_opening" },
       ],
       readinessChecks: [{ key: "brand", label: "Marque", state: "ready", detail: "ok" }],
     });
@@ -19,7 +19,7 @@ describe("buildStoreLaunchCenter", () => {
     expect(result.privateLaunchCenter).toBe(true);
     expect(result.publicActivationExecuted).toBe(false);
     expect(result.readyRequiredCount).toBe(5);
-    expect(result.stages.find(stage => stage.key === "public_opening")).toMatchObject({ state: "manual", action: null });
+    expect(result.stages.find(stage => stage.key === "public_opening")).toMatchObject({ state: "manual", action: "public_opening" });
   });
 
   it("oriente vers les pages quand l’identité est prête mais que le contenu ne l’est pas", () => {
@@ -28,10 +28,10 @@ describe("buildStoreLaunchCenter", () => {
         { key: "identity", label: "Identité", state: "ready", detail: "ok", action: "builder" },
         { key: "pages", label: "Pages", state: "action", detail: "à faire", action: "pages" },
         { key: "media", label: "Médias", state: "optional", detail: "optionnel", action: "pages" },
-        { key: "catalogue", label: "Catalogue", state: "action", detail: "à faire", action: "studio" },
+        { key: "catalogue", label: "Catalogue", state: "action", detail: "à faire", action: "catalogue" },
         { key: "domain", label: "Domaine", state: "action", detail: "à faire", action: "studio" },
         { key: "private_preview", label: "Aperçu", state: "ready", detail: "ok", action: "storefront_preview" },
-        { key: "public_opening", label: "Ouverture", state: "manual", detail: "manuel", action: null },
+        { key: "public_opening", label: "Ouverture", state: "manual", detail: "manuel", action: "public_opening" },
       ],
       readinessChecks: [{ key: "brand", label: "Marque", state: "ready", detail: "ok" }],
     });

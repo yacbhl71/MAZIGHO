@@ -587,6 +587,21 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    createOwnerExistingCatalogueCategory: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(100),
+      description: z.string().trim().max(2000),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const catalogue = await db.createStudioOwnerExistingCatalogueCategory(input);
+        logAudit(ctx, { action: "studio.gift_store.catalogue.category.create", entityType: "category", entityId: null, summary: "Catégorie ajoutée au catalogue de boutique", metadata: { storeId: input.storeId, publicStorefront: false } });
+        return catalogue;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cet ajout est réservé à une boutique offerte encore en préparation." });
+        throw error;
+      }
+    }),
     saveOwnerExistingCatalogueProduct: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       productId: z.number().int().positive(),
@@ -1005,7 +1020,7 @@ export const adminRouter = router({
         throw error;
       }
     }),
-    activateGiftAnimalStore: platformProcedure.input(z.object({
+    activateGiftStore: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),
       confirmationOwnerEmail: z.string().trim().email().max(320),
@@ -1015,12 +1030,12 @@ export const adminRouter = router({
       activationAcknowledged: z.literal(true),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const activated = await db.activateGiftAnimalStore(input);
+        const activated = await db.activateGiftStore(input);
         logAudit(ctx, {
           action: "studio.gift_store.activate",
           entityType: "store",
           entityId: activated.store.id,
-          summary: `Boutique offerte animalière activée : ${activated.store.displayName}`,
+          summary: `Boutique offerte activée après prévol manuel : ${activated.store.displayName}`,
           metadata: { domain: activated.store.primaryDomain, status: "active", billing: "none", invitationsSent: 0 },
         });
         return activated;
@@ -1030,7 +1045,7 @@ export const adminRouter = router({
         if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer l’activation." });
         if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Le propriétaire actif ne correspond pas à l’e-mail confirmé." });
         if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les confirmations de domaine, variantes, livraison et activation sont obligatoires." });
-        if (["STORE_NOT_ELIGIBLE_FOR_ACTIVATION", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER", "ACTIVATION_PREFLIGHT_INCOMPLETE", "STORE_ACTIVATION_CONFLICT"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les critères de sécurité de l’activation ne sont pas tous remplis." });
+        if (["STORE_NOT_ELIGIBLE_FOR_ACTIVATION", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "ACTIVATION_PREFLIGHT_INCOMPLETE", "STORE_ACTIVATION_CONFLICT"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les critères de sécurité de l’activation ne sont pas tous remplis." });
         throw error;
       }
     }),

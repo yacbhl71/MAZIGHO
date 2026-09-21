@@ -53,7 +53,7 @@ export default function AdminStudioOwnerCataloguePublication() {
       utils.admin.studio.getGiftStoreActivationPreflight.invalidate({ storeId });
     },
   });
-  const activateMutation = trpc.admin.studio.activateGiftAnimalStore.useMutation({
+  const activateMutation = trpc.admin.studio.activateGiftStore.useMutation({
     onSuccess: () => {
       setActivated(true);
       utils.admin.studio.getGiftStoreActivationPreflight.invalidate({ storeId });
