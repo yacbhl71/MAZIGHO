@@ -2326,12 +2326,29 @@ export async function resolveStoreForHost(host?: string | null): Promise<StoreSc
   }
 }
 
+/**
+ * Resolves a storefront that is deliberately still in setup. This is used only
+ * after the request originated from the platform domain and carries a bounded
+ * routing hint. Authorization remains enforced by storeOwnerProcedure.
+ */
+export async function getSetupStoreForOwnerPanel(storeId: number): Promise<StoreScope | null> {
+  if (!Number.isInteger(storeId) || storeId <= 0) return null;
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores)
+    .where(and(eq(stores.id, storeId), eq(stores.status, "setup"), eq(stores.isPlatformStore, 0)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function getFirstActiveOwnerStoreForUser(userId: number) {
   if (!Number.isInteger(userId) || userId <= 0) return null;
   const db = await getDb();
   if (!db) return null;
   const rows = await db
-    .select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain })
+    .select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
     .from(storeMemberships)
     .innerJoin(stores, eq(stores.id, storeMemberships.storeId))
     .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(stores.isPlatformStore, 0)))

@@ -7,6 +7,7 @@ import superjson from "superjson";
 import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
 import { getLoginUrl } from "./const";
+import { getSetupStoreIdFromSearch, setupStoreAccessHeader } from "@shared/setupStoreOwnerAccess";
 import "./index.css";
 
 // Nettoyage de compatibilité : ces clés appartenaient à l’ancien prototype local
@@ -51,9 +52,15 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const headers = new Headers(init?.headers);
+        const setupStoreId = typeof window !== "undefined" && window.location.pathname === "/gestion-boutique"
+          ? getSetupStoreIdFromSearch(window.location.search)
+          : null;
+        if (setupStoreId) headers.set(setupStoreAccessHeader, String(setupStoreId));
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+          headers,
         });
       },
     }),

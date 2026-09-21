@@ -18,10 +18,11 @@ vi.mock("./db", () => ({
 
 import { appRouter } from "./routers";
 
-function callerFor(role: string = "user") {
+function callerFor(role: string = "user", status: "setup" | "active" = "active", setupOwnerPanel = false) {
   return appRouter.createCaller({
     user: { id: 7, role, name: "Membre test", email: "member@example.test" },
-    store: { id: 77, slug: "boutique-test", displayName: "Boutique test", primaryDomain: "boutique.test", status: "active", isPlatformStore: 0 },
+    store: { id: 77, slug: "boutique-test", displayName: "Boutique test", primaryDomain: "boutique.test", status, isPlatformStore: 0 },
+    setupOwnerPanel,
   } as any);
 }
 
@@ -51,5 +52,18 @@ describe("store-scoped management procedure", () => {
 
   it("refuses a global administrator without a client-store membership", async () => {
     await expect(callerFor("admin").owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows an active owner membership to prepare its setup boutique only through the verified platform panel", async () => {
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor("user", "setup", true).owner.getWorkspace()).resolves.toMatchObject({
+      store: { id: 77, status: "setup" },
+      membership: { role: "owner", status: "active" },
+    });
+  });
+
+  it("keeps a setup boutique closed when the verified setup panel context is absent", async () => {
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor("user", "setup", false).owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

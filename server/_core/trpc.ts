@@ -33,7 +33,8 @@ type StaffRole = "catalog_editor" | "support_agent" | "order_operator" | "admin"
 type StoreStaffRole = "catalog_editor" | "support_agent" | "order_operator";
 
 function requireOpenStoreForPanels(ctx: TrpcContext) {
-  if (!ctx.store || (!ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status))) {
+  const allowsVerifiedSetupOwnerPanel = ctx.store?.status === "setup" && ctx.setupOwnerPanel === true;
+  if (!ctx.store || (!ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status) && !allowsVerifiedSetupOwnerPanel)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et son espace d’administration n’est pas encore ouvert." });
   }
 }
