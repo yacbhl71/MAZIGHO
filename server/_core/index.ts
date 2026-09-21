@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic } from "./static";
 import { stripeWebhookHandler } from "../stripeWebhook";
+import { securityHeaders } from "./securityHeaders";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -32,6 +33,8 @@ const app = express();
 export { app };
 
 export function configureApi(targetApp: Express = app) {
+  targetApp.disable("x-powered-by");
+  targetApp.use(securityHeaders);
   // Stripe requires the raw request body for signature verification.
   targetApp.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
   // Configure body parser with larger size limit for file uploads.
