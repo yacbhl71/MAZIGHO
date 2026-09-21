@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   membership: { role: "manager", status: "active" } as { role: string; status: string } | null,
   variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
+  team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
 }));
 
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
+  getStoreTeamMembers: vi.fn(async () => state.team),
   getOwnerProductVariants: vi.fn(async () => state.variants),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
@@ -45,5 +47,13 @@ describe("owner product variant routes", () => {
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.getProductVariants({ productId: 41 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(callerFor().owner.deleteProductVariant({ productId: 41, variantId: 5 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lists only the team attached to the current resolved store", async () => {
+    await expect(callerFor().owner.getTeam()).resolves.toEqual(state.team);
+    expect(db.getStoreTeamMembers).toHaveBeenCalledWith(77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getTeam()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

@@ -108,6 +108,9 @@ export const ownerRouter = router({
       profile,
     };
   }),
+  getTeam: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreTeamMembers(ctx.store!.id);
+  }),
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),

@@ -2346,6 +2346,27 @@ export async function getStoreMembershipForUser(storeId: number, userId: number)
   return rows[0];
 }
 
+/** Returns only team identities and access status for one boutique. */
+export async function getStoreTeamMembers(storeId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db
+    .select({
+      membershipId: storeMemberships.id,
+      role: storeMemberships.role,
+      status: storeMemberships.status,
+      createdAt: storeMemberships.createdAt,
+      name: users.name,
+      email: users.email,
+      accountStatus: users.accountStatus,
+    })
+    .from(storeMemberships)
+    .innerJoin(users, eq(users.id, storeMemberships.userId))
+    .where(eq(storeMemberships.storeId, storeId))
+    .orderBy(asc(storeMemberships.createdAt));
+}
+
 /**
  * Platform-only inventory for MAZIGHO Studio. It deliberately returns aggregate
  * operational signals only: no customer identities, credentials, order lines or
