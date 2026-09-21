@@ -24,6 +24,24 @@ describe("store market settings", () => {
     });
   });
 
+  it("keeps a Swiss French single-market shop free of public selectors", () => {
+    expect(normalizeStoreMarketSettings({
+      primaryLanguage: "fr",
+      activeLanguages: ["fr"],
+      showLanguageSelector: false,
+      primaryCountry: "CH",
+      activeCountries: ["CH"],
+      showCountrySelector: false,
+    })).toEqual({
+      primaryLanguage: "fr",
+      activeLanguages: ["fr"],
+      showLanguageSelector: false,
+      primaryCountry: "CH",
+      activeCountries: ["CH"],
+      showCountrySelector: false,
+    });
+  });
+
   it("normalizes valid multilingual and multi-country choices without duplicates", () => {
     expect(normalizeStoreMarketSettings({
       primaryLanguage: "ar",

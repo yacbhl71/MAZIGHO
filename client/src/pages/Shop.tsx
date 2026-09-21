@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useStorePrice } from "@/hooks/useStorePrice";
-import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { commerceT, t } from "@/lib/i18n";
 import { getPublicCopy } from "@/lib/publicCopy";
@@ -13,6 +13,7 @@ import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 import { isNewProduct } from "@/lib/isNewProduct";
+import { isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 
 const categoryAccents = ["bg-orange-50 text-orange-700", "bg-sky-50 text-sky-700", "bg-rose-50 text-rose-700", "bg-emerald-50 text-emerald-700", "bg-violet-50 text-violet-700", "bg-amber-50 text-amber-700"];
 
@@ -22,12 +23,14 @@ export default function Shop() {
   const publicCopy = getPublicCopy(locale);
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const standardCategoryIds = new Set(standardCategories.map(category => category.id));
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
-  const products = (productsQuery.data || []).filter(product => standardCategoryIds.has(product.categoryId) && product.stock > 0 && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const products = (productsQuery.data || []).filter(product => standardCategoryIds.has(product.categoryId) && product.stock > 0 && isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
 
   const controls = getShopControlsCopy(locale);
   const [categoryFilter, setCategoryFilter] = useState("all");

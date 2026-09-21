@@ -8,12 +8,13 @@ import Footer from "@/components/Footer";
 import HeroBanner from "@/components/HeroBanner";
 import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
-import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getDiscoveryTiles, getPublicCopy, interpolatePublicCopy } from "@/lib/publicCopy";
 import { t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 
 const optimizedBuiltInImageUrls: Record<string, string> = {
   "/assets/home-lifestyle-top.jpg": "/assets/home-lifestyle-top.webp",
@@ -67,14 +68,16 @@ export default function Home() {
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale, { placeholderData: (prev) => prev });
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const highlightImageUrl = getOptimizedHomeImageUrl(profile.highlightImageUrl);
   const storyImageUrl = getOptimizedHomeImageUrl(profile.storyImageUrl);
   const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
 
-  const catalogProducts = (catalogProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
-  const highlightedProducts = (featuredProductsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
+  const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
   const localizedDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
     const slug = tile.href.split("/").pop();
@@ -316,4 +319,3 @@ export default function Home() {
     </div>
   );
 }
-

@@ -16,6 +16,7 @@ import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 import { isNewProduct } from "@/lib/isNewProduct";
+import { isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -32,6 +33,7 @@ export default function Category() {
   const { locale } = useLocale();
   const { formatStorePrice: formatPrice } = useStorePrice();
   const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale }, { placeholderData: (prev) => prev });
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const categoryData = categoryQuery.data?.category;
   const category = categoryData ? getLocalizedCategoryPresentation(locale, categoryData) : undefined;
   const { countryCode } = useDeliveryCountry();
@@ -39,7 +41,8 @@ export default function Category() {
   const shopControls = getShopControlsCopy(locale);
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
-  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
