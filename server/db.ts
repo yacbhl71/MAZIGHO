@@ -3469,6 +3469,77 @@ export async function createPendingInvitation(input: {
   return { userId, name: input.name.trim(), email, role: input.role, invitation };
 }
 
+const storeTeamInvitationRoles = ["manager", "catalog_editor", "support_agent", "order_operator"] as const;
+type StoreTeamInvitationRole = typeof storeTeamInvitationRoles[number];
+
+/**
+ * Prepares a named, store-scoped team invitation. No email is sent here: the
+ * authorized owner decides separately how to transmit the one-time link.
+ */
+export async function prepareStoreTeamInvitation(input: {
+  storeId: number;
+  name: string;
+  email: string;
+  role: StoreTeamInvitationRole;
+  confirmationEmail: string;
+}) {
+  await ensureMultiStoreSchema();
+  await ensureInvitationSchema();
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const email = normaliseEmail(input.email);
+  if (!storeTeamInvitationRoles.includes(input.role)) throw new Error("TEAM_ROLE_NOT_ALLOWED");
+  if (!email || normaliseEmail(input.confirmationEmail) !== email) throw new Error("TEAM_INVITATION_CONFIRMATION_MISMATCH");
+
+  return await db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store || store.isPlatformStore) throw new Error("STORE_NOT_ELIGIBLE_FOR_TEAM_INVITATION");
+
+    const [existingUser] = await tx.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+    let userId: number;
+    let requiresActivation = false;
+
+    if (existingUser) {
+      if (existingUser.accountStatus === "blocked") throw new Error("TEAM_MEMBER_ACCOUNT_BLOCKED");
+      userId = existingUser.id;
+      requiresActivation = existingUser.accountStatus === "pending_invitation";
+    } else {
+      const createdUser = await tx.insert(users).values({
+        openId: `local_${randomUUID()}`,
+        name: input.name.trim(),
+        email,
+        role: "user",
+        passwordHash: null,
+        loginMethod: "invitation_pending",
+        accountStatus: "pending_invitation",
+        lastSignedIn: null,
+      });
+      userId = Number((createdUser as any)?.[0]?.insertId ?? (createdUser as any)?.insertId);
+      if (!Number.isInteger(userId) || userId <= 0) throw new Error("TEAM_ACCOUNT_CREATION_FAILED");
+      requiresActivation = true;
+    }
+
+    const [existingMembership] = await tx.select().from(storeMemberships)
+      .where(and(eq(storeMemberships.storeId, input.storeId), eq(storeMemberships.userId, userId))).limit(1);
+    if (existingMembership) throw new Error("TEAM_MEMBER_ALREADY_ASSIGNED");
+
+    await tx.insert(storeMemberships).values({ storeId: input.storeId, userId, role: input.role, status: "active" });
+    if (!requiresActivation) {
+      return { userId, name: existingUser?.name || input.name.trim(), email, role: input.role, activation: null };
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+    const token = randomBytes(32).toString("base64url");
+    await tx.update(accountTokens).set({ usedAt: now }).where(and(eq(accountTokens.userId, userId), eq(accountTokens.purpose, "account_invitation"), isNull(accountTokens.usedAt)));
+    await tx.insert(accountTokens).values({ userId, purpose: "account_invitation", tokenHash: hashAccountToken(token), expiresAt });
+
+    return { userId, name: existingUser?.name || input.name.trim(), email, role: input.role, activation: { token, expiresAt } };
+  });
+}
+
 export async function reissuePendingInvitation(userId: number) {
   await ensureInvitationSchema();
   const db = await getDb();

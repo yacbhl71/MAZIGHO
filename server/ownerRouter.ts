@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { router, storeManagementProcedure } from "./_core/trpc";
+import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { storagePut } from "./storage";
+import { getAccountInvitationLink } from "./transactionalEmail";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 
@@ -110,6 +111,19 @@ export const ownerRouter = router({
   }),
   getTeam: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreTeamMembers(ctx.store!.id);
+  }),
+  prepareTeamInvitation: storeOwnerProcedure.input(z.object({
+    name: z.string().trim().min(2).max(160),
+    email: z.string().trim().email().max(320),
+    role: z.enum(["manager", "catalog_editor", "support_agent", "order_operator"]),
+    confirmationEmail: z.string().trim().email().max(320),
+  })).mutation(async ({ ctx, input }) => {
+    const prepared = await db.prepareStoreTeamInvitation({ ...input, storeId: ctx.store!.id });
+    return {
+      ...prepared,
+      activationLink: prepared.activation ? getAccountInvitationLink(prepared.activation.token) : null,
+      emailSent: false,
+    };
   }),
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);

@@ -9,6 +9,13 @@ const state = vi.hoisted(() => ({
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
   getStoreTeamMembers: vi.fn(async () => state.team),
+  prepareStoreTeamInvitation: vi.fn(async () => ({
+    userId: 15,
+    name: "Éditeur test",
+    email: "editeur@example.test",
+    role: "catalog_editor",
+    activation: { token: "one-time-token", expiresAt: new Date("2026-12-01T00:00:00.000Z") },
+  })),
   getOwnerProductVariants: vi.fn(async () => state.variants),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
@@ -55,5 +62,19 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.getTeam()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows only the owner to prepare a scoped team invitation", async () => {
+    state.membership = { role: "owner", status: "active" };
+    const input = { name: "Éditeur test", email: "editeur@example.test", role: "catalog_editor" as const, confirmationEmail: "editeur@example.test" };
+    await expect(callerFor().owner.prepareTeamInvitation(input)).resolves.toMatchObject({
+      userId: 15,
+      activationLink: expect.stringContaining("token=one-time-token"),
+      emailSent: false,
+    });
+    expect(db.prepareStoreTeamInvitation).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, role: "catalog_editor" }));
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.prepareTeamInvitation(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
