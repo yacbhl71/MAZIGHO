@@ -13,6 +13,7 @@ import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
+import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
@@ -32,7 +33,7 @@ import { buildStoreManualCommercialPassageReview } from "./services/storeManualC
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 import { hashPassword } from "./localAuth";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -61,6 +62,7 @@ let _orderCurrencySchemaReady: Promise<void> | null = null;
 let _multiStoreSchemaReady: Promise<void> | null = null;
 let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
+let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3005,6 +3007,21 @@ async function ensureSupplierVariantMappingsSchema() {
   return _supplierVariantMappingsSchemaReady;
 }
 
+/**
+ * Creates the owner-managed variant table separately from supplier mappings.
+ * It is only called by an explicit owner variant request, never while the
+ * general owner dashboard is loading.
+ */
+async function ensureOwnerProductVariantsSchema() {
+  if (_ownerProductVariantsSchemaReady) return _ownerProductVariantsSchemaReady;
+  _ownerProductVariantsSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerProductVariants` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `productId` int NOT NULL, `label` varchar(160) NOT NULL, `sku` varchar(100) NULL, `priceAdjustmentCents` int NOT NULL DEFAULT 0, `stock` int NOT NULL DEFAULT 0, `status` enum('active','inactive') NOT NULL DEFAULT 'active', `displayOrder` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `owner_product_variants_store_product_label_unique` (`storeId`, `productId`, `label`), INDEX `owner_product_variants_store_product_order_idx` (`storeId`, `productId`, `displayOrder`))"));
+  })();
+  return _ownerProductVariantsSchemaReady;
+}
+
 async function ensureProductCategorySchema() {
   if (_productCategorySchemaReady) return _productCategorySchemaReady;
   _productCategorySchemaReady = (async () => {
@@ -4681,6 +4698,87 @@ export async function getAllProductsAdmin(storeId?: number) {
   })));
 }
 
+/**
+ * Reads owner-managed variants for one product in the resolved boutique. This
+ * intentionally avoids DDL so opening a product panel stays resilient on an
+ * older database; variants simply appear empty until the first explicit write.
+ */
+export async function getOwnerProductVariants(productId: number, storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const product = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.id, productId))).limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+
+  try {
+    return await db.select({
+      id: ownerProductVariants.id,
+      label: ownerProductVariants.label,
+      sku: ownerProductVariants.sku,
+      priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
+      stock: ownerProductVariants.stock,
+      status: ownerProductVariants.status,
+      displayOrder: ownerProductVariants.displayOrder,
+      updatedAt: ownerProductVariants.updatedAt,
+    }).from(ownerProductVariants)
+      .where(and(eq(ownerProductVariants.storeId, storeId), eq(ownerProductVariants.productId, productId)))
+      .orderBy(asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id));
+  } catch (error) {
+    console.warn("[OwnerVariants] Optional variant table unavailable; returning an empty list", error);
+    return [];
+  }
+}
+
+async function assertOwnerVariantProduct(productId: number, storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const product = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.id, productId), inArray(products.status, ["active", "draft"])))
+    .limit(1);
+  if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  return db;
+}
+
+/** Adds a locally managed variant without writing a supplier mapping or product stock. */
+export async function createOwnerProductVariant(productId: number, input: OwnerProductVariantDraft, storeId: number) {
+  const normalized = normalizeOwnerProductVariantDraft(input);
+  if (!normalized) throw new Error("OWNER_VARIANT_INVALID");
+  const db = await assertOwnerVariantProduct(productId, storeId);
+  await ensureOwnerProductVariantsSchema();
+  const orderRows = await db.select({ nextOrder: sql<number>`COALESCE(MAX(${ownerProductVariants.displayOrder}), -1) + 1` })
+    .from(ownerProductVariants)
+    .where(and(eq(ownerProductVariants.storeId, storeId), eq(ownerProductVariants.productId, productId)));
+  const result = await db.insert(ownerProductVariants).values({
+    storeId,
+    productId,
+    ...normalized,
+    displayOrder: Number(orderRows[0]?.nextOrder ?? 0),
+  });
+  return { id: Number((result as any)[0]?.insertId) };
+}
+
+/** Replaces the editable fields of a variant after proving its store and product scope. */
+export async function updateOwnerProductVariant(productId: number, variantId: number, input: OwnerProductVariantDraft, storeId: number) {
+  const normalized = normalizeOwnerProductVariantDraft(input);
+  if (!normalized) throw new Error("OWNER_VARIANT_INVALID");
+  const db = await assertOwnerVariantProduct(productId, storeId);
+  await ensureOwnerProductVariantsSchema();
+  const result = await db.update(ownerProductVariants).set(normalized)
+    .where(and(eq(ownerProductVariants.id, variantId), eq(ownerProductVariants.storeId, storeId), eq(ownerProductVariants.productId, productId)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("OWNER_VARIANT_NOT_FOUND");
+  return { success: true };
+}
+
+/** Deletes only the selected variant from the selected product in the current store. */
+export async function deleteOwnerProductVariant(productId: number, variantId: number, storeId: number) {
+  const db = await assertOwnerVariantProduct(productId, storeId);
+  await ensureOwnerProductVariantsSchema();
+  const result = await db.delete(ownerProductVariants)
+    .where(and(eq(ownerProductVariants.id, variantId), eq(ownerProductVariants.storeId, storeId), eq(ownerProductVariants.productId, productId)));
+  if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("OWNER_VARIANT_NOT_FOUND");
+  return { success: true };
+}
+
 export type OdooCatalogProduct = {
   id: number;
   name: string;
@@ -5134,6 +5232,13 @@ export async function deleteProduct(id: number, storeId?: number) {
     db.delete(reviews).where(eq(reviews.productId, id)),
     db.delete(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))),
   ]);
+  // The optional owner-variant table may not exist on an older installation.
+  // Product deletion remains safe in that case and never triggers a runtime DDL.
+  try {
+    await db.delete(ownerProductVariants).where(and(eq(ownerProductVariants.storeId, effectiveStoreId), eq(ownerProductVariants.productId, id)));
+  } catch (error) {
+    console.warn("[OwnerVariants] Optional variant cleanup skipped", error);
+  }
   return { success: true };
 }
 

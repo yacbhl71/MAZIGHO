@@ -187,6 +187,27 @@ export const productImages = mysqlTable("productImages", {
 export type ProductImage = typeof productImages.$inferSelect;
 export type InsertProductImage = typeof productImages.$inferInsert;
 
+// Owner-managed variants. They remain separate from supplier mappings and do
+// not change the product's global stock until a checkout policy is designed.
+export const ownerProductVariants = mysqlTable("ownerProductVariants", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  productId: int("productId").notNull(),
+  label: varchar("label", { length: 160 }).notNull(),
+  sku: varchar("sku", { length: 100 }),
+  priceAdjustmentCents: int("priceAdjustmentCents").default(0).notNull(),
+  stock: int("stock").default(0).notNull(),
+  status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),
+  displayOrder: int("displayOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeProductLabelUnique: uniqueIndex("owner_product_variants_store_product_label_unique").on(table.storeId, table.productId, table.label),
+  storeProductOrderIndex: index("owner_product_variants_store_product_order_idx").on(table.storeId, table.productId, table.displayOrder),
+}));
+export type OwnerProductVariant = typeof ownerProductVariants.$inferSelect;
+export type InsertOwnerProductVariant = typeof ownerProductVariants.$inferInsert;
+
 // Customer-facing product translations. The French product record remains the administrator's source of truth.
 export const productTranslations = mysqlTable("productTranslations", {
   id: int("id").autoincrement().primaryKey(),

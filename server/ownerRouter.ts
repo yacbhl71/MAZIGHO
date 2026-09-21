@@ -83,6 +83,14 @@ const productFields = z.object({
   options: z.string().trim().max(20000).optional(),
 });
 
+const ownerProductVariantFields = z.object({
+  label: z.string().trim().min(1, "Indiquez le libellé de la variante.").max(160),
+  sku: z.string().trim().max(100).optional().nullable(),
+  priceAdjustmentCents: z.number().int().min(-10_000_000).max(10_000_000),
+  stock: z.number().int().min(0).max(1_000_000),
+  status: z.enum(["active", "inactive"]),
+});
+
 export const ownerRouter = router({
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
@@ -148,6 +156,18 @@ export const ownerRouter = router({
   updateProduct: storeManagementProcedure.input(productFields.extend({ id: z.number().int().positive() }).partial({ categoryId: true, name: true, slug: true, price: true, stock: true, featured: true, status: true, images: true })).mutation(async ({ ctx, input }) => {
     const { id, ...changes } = input;
     return await db.updateProduct(id, changes, ctx.store!.id);
+  }),
+  getProductVariants: storeManagementProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    return await db.getOwnerProductVariants(input.productId, ctx.store!.id);
+  }),
+  createProductVariant: storeManagementProcedure.input(z.object({ productId: z.number().int().positive(), variant: ownerProductVariantFields })).mutation(async ({ ctx, input }) => {
+    return await db.createOwnerProductVariant(input.productId, input.variant, ctx.store!.id);
+  }),
+  updateProductVariant: storeManagementProcedure.input(z.object({ productId: z.number().int().positive(), variantId: z.number().int().positive(), variant: ownerProductVariantFields })).mutation(async ({ ctx, input }) => {
+    return await db.updateOwnerProductVariant(input.productId, input.variantId, input.variant, ctx.store!.id);
+  }),
+  deleteProductVariant: storeManagementProcedure.input(z.object({ productId: z.number().int().positive(), variantId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    return await db.deleteOwnerProductVariant(input.productId, input.variantId, ctx.store!.id);
   }),
   createCategory: storeManagementProcedure.input(z.object({
     name: z.string().trim().min(2).max(100),
