@@ -3540,6 +3540,27 @@ export async function prepareStoreTeamInvitation(input: {
   });
 }
 
+/** Blocks or restores a delegated membership without modifying the user account. */
+export async function setStoreTeamMemberStatus(input: {
+  storeId: number;
+  membershipId: number;
+  status: "active" | "blocked";
+}) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [membership] = await db.select().from(storeMemberships)
+    .where(and(eq(storeMemberships.id, input.membershipId), eq(storeMemberships.storeId, input.storeId)))
+    .limit(1);
+  if (!membership) throw new Error("TEAM_MEMBERSHIP_NOT_FOUND");
+  if (membership.role === "owner") throw new Error("TEAM_OWNER_ACCESS_PROTECTED");
+
+  await db.update(storeMemberships).set({ status: input.status })
+    .where(and(eq(storeMemberships.id, input.membershipId), eq(storeMemberships.storeId, input.storeId)));
+  return { membershipId: membership.id, status: input.status };
+}
+
 export async function reissuePendingInvitation(userId: number) {
   await ensureInvitationSchema();
   const db = await getDb();

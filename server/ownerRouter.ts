@@ -125,6 +125,12 @@ export const ownerRouter = router({
       emailSent: false,
     };
   }),
+  setTeamMemberStatus: storeOwnerProcedure.input(z.object({
+    membershipId: z.number().int().positive(),
+    status: z.enum(["active", "blocked"]),
+  })).mutation(async ({ ctx, input }) => {
+    return await db.setStoreTeamMemberStatus({ ...input, storeId: ctx.store!.id });
+  }),
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),

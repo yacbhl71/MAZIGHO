@@ -16,6 +16,7 @@ vi.mock("./db", () => ({
     role: "catalog_editor",
     activation: { token: "one-time-token", expiresAt: new Date("2026-12-01T00:00:00.000Z") },
   })),
+  setStoreTeamMemberStatus: vi.fn(async ({ membershipId, status }) => ({ membershipId, status })),
   getOwnerProductVariants: vi.fn(async () => state.variants),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
@@ -76,5 +77,14 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.prepareTeamInvitation(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("allows only the owner to block or restore a delegated membership in the resolved store", async () => {
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.setTeamMemberStatus({ membershipId: 9, status: "blocked" })).resolves.toEqual({ membershipId: 9, status: "blocked" });
+    expect(db.setStoreTeamMemberStatus).toHaveBeenCalledWith({ membershipId: 9, status: "blocked", storeId: 77 });
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.setTeamMemberStatus({ membershipId: 9, status: "active" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
