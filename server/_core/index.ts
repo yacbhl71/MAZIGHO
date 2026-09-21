@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic } from "./static";
 import { stripeWebhookHandler } from "../stripeWebhook";
 import { securityHeaders } from "./securityHeaders";
+import { JSON_BODY_LIMIT, payloadTooLargeHandler, URL_ENCODED_BODY_LIMIT } from "./requestLimits";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,9 +38,10 @@ export function configureApi(targetApp: Express = app) {
   targetApp.use(securityHeaders);
   // Stripe requires the raw request body for signature verification.
   targetApp.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
-  // Configure body parser with larger size limit for file uploads.
-  targetApp.use(express.json({ limit: "50mb" }));
-  targetApp.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Base64 uploads have dedicated schema limits; this parser limit keeps room
+  // for the largest allowed accounting document without accepting 50 MiB.
+  targetApp.use(express.json({ limit: JSON_BODY_LIMIT }));
+  targetApp.use(express.urlencoded({ limit: URL_ENCODED_BODY_LIMIT, extended: true }));
   // OAuth callback under /api/oauth/callback.
   registerOAuthRoutes(targetApp);
   // tRPC API.
@@ -50,6 +52,7 @@ export function configureApi(targetApp: Express = app) {
       createContext,
     })
   );
+  targetApp.use(payloadTooLargeHandler);
 }
 
 export async function startProductionServer() {
