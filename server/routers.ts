@@ -74,6 +74,10 @@ export const appRouter = router({
       // hors des storefronts clients sans exposer de donnée commerciale ou personnelle.
       isPlatformStore: Boolean(ctx.store?.isPlatformStore),
     })),
+    getMarketSettings: storefrontProcedure.query(async ({ ctx }) => {
+      const { getStoreMarketSettings } = await import("./db");
+      return await getStoreMarketSettings(ctx.store!.id);
+    }),
   }),
 
   // Minimal authenticated workspace context used only to choose the correct panel shell.

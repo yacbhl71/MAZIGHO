@@ -17,8 +17,9 @@ import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import ThemeToggle from "./ThemeToggle";
 import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
+import { hasVisibleCountrySelector, hasVisibleLanguageSelector } from "@shared/storeMarketSettings";
 
-const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸" };
+const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸", DZ: "🇩🇿" };
 const languageFlags: Record<string, string> = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", en: "🇬🇧", es: "🇪🇸", nl: "🇳🇱", ar: "🌐" };
 
 export default function Header() {
@@ -40,8 +41,23 @@ export default function Header() {
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
   const { profile } = useDesignProfile();
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const storeSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
+  const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
+  const activeLanguages = marketSettings.data ? localeOptions.filter(option => marketSettings.data.activeLanguages.includes(option.code)) : localeOptions;
+  const showCountrySelector = marketSettings.data ? hasVisibleCountrySelector(marketSettings.data) : true;
+  const showLanguageSelector = marketSettings.data ? hasVisibleLanguageSelector(marketSettings.data) : true;
+  useEffect(() => {
+    if (marketSettings.data && !marketSettings.data.activeCountries.includes(countryCode)) {
+      setCountryCode(marketSettings.data.primaryCountry as typeof countryCode);
+    }
+  }, [countryCode, marketSettings.data, setCountryCode]);
+  useEffect(() => {
+    if (marketSettings.data && !marketSettings.data.activeLanguages.includes(locale)) {
+      setLocale(marketSettings.data.primaryLanguage as typeof locale);
+    }
+  }, [locale, marketSettings.data, setLocale]);
   useEffect(() => {
     if (!storeSeo.data || location.startsWith("/produit/")) return;
     document.title = storeSeo.data.title;
@@ -145,9 +161,9 @@ export default function Header() {
             <SearchBar />
           </div>
 
-          <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`}><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" aria-label={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`} value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="w-[4.65rem] bg-transparent font-semibold outline-none"><option disabled value="">🌐 --</option>{deliveryCountries.map(country => <option key={country.code} value={country.code}>{`${countryFlags[country.code] || "🌐"} ${country.code}`}</option>)}</select></div>
+          {showCountrySelector && <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`}><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" aria-label={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`} value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="w-[4.65rem] bg-transparent font-semibold outline-none"><option disabled value="">🌐 --</option>{activeCountries.map(country => <option key={country.code} value={country.code}>{`${countryFlags[country.code] || "🌐"} ${country.code}`}</option>)}</select></div>}
 
-          <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`}><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" aria-label={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`} value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="w-[4.65rem] bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{`${languageFlags[option.code] || "🌐"} ${option.code.toUpperCase()}`}</option>)}</select></div>
+          {showLanguageSelector && <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`}><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" aria-label={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`} value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="w-[4.65rem] bg-transparent font-semibold outline-none">{activeLanguages.map(option => <option key={option.code} value={option.code}>{`${languageFlags[option.code] || "🌐"} ${option.code.toUpperCase()}`}</option>)}</select></div>}
 
           {/* Right Icons */}
           <div className="flex items-center gap-0.5">
@@ -201,8 +217,8 @@ export default function Header() {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="xl:hidden mt-4 pb-4 border-t pt-4 space-y-2">
-            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{deliveryCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>
-            <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{localeOptions.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>
+            {showCountrySelector && <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><MapPin className="h-4 w-4 text-orange-600" /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{activeCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>}
+            {showLanguageSelector && <label className="mx-4 flex items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-sm text-slate-700"><span className="text-base font-semibold text-orange-600" aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{activeLanguages.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>}
             {navigationItems.map(renderMobileNavigationItem)}
 
             <Button asChild className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-2 mt-4 text-sm"><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>

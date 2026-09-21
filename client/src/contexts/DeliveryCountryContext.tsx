@@ -9,6 +9,7 @@ export const deliveryCountries = [
   { code: "BE", label: "Belgique" },
   { code: "NL", label: "Pays-Bas" },
   { code: "ES", label: "Espagne" },
+  { code: "DZ", label: "Algérie" },
 ] as const;
 
 export type DeliveryCountryCode = (typeof deliveryCountries)[number]["code"];

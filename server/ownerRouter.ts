@@ -3,6 +3,7 @@ import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/t
 import * as db from "./db";
 import { storagePut } from "./storage";
 import { getAccountInvitationLink } from "./transactionalEmail";
+import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 
@@ -51,6 +52,28 @@ const ownerLegalContactProfile = z.object({
 
 const stockAlertSettings = z.object({
   lowStockThreshold: z.number().int().min(0).max(10_000),
+});
+
+const ownerMarketSettings = z.object({
+  primaryLanguage: z.enum(storefrontLanguageCodes),
+  activeLanguages: z.array(z.enum(storefrontLanguageCodes)).min(1).max(storefrontLanguageCodes.length),
+  showLanguageSelector: z.boolean(),
+  primaryCountry: z.enum(storefrontCountryCodes),
+  activeCountries: z.array(z.enum(storefrontCountryCodes)).min(1).max(storefrontCountryCodes.length),
+  showCountrySelector: z.boolean(),
+}).superRefine((input, ctx) => {
+  if (!input.activeLanguages.includes(input.primaryLanguage)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["primaryLanguage"], message: "La langue principale doit être activée." });
+  }
+  if (new Set(input.activeLanguages).size !== input.activeLanguages.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["activeLanguages"], message: "Chaque langue ne peut être sélectionnée qu’une seule fois." });
+  }
+  if (!input.activeCountries.includes(input.primaryCountry)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["primaryCountry"], message: "Le pays principal doit être activé." });
+  }
+  if (new Set(input.activeCountries).size !== input.activeCountries.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["activeCountries"], message: "Chaque pays ne peut être sélectionné qu’une seule fois." });
+  }
 });
 
 const shippingReturnsSettings = z.object({
@@ -146,6 +169,9 @@ export const ownerRouter = router({
   getStockAlertSettings: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStockAlertSettings(ctx.store!.id);
   }),
+  getMarketSettings: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreMarketSettings(ctx.store!.id);
+  }),
   getLegalContactProfile: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerLegalContactProfile(ctx.store!.id);
   }),
@@ -166,6 +192,9 @@ export const ownerRouter = router({
   }),
   saveStockAlertSettings: storeManagementProcedure.input(stockAlertSettings).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerStockAlertSettings(ctx.store!.id, input);
+  }),
+  saveMarketSettings: storeManagementProcedure.input(ownerMarketSettings).mutation(async ({ ctx, input }) => {
+    return await db.saveStoreMarketSettings(ctx.store!.id, input);
   }),
   saveNavigation: storeManagementProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));

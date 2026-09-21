@@ -30,6 +30,7 @@ export const suggestedLocalesByCountry: Record<string, StorefrontLocale[]> = {
   AT: ["de", "en"],
   IT: ["it", "en"],
   ES: ["es", "en"],
+  DZ: ["ar", "fr", "en"],
 };
 
 type LocaleContextValue = {

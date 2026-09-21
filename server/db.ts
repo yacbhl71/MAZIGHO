@@ -14,6 +14,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
+import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
@@ -5477,6 +5478,44 @@ export async function saveOwnerShippingReturnsSettings(storeId: number, input: O
   const key = "owner_shipping_returns_profile";
   const value = JSON.stringify(settings);
   const description = "Configuration livraison et retours propre à cette boutique ; sans paiement, transporteur, fournisseur ni activation automatique";
+  const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
+    .limit(1);
+
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key, value, description });
+  }
+  return settings;
+}
+
+/**
+ * Public storefront market display settings. This read deliberately does not
+ * run DDL: a missing legacy setting receives the safe compatibility default.
+ */
+export async function getStoreMarketSettings(storeId: number): Promise<StoreMarketSettings> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  try {
+    const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_market_settings")))
+      .limit(1);
+    return parseStoreMarketSettings(row?.value);
+  } catch (error) {
+    console.warn("[StoreMarkets] Unable to read optional market settings", error);
+    return parseStoreMarketSettings(null);
+  }
+}
+
+/** Saves display-only market choices for one boutique; it does not enable shipping, payments or translations. */
+export async function saveStoreMarketSettings(storeId: number, input: StoreMarketSettings): Promise<StoreMarketSettings> {
+  const settings = normalizeStoreMarketSettings(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const key = "owner_market_settings";
+  const value = JSON.stringify(settings);
+  const description = "Marchés, langues visibles et sélecteurs publics propres à cette boutique ; sans paiement, transporteur, traduction automatique ni activation commerciale";
   const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
     .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
     .limit(1);
