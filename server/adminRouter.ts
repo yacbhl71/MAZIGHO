@@ -57,6 +57,18 @@ const studioProvisioningDraftInputSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+const storeCatalogueImportRowSchema = z.object({
+  category: z.string().trim().min(2).max(100),
+  name: z.string().trim().min(2).max(200),
+  shortDescription: z.string().trim().max(2000),
+  longDescription: z.string().trim().max(6000),
+  priceCents: z.number().int().min(1).max(10_000_000),
+  stock: z.number().int().min(0).max(999_999),
+  dimensions: z.array(z.string().trim().min(1).max(60)).max(30),
+  imageUrl: z.string().trim().max(1000).refine(value => !value || /^https:\/\//i.test(value), "Utilisez une URL https:// ou laissez l’image vide."),
+  featured: z.boolean(),
+});
+
 const campaignInputSchema = z.object({
   name: z.string().trim().min(2).max(200),
   message: z.string().trim().max(300).optional().nullable(),
@@ -647,6 +659,27 @@ export const adminRouter = router({
         const code = error instanceof Error ? error.message : "";
         if (code === "CATEGORY_NOT_FOUND") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez une catégorie de cette boutique." });
         if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cet ajout est réservé à une boutique offerte encore en préparation." });
+        throw error;
+      }
+    }),
+    importOwnerExistingCatalogueProducts: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      rows: z.array(storeCatalogueImportRowSchema).min(1).max(100),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.importStudioOwnerExistingCatalogueProducts({ storeId: input.storeId, rows: input.rows });
+        logAudit(ctx, {
+          action: "studio.gift_store.catalogue.import",
+          entityType: "catalogue",
+          entityId: null,
+          summary: `${result.imported} fiche(s) ajoutée(s) au catalogue de boutique depuis un import contrôlé`,
+          metadata: { storeId: input.storeId, imported: result.imported, publicStorefront: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cet import est réservé à une boutique offerte encore en préparation." });
         throw error;
       }
     }),

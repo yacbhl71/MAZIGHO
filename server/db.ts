@@ -32,6 +32,7 @@ import { buildStoreCommercialPublicationPreflight } from "./services/storeCommer
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
+import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
@@ -1737,6 +1738,87 @@ export async function createStudioOwnerExistingCatalogueProduct(input: { storeId
   const productId = Number((result as any)[0].insertId);
   if (input.images.length) await db.insert(productImages).values(input.images.map((imageUrl, displayOrder) => ({ storeId: input.storeId, productId, imageUrl, displayOrder })));
   return { productId, catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
+}
+
+/**
+ * Imports a bounded CSV preview into a single Studio-managed store. Every row
+ * is already normalized and validated by the server router; no supplier,
+ * customer, order, payment or cross-store data is accepted here.
+ */
+export async function importStudioOwnerExistingCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[] }) {
+  const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const categoryByNormalizedName = new Map(snapshot.categories.map(category => [category.name.trim().toLocaleLowerCase("fr"), category]));
+  const usedCategorySlugs = new Set(snapshot.categories.map(category => category.slug));
+  const usedProductSlugs = new Set(snapshot.products.map(product => product.slug));
+  const productByNormalizedName = new Map(snapshot.products.map(product => [product.name.trim().toLocaleLowerCase("fr"), product]));
+  let nextCategoryOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
+  let imported = 0;
+  let updated = 0;
+
+  for (const row of input.rows) {
+    const categoryKey = row.category.trim().toLocaleLowerCase("fr");
+    let category = categoryByNormalizedName.get(categoryKey);
+    if (!category) {
+      const slug = uniqueStudioExistingCatalogueSlug(row.category, usedCategorySlugs, "nouvelle-categorie");
+      const result = await db.insert(categories).values({
+        storeId: input.storeId,
+        name: row.category,
+        slug,
+        description: null,
+        displayOrder: nextCategoryOrder,
+        catalogSection: "standard",
+      });
+      category = { id: Number((result as any)[0].insertId), name: row.category, slug, description: null, displayOrder: nextCategoryOrder };
+      categoryByNormalizedName.set(categoryKey, category);
+      usedCategorySlugs.add(slug);
+      nextCategoryOrder += 1;
+    }
+
+    const options = row.dimensions.length ? [{ name: "Formats / dimensions", values: row.dimensions }] : [];
+    const existingProduct = productByNormalizedName.get(row.name.trim().toLocaleLowerCase("fr"));
+    let productId: number;
+    if (existingProduct) {
+      productId = existingProduct.id;
+      await db.update(products).set({
+        categoryId: category.id,
+        name: row.name,
+        description: row.shortDescription,
+        longDescription: row.longDescription,
+        price: row.priceCents,
+        stock: row.stock,
+        featured: row.featured ? 1 : 0,
+        status: "active",
+        options: options.length ? JSON.stringify(options) : null,
+      }).where(and(eq(products.storeId, input.storeId), eq(products.id, productId)));
+      await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, productId)));
+      updated += 1;
+    } else {
+      const slug = uniqueStudioExistingCatalogueSlug(row.name, usedProductSlugs, "nouveau-produit");
+      usedProductSlugs.add(slug);
+      const result = await db.insert(products).values({
+        storeId: input.storeId,
+        categoryId: category.id,
+        name: row.name,
+        slug,
+        description: row.shortDescription,
+        longDescription: row.longDescription,
+        price: row.priceCents,
+        stock: row.stock,
+        featured: row.featured ? 1 : 0,
+        status: "active",
+        options: options.length ? JSON.stringify(options) : null,
+      });
+      productId = Number((result as any)[0].insertId);
+      productByNormalizedName.set(row.name.trim().toLocaleLowerCase("fr"), { id: productId, categoryId: category.id, name: row.name, slug, description: row.shortDescription, longDescription: row.longDescription, price: row.priceCents, stock: row.stock, featured: row.featured, status: "active", options: options.length ? JSON.stringify(options) : null, images: row.imageUrl ? [row.imageUrl] : [] });
+      imported += 1;
+    }
+    if (row.imageUrl) await db.insert(productImages).values({ storeId: input.storeId, productId, imageUrl: row.imageUrl, displayOrder: 0 });
+  }
+
+  return { imported, updated, catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
 }
 
 /**
