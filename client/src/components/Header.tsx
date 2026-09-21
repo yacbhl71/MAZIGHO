@@ -39,11 +39,12 @@ export default function Header() {
   const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
-  const { profile } = useDesignProfile();
+  const { profile, palette } = useDesignProfile();
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const storeSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
+  const hasResolvedNonPlatformStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
   const activeLanguages = marketSettings.data ? localeOptions.filter(option => marketSettings.data.activeLanguages.includes(option.code)) : localeOptions;
   const showCountrySelector = marketSettings.data ? hasVisibleCountrySelector(marketSettings.data) : true;
@@ -131,7 +132,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-white shadow-sm">
       <CampaignBar />
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white">
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={hasResolvedNonPlatformStore ? { backgroundImage: "none", backgroundColor: palette.primary } : undefined}>
         <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-1 text-xs font-medium md:text-sm">
           <span>{t(locale, "topSelection")}</span>
           <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
@@ -147,7 +148,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
             <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
-              {isPlatformStore ? <div className="flex h-11 w-12 shrink-0 flex-col items-center justify-center" aria-label="MAZIGHO Boutique"><img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-7 w-7 object-contain" /><span className="mt-0.5 text-[8px] font-extrabold leading-none tracking-[0.16em] text-slate-900">MAZIGHO</span></div> : <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg">{brandName}</span>{!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline">{brandMessage}</span> : null}</>}
+              {isPlatformStore ? <div className="flex h-11 w-12 shrink-0 flex-col items-center justify-center" aria-label="MAZIGHO Boutique"><img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-7 w-7 object-contain" /><span className="mt-0.5 text-[8px] font-extrabold leading-none tracking-[0.16em] text-slate-900">MAZIGHO</span></div> : <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" style={hasResolvedNonPlatformStore ? { borderColor: palette.soft } : undefined} /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg" style={hasResolvedNonPlatformStore ? { color: palette.primary } : undefined}>{brandName}</span>{!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" style={hasResolvedNonPlatformStore ? { backgroundColor: palette.accent } : undefined} aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline" style={hasResolvedNonPlatformStore ? { borderColor: palette.soft } : undefined}>{brandMessage}</span> : null}</>}
             </div>
           </Link>
 
@@ -188,7 +189,7 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md bg-orange-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-orange-800 sm:inline-flex">
+            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md bg-orange-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-orange-800 sm:inline-flex" style={hasResolvedNonPlatformStore ? { backgroundColor: palette.primary } : undefined}>
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>
             </Link>

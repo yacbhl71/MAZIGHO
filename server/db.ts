@@ -904,7 +904,7 @@ const studioOwnerBuilderPages: Array<{ id: StudioOwnerBuilderPage; label: string
   { id: "lookbook", label: "Inspiration", description: "Mettre en avant des visuels ou des idées de collections." },
 ];
 
-const studioOwnerBuilderPalettes: StudioOwnerBuilderPalette[] = ["terracotta", "sage", "midnight", "rose"];
+const studioOwnerBuilderPalettes: StudioOwnerBuilderPalette[] = ["terracotta", "sage", "midnight", "rose", "violet"];
 const studioOwnerBuilderTypographies: StudioOwnerBuilderTypography[] = ["editorial", "modern", "classic"];
 
 const studioOwnerBuilderPaletteColors: Record<StudioOwnerBuilderPalette, Pick<DesignProfile, "customPrimary" | "customAccent" | "customSoft">> = {
@@ -912,6 +912,7 @@ const studioOwnerBuilderPaletteColors: Record<StudioOwnerBuilderPalette, Pick<De
   sage: { customPrimary: "#0F766E", customAccent: "#115E59", customSoft: "#F0FDFA" },
   midnight: { customPrimary: "#1E3A5F", customAccent: "#0F766E", customSoft: "#EFF6FF" },
   rose: { customPrimary: "#9A3412", customAccent: "#D97706", customSoft: "#FFF1F2" },
+  violet: { customPrimary: "#6D28D9", customAccent: "#A855F7", customSoft: "#F7F3FF" },
 };
 
 function normalizeStudioOwnerBuilderConfiguration(value: unknown, fallback: { niche: string; paletteId: StudioOwnerBuilderPalette; typographyId: StudioOwnerBuilderTypography }): StudioOwnerBuilderConfiguration {
@@ -6700,7 +6701,7 @@ export type HomeTextBanner = {
 };
 
 export type DesignProfile = {
-  paletteId: "terracotta" | "sage" | "midnight" | "rose";
+  paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
   brandName: string;
   brandMessage: string;
@@ -6781,7 +6782,7 @@ const optimizedBuiltInImageUrls: Record<string, string> = {
 function normalizeDesignProfile(value: unknown): DesignProfile {
   if (!value || typeof value !== "object") return { ...defaultDesignProfile };
   const source = value as Record<string, unknown>;
-  const paletteId = ["terracotta", "sage", "midnight", "rose"].includes(String(source.paletteId))
+  const paletteId = ["terracotta", "sage", "midnight", "rose", "violet"].includes(String(source.paletteId))
     ? source.paletteId as DesignProfile["paletteId"]
     : defaultDesignProfile.paletteId;
   const typographyId = ["editorial", "modern", "classic"].includes(String(source.typographyId))

@@ -16,7 +16,7 @@ type BuilderForm = {
   niche: string;
   model: "commerce" | "editorial" | "catalogue";
   pages: Array<"about" | "faq" | "contact" | "lookbook">;
-  paletteId: "terracotta" | "sage" | "midnight" | "rose";
+  paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
 };
 
@@ -25,6 +25,7 @@ const paletteOptions: Record<BuilderForm["paletteId"], { label: string; preview:
   sage: { label: "Sauge", preview: "#0F766E", soft: "#F0FDFA" },
   midnight: { label: "Bleu nuit", preview: "#1E3A5F", soft: "#EFF6FF" },
   rose: { label: "Rose atelier", preview: "#9A3412", soft: "#FFF1F2" },
+  violet: { label: "Violet atelier", preview: "#6D28D9", soft: "#F7F3FF" },
 };
 
 function initialForm(): BuilderForm {

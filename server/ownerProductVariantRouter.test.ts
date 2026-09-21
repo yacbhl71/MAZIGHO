@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
   team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
   markets: { primaryLanguage: "fr", activeLanguages: ["fr", "en"], showLanguageSelector: true, primaryCountry: "CH", activeCountries: ["CH", "FR"], showCountrySelector: true },
+  profile: { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" } as Record<string, unknown>,
 }));
 
 vi.mock("./db", () => ({
@@ -12,6 +13,8 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getDesignProfile: vi.fn(async () => state.profile),
+  updateDesignProfile: vi.fn(async (input) => input),
   prepareStoreTeamInvitation: vi.fn(async () => ({
     userId: 15,
     name: "Éditeur test",
@@ -39,6 +42,7 @@ function callerFor(role: string = "user") {
 describe("owner product variant routes", () => {
   beforeEach(() => {
     state.membership = { role: "manager", status: "active" };
+    state.profile = { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" };
     vi.clearAllMocks();
   });
 
@@ -76,6 +80,18 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("applies a storefront palette only to the current resolved store", async () => {
+    await expect(callerFor().owner.saveStorefrontPalette({ paletteId: "violet" })).resolves.toMatchObject({
+      paletteId: "violet",
+      customColorsEnabled: true,
+      customPrimary: "#6D28D9",
+      customAccent: "#A855F7",
+      customSoft: "#F7F3FF",
+    });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ paletteId: "violet", customColorsEnabled: true }), 77);
   });
 
   it("uses only the resolved store for public market visibility", async () => {

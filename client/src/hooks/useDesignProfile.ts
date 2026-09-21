@@ -30,7 +30,7 @@ export type HomeTextBanner = {
 };
 
 export type DesignProfile = {
-  paletteId: "terracotta" | "sage" | "midnight" | "rose";
+  paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
   brandName: string;
   brandMessage: string;
@@ -155,6 +155,13 @@ export const designPalettes = {
     soft: "#fff6f8",
     accent: "#7c3aed",
     description: "Un univers doux et expressif, adapté à la beauté et aux accessoires.",
+  },
+  violet: {
+    name: "Violet atelier",
+    primary: "#6d28d9",
+    soft: "#f7f3ff",
+    accent: "#a855f7",
+    description: "Un univers créatif et raffiné, adapté aux loisirs créatifs, à la mercerie et aux ateliers.",
   },
 } as const;
 

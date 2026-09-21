@@ -336,7 +336,7 @@ export const adminRouter = router({
       niche: z.string().trim().min(2).max(160),
       model: z.enum(["commerce", "editorial", "catalogue"]),
       pages: z.array(z.enum(["about", "faq", "contact", "lookbook"])).max(4),
-      paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
+      paletteId: z.enum(["terracotta", "sage", "midnight", "rose", "violet"]),
       typographyId: z.enum(["editorial", "modern", "classic"]),
     })).mutation(async ({ ctx, input }) => {
       try {
@@ -524,7 +524,7 @@ export const adminRouter = router({
     saveOwnerPublicStorefrontProfile: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       profile: z.object({
-        paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]), typographyId: z.enum(["editorial", "modern", "classic"]),
+        paletteId: z.enum(["terracotta", "sage", "midnight", "rose", "violet"]), typographyId: z.enum(["editorial", "modern", "classic"]),
         brandName: z.string().trim().min(2).max(48), brandMessage: z.string().trim().max(120), brandLogoUrl: z.union([z.literal(""), visualUrlSchema]),
         highlightEyebrow: z.string().trim().min(2).max(120), highlightTitle: z.string().trim().min(2).max(180), highlightText: z.string().trim().min(2).max(600), highlightImageUrl: visualUrlSchema,
         storyTitle: z.string().trim().min(2).max(180), storyText: z.string().trim().min(2).max(1000), storyImageUrl: visualUrlSchema,
@@ -2604,7 +2604,7 @@ export const adminRouter = router({
       }
     }),
     update: adminProcedure.input(z.object({
-      paletteId: z.enum(["terracotta", "sage", "midnight", "rose"]),
+      paletteId: z.enum(["terracotta", "sage", "midnight", "rose", "violet"]),
       typographyId: z.enum(["editorial", "modern", "classic"]),
       brandName: z.string().trim().min(2).max(48),
       brandMessage: z.string().trim().max(120).default(""),

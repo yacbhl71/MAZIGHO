@@ -7,6 +7,17 @@ import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/store
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 
+const storefrontPaletteIds = ["terracotta", "sage", "midnight", "rose", "violet"] as const;
+type StorefrontPaletteId = typeof storefrontPaletteIds[number];
+
+const storefrontPaletteColors: Record<StorefrontPaletteId, { customPrimary: string; customAccent: string; customSoft: string }> = {
+  terracotta: { customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" },
+  sage: { customPrimary: "#0F766E", customAccent: "#115E59", customSoft: "#F0FDFA" },
+  midnight: { customPrimary: "#1E3A5F", customAccent: "#0F766E", customSoft: "#EFF6FF" },
+  rose: { customPrimary: "#9A3412", customAccent: "#D97706", customSoft: "#FFF1F2" },
+  violet: { customPrimary: "#6D28D9", customAccent: "#A855F7", customSoft: "#F7F3FF" },
+};
+
 const systemNavigationTargets = {
   home: "/",
   shop: "/boutique",
@@ -267,5 +278,16 @@ export const ownerRouter = router({
   })).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+  }),
+  saveStorefrontPalette: storeManagementProcedure.input(z.object({
+    paletteId: z.enum(storefrontPaletteIds),
+  })).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({
+      ...current,
+      paletteId: input.paletteId,
+      customColorsEnabled: true,
+      ...storefrontPaletteColors[input.paletteId],
+    }, ctx.store!.id);
   }),
 });

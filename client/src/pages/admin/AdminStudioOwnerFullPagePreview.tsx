@@ -16,6 +16,7 @@ const paletteColors = {
   sage: { primary: "#0F766E", accent: "#D97706", soft: "#F0FDFA" },
   midnight: { primary: "#1E3A8A", accent: "#DB2777", soft: "#EFF6FF" },
   rose: { primary: "#BE185D", accent: "#A16207", soft: "#FFF1F2" },
+  violet: { primary: "#6D28D9", accent: "#A855F7", soft: "#F7F3FF" },
 } as const;
 
 function PreviewSkeleton() {
