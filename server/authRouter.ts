@@ -20,6 +20,13 @@ import {
   isTransactionalEmailConfigured,
   sendPasswordResetEmail,
 } from "./transactionalEmail";
+import {
+  checkAuthRateLimit,
+  clearAuthRateLimit,
+  consumeAuthRateLimit,
+  getAuthRateLimitMessage,
+  type AuthRateLimitAction,
+} from "./authRateLimit";
 
 const emailSchema = z.string().trim().email("Adresse e-mail invalide").max(320);
 const passwordSchema = z
@@ -46,6 +53,16 @@ function rethrowTokenError(error: unknown): never {
     });
   }
   throw error;
+}
+
+function enforceAuthRateLimit(action: AuthRateLimitAction, request: Parameters<typeof checkAuthRateLimit>[1], subject: string) {
+  const result = checkAuthRateLimit(action, request, subject);
+  if (!result.allowed) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: getAuthRateLimitMessage(result.retryAfterSeconds),
+    });
+  }
 }
 
 async function createSession(
@@ -78,6 +95,8 @@ export const authRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const email = input.email.toLowerCase();
+      enforceAuthRateLimit("register", ctx.req, email);
+      consumeAuthRateLimit("register", ctx.req, email);
       const existingUser = await getUserByEmail(email);
 
       if (existingUser) {
@@ -107,13 +126,16 @@ export const authRouter = router({
 
   requestPasswordReset: publicProcedure
     .input(z.object({ email: emailSchema }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const email = input.email.toLowerCase();
+      enforceAuthRateLimit("password_reset", ctx.req, email);
+      consumeAuthRateLimit("password_reset", ctx.req, email);
       // This response remains identical whether or not the account exists.
       if (!isTransactionalEmailConfigured()) {
         return { accepted: true, emailAvailable: false };
       }
 
-      const request = await requestPasswordResetToken(input.email);
+      const request = await requestPasswordResetToken(email);
       if (request) {
         try {
           await sendPasswordResetEmail({
@@ -136,7 +158,9 @@ export const authRouter = router({
 
   completePasswordReset: publicProcedure
     .input(z.object({ token: tokenSchema, password: passwordSchema }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      enforceAuthRateLimit("password_reset_complete", ctx.req, input.token);
+      consumeAuthRateLimit("password_reset_complete", ctx.req, input.token);
       try {
         await resetPasswordFromToken({
           token: input.token,
@@ -151,6 +175,8 @@ export const authRouter = router({
   acceptInvitation: publicProcedure
     .input(z.object({ token: tokenSchema, password: passwordSchema }))
     .mutation(async ({ ctx, input }) => {
+      enforceAuthRateLimit("invitation_activation", ctx.req, input.token);
+      consumeAuthRateLimit("invitation_activation", ctx.req, input.token);
       try {
         const user = await activateAccountFromInvitation({
           token: input.token,
@@ -201,6 +227,7 @@ export const authRouter = router({
     .input(z.object({ email: emailSchema, password: currentPasswordSchema }))
     .mutation(async ({ ctx, input }) => {
       const email = input.email.toLowerCase();
+      enforceAuthRateLimit("login", ctx.req, email);
       const user = await getUserByEmail(email);
       const passwordMatches = await verifyPassword(
         input.password,
@@ -214,6 +241,7 @@ export const authRouter = router({
       }
 
       if (!user || !passwordMatches) {
+        consumeAuthRateLimit("login", ctx.req, email);
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Adresse e-mail ou mot de passe incorrect.",
@@ -232,6 +260,7 @@ export const authRouter = router({
         });
       }
 
+      clearAuthRateLimit("login", ctx.req, email);
       await markUserSignedIn(user.openId);
       await createSession(ctx, user);
       return { user: safeUser(user) };
