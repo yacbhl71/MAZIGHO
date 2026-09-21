@@ -47,4 +47,15 @@ describe("setup storefront guard", () => {
     const setupAdminCaller = appRouter.createCaller({ ...setupStoreContext(), user: { ...setupStoreContext().user!, role: "admin" } });
     await expect(setupAdminCaller.admin.getStats()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("fails closed before any catalogue, cart or checkout fallback when no store is resolved", async () => {
+    const context = setupStoreContext();
+    const caller = appRouter.createCaller({ ...context, store: null });
+
+    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, hasResolvedStore: false, isPlatformStore: false });
+    await expect(caller.content.getStoreCurrency()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.products.getAll("fr")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.checkout.createSession({ countryCode: "CH", items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
 });

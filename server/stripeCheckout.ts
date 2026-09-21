@@ -8,7 +8,10 @@ import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stri
 import { convertChfCents } from "../shared/storeCurrency";
 
 const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  if (ctx.store && !mayServeStorefront(ctx.store.status)) {
+  if (!ctx.store) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable pour ce domaine." });
+  }
+  if (!mayServeStorefront(ctx.store.status)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de paiement." });
   }
   return next({ ctx });

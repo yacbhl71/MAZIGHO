@@ -13,6 +13,9 @@ type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
 
 const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
+  if (!ctx.store) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable pour ce domaine." });
+  }
   if (ctx.store && !ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’est pas encore ouverte au public." });
   }
