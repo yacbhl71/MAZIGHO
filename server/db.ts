@@ -2346,6 +2346,35 @@ export async function getStoreMembershipForUser(storeId: number, userId: number)
   return rows[0];
 }
 
+/**
+ * Idempotently restores an active owner membership for one explicitly targeted
+ * boutique. Intended for a short-lived, platform-controlled access repair.
+ */
+export async function ensureActiveStoreOwnerByDomain(input: { domain: string; email: string }) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const domain = normalizeStoreHost(input.domain);
+  const email = normaliseEmail(input.email);
+  if (!domain || !email) throw new Error("OWNER_REPAIR_INPUT_INVALID");
+
+  return await db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.primaryDomain, domain)).limit(1);
+    if (!store || store.isPlatformStore) throw new Error("OWNER_REPAIR_STORE_INVALID");
+    const [user] = await tx.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+    if (!user || user.accountStatus !== "active") throw new Error("OWNER_REPAIR_USER_INVALID");
+
+    const [membership] = await tx.select().from(storeMemberships)
+      .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.userId, user.id))).limit(1);
+    if (membership) {
+      await tx.update(storeMemberships).set({ role: "owner", status: "active" }).where(eq(storeMemberships.id, membership.id));
+    } else {
+      await tx.insert(storeMemberships).values({ storeId: store.id, userId: user.id, role: "owner", status: "active" });
+    }
+    return { storeId: store.id, userId: user.id };
+  });
+}
+
 /** Returns only team identities and access status for one boutique. */
 export async function getStoreTeamMembers(storeId: number) {
   await ensureMultiStoreSchema();

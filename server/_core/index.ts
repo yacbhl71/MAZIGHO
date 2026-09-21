@@ -10,6 +10,7 @@ import { serveStatic } from "./static";
 import { stripeWebhookHandler } from "../stripeWebhook";
 import { securityHeaders } from "./securityHeaders";
 import { JSON_BODY_LIMIT, payloadTooLargeHandler, URL_ENCODED_BODY_LIMIT } from "./requestLimits";
+import { configuredOwnerAccessRepair } from "../ownerAccessRepair";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,7 @@ export { app };
 export function configureApi(targetApp: Express = app) {
   targetApp.disable("x-powered-by");
   targetApp.use(securityHeaders);
+  targetApp.use(configuredOwnerAccessRepair);
   // Stripe requires the raw request body for signature verification.
   targetApp.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
   // Base64 uploads have dedicated schema limits; this parser limit keeps room
