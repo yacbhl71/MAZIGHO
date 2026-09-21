@@ -13,6 +13,7 @@ import { LocaleProvider } from "./contexts/LocaleContext";
 import { useAuth } from "./_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { MaintenancePage } from "./components/MaintenancePage";
+import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
@@ -202,6 +203,7 @@ function Router() {
   const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
   const storefrontAvailabilityQuery = trpc.storefront.getAvailability.useQuery(undefined, { refetchOnWindowFocus: false });
   const path = location.split("?")[0];
+  const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
   const isExemptPath =
@@ -213,7 +215,10 @@ function Router() {
     return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
   }
 
-  if (!storefrontAvailabilityQuery.data?.publicStorefront) {
+  // A setup boutique stays unavailable to the public. Its authenticated owner
+  // may nevertheless reach the isolated management panel through the explicit
+  // preparation hint; server-side membership guards still enforce access.
+  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel) {
     return <StorefrontUnavailablePage />;
   }
 

@@ -22,3 +22,7 @@ export function getSetupOwnerPanelPath(storeId: number): string {
   const id = parseSetupStoreId(storeId);
   return id ? `/gestion-boutique?${setupStoreAccessQuery}=${id}` : "/gestion-boutique";
 }
+
+export function isPrivateSetupOwnerPanelPath(pathname: string, search: string): boolean {
+  return pathname === "/gestion-boutique" && getSetupStoreIdFromSearch(search) !== null;
+}
