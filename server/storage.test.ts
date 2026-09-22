@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const blob = vi.hoisted(() => ({ put: vi.fn() }));
-vi.mock("@vercel/blob", () => ({ put: blob.put }));
+const blob = vi.hoisted(() => ({ put: vi.fn(), list: vi.fn() }));
+vi.mock("@vercel/blob", () => ({ put: blob.put, list: blob.list }));
 
-import { storagePut } from "./storage";
+import { DEFAULT_STORE_MEDIA_QUOTA_BYTES, getStoreMediaUsage, storagePut } from "./storage";
 
 describe("storefront storage", () => {
   const originalBlobToken = process.env.BLOB_READ_WRITE_TOKEN;
@@ -51,5 +51,33 @@ describe("storefront storage", () => {
       contentType: "image/png",
     }));
     expect(blob.put.mock.calls[0][2]).not.toHaveProperty("token");
+  });
+
+  it("calculates usage only from the requesting store's Blob paths", async () => {
+    process.env.BLOB_STORE_ID = "store_example";
+    process.env.VERCEL_OIDC_TOKEN = "oidc_test";
+    blob.list
+      .mockResolvedValueOnce({ blobs: [{ size: 1024 }, { size: 2048 }], hasMore: false, cursor: undefined })
+      .mockResolvedValueOnce({ blobs: [{ size: 4096 }], hasMore: false, cursor: undefined })
+      .mockResolvedValueOnce({ blobs: [], hasMore: false, cursor: undefined });
+
+    await expect(getStoreMediaUsage(3150009)).resolves.toEqual({
+      usedBytes: 7168,
+      quotaBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES,
+      remainingBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES - 7168,
+      managedBy: "vercel_blob",
+    });
+    expect(blob.list).toHaveBeenNthCalledWith(1, expect.objectContaining({ prefix: "owner-storefront/3150009/" }));
+    expect(blob.list).toHaveBeenNthCalledWith(2, expect.objectContaining({ prefix: "studio-storefront/3150009/" }));
+    expect(blob.list).toHaveBeenNthCalledWith(3, expect.objectContaining({ prefix: "studio-catalogue/3150009/" }));
+  });
+
+  it("rejects an upload before writing when the store quota is exhausted", async () => {
+    process.env.BLOB_STORE_ID = "store_example";
+    process.env.VERCEL_OIDC_TOKEN = "oidc_test";
+    blob.list.mockResolvedValue({ blobs: [{ size: DEFAULT_STORE_MEDIA_QUOTA_BYTES }], hasMore: false, cursor: undefined });
+
+    await expect(storagePut("owner-storefront/22/logo.webp", Buffer.from("image"), "image/webp", { storeId: 22 })).rejects.toThrow("STORE_MEDIA_QUOTA_EXCEEDED");
+    expect(blob.put).not.toHaveBeenCalled();
   });
 });

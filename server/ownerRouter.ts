@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
-import { storagePut } from "./storage";
+import { getStoreMediaUsage, storagePut } from "./storage";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 
@@ -174,6 +175,9 @@ export const ownerRouter = router({
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
   }),
+  getMediaUsage: storeManagementProcedure.query(async ({ ctx }) => {
+    return await getStoreMediaUsage(ctx.store!.id);
+  }),
   getShippingReturnsSettings: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
   }),
@@ -261,8 +265,15 @@ export const ownerRouter = router({
     const buffer = Buffer.from(match[2], "base64");
     if (!buffer.length || buffer.length > 5 * 1024 * 1024) throw new Error("IMAGE_SIZE_INVALID");
     const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "visuel";
-    const { url } = await storagePut(`owner-storefront/${ctx.store!.id}/${Date.now()}-${safeName}.${extension}`, buffer, contentType);
-    return { url };
+    try {
+      const { url } = await storagePut(`owner-storefront/${ctx.store!.id}/${Date.now()}-${safeName}.${extension}`, buffer, contentType, { storeId: ctx.store!.id });
+      return { url };
+    } catch (error) {
+      if (error instanceof Error && error.message === "STORE_MEDIA_QUOTA_EXCEEDED") {
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Le quota de 500 Mo de cette boutique est atteint. Supprimez ou remplacez un visuel avant de téléverser un nouveau fichier." });
+      }
+      throw error;
+    }
   }),
   saveStorefront: storeManagementProcedure.input(z.object({
     brandName: z.string().trim().min(2).max(48),

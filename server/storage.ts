@@ -2,7 +2,7 @@
 // Prefer a project-local Vercel Blob token when configured; retain the legacy
 // Manus storage proxy path for older local environments.
 
-import { put } from "@vercel/blob";
+import { list, put } from "@vercel/blob";
 import { ENV } from "./_core/env";
 
 type StorageConfig = { baseUrl: string; apiKey: string };
@@ -27,6 +27,62 @@ function getBlobToken(): string | null {
 
 function hasBlobOidcCredentials(): boolean {
   return Boolean(process.env.BLOB_STORE_ID?.trim() && process.env.VERCEL_OIDC_TOKEN?.trim());
+}
+
+export const DEFAULT_STORE_MEDIA_QUOTA_BYTES = 500 * 1024 * 1024;
+
+export type StoreMediaUsage = {
+  usedBytes: number;
+  quotaBytes: number;
+  remainingBytes: number;
+  managedBy: "vercel_blob" | "legacy_storage";
+};
+
+function usesVercelBlob(): boolean {
+  return Boolean(getBlobToken() || hasBlobOidcCredentials());
+}
+
+function getStoreMediaPrefixes(storeId: number): string[] {
+  return [
+    `owner-storefront/${storeId}/`,
+    `studio-storefront/${storeId}/`,
+    `studio-catalogue/${storeId}/`,
+  ];
+}
+
+async function getBlobPrefixUsage(prefix: string): Promise<number> {
+  let cursor: string | undefined;
+  let usedBytes = 0;
+  do {
+    const page = await list({ prefix, cursor, limit: 1000 });
+    usedBytes += page.blobs.reduce((sum, blob) => sum + Number(blob.size || 0), 0);
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  return usedBytes;
+}
+
+/**
+ * Calculates only the storefront media stored in MAZIGHO's shared Blob store.
+ * Media is scoped by storeId in the pathname so one tenant never affects
+ * another tenant's counter.
+ */
+export async function getStoreMediaUsage(storeId: number): Promise<StoreMediaUsage> {
+  if (!Number.isInteger(storeId) || storeId <= 0) throw new Error("STORE_MEDIA_SCOPE_INVALID");
+  if (!usesVercelBlob()) {
+    return { usedBytes: 0, quotaBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES, remainingBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES, managedBy: "legacy_storage" };
+  }
+  const usedBytes = (await Promise.all(getStoreMediaPrefixes(storeId).map(getBlobPrefixUsage))).reduce((sum, value) => sum + value, 0);
+  const quotaBytes = DEFAULT_STORE_MEDIA_QUOTA_BYTES;
+  return { usedBytes, quotaBytes, remainingBytes: Math.max(0, quotaBytes - usedBytes), managedBy: "vercel_blob" };
+}
+
+export async function assertStoreMediaQuota(storeId: number, uploadBytes: number): Promise<StoreMediaUsage> {
+  if (!Number.isInteger(uploadBytes) || uploadBytes <= 0) throw new Error("STORE_MEDIA_SIZE_INVALID");
+  const usage = await getStoreMediaUsage(storeId);
+  if (usage.managedBy === "vercel_blob" && usage.usedBytes + uploadBytes > usage.quotaBytes) {
+    throw new Error("STORE_MEDIA_QUOTA_EXCEEDED");
+  }
+  return usage;
 }
 
 function ensureTrailingSlash(value: string): string {
@@ -73,9 +129,14 @@ function buildAuthHeaders(apiKey: string): HeadersInit {
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
-  contentType = "application/octet-stream"
+  contentType = "application/octet-stream",
+  options?: { storeId?: number }
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
+  if (options?.storeId) {
+    const byteLength = typeof data === "string" ? Buffer.byteLength(data) : data.byteLength;
+    await assertStoreMediaQuota(options.storeId, byteLength);
+  }
   const blobToken = getBlobToken();
   if (blobToken || hasBlobOidcCredentials()) {
     const blobBody = data instanceof Uint8Array && !Buffer.isBuffer(data) ? Buffer.from(data) : data;

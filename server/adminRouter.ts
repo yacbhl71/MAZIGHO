@@ -568,7 +568,7 @@ export const adminRouter = router({
       await db.getStudioOwnerPublicStorefrontContent(input.storeId);
       const image = decodeDesignImage(input.dataUrl);
       const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "visuel";
-      const { url } = await storagePut(`studio-storefront/${input.storeId}/${Date.now()}-${safeName}.${image.extension}`, image.buffer, image.contentType);
+      const { url } = await storagePut(`studio-storefront/${input.storeId}/${Date.now()}-${safeName}.${image.extension}`, image.buffer, image.contentType, { storeId: input.storeId });
       logAudit(ctx, { action: "studio.gift_store.storefront.image.upload", entityType: "design", entityId: 1, summary: "Visuel storefront téléversé dans Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
       return { url };
     }),
@@ -694,7 +694,7 @@ export const adminRouter = router({
       const image = decodeDesignImage(input.dataUrl);
       const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "produit";
       const key = `studio-catalogue/${input.storeId}/${input.productId}/${Date.now()}-${safeName}.${image.extension}`;
-      const { url } = await storagePut(key, image.buffer, image.contentType);
+      const { url } = await storagePut(key, image.buffer, image.contentType, { storeId: input.storeId });
       logAudit(ctx, { action: "studio.gift_store.catalogue.image.upload", entityType: "product", entityId: input.productId, summary: "Image produit téléversée dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
       return { url };
     }),
