@@ -537,7 +537,7 @@ export const adminRouter = router({
       storeId: z.number().int().positive(),
       profile: z.object({
         paletteId: z.enum(["terracotta", "sage", "midnight", "rose", "violet"]), typographyId: z.enum(["editorial", "modern", "classic"]),
-        brandName: z.string().trim().min(2).max(48), brandMessage: z.string().trim().max(120), brandLogoUrl: z.union([z.literal(""), visualUrlSchema]),
+        brandName: z.string().trim().min(2).max(48), brandMessage: z.string().trim().max(120), brandLogoUrl: z.union([z.literal(""), visualUrlSchema]), faviconUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
         highlightEyebrow: z.string().trim().min(2).max(120), highlightTitle: z.string().trim().min(2).max(180), highlightText: z.string().trim().min(2).max(600), highlightImageUrl: visualUrlSchema,
         storyTitle: z.string().trim().min(2).max(180), storyText: z.string().trim().min(2).max(1000), storyImageUrl: visualUrlSchema,
         editorialEyebrow: z.string().trim().min(2).max(120), editorialTitle: z.string().trim().min(2).max(180), editorialImageUrl: visualUrlSchema,
@@ -2657,6 +2657,7 @@ export const adminRouter = router({
       brandName: z.string().trim().min(2).max(48),
       brandMessage: z.string().trim().max(120).default(""),
       brandLogoUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
+      faviconUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
       highlightEyebrow: z.string().trim().min(2).max(120),
       highlightTitle: z.string().trim().min(2).max(180),
       highlightText: z.string().trim().min(2).max(600),

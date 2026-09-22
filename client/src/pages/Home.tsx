@@ -76,8 +76,8 @@ export default function Home() {
   const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
 
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
-  const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
-  const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
+  const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
+  const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
   const localizedDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
     const slug = tile.href.split("/").pop();

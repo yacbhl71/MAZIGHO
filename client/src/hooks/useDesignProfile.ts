@@ -35,6 +35,7 @@ export type DesignProfile = {
   brandName: string;
   brandMessage: string;
   brandLogoUrl: string;
+  faviconUrl: string;
   highlightEyebrow: string;
   highlightTitle: string;
   highlightText: string;
@@ -73,6 +74,7 @@ export const defaultDesignProfile: DesignProfile = {
   brandName: "MAZIGHO",
   brandMessage: "",
   brandLogoUrl: "",
+  faviconUrl: "",
   highlightEyebrow: "L'inspiration MAZIGHO",
   highlightTitle: "Des trouvailles qui embellissent le quotidien.",
   highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",

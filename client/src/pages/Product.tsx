@@ -21,6 +21,7 @@ import { commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { getReviewFormCopy } from "@/lib/reviewFormCopy";
+import { isProductPurchasableForStorefront } from "@shared/storefrontProductVisibility";
 
 export default function Product() {
   const { key } = useParams<{ key?: string }>();
@@ -43,9 +44,12 @@ export default function Product() {
   });
   const productQuery = isPreview ? previewQuery : (canonicalId ? productByIdQuery : productBySlugQuery);
   const product = productQuery.data;
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
+  const isPurchasable = Boolean(product) && isProductPurchasableForStorefront(product?.deliveryProfiles, countryCode, isClientStore, Boolean((product as any)?.isManualProduct));
 
   const reviewCopy = getReviewFormCopy(locale);
   const [reviewName, setReviewName] = useState("");
@@ -115,11 +119,11 @@ export default function Product() {
   }
 
   const relatedProducts = (relatedProductsQuery.data || [])
-    .filter(p => p.id !== product.id && getDeliveryProfileForCountry(p.deliveryProfiles, countryCode))
+    .filter(p => p.id !== product.id && isProductPurchasableForStorefront(p.deliveryProfiles, countryCode, isClientStore, Boolean(p.isManualProduct)))
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    if (!product || !deliveryProfile) {
+    if (!product || !isPurchasable) {
       toast.error(commerceT(locale, "deliveryUnconfirmed", { country: countryLabel }));
       return;
     }
@@ -298,7 +302,7 @@ export default function Product() {
               <div className="flex gap-4">
                 <Button
                   onClick={handleAddToCart}
-                  disabled={product.stock === 0 || !deliveryProfile || isAdding}
+                  disabled={product.stock === 0 || !isPurchasable || isAdding}
                   className={`flex-1 py-3 text-lg font-semibold transition-all ${
                     isAdding 
                       ? "bg-green-600 hover:bg-green-700 text-white scale-95" 
@@ -310,7 +314,7 @@ export default function Product() {
                       <CheckCircle2 className="mr-2 h-5 w-5" />
                       {commerceT(locale, "added")}
                     </>
-                  ) : !deliveryProfile ? (
+                  ) : !isPurchasable ? (
                     commerceT(locale, "deliveryUnconfirmed", { country: countryLabel })
                   ) : (
                     commerceT(locale, "addToCart")

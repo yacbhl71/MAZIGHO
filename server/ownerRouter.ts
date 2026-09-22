@@ -268,6 +268,7 @@ export const ownerRouter = router({
     brandName: z.string().trim().min(2).max(48),
     brandMessage: z.string().trim().max(120),
     brandLogoUrl: z.union([z.literal(""), visualUrl]),
+    faviconUrl: z.union([z.literal(""), visualUrl]),
     highlightEyebrow: z.string().trim().max(120),
     highlightTitle: z.string().trim().min(2).max(180),
     highlightText: z.string().trim().min(2).max(600),

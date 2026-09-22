@@ -4426,10 +4426,12 @@ export async function getAllProducts(storeId?: number) {
     featured: products.featured,
     status: products.status,
     options: products.options,
+    supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
-  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId))
+    .map(({ supplier, ...product }) => ({ ...product, isManualProduct: !supplier }));
 }
 
 export async function getFeaturedProducts(limit: number = 8, storeId?: number) {
@@ -4452,13 +4454,15 @@ export async function getFeaturedProducts(limit: number = 8, storeId?: number) {
     featured: products.featured,
     status: products.status,
     options: products.options,
+    supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
     .where(and(eq(products.storeId, effectiveStoreId), eq(products.featured, 1), eq(products.status, "active")))
     .orderBy(desc(products.createdAt))
     .limit(limit);
-  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId));
+  return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId))
+    .map(({ supplier, ...product }) => ({ ...product, isManualProduct: !supplier }));
 }
 
 export async function getProductsByCategory(categoryId: number, storeId?: number) {
@@ -4480,13 +4484,15 @@ export async function getProductsByCategory(categoryId: number, storeId?: number
     featured: products.featured,
     status: products.status,
     options: products.options,
+    supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
     }).from(products)
     .where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
   const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id), effectiveStoreId);
   const filteredRows = rows.filter(row => (categoryMap.get(row.id) || []).includes(categoryId));
-  return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id), effectiveStoreId));
+  return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id), effectiveStoreId))
+    .map(({ supplier, ...product }) => ({ ...product, isManualProduct: !supplier }));
 }
 export async function getProductBySlug(slug: string, storeId?: number) {
   await ensureStoreCatalogScopeSchema();
@@ -4509,6 +4515,7 @@ export async function getProductBySlug(slug: string, storeId?: number) {
     featured: products.featured,
     status: products.status,
     options: products.options,
+    supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
@@ -4518,7 +4525,8 @@ export async function getProductBySlug(slug: string, storeId?: number) {
   if (result.length === 0) return undefined;
   const product = result[0];
   const deliveryProfiles = await getProductDeliveryProfiles([product.id], effectiveStoreId);
-  return { ...product, deliveryProfiles };
+  const { supplier, ...publicProduct } = product;
+  return { ...publicProduct, isManualProduct: !supplier, deliveryProfiles };
 }
 
 export async function getProductById(productId: number, storeId?: number) {
@@ -4541,6 +4549,7 @@ export async function getProductById(productId: number, storeId?: number) {
     featured: products.featured,
     status: products.status,
     options: products.options,
+    supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products)
@@ -4549,7 +4558,8 @@ export async function getProductById(productId: number, storeId?: number) {
     .limit(1);
   if (result.length === 0 || result[0].status !== "active") return undefined;
   const product = result[0];
-  return { ...product, deliveryProfiles: await getProductDeliveryProfiles([product.id], effectiveStoreId) };
+  const { supplier, ...publicProduct } = product;
+  return { ...publicProduct, isManualProduct: !supplier, deliveryProfiles: await getProductDeliveryProfiles([product.id], effectiveStoreId) };
 }
 
 // Product images queries
@@ -6814,6 +6824,7 @@ export type DesignProfile = {
   brandName: string;
   brandMessage: string;
   brandLogoUrl: string;
+  faviconUrl: string;
   highlightEyebrow: string;
   highlightTitle: string;
   highlightText: string;
@@ -6851,6 +6862,7 @@ export const defaultDesignProfile: DesignProfile = {
   brandName: "MAZIGHO",
   brandMessage: "",
   brandLogoUrl: "",
+  faviconUrl: "",
   highlightEyebrow: "L'inspiration MAZIGHO",
   highlightTitle: "Des trouvailles qui embellissent le quotidien.",
   highlightText: "Mode, bien-être, maison et accessoires : une sélection pensée pour chaque moment.",
@@ -6897,7 +6909,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     ? source.typographyId as DesignProfile["typographyId"]
     : defaultDesignProfile.typographyId;
   const textFields = [
-    "brandName", "brandMessage", "brandLogoUrl",
+    "brandName", "brandMessage", "brandLogoUrl", "faviconUrl",
     "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
     "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
     "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
@@ -6906,7 +6918,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   for (const field of textFields) {
     if (typeof source[field] !== "string") continue;
     const value = source[field].trim();
-    if (field === "brandMessage" || field === "brandLogoUrl") {
+    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl") {
       normalized[field] = value;
       continue;
     }
@@ -7797,7 +7809,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   }
 
   const productIds = Array.from(new Set(normalizedItems.map(item => item.productId)));
-  const [productRows, profileRows] = await Promise.all([
+  const [productRows, profileRows, storeRows] = await Promise.all([
     db.select({
       id: products.id,
       name: products.name,
@@ -7811,9 +7823,11 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       supplierVariantMappings: products.supplierVariantMappings,
     }).from(products).where(and(eq(products.storeId, effectiveStoreId), inArray(products.id, productIds))),
     db.select().from(productDeliveryProfiles).where(and(eq(productDeliveryProfiles.storeId, effectiveStoreId), inArray(productDeliveryProfiles.productId, productIds), eq(productDeliveryProfiles.countryCode, normalizedCountry))),
+    db.select({ isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, effectiveStoreId)).limit(1),
   ]);
   const productById = new Map(productRows.map(product => [product.id, product]));
   const profileByProductId = new Map(profileRows.map(profile => [profile.productId, profile]));
+  const isClientStore = !storeRows[0]?.isPlatformStore;
   const verifiedItems: StripeCheckoutVerifiedItem[] = [];
 
   for (const item of normalizedItems) {
@@ -7821,19 +7835,23 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
     if (!product || product.status !== "active") throw new Error("PRODUCT_NOT_AVAILABLE");
     if (product.stock <= 0) throw new Error("OUT_OF_STOCK");
     const profile = profileByProductId.get(item.productId);
-    if (!profile) throw new Error("DELIVERY_NOT_AVAILABLE");
+    const isManualProduct = !product.supplier;
+    const ownerManagedDelivery = isClientStore && isManualProduct;
+    if (!profile && !ownerManagedDelivery) throw new Error("DELIVERY_NOT_AVAILABLE");
     const selectedOptions = sanitizeSelectedOptions(item.selectedOptions, product.options);
-    const supplierVariantId = resolveSupplierVariantForOptions(selectedOptions, product.supplierVariantMappings, profile.supplierVariantId);
+    const supplierVariantId = ownerManagedDelivery
+      ? null
+      : resolveSupplierVariantForOptions(selectedOptions, product.supplierVariantMappings, profile!.supplierVariantId);
     const supplierSnapshot = {
       version: 1,
-      provider: product.supplier || null,
+      provider: ownerManagedDelivery ? "owner_managed" : product.supplier || null,
       supplierProductId: product.supplierProductId || null,
       supplierVariantId: supplierVariantId || null,
       supplierUrl: product.supplierUrl || null,
       countryCode: normalizedCountry,
-      deliveryMethod: profile.deliveryMethod || null,
-      supplierShippingCostChf: profile.supplierShippingCost,
-      quotedAt: profile.quotedAt.toISOString(),
+      deliveryMethod: ownerManagedDelivery ? "owner_managed" : profile!.deliveryMethod || null,
+      supplierShippingCostChf: ownerManagedDelivery ? 0 : profile!.supplierShippingCost,
+      quotedAt: ownerManagedDelivery ? null : profile!.quotedAt.toISOString(),
     };
     verifiedItems.push({
       productId: product.id,

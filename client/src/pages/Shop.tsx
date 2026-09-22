@@ -30,7 +30,7 @@ export default function Shop() {
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
-  const products = (productsQuery.data || []).filter(product => standardCategoryIds.has(product.categoryId) && product.stock > 0 && isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
+  const products = (productsQuery.data || []).filter(product => standardCategoryIds.has(product.categoryId) && product.stock > 0 && isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
 
   const controls = getShopControlsCopy(locale);
   const [categoryFilter, setCategoryFilter] = useState("all");

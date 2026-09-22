@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { useStorePrice } from "@/hooks/useStorePrice";
 import { useCart } from "@/hooks/useCart";
 import { useState } from "react";
-import { getDeliveryProfileForCountry, useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
+import { useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
 import { categoryT, t } from "@/lib/i18n";
@@ -16,7 +16,7 @@ import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 import { isNewProduct } from "@/lib/isNewProduct";
-import { isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
+import { isProductPurchasableForStorefront, isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -42,14 +42,14 @@ export default function Category() {
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
-  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore));
+  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
 
   const handleAddToCart = (productId: number) => {
     const product = products.find(p => p.id === productId);
-    if (product && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)) {
+    if (product && isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))) {
       const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
       addToCart(productId, product.name, product.price, 1, undefined, imageUrl);
       setAddedToCart(productId);
@@ -228,9 +228,9 @@ export default function Category() {
                           </Link>
                           <button
                             onClick={() => handleAddToCart(product.id)}
-                            disabled={!getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)}
+                            disabled={!isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35"
-                            title={getDeliveryProfileForCountry(product.deliveryProfiles, countryCode) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
+                            title={isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
                           </button>

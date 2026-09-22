@@ -73,7 +73,7 @@ export default function Header() {
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
-  const faviconUrl = isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : brandLogoUrl;
+  const faviconUrl = isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : profile.faviconUrl?.trim() || brandLogoUrl;
   useEffect(() => {
     if (!faviconUrl || typeof document === "undefined") return;
     const icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
