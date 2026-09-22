@@ -25,6 +25,10 @@ function getBlobToken(): string | null {
   return token || null;
 }
 
+function hasBlobOidcCredentials(): boolean {
+  return Boolean(process.env.BLOB_STORE_ID?.trim() && process.env.VERCEL_OIDC_TOKEN?.trim());
+}
+
 function ensureTrailingSlash(value: string): string {
   return value.endsWith("/") ? value : `${value}/`;
 }
@@ -73,13 +77,13 @@ export async function storagePut(
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   const blobToken = getBlobToken();
-  if (blobToken) {
+  if (blobToken || hasBlobOidcCredentials()) {
     const blobBody = data instanceof Uint8Array && !Buffer.isBuffer(data) ? Buffer.from(data) : data;
     const uploaded = await put(key, blobBody, {
       access: "public",
       addRandomSuffix: false,
       contentType,
-      token: blobToken,
+      ...(blobToken ? { token: blobToken } : {}),
     });
     return { key, url: uploaded.url };
   }
@@ -104,7 +108,7 @@ export async function storagePut(
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   const blobToken = getBlobToken();
-  if (blobToken) {
+  if (blobToken || hasBlobOidcCredentials()) {
     throw new Error("BLOB_URL_LOOKUP_UNSUPPORTED: conservez l’URL renvoyée lors du téléversement.");
   }
   const { baseUrl, apiKey } = getStorageConfig();
