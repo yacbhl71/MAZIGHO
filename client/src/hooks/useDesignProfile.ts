@@ -10,6 +10,7 @@ export type NavigationLabels = {
 };
 
 export type ButtonRadius = "flat" | "rounded" | "full";
+export type HeaderLayout = "inline" | "split" | "searchFirst";
 
 export type StoreNavigationItem = {
   id: string;
@@ -94,6 +95,7 @@ export type DesignProfile = {
   customAccent: string;
   customSoft: string;
   buttonRadius: ButtonRadius;
+  headerLayout: HeaderLayout;
   homeOrder: string[];
   textBanners: HomeTextBanner[];
   contentTranslationReady?: boolean;
@@ -171,6 +173,7 @@ export const defaultDesignProfile: DesignProfile = {
   customAccent: "#0f766e",
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
+  headerLayout: "inline",
   homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };

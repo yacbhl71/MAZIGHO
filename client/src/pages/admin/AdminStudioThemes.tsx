@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Eye, Layers3, Loader2, Palette, Rocket, Sparkles, Store, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 
-type ThemeId = "violetCraft" | "telephony" | "pet";
+type ThemeId = "violetCraft" | "telephony" | "pet" | "fashion" | "automotive" | "beauty";
 
 type ThemeCard = {
   id: ThemeId;
@@ -55,6 +55,36 @@ const themes: ThemeCard[] = [
     visualAlt: "Chien et chat avec leurs accessoires à la maison",
     benefits: ["Hero chien et chat", "Menu chiens, chats et promenades", "Visuels chaleureux pour les catégories"],
     palette: { card: "border-lime-200 bg-lime-50/70", label: "text-lime-700", title: "text-lime-950", text: "text-lime-900", button: "bg-lime-700 hover:bg-lime-800", badge: "bg-lime-100 text-lime-800" },
+  },
+  {
+    id: "fashion",
+    label: "Atelier Urbain — mode",
+    eyebrow: "Mode & accessoires",
+    description: "Une vitrine éditoriale et contemporaine pour vêtements, chaussures et accessoires, avec un menu sur deux lignes et des visuels de collection.",
+    visual: "/assets/themes/fashion/hero.webp",
+    visualAlt: "Silhouette mode contemporaine devant une architecture minimaliste",
+    benefits: ["Hero éditorial avec espace titre", "Menu mode sur deux niveaux", "Cartes vêtements, chaussures et accessoires"],
+    palette: { card: "border-slate-200 bg-slate-50", label: "text-sky-700", title: "text-slate-950", text: "text-slate-700", button: "bg-slate-800 hover:bg-slate-950", badge: "bg-sky-100 text-sky-800" },
+  },
+  {
+    id: "automotive",
+    label: "Atelier Route — automobile",
+    eyebrow: "Pièces auto & accessoires",
+    description: "Un univers atelier bleu pétrole et orange, pensé pour rechercher rapidement une pièce, organiser les familles produit et rassurer au quotidien.",
+    visual: "/assets/themes/automotive/hero.webp",
+    visualAlt: "Pièces automobiles sur un établi devant un véhicule",
+    benefits: ["Recherche élargie et prioritaire", "Menu besoins, accessoires et conseils", "Cartes moteur, freinage et sécurité"],
+    palette: { card: "border-cyan-200 bg-cyan-50/60", label: "text-cyan-800", title: "text-slate-950", text: "text-slate-700", button: "bg-[#123047] hover:bg-[#0b2132]", badge: "bg-orange-100 text-orange-800" },
+  },
+  {
+    id: "beauty",
+    label: "Atelier Beauté — salon & coiffure",
+    eyebrow: "Beauté & bien-être",
+    description: "Une identité lumineuse et raffinée pour coiffure, institut, soins et rituels bien-être, avec une navigation éditoriale sur deux lignes.",
+    visual: "/assets/themes/beauty/hero.webp",
+    visualAlt: "Salon de beauté élégant avec fauteuil et miroir",
+    benefits: ["Hero salon lumineux", "Menu prestations et rituels", "Cartes cheveux, soins et bien-être"],
+    palette: { card: "border-rose-200 bg-rose-50/70", label: "text-rose-700", title: "text-rose-950", text: "text-rose-900", button: "bg-[#5B234F] hover:bg-[#421a39]", badge: "bg-rose-100 text-rose-800" },
   },
 ];
 

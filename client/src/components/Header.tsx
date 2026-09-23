@@ -73,6 +73,9 @@ export default function Header() {
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
+  const headerLayout = isPlatformStore ? "inline" : profile.headerLayout || "inline";
+  const usesSplitHeader = headerLayout === "split";
+  const usesSearchFirstHeader = headerLayout === "searchFirst";
   const faviconUrl = isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : profile.faviconUrl?.trim() || brandLogoUrl;
   useEffect(() => {
     if (!faviconUrl || typeof document === "undefined") return;
@@ -133,7 +136,7 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-white shadow-sm">
+    <header className="sticky top-0 z-50 bg-white shadow-sm" data-storefront-header-layout={headerLayout}>
       <CampaignBar />
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={hasResolvedNonPlatformStore ? { backgroundImage: "none", backgroundColor: palette.primary } : undefined}>
@@ -157,12 +160,12 @@ export default function Header() {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden xl:flex flex-shrink-0 items-center gap-0 xl:ml-5">
+          {!usesSplitHeader && <div className={`hidden flex-shrink-0 items-center gap-0 ${usesSearchFirstHeader ? "xl:ml-3" : "xl:ml-5"} xl:flex`}>
             {navigationItems.map(renderDesktopNavigationItem)}
-          </div>
+          </div>}
 
           {/* Search Bar - Desktop */}
-          <div className="hidden w-32 flex-none xl:ml-auto xl:block">
+          <div className={`hidden flex-none xl:ml-auto xl:block ${usesSearchFirstHeader ? "w-60" : usesSplitHeader ? "w-48" : "w-32"}`}>
             <SearchBar />
           </div>
 
@@ -213,6 +216,10 @@ export default function Header() {
             </button>
           </div>
         </div>
+
+        {usesSplitHeader && <div className="hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:justify-center xl:gap-1 xl:pb-0.5">
+          {navigationItems.map(renderDesktopNavigationItem)}
+        </div>}
 
         {/* Mobile Search Bar */}
         <div className="md:hidden mt-3">

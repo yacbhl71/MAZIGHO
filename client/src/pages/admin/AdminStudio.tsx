@@ -44,7 +44,7 @@ import {
 
 type BoutiqueTheme = "animalier" | "bijoux" | "vetements";
 type ProvisioningBusinessType = BoutiqueTheme | "autre";
-type StorefrontThemePreset = "violetCraft" | "telephony" | "pet";
+type StorefrontThemePreset = "violetCraft" | "telephony" | "pet" | "fashion" | "automotive" | "beauty";
 
 type ProvisioningDraftForm = {
   displayName: string;
@@ -146,12 +146,17 @@ const storefrontThemePresetLabels: Record<StorefrontThemePreset, string> = {
   violetCraft: "Atelier créatif violet",
   telephony: "Téléphonie & gadgets",
   pet: "Animalerie complice",
+  fashion: "Atelier Urbain — mode",
+  automotive: "Atelier Route — automobile",
+  beauty: "Atelier Beauté — salon & coiffure",
 };
-
 const storefrontThemePresetBusinessTypes: Record<StorefrontThemePreset, ProvisioningBusinessType> = {
   violetCraft: "autre",
   telephony: "autre",
   pet: "animalier",
+  fashion: "vetements",
+  automotive: "autre",
+  beauty: "autre",
 };
 
 const storeStatusPresentation = {

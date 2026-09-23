@@ -399,4 +399,10 @@ export const ownerRouter = router({
       ...storefrontPaletteColors[input.paletteId],
     }, ctx.store!.id);
   }),
+  saveStorefrontHeaderLayout: storeManagementProcedure.input(z.object({
+    headerLayout: z.enum(["inline", "split", "searchFirst"]),
+  })).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, headerLayout: input.headerLayout }, ctx.store!.id);
+  }),
 });

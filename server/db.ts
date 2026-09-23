@@ -2355,7 +2355,7 @@ export type StudioProvisioningDraftInput = {
   ownerEmail: string;
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
   customBusinessTheme?: string | null;
-  themePreset?: "violetCraft" | "telephony" | "pet" | null;
+  themePreset?: "violetCraft" | "telephony" | "pet" | "fashion" | "automotive" | "beauty" | null;
   preferredCurrency: string;
   notes?: string | null;
 };
@@ -6965,6 +6965,7 @@ export type DesignProfile = {
   customAccent: string;
   customSoft: string;
   buttonRadius: ButtonRadius;
+  headerLayout: "inline" | "split" | "searchFirst";
   homeOrder: string[];
   textBanners: HomeTextBanner[];
 };
@@ -7032,6 +7033,7 @@ export const defaultDesignProfile: DesignProfile = {
   customAccent: "#0f766e",
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
+  headerLayout: "inline",
   homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };
@@ -7130,6 +7132,9 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   if (["flat", "rounded", "full"].includes(String(source.buttonRadius))) {
     normalized.buttonRadius = source.buttonRadius as ButtonRadius;
+  }
+  if (["inline", "split", "searchFirst"].includes(String(source.headerLayout))) {
+    normalized.headerLayout = source.headerLayout as DesignProfile["headerLayout"];
   }
 
   // Dynamic homepage text banners (custom blocks)

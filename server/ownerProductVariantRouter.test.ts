@@ -116,6 +116,14 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ paletteId: "violet", customColorsEnabled: true }), 77);
   });
 
+  it("saves the header layout only through the current resolved store", async () => {
+    await expect(callerFor().owner.saveStorefrontHeaderLayout({ headerLayout: "searchFirst" })).resolves.toMatchObject({
+      headerLayout: "searchFirst",
+    });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ headerLayout: "searchFirst" }), 77);
+  });
+
   it("saves homepage content only through the current resolved store", async () => {
     const input = {
       showReassurance: true,
