@@ -7,9 +7,17 @@ export interface CartItem {
   quantity: number;
   imageUrl?: string;
   options?: Record<string, string>;
+  variantId?: number;
+  variantLabel?: string;
 }
 
 const CART_STORAGE_KEY = "boutique_premium_cart";
+
+function isSameCartLine(item: CartItem, productId: number, options: Record<string, string> | undefined, variantId: number | undefined) {
+  return item.productId === productId
+    && item.variantId === variantId
+    && JSON.stringify(item.options) === JSON.stringify(options);
+}
 
 export function useCart() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -43,19 +51,16 @@ export function useCart() {
     price: number,
     quantity: number = 1,
     options?: Record<string, string>,
-    imageUrl?: string
+    imageUrl?: string,
+    variant?: { id: number; label: string }
   ) => {
+    const variantId = variant?.id;
     setCart((prevCart) => {
-      const existingItem = prevCart.find(
-        (item) =>
-          item.productId === productId &&
-          JSON.stringify(item.options) === JSON.stringify(options)
-      );
+      const existingItem = prevCart.find(item => isSameCartLine(item, productId, options, variantId));
 
       if (existingItem) {
         return prevCart.map((item) =>
-          item.productId === productId &&
-          JSON.stringify(item.options) === JSON.stringify(options)
+          isSameCartLine(item, productId, options, variantId)
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
@@ -70,6 +75,8 @@ export function useCart() {
           quantity,
           options,
           imageUrl,
+          variantId,
+          variantLabel: variant?.label,
         },
       ];
     });
@@ -79,17 +86,17 @@ export function useCart() {
   const updateQuantity = (
     productId: number,
     quantity: number,
-    options?: Record<string, string>
+    options?: Record<string, string>,
+    variantId?: number
   ) => {
     if (quantity <= 0) {
-      removeFromCart(productId, options);
+      removeFromCart(productId, options, variantId);
       return;
     }
 
     setCart((prevCart) =>
       prevCart.map((item) =>
-        item.productId === productId &&
-        JSON.stringify(item.options) === JSON.stringify(options)
+        isSameCartLine(item, productId, options, variantId)
           ? { ...item, quantity }
           : item
       )
@@ -99,15 +106,12 @@ export function useCart() {
   // Supprimer un article du panier
   const removeFromCart = (
     productId: number,
-    options?: Record<string, string>
+    options?: Record<string, string>,
+    variantId?: number
   ) => {
     setCart((prevCart) =>
       prevCart.filter(
-        (item) =>
-          !(
-            item.productId === productId &&
-            JSON.stringify(item.options) === JSON.stringify(options)
-          )
+        item => !isSameCartLine(item, productId, options, variantId)
       )
     );
   };

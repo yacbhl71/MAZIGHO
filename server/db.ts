@@ -5008,6 +5008,43 @@ export async function getOwnerProductVariants(productId: number, storeId: number
   }
 }
 
+/**
+ * Returns only the public facts needed to choose a locally managed variant on
+ * a storefront. Supplier references and internal SKUs intentionally stay out
+ * of this response. Reading stays DDL-free so an older boutique without the
+ * optional table still renders its normal catalogue.
+ */
+export async function getPublicOwnerProductVariantsForProducts(productIds: number[], storeId: number) {
+  if (productIds.length === 0) return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+  const db = await getDb();
+  if (!db) return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+
+  try {
+    const rows = await db.select({
+      id: ownerProductVariants.id,
+      productId: ownerProductVariants.productId,
+      label: ownerProductVariants.label,
+      priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
+      stock: ownerProductVariants.stock,
+    }).from(ownerProductVariants).where(and(
+      eq(ownerProductVariants.storeId, storeId),
+      inArray(ownerProductVariants.productId, productIds),
+      eq(ownerProductVariants.status, "active"),
+    )).orderBy(asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id));
+
+    const byProduct = new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+    for (const row of rows) {
+      const variants = byProduct.get(row.productId) ?? [];
+      variants.push({ id: row.id, label: row.label, priceAdjustmentCents: row.priceAdjustmentCents, stock: row.stock });
+      byProduct.set(row.productId, variants);
+    }
+    return byProduct;
+  } catch (error) {
+    console.warn("[OwnerVariants] Optional variant table unavailable for storefront; returning no variants", error);
+    return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+  }
+}
+
 async function assertOwnerVariantProduct(productId: number, storeId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -7710,6 +7747,8 @@ export type StripeCheckoutCartLine = {
   productId: number;
   quantity: number;
   selectedOptions?: Record<string, string>;
+  /** Locally managed variant selected from the public product page. */
+  variantId?: number;
 };
 
 type StripeCheckoutVerifiedItem = {
@@ -7796,15 +7835,16 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   const fallbackCart = !clientItems?.length ? await getCart(userId, effectiveStoreId) : null;
   const requestedItems = clientItems?.length
     ? clientItems
-    : (fallbackCart?.items ?? []).map(item => ({ productId: item.productId, quantity: item.quantity, selectedOptions: {} }));
+    : (fallbackCart?.items ?? []).map(item => ({ productId: item.productId, quantity: item.quantity, selectedOptions: {}, variantId: undefined }));
   if (requestedItems.length === 0 || requestedItems.length > 30) throw new Error("CART_EMPTY");
 
   const normalizedItems = requestedItems.map(item => ({
     productId: Number(item.productId),
     quantity: Number(item.quantity),
     selectedOptions: item.selectedOptions ?? {},
+    variantId: item.variantId === undefined ? undefined : Number(item.variantId),
   }));
-  if (normalizedItems.some(item => !Number.isInteger(item.productId) || item.productId <= 0 || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 20)) {
+  if (normalizedItems.some(item => !Number.isInteger(item.productId) || item.productId <= 0 || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 20 || (item.variantId !== undefined && (!Number.isInteger(item.variantId) || item.variantId <= 0)))) {
     throw new Error("CART_INVALID");
   }
 
@@ -7827,13 +7867,17 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   ]);
   const productById = new Map(productRows.map(product => [product.id, product]));
   const profileByProductId = new Map(profileRows.map(profile => [profile.productId, profile]));
+  const variantsByProductId = await getPublicOwnerProductVariantsForProducts(productIds, effectiveStoreId);
   const isClientStore = !storeRows[0]?.isPlatformStore;
   const verifiedItems: StripeCheckoutVerifiedItem[] = [];
 
   for (const item of normalizedItems) {
     const product = productById.get(item.productId);
     if (!product || product.status !== "active") throw new Error("PRODUCT_NOT_AVAILABLE");
-    if (product.stock <= 0) throw new Error("OUT_OF_STOCK");
+    const productVariants = variantsByProductId.get(product.id) ?? [];
+    const selectedVariant = item.variantId ? productVariants.find(variant => variant.id === item.variantId) : null;
+    if (productVariants.length > 0 && !selectedVariant) throw new Error("CHECKOUT_VARIANT_REQUIRED");
+    if (selectedVariant ? selectedVariant.stock < item.quantity : product.stock < item.quantity) throw new Error("OUT_OF_STOCK");
     const profile = profileByProductId.get(item.productId);
     const isManualProduct = !product.supplier;
     const ownerManagedDelivery = isClientStore && isManualProduct;
@@ -7852,17 +7896,24 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
       deliveryMethod: ownerManagedDelivery ? "owner_managed" : profile!.deliveryMethod || null,
       supplierShippingCostChf: ownerManagedDelivery ? 0 : profile!.supplierShippingCost,
       quotedAt: ownerManagedDelivery ? null : profile!.quotedAt.toISOString(),
+      ownerVariant: selectedVariant ? {
+        id: selectedVariant.id,
+        label: selectedVariant.label,
+        priceAdjustmentCents: selectedVariant.priceAdjustmentCents,
+      } : null,
     };
+    const unitAmountChf = product.price + (selectedVariant?.priceAdjustmentCents ?? 0);
+    if (unitAmountChf <= 0) throw new Error("CHECKOUT_VARIANT_PRICE_INVALID");
     verifiedItems.push({
       productId: product.id,
-      name: product.name,
+      name: selectedVariant ? `${product.name} — ${selectedVariant.label}` : product.name,
       quantity: item.quantity,
-      unitAmount: product.price,
-      unitAmountChf: product.price,
+      unitAmount: unitAmountChf,
+      unitAmountChf,
       // The profile remains mandatory to prove delivery to the chosen country,
       // but the customer charge comes from the single store-wide policy.
       shippingAmount: 0,
-      selectedOptions,
+      selectedOptions: selectedVariant ? { ...selectedOptions, "Variante choisie": selectedVariant.label } : selectedOptions,
       supplierSnapshot,
     });
   }

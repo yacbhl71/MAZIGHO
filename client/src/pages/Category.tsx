@@ -49,7 +49,8 @@ export default function Category() {
 
   const handleAddToCart = (productId: number) => {
     const product = products.find(p => p.id === productId);
-    if (product && isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))) {
+    const hasVariants = Array.isArray((product as any)?.variants) && (product as any).variants.length > 0;
+    if (product && !hasVariants && isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))) {
       const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
       addToCart(productId, product.name, product.price, 1, undefined, imageUrl);
       setAddedToCart(productId);
@@ -228,9 +229,9 @@ export default function Category() {
                           </Link>
                           <button
                             onClick={() => handleAddToCart(product.id)}
-                            disabled={!isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))}
+                            disabled={Boolean((product as any).variants?.length) || !isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35"
-                            title={isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
+                            title={Boolean((product as any).variants?.length) ? "Ouvrez la fiche pour choisir une variante" : isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
                           </button>

@@ -49,7 +49,7 @@ export default function Product() {
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
-  const isPurchasable = Boolean(product) && isProductPurchasableForStorefront(product?.deliveryProfiles, countryCode, isClientStore, Boolean((product as any)?.isManualProduct));
+  const hasConfirmedDelivery = Boolean(product) && isProductPurchasableForStorefront(product?.deliveryProfiles, countryCode, isClientStore, Boolean((product as any)?.isManualProduct));
 
   const reviewCopy = getReviewFormCopy(locale);
   const [reviewName, setReviewName] = useState("");
@@ -82,10 +82,22 @@ export default function Product() {
   });
   
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const [isAdding, setIsAdding] = useState(false);
+  const productVariants = Array.isArray((product as any)?.variants) ? (product as any).variants as Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }> : [];
+  const hasProductVariants = productVariants.length > 0;
+  const selectedVariant = selectedVariantId === null ? null : productVariants.find(variant => variant.id === selectedVariantId) ?? null;
+  const effectivePrice = product ? Number(product.price) + Number(selectedVariant?.priceAdjustmentCents ?? 0) : 0;
+  const effectiveStock = hasProductVariants ? Number(selectedVariant?.stock ?? 0) : Number(product?.stock ?? 0);
+  const isPurchasable = Boolean(hasConfirmedDelivery && (!hasProductVariants || (selectedVariant && selectedVariant.stock > 0)));
+
+  useEffect(() => {
+    setSelectedVariantId(null);
+    setQuantity(1);
+  }, [product?.id]);
 
   if (productQuery.isLoading) {
     return (
@@ -123,13 +135,21 @@ export default function Product() {
     .slice(0, 4);
 
   const handleAddToCart = () => {
-    if (!product || !isPurchasable) {
+    if (!product || !hasConfirmedDelivery) {
       toast.error(commerceT(locale, "deliveryUnconfirmed", { country: countryLabel }));
+      return;
+    }
+    if (hasProductVariants && !selectedVariant) {
+      toast.error("Choisissez une variante avant d’ajouter ce produit au panier.");
+      return;
+    }
+    if (effectiveStock <= 0) {
+      toast.error(commerceT(locale, "outOfStock"));
       return;
     }
     setIsAdding(true);
     const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
-    addToCart(product.id, product.name, product.price, quantity, selectedOptions, imageUrl);
+    addToCart(product.id, product.name, effectivePrice, quantity, selectedOptions, imageUrl, selectedVariant ? { id: selectedVariant.id, label: selectedVariant.label } : undefined);
     
     toast.success(`${product.name} · ${commerceT(locale, "added")}`, {
       description: `${quantity} × ${commerceT(locale, "addToCart")}`,
@@ -231,15 +251,15 @@ export default function Product() {
               <div className="space-y-2">
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl font-bold text-orange-500">
-                    {formatPrice(product.price, locale)}
+                    {formatPrice(effectivePrice, locale)}
                   </span>
-                  {product.originalPrice && (
+                  {product.originalPrice && !hasProductVariants && (
                     <span className="text-xl text-gray-500 line-through">
                       {formatPrice(product.originalPrice, locale)}
                     </span>
                   )}
                 </div>
-                {product.originalPrice && (
+                {product.originalPrice && !hasProductVariants && (
                   <p className="text-green-600 font-semibold">
                     {commerceT(locale, "save", { percent: Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) })}
                   </p>
@@ -254,9 +274,11 @@ export default function Product() {
               />
 
               {/* Stock Status */}
-              <div className={`p-4 rounded-lg ${product.stock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-                {product.stock > 0 ? (
-                  <p className="font-semibold">{commerceT(locale, "inStock", { count: product.stock })}</p>
+              <div className={`p-4 rounded-lg ${effectiveStock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                {hasProductVariants && !selectedVariant ? (
+                  <p className="font-semibold text-amber-800">Choisissez une variante pour voir son prix et son stock.</p>
+                ) : effectiveStock > 0 ? (
+                  <p className="font-semibold">{commerceT(locale, "inStock", { count: effectiveStock })}</p>
                 ) : (
                   <p className="font-semibold">{commerceT(locale, "outOfStock")}</p>
                 )}
@@ -270,27 +292,49 @@ export default function Product() {
                 />
               )}
 
+              {hasProductVariants && (
+                <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-4">
+                  <div>
+                    <p className="font-semibold text-gray-900">Variante</p>
+                    <p className="mt-1 text-sm text-gray-600">Choisissez la déclinaison souhaitée. Le prix et le stock sont propres à chaque variante.</p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {productVariants.map(variant => {
+                      const selected = selectedVariantId === variant.id;
+                      const available = variant.stock > 0;
+                      const variantPrice = Number(product.price) + Number(variant.priceAdjustmentCents || 0);
+                      return <button key={variant.id} type="button" onClick={() => { if (!available) return; setSelectedVariantId(variant.id); setQuantity(1); }} disabled={!available} className={`min-h-16 rounded-xl border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${selected ? "border-orange-500 bg-white ring-1 ring-orange-400" : available ? "border-orange-200 bg-white hover:border-orange-400" : "cursor-not-allowed border-slate-200 bg-slate-100 opacity-60"}`}>
+                        <span className="block font-semibold text-slate-950">{variant.label}</span>
+                        <span className="mt-1 block text-xs text-slate-600">{formatPrice(variantPrice, locale)} · {available ? `${variant.stock} en stock` : "Rupture"}</span>
+                      </button>;
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Quantity */}
               <div className="flex items-center gap-4">
                 <label className="font-semibold text-gray-800">{commerceT(locale, "quantity")}:</label>
                 <div className="flex items-center border border-gray-300 rounded-lg">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="px-4 py-2 hover:bg-gray-100 transition-colors"
+                    disabled={hasProductVariants && !selectedVariant}
+                    className="px-4 py-2 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     −
                   </button>
                   <input
                     type="number"
                     min="1"
-                    max={Math.max(1, product.stock)}
+                    max={Math.max(1, effectiveStock)}
                     value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, Math.min(product.stock, parseInt(e.target.value) || 1)))}
-                    className="w-16 text-center border-l border-r border-gray-300 py-2"
+                    disabled={hasProductVariants && !selectedVariant}
+                    onChange={(e) => setQuantity(Math.max(1, Math.min(effectiveStock, parseInt(e.target.value) || 1)))}
+                    className="w-16 text-center border-l border-r border-gray-300 py-2 disabled:bg-slate-50"
                   />
                   <button
-                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
-                    disabled={quantity >= product.stock}
+                    onClick={() => setQuantity(Math.min(effectiveStock, quantity + 1))}
+                    disabled={(hasProductVariants && !selectedVariant) || quantity >= effectiveStock}
                     className="px-4 py-2 hover:bg-gray-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     +
@@ -302,7 +346,7 @@ export default function Product() {
               <div className="flex gap-4">
                 <Button
                   onClick={handleAddToCart}
-                  disabled={product.stock === 0 || !isPurchasable || isAdding}
+                  disabled={effectiveStock === 0 || !isPurchasable || isAdding}
                   className={`flex-1 py-3 text-lg font-semibold transition-all ${
                     isAdding 
                       ? "bg-green-600 hover:bg-green-700 text-white scale-95" 
@@ -314,6 +358,8 @@ export default function Product() {
                       <CheckCircle2 className="mr-2 h-5 w-5" />
                       {commerceT(locale, "added")}
                     </>
+                  ) : hasProductVariants && !selectedVariant ? (
+                    "Choisir une variante"
                   ) : !isPurchasable ? (
                     commerceT(locale, "deliveryUnconfirmed", { country: countryLabel })
                   ) : (

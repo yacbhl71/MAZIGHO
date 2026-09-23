@@ -38,6 +38,7 @@ export const stripeCheckoutRouter = router({
         productId: z.number().int().positive(),
         quantity: z.number().int().min(1).max(20),
         selectedOptions: z.record(z.string().max(80), z.string().max(120)).optional(),
+        variantId: z.number().int().positive().optional(),
       })).min(1).max(30),
     }))
     .mutation(async ({ input, ctx }) => {

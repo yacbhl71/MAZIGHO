@@ -35,12 +35,13 @@ function parsePublicProductLocale(value: unknown): PublicProductLocale {
 
 // Enrich a public product list (images, reviews, localized text) with batched queries to avoid N+1.
 async function enrichPublicProducts(prods: any[], locale: PublicProductLocale, storeId?: number) {
-  const { getProductImagesForProducts, getProductReviewsForProducts, getReadyProductTranslationsForProducts } = await import("./db");
+  const { getProductImagesForProducts, getProductReviewsForProducts, getReadyProductTranslationsForProducts, getPublicOwnerProductVariantsForProducts } = await import("./db");
   const ids = prods.map((product: any) => product.id);
-  const [imagesMap, reviewsMap, translationsMap] = await Promise.all([
+  const [imagesMap, reviewsMap, translationsMap, variantsMap] = await Promise.all([
     getProductImagesForProducts(ids, storeId),
     getProductReviewsForProducts(ids, storeId),
     locale === "fr" ? Promise.resolve(new Map()) : getReadyProductTranslationsForProducts(ids, locale, storeId),
+    storeId ? getPublicOwnerProductVariantsForProducts(ids, storeId) : Promise.resolve(new Map()),
   ]);
   return prods.map((product: any) => {
     const translation = translationsMap.get(product.id);
@@ -49,7 +50,7 @@ async function enrichPublicProducts(prods: any[], locale: PublicProductLocale, s
       : product;
     const revs = reviewsMap.get(product.id) || [];
     const averageRating = revs.length ? revs.reduce((sum: number, review: any) => sum + review.rating, 0) / revs.length : 0;
-    return { ...base, images: imagesMap.get(product.id) || [], reviews: revs, reviewCount: revs.length, averageRating };
+    return { ...base, images: imagesMap.get(product.id) || [], variants: variantsMap.get(product.id) || [], reviews: revs, reviewCount: revs.length, averageRating };
   });
 }
 
@@ -207,18 +208,19 @@ export const appRouter = router({
       }
       throw new Error("Invalid product id");
     }).query(async ({ ctx, input }) => {
-      const { getProductById, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
+      const { getProductById, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation, getPublicOwnerProductVariantsForProducts } = await import("./db");
       const product = await getProductById(input.id, ctx.store?.id);
       if (!product) return null;
       const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale, ctx.store?.id);
       // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
-      const [images, reviews, averageRating] = await Promise.all([
+      const [images, reviews, averageRating, variantsMap] = await Promise.all([
         getProductImages(product.id, ctx.store?.id),
         getProductReviews(product.id, ctx.store?.id),
         getAverageRating(product.id, ctx.store?.id),
+        ctx.store ? getPublicOwnerProductVariantsForProducts([product.id], ctx.store.id) : Promise.resolve(new Map()),
       ]);
-      return { ...localizedProduct, images, reviews, averageRating };
+      return { ...localizedProduct, images, variants: variantsMap.get(product.id) || [], reviews, averageRating };
     }),
     getBySlug: storefrontProcedure.input((val: unknown) => {
       if (typeof val === "object" && val !== null && "slug" in val && typeof val.slug === "string") {
@@ -228,18 +230,19 @@ export const appRouter = router({
       if (typeof val === "string") return { slug: val, locale: "fr" as const };
       throw new Error("Invalid slug");
     }).query(async ({ ctx, input }) => {
-      const { getProductBySlug, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation } = await import("./db");
+      const { getProductBySlug, getProductImages, getProductReviews, getAverageRating, getReadyProductTranslation, getPublicOwnerProductVariantsForProducts } = await import("./db");
       const product = await getProductBySlug(input.slug, ctx.store?.id);
       if (!product) return null;
       const translation = input.locale === "fr" ? null : await getReadyProductTranslation(product.id, input.locale, ctx.store?.id);
       // Une traduction manquante ne doit jamais rendre une fiche introuvable : repli sûr vers le contenu français.
       const localizedProduct = translation ? { ...product, name: translation.name, description: translation.description, longDescription: translation.longDescription, options: translation.options } : product;
-      const [images, reviews, averageRating] = await Promise.all([
+      const [images, reviews, averageRating, variantsMap] = await Promise.all([
         getProductImages(product.id, ctx.store?.id),
         getProductReviews(product.id, ctx.store?.id),
         getAverageRating(product.id, ctx.store?.id),
+        ctx.store ? getPublicOwnerProductVariantsForProducts([product.id], ctx.store.id) : Promise.resolve(new Map()),
       ]);
-      return { ...localizedProduct, images, reviews, averageRating };
+      return { ...localizedProduct, images, variants: variantsMap.get(product.id) || [], reviews, averageRating };
     }),
     submitReview: storefrontProcedure.input((val: unknown) => {
       if (typeof val !== "object" || val === null) throw new Error("Invalid review payload");
