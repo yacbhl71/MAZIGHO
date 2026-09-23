@@ -7812,7 +7812,6 @@ export async function createBanner(data: {
   active?: number;
   displayOrder?: number;
 }, storeId?: number) {
-  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
