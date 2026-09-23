@@ -4677,24 +4677,31 @@ export async function getProductImagesForProducts(ids: number[], storeId?: numbe
 export async function getProductReviewsForProducts(ids: number[], storeId?: number) {
   const map = new Map<number, Array<{ id: number; rating: number; comment: string | null; createdAt: Date; userName: string | null }>>();
   if (ids.length === 0) return map;
-  await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) return map;
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const rows = await db.select({
-    id: reviews.id,
-    rating: reviews.rating,
-    comment: reviews.comment,
-    createdAt: reviews.createdAt,
-    authorName: reviews.authorName,
-    userName: users.name,
-    productId: reviews.productId,
-  }).from(reviews).leftJoin(users, eq(reviews.userId, users.id))
-    .where(and(eq(reviews.storeId, effectiveStoreId), inArray(reviews.productId, ids), eq(reviews.status, "approved")))
-    .orderBy(desc(reviews.createdAt));
-  for (const row of rows) {
-    if (!map.has(row.productId)) map.set(row.productId, []);
-    map.get(row.productId)!.push({ id: row.id, rating: row.rating, comment: row.comment, createdAt: row.createdAt, userName: row.authorName || row.userName || "Client" });
+  try {
+    // La liste produits est une lecture publique critique : elle ne doit jamais
+    // lancer une migration de paniers/commandes. Si une ancienne installation
+    // n'a pas encore les colonnes d'avis isolées, les produits restent visibles
+    // avec zéro avis plutôt que de retourner une erreur 500.
+    const rows = await db.select({
+      id: reviews.id,
+      rating: reviews.rating,
+      comment: reviews.comment,
+      createdAt: reviews.createdAt,
+      authorName: reviews.authorName,
+      userName: users.name,
+      productId: reviews.productId,
+    }).from(reviews).leftJoin(users, eq(reviews.userId, users.id))
+      .where(and(eq(reviews.storeId, effectiveStoreId), inArray(reviews.productId, ids), eq(reviews.status, "approved")))
+      .orderBy(desc(reviews.createdAt));
+    for (const row of rows) {
+      if (!map.has(row.productId)) map.set(row.productId, []);
+      map.get(row.productId)!.push({ id: row.id, rating: row.rating, comment: row.comment, createdAt: row.createdAt, userName: row.authorName || row.userName || "Client" });
+    }
+  } catch (error) {
+    console.warn("[PublicReviews] Optional review list unavailable; products remain visible", error);
   }
   return map;
 }
