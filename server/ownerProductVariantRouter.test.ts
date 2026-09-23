@@ -27,6 +27,9 @@ vi.mock("./db", () => ({
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
   deleteOwnerProductVariant: vi.fn(async () => ({ success: true })),
+  createCategory: vi.fn(async () => ({ id: 41 })),
+  updateCategory: vi.fn(async () => ({ success: true })),
+  deleteCategory: vi.fn(async () => ({ success: true })),
   getAllBanners: vi.fn(async () => [{ id: 12, title: "Atelier", subtitle: "Une sélection créative", imageUrl: "/assets/banner.webp", linkUrl: "/boutique", active: 1, displayOrder: 0 }]),
   createBanner: vi.fn(async () => ({ success: true, id: 13 })),
   updateBanner: vi.fn(async () => ({ success: true })),
@@ -61,6 +64,20 @@ describe("owner product variant routes", () => {
       variant: { label: "Sauge · L", sku: "SAUGE-L", priceAdjustmentCents: 0, stock: 4, status: "active" },
     })).resolves.toEqual({ id: 6 });
     expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", stock: 4 }), 77);
+  });
+
+  it("manages categories only through the current resolved store", async () => {
+    const caller = callerFor();
+    const input = { name: "Laine et crochet", slug: "laine-crochet", description: "Pelotes et accessoires.", imageUrl: "/media/laine.webp", displayOrder: 30, catalogSection: "creations" as const };
+
+    await expect(caller.owner.createCategory(input)).resolves.toEqual({ id: 41 });
+    expect(db.createCategory).toHaveBeenCalledWith(input, 77);
+
+    await expect(caller.owner.updateCategory({ id: 41, name: "Laine & crochet", displayOrder: 40, catalogSection: "creations" })).resolves.toEqual({ success: true });
+    expect(db.updateCategory).toHaveBeenCalledWith(41, { name: "Laine & crochet", displayOrder: 40, catalogSection: "creations" }, 77);
+
+    await expect(caller.owner.deleteCategory({ id: 41 })).resolves.toEqual({ success: true });
+    expect(db.deleteCategory).toHaveBeenCalledWith(41, 77);
   });
 
   it("refuses a catalog-only membership from the variant management procedures", async () => {

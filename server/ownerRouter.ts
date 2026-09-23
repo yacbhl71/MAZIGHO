@@ -314,8 +314,10 @@ export const ownerRouter = router({
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     description: z.string().trim().max(2000).optional(),
     imageUrl: visualUrl.optional(),
+    displayOrder: z.number().int().min(0).max(999_999).default(0),
+    catalogSection: z.enum(["standard", "creations"]).default("standard"),
   })).mutation(async ({ ctx, input }) => {
-    return await db.createCategory({ ...input, catalogSection: "standard" }, ctx.store!.id);
+    return await db.createCategory(input, ctx.store!.id);
   }),
   updateCategory: storeManagementProcedure.input(z.object({
     id: z.number().int().positive(),
@@ -323,9 +325,14 @@ export const ownerRouter = router({
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
     description: z.string().trim().max(2000).optional(),
     imageUrl: visualUrl.optional(),
+    displayOrder: z.number().int().min(0).max(999_999).optional(),
+    catalogSection: z.enum(["standard", "creations"]).optional(),
   })).mutation(async ({ ctx, input }) => {
     const { id, ...changes } = input;
     return await db.updateCategory(id, changes, ctx.store!.id);
+  }),
+  deleteCategory: storeManagementProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    return await db.deleteCategory(input.id, ctx.store!.id);
   }),
   uploadImage: storeManagementProcedure.input(z.object({
     dataUrl: z.string().max(7_100_000),
