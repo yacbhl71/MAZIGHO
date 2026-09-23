@@ -257,6 +257,7 @@ const studioProvisioningDraftInputSchema = z.object({
   ownerEmail: z.string().trim().email().max(320),
   businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
   customBusinessTheme: z.string().trim().min(2).max(160).optional().nullable(),
+  themePreset: storefrontThemeIdSchema.optional().nullable(),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -1397,14 +1398,23 @@ export const adminRouter = router({
     provisionGiftStore: platformProcedure.input(z.object({ draftId: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
       try {
         const provisioned = await db.provisionGiftStoreFromDraft(input);
+        let themeApplied = false;
+        if (provisioned.themePreset && storefrontThemeIdSchema.safeParse(provisioned.themePreset).success) {
+          try {
+            await applyStorefrontTheme(ctx, provisioned.store.id, provisioned.themePreset as StorefrontThemeId);
+            themeApplied = true;
+          } catch (error) {
+            console.error("[studio] selected storefront theme could not be applied", error instanceof Error ? error.message : error);
+          }
+        }
         logAudit(ctx, {
           action: "studio.gift_store.provision",
           entityType: "store",
           entityId: provisioned.store.id,
           summary: `Boutique offerte créée en préparation : ${provisioned.store.displayName}`,
-          metadata: { draftId: input.draftId, storeSlug: provisioned.store.slug, billing: provisioned.billing, invitationsSent: provisioned.invitationsSent },
+          metadata: { draftId: input.draftId, storeSlug: provisioned.store.slug, billing: provisioned.billing, invitationsSent: provisioned.invitationsSent, themePreset: provisioned.themePreset ?? null, themeApplied },
         });
-        return provisioned;
+        return { ...provisioned, themeApplied };
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "PROVISIONING_DRAFT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable." });
@@ -1422,7 +1432,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: `Brouillon de mise en service créé pour ${input.displayName}`,
-          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency },
+          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null },
         });
         return draft;
       } catch (error) {
@@ -1438,7 +1448,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: "Brouillon de mise en service modifié",
-          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency },
+          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null },
         });
         return draft;
       } catch (error) {

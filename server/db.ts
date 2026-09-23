@@ -232,8 +232,9 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedAt` timestamp NULL"));
     await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_provisioned_store_idx` ON `storeProvisioningDrafts` (`provisionedStoreId`)"));
@@ -2340,6 +2341,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     return {
       store: { id: storeId, slug: proposedSlug, displayName: draft.displayName.trim(), primaryDomain: normalizedDomain, status: "setup" as const },
       owner: recipient[0] ? { attached: true, invitationRequired: false } : { attached: false, invitationRequired: true },
+      themePreset: draft.themePreset,
       billing: "none" as const,
       invitationsSent: 0,
     };
@@ -2353,6 +2355,7 @@ export type StudioProvisioningDraftInput = {
   ownerEmail: string;
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
   customBusinessTheme?: string | null;
+  themePreset?: "violetCraft" | "telephony" | "pet" | null;
   preferredCurrency: string;
   notes?: string | null;
 };
@@ -2365,6 +2368,7 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
     requestedDomain: input.requestedDomain.trim().toLowerCase(),
     ownerEmail: input.ownerEmail.trim().toLowerCase(),
     customBusinessTheme,
+    themePreset: input.themePreset ?? null,
     notes: input.notes?.trim() || null,
   };
 }
@@ -2397,6 +2401,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     ownerEmail: normalized.ownerEmail,
     businessType: normalized.businessType,
     customBusinessTheme: normalized.customBusinessTheme,
+    themePreset: normalized.themePreset,
     preferredCurrency: normalized.preferredCurrency,
     notes: normalized.notes,
     status: "draft",

@@ -61,6 +61,8 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   ownerEmail: varchar("ownerEmail", { length: 320 }).notNull(),
   businessType: mysqlEnum("businessType", ["animalier", "bijoux", "vetements", "autre"]).default("autre").notNull(),
   customBusinessTheme: varchar("customBusinessTheme", { length: 160 }),
+  // Optional Studio visual starter. It is only an identifier, never a secret or client asset.
+  themePreset: varchar("themePreset", { length: 32 }),
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
   status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
   notes: text("notes"),

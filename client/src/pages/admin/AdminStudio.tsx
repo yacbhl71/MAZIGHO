@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ import {
 
 type BoutiqueTheme = "animalier" | "bijoux" | "vetements";
 type ProvisioningBusinessType = BoutiqueTheme | "autre";
+type StorefrontThemePreset = "violetCraft" | "telephony" | "pet";
 
 type ProvisioningDraftForm = {
   displayName: string;
@@ -52,6 +53,7 @@ type ProvisioningDraftForm = {
   ownerEmail: string;
   businessType: ProvisioningBusinessType;
   customBusinessTheme: string;
+  themePreset: StorefrontThemePreset | null;
   preferredCurrency: "CHF" | "EUR" | "USD" | "GBP";
   notes: string;
 };
@@ -63,6 +65,7 @@ const emptyProvisioningDraft: ProvisioningDraftForm = {
   ownerEmail: "",
   businessType: "autre",
   customBusinessTheme: "",
+  themePreset: null,
   preferredCurrency: "CHF",
   notes: "",
 };
@@ -139,6 +142,18 @@ const previews: Record<BoutiqueTheme, ThemePreview> = {
   },
 };
 
+const storefrontThemePresetLabels: Record<StorefrontThemePreset, string> = {
+  violetCraft: "Atelier créatif violet",
+  telephony: "Téléphonie & gadgets",
+  pet: "Animalerie complice",
+};
+
+const storefrontThemePresetBusinessTypes: Record<StorefrontThemePreset, ProvisioningBusinessType> = {
+  violetCraft: "autre",
+  telephony: "autre",
+  pet: "animalier",
+};
+
 const storeStatusPresentation = {
   setup: { label: "À préparer", className: "border-amber-200 bg-amber-50 text-amber-800" },
   active: { label: "Active", className: "border-emerald-200 bg-emerald-50 text-emerald-800" },
@@ -175,6 +190,7 @@ function StudioRailItem({ icon: Icon, title, detail }: { icon: typeof Building2;
 }
 
 export default function AdminStudio() {
+  const [location] = useLocation();
   const [themeId, setThemeId] = useState<BoutiqueTheme>("animalier");
   const [draftForm, setDraftForm] = useState<ProvisioningDraftForm>(emptyProvisioningDraft);
   const [draftAcknowledged, setDraftAcknowledged] = useState(false);
@@ -222,6 +238,21 @@ export default function AdminStudio() {
   const [legalCopyOpen, setLegalCopyOpen] = useState(false);
   const [legalCopyConfirmationName, setLegalCopyConfirmationName] = useState("");
   const [legalCopyAcknowledged, setLegalCopyAcknowledged] = useState(false);
+  const themePresetFromLibrary = useMemo(() => {
+    const candidate = new URLSearchParams(location.split("?")[1]?.split("#")[0] || "").get("theme");
+    return candidate === "violetCraft" || candidate === "telephony" || candidate === "pet" ? candidate : null;
+  }, [location]);
+  useEffect(() => {
+    if (!themePresetFromLibrary) return;
+    setEditingDraftId(null);
+    setDraftAcknowledged(false);
+    setDraftForm(current => ({
+      ...current,
+      themePreset: themePresetFromLibrary,
+      businessType: storefrontThemePresetBusinessTypes[themePresetFromLibrary],
+      customBusinessTheme: themePresetFromLibrary === "violetCraft" ? "Loisirs créatifs" : themePresetFromLibrary === "telephony" ? "Téléphonie et accessoires" : "",
+    }));
+  }, [themePresetFromLibrary]);
   const utils = trpc.useUtils();
   const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
   const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -348,7 +379,7 @@ export default function AdminStudio() {
   });
   const provisionGiftMutation = trpc.admin.studio.provisionGiftStore.useMutation({
     onSuccess: result => {
-      toast.success(`Boutique créée en préparation : ${result.store.displayName}. Aucun e-mail ni paiement n’a été déclenché.`);
+      toast.success(result.themePreset ? `Boutique créée en préparation : ${result.store.displayName}. Le thème ${storefrontThemePresetLabels[result.themePreset as StorefrontThemePreset]} ${result.themeApplied ? "a été appliqué" : "reste disponible dans Thèmes"}. Aucun e-mail ni paiement n’a été déclenché.` : `Boutique créée en préparation : ${result.store.displayName}. Aucun e-mail ni paiement n’a été déclenché.`);
       setGiftConfirmOpen(false);
       setGiftConfirmationName("");
       setGiftAcknowledged(false);
@@ -560,9 +591,9 @@ export default function AdminStudio() {
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Les boutiques enregistrées, sans ouvrir leurs données internes.</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque ligne regroupe uniquement l’état opérationnel, les membres actifs, le catalogue et les commandes. Les identités client, secrets et contenus détaillés restent isolés.</p>
             </div>
-            <Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+            <div className="flex flex-wrap gap-2"><Link href="/admin/studio/themes"><Button variant="outline" className="border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100"><Palette className="mr-2 h-4 w-4" /> Thèmes</Button></Link><Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
               <RefreshCw className={`mr-2 h-4 w-4 ${inventoryQuery.isFetching ? "animate-spin" : ""}`} /> Actualiser
-            </Button>
+            </Button></div>
           </div>
 
           {inventoryQuery.isLoading && !inventory ? (
@@ -701,6 +732,7 @@ export default function AdminStudio() {
                   <div className="space-y-2"><Label>Univers métier</Label><Select value={draftForm.businessType} onValueChange={value => setDraftForm(current => ({ ...current, businessType: value as ProvisioningBusinessType, customBusinessTheme: value === "autre" ? current.customBusinessTheme : "" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="animalier">Animalier</SelectItem><SelectItem value="bijoux">Bijoux</SelectItem><SelectItem value="vetements">Vêtements</SelectItem><SelectItem value="autre">Autre univers</SelectItem></SelectContent></Select></div>
                   <div className="space-y-2"><Label>Devise de départ</Label><Select value={draftForm.preferredCurrency} onValueChange={value => setDraftForm(current => ({ ...current, preferredCurrency: value as ProvisioningDraftForm["preferredCurrency"] }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="CHF">CHF — Franc suisse</SelectItem><SelectItem value="EUR">EUR — Euro</SelectItem><SelectItem value="USD">USD — Dollar US</SelectItem><SelectItem value="GBP">GBP — Livre sterling</SelectItem></SelectContent></Select></div>
                 </div>
+                <div className="space-y-2"><Label>Modèle visuel de départ <span className="font-normal text-slate-500">(facultatif)</span></Label><Select value={draftForm.themePreset || "none"} onValueChange={value => { const themePreset = value === "none" ? null : value as StorefrontThemePreset; setDraftForm(current => ({ ...current, themePreset, businessType: themePreset ? storefrontThemePresetBusinessTypes[themePreset] : current.businessType, customBusinessTheme: themePreset === "violetCraft" ? "Loisirs créatifs" : themePreset === "telephony" ? "Téléphonie et accessoires" : themePreset === "pet" ? "" : current.customBusinessTheme })); }}><SelectTrigger><SelectValue placeholder="Aucun modèle" /></SelectTrigger><SelectContent><SelectItem value="none">Aucun modèle — partir d’une boutique vide</SelectItem><SelectItem value="violetCraft">Atelier créatif violet</SelectItem><SelectItem value="telephony">Téléphonie & gadgets</SelectItem><SelectItem value="pet">Animalerie complice</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-slate-500">Le thème sera appliqué uniquement après votre confirmation de création de la boutique. Il reste ensuite entièrement modifiable.</p></div>
                 {draftForm.businessType === "autre" && <div className="space-y-2"><Label htmlFor="studio-draft-custom-theme">Thématique ou niche de la boutique</Label><Input id="studio-draft-custom-theme" required value={draftForm.customBusinessTheme} onChange={event => setDraftForm(current => ({ ...current, customBusinessTheme: event.target.value }))} placeholder="Ex. décoration artisanale, beauté naturelle, accessoires de voyage…" /><p className="text-xs leading-5 text-slate-500">Cette précision est obligatoire pour un autre univers. Elle vous aide à reprendre et préparer le bon catalogue plus tard.</p></div>}
                 <div className="space-y-2"><Label htmlFor="studio-draft-notes">Notes de préparation <span className="font-normal text-slate-500">(facultatif)</span></Label><Textarea id="studio-draft-notes" value={draftForm.notes} onChange={event => setDraftForm(current => ({ ...current, notes: event.target.value }))} placeholder="Positionnement, besoins de catalogue, contraintes de domaine…" rows={3} /></div>
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><input type="checkbox" checked={draftAcknowledged} onChange={event => setDraftAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500" /><span><strong className="text-slate-900">Je confirme préparer un brouillon seulement.</strong> Cette étape ne crée pas de boutique, de compte, de domaine, d’invitation, de licence, de paiement, de synchronisation Odoo ou d’action fournisseur.</span></label>
@@ -718,7 +750,7 @@ export default function AdminStudio() {
                 const pendingChecks = review?.checks.filter(check => check.state === "pending") ?? [];
                 const linkedStore = draft.provisionedStoreId ? inventoryStoreById.get(draft.provisionedStoreId) : undefined;
                 const linkedStoreIsActive = Boolean(linkedStore && linkedStore.status !== "setup");
-                return <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{linkedStoreIsActive ? `Historique lié à ${linkedStore?.displayName} · ${linkedStore?.primaryDomain}` : draft.requestedDomain}</p></div><Badge variant="outline" className={linkedStoreIsActive ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}>{linkedStoreIsActive ? "Boutique active" : formatProvisioningStatus(draft.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600"><span>{draft.businessType === "autre" && draft.customBusinessTheme ? draft.customBusinessTheme : formatBusinessType(draft.businessType)}</span><span className="text-right">{draft.preferredCurrency}</span><span className="col-span-2 truncate">Propriétaire prévu : {draft.ownerEmail}</span></div>{review && <div className="mt-4 border-t border-slate-100 pt-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-800">{review.completeChecks}/{review.totalChecks} critères locaux complets</span><Badge className={review.readiness === "ready_for_confirmation" ? "border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "border-0 bg-amber-100 text-amber-800 hover:bg-amber-100"}>{review.readiness === "ready_for_confirmation" ? "Revue locale complète" : "À compléter"}</Badge></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={review.readiness === "ready_for_confirmation" ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-amber-500"} style={{ width: `${Math.round((review.completeChecks / review.totalChecks) * 100)}%` }} /></div>{attentionChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-amber-800"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}{pendingChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-slate-500"><Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}</div>}{!draft.provisionedStoreId && draft.status !== "archived" && <div className="mt-4 grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" size="sm" className="min-h-11 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => { setEditingDraftId(draft.id); setDraftForm({ displayName: draft.displayName, requestedDomain: draft.requestedDomain, ownerName: draft.ownerName, ownerEmail: draft.ownerEmail, businessType: draft.businessType, customBusinessTheme: draft.customBusinessTheme || "", preferredCurrency: draft.preferredCurrency as ProvisioningDraftForm["preferredCurrency"], notes: draft.notes || "" }); setDraftAcknowledged(false); setSelectedPreflightDraftId(null); window.requestAnimationFrame(() => document.getElementById("studio-provisioning-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><span className="mr-2">Reprendre</span> et modifier</Button><Button type="button" variant="outline" size="sm" className="min-h-11 border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100" onClick={() => { setDeleteDraftTarget({ id: draft.id, displayName: draft.displayName }); setDeleteDraftConfirmationName(""); }}><span className="mr-2">Supprimer</span> le brouillon</Button></div>}{draft.provisionedStoreId ? linkedStoreIsActive ? <Link href={`/admin/studio/gestion-boutique/${draft.provisionedStoreId}`} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"><Store className="mr-2 h-4 w-4" /> Gérer la boutique active</Link> : <Link href={`/admin/studio/lancement/${draft.provisionedStoreId}`} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-md border border-teal-200 bg-teal-50 px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100"><Sparkles className="mr-2 h-4 w-4" /> Continuer la préparation</Link> : <Button type="button" variant="outline" size="sm" className="mt-2 min-h-11 w-full border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" onClick={() => setSelectedPreflightDraftId(draft.id)}><Gift className="mr-2 h-4 w-4" /> Vérifier avant création</Button>}</div>;
+                return <div key={draft.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.displayName}</p><p className="mt-1 truncate text-xs text-slate-500">{linkedStoreIsActive ? `Historique lié à ${linkedStore?.displayName} · ${linkedStore?.primaryDomain}` : draft.requestedDomain}</p></div><Badge variant="outline" className={linkedStoreIsActive ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}>{linkedStoreIsActive ? "Boutique active" : formatProvisioningStatus(draft.status)}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600"><span>{draft.businessType === "autre" && draft.customBusinessTheme ? draft.customBusinessTheme : formatBusinessType(draft.businessType)}</span><span className="text-right">{draft.preferredCurrency}</span><span className="col-span-2 truncate">Propriétaire prévu : {draft.ownerEmail}</span>{draft.themePreset && <span className="col-span-2 truncate font-medium text-violet-800">Thème : {storefrontThemePresetLabels[draft.themePreset as StorefrontThemePreset]}</span>}</div>{review && <div className="mt-4 border-t border-slate-100 pt-3"><div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold text-slate-800">{review.completeChecks}/{review.totalChecks} critères locaux complets</span><Badge className={review.readiness === "ready_for_confirmation" ? "border-0 bg-emerald-100 text-emerald-800 hover:bg-emerald-100" : "border-0 bg-amber-100 text-amber-800 hover:bg-amber-100"}>{review.readiness === "ready_for_confirmation" ? "Revue locale complète" : "À compléter"}</Badge></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={review.readiness === "ready_for_confirmation" ? "h-full rounded-full bg-emerald-500" : "h-full rounded-full bg-amber-500"} style={{ width: `${Math.round((review.completeChecks / review.totalChecks) * 100)}%` }} /></div>{attentionChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-amber-800"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}{pendingChecks.map(check => <p key={check.key} className="mt-2 flex gap-2 text-xs leading-5 text-slate-500"><Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" />{check.detail}</p>)}</div>}{!draft.provisionedStoreId && draft.status !== "archived" && <div className="mt-4 grid gap-2 sm:grid-cols-2"><Button type="button" variant="outline" size="sm" className="min-h-11 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => { setEditingDraftId(draft.id); setDraftForm({ displayName: draft.displayName, requestedDomain: draft.requestedDomain, ownerName: draft.ownerName, ownerEmail: draft.ownerEmail, businessType: draft.businessType, customBusinessTheme: draft.customBusinessTheme || "", themePreset: draft.themePreset as StorefrontThemePreset | null, preferredCurrency: draft.preferredCurrency as ProvisioningDraftForm["preferredCurrency"], notes: draft.notes || "" }); setDraftAcknowledged(false); setSelectedPreflightDraftId(null); window.requestAnimationFrame(() => document.getElementById("studio-provisioning-form")?.scrollIntoView({ behavior: "smooth", block: "start" })); }}><span className="mr-2">Reprendre</span> et modifier</Button><Button type="button" variant="outline" size="sm" className="min-h-11 border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100" onClick={() => { setDeleteDraftTarget({ id: draft.id, displayName: draft.displayName }); setDeleteDraftConfirmationName(""); }}><span className="mr-2">Supprimer</span> le brouillon</Button></div>}{draft.provisionedStoreId ? linkedStoreIsActive ? <Link href={`/admin/studio/gestion-boutique/${draft.provisionedStoreId}`} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-100"><Store className="mr-2 h-4 w-4" /> Gérer la boutique active</Link> : <Link href={`/admin/studio/lancement/${draft.provisionedStoreId}`} className="mt-2 flex min-h-11 w-full items-center justify-center rounded-md border border-teal-200 bg-teal-50 px-3 text-sm font-semibold text-teal-900 hover:bg-teal-100"><Sparkles className="mr-2 h-4 w-4" /> Continuer la préparation</Link> : <Button type="button" variant="outline" size="sm" className="mt-2 min-h-11 w-full border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" onClick={() => setSelectedPreflightDraftId(draft.id)}><Gift className="mr-2 h-4 w-4" /> Vérifier avant création</Button>}</div>;
               })}
               <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-violet-700">Prévol cadeau / lancement</p><p className="mt-1 text-sm font-semibold text-violet-950">Créer une boutique offerte, sans facturation ni activation automatique.</p></div><Badge className="border-0 bg-violet-100 text-violet-800 hover:bg-violet-100">Lecture seule</Badge></div>
