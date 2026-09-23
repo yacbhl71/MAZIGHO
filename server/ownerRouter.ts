@@ -7,6 +7,54 @@ import { getAccountInvitationLink } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
+const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
+
+const ownerHomepageSections = z.object({
+  showReassurance: z.boolean(),
+  reassuranceItems: z.array(z.object({
+    icon: z.enum(["sparkles", "check", "arrow"]),
+    title: z.string().trim().min(2).max(100),
+    text: z.string().trim().max(220),
+  })).length(3),
+  showDiscovery: z.boolean(),
+  discoveryEyebrow: z.string().trim().max(120),
+  discoveryTitle: z.string().trim().min(2).max(180),
+  discoveryText: z.string().trim().max(600),
+  discoveryAllShopLabel: z.string().trim().max(60),
+  discoveryAllShopUrl: storefrontLink,
+  discoveryBrowseShopLabel: z.string().trim().max(60),
+  discoveryBrowseShopUrl: storefrontLink,
+  showStory: z.boolean(),
+  showTestimonials: z.boolean(),
+  testimonialsEyebrow: z.string().trim().max(120),
+  testimonialsTitle: z.string().trim().min(2).max(180),
+  testimonialsText: z.string().trim().max(900),
+  testimonialsCtaLabel: z.string().trim().max(60),
+  testimonialsCtaUrl: storefrontLink,
+  showEditorial: z.boolean(),
+  showFeatured: z.boolean(),
+  showClosing: z.boolean(),
+  closingEyebrow: z.string().trim().max(120),
+  closingTitle: z.string().trim().min(2).max(180),
+  closingText: z.string().trim().max(900),
+  closingShopCtaLabel: z.string().trim().max(60),
+  closingShopCtaUrl: storefrontLink,
+  closingContactCtaLabel: z.string().trim().max(60),
+  closingContactCtaUrl: storefrontLink,
+  closingVisualValue: z.string().trim().max(40),
+  closingVisualText: z.string().trim().max(280),
+  closingImageUrl: z.union([z.literal(""), visualUrl]),
+}).superRefine((input, ctx) => {
+  for (const [labelKey, urlKey] of [
+    ["discoveryAllShopLabel", "discoveryAllShopUrl"],
+    ["discoveryBrowseShopLabel", "discoveryBrowseShopUrl"],
+    ["testimonialsCtaLabel", "testimonialsCtaUrl"],
+    ["closingShopCtaLabel", "closingShopCtaUrl"],
+    ["closingContactCtaLabel", "closingContactCtaUrl"],
+  ] as const) {
+    if (input[labelKey] && !input[urlKey]) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [urlKey], message: "Indiquez le lien associé au bouton." });
+  }
+});
 
 const storefrontPaletteIds = ["terracotta", "sage", "midnight", "rose", "violet"] as const;
 type StorefrontPaletteId = typeof storefrontPaletteIds[number];
@@ -312,9 +360,26 @@ export const ownerRouter = router({
     storyTitle: z.string().trim().min(2).max(180),
     storyText: z.string().trim().min(2).max(1000),
     storyImageUrl: visualUrl,
+    editorialEyebrow: z.string().trim().max(120),
+    editorialTitle: z.string().trim().min(2).max(180),
+    editorialImageUrl: visualUrl,
   })).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
-    return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+    const saved = await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+    const publicCopyFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
+    if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    return saved;
+  }),
+  saveHomepageSections: storeManagementProcedure.input(ownerHomepageSections).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    const saved = await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+    const publicCopyFields = [
+      "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryBrowseShopLabel",
+      "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel",
+      "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingContactCtaLabel", "closingVisualValue", "closingVisualText",
+    ] as const;
+    if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    return saved;
   }),
   saveStorefrontPalette: storeManagementProcedure.input(z.object({
     paletteId: z.enum(storefrontPaletteIds),

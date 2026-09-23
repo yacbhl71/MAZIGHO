@@ -29,6 +29,12 @@ export type HomeTextBanner = {
   enabled: boolean;
 };
 
+export type ReassuranceItem = {
+  icon: "sparkles" | "check" | "arrow";
+  title: string;
+  text: string;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
@@ -58,6 +64,31 @@ export type DesignProfile = {
   showTestimonials: boolean;
   showEditorial: boolean;
   showFeatured: boolean;
+  showReassurance: boolean;
+  showClosing: boolean;
+  reassuranceItems: ReassuranceItem[];
+  discoveryEyebrow: string;
+  discoveryTitle: string;
+  discoveryText: string;
+  discoveryAllShopLabel: string;
+  discoveryAllShopUrl: string;
+  discoveryBrowseShopLabel: string;
+  discoveryBrowseShopUrl: string;
+  testimonialsEyebrow: string;
+  testimonialsTitle: string;
+  testimonialsText: string;
+  testimonialsCtaLabel: string;
+  testimonialsCtaUrl: string;
+  closingEyebrow: string;
+  closingTitle: string;
+  closingText: string;
+  closingShopCtaLabel: string;
+  closingShopCtaUrl: string;
+  closingContactCtaLabel: string;
+  closingContactCtaUrl: string;
+  closingVisualValue: string;
+  closingVisualText: string;
+  closingImageUrl: string;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -106,6 +137,35 @@ export const defaultDesignProfile: DesignProfile = {
   showTestimonials: true,
   showEditorial: true,
   showFeatured: true,
+  showReassurance: true,
+  showClosing: true,
+  reassuranceItems: [
+    { icon: "sparkles", title: "Une sélection qui a du sens", text: "Des trouvailles utiles pour le quotidien." },
+    { icon: "check", title: "Prix affichés en CHF", text: "Une expérience pensée pour la Suisse." },
+    { icon: "arrow", title: "Un parcours simple", text: "Du produit au panier en quelques clics." },
+  ],
+  discoveryEyebrow: "Explorer MAZIGHO",
+  discoveryTitle: "Découvrez nos univers",
+  discoveryText: "Six catégories visuelles pour passer directement de l’inspiration à la sélection qui vous ressemble.",
+  discoveryAllShopLabel: "Voir toute la boutique",
+  discoveryAllShopUrl: "/boutique",
+  discoveryBrowseShopLabel: "Parcourir toute la boutique",
+  discoveryBrowseShopUrl: "/boutique",
+  testimonialsEyebrow: "La parole à nos clients",
+  testimonialsTitle: "Vos retours font grandir MAZIGHO.",
+  testimonialsText: "Aucun avis client vérifié n’est publié pour le moment.",
+  testimonialsCtaLabel: "Découvrir la sélection",
+  testimonialsCtaUrl: "/boutique",
+  closingEyebrow: "L’esprit MAZIGHO",
+  closingTitle: "Des trouvailles utiles, avec une expérience plus humaine.",
+  closingText: "Nous mettons en avant des produits qui simplifient le quotidien, dans une boutique claire, chaleureuse et pensée pour accompagner chaque décision.",
+  closingShopCtaLabel: "Découvrir la boutique",
+  closingShopCtaUrl: "/boutique",
+  closingContactCtaLabel: "Nous contacter",
+  closingContactCtaUrl: "/contact",
+  closingVisualValue: "",
+  closingVisualText: "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.",
+  closingImageUrl: "",
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",

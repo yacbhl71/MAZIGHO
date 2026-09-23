@@ -143,7 +143,7 @@ export default function Header() {
       </div>
 
       {/* Main Navigation */}
-      <nav className="container mx-auto px-3 py-2 xl:px-4 xl:py-2.5">
+      <nav className="w-full px-3 py-2 sm:px-4 xl:px-6 xl:py-2.5">
         <div className="flex items-center justify-between gap-2 xl:gap-3">
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>

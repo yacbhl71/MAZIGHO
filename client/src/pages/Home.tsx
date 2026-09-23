@@ -54,7 +54,7 @@ const discoveryTileMeta = [
 
 export default function Home() {
   const { locale } = useLocale();
-  const { formatStorePrice: formatPrice } = useStorePrice();
+  const { formatStorePrice: formatPrice, currencyCode } = useStorePrice();
   const { profile, palette } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
   const useManagedPublicTranslation = locale === "fr" || profile.contentTranslationReady === true;
@@ -63,6 +63,10 @@ export default function Home() {
     highlight: useManagedPublicTranslation ? { ...generatedCopy.highlight, eyebrow: profile.highlightEyebrow, title: profile.highlightTitle, text: profile.highlightText } : generatedCopy.highlight,
     story: useManagedPublicTranslation ? { ...generatedCopy.story, title: profile.storyTitle, text: profile.storyText } : generatedCopy.story,
     editorial: useManagedPublicTranslation ? { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle } : generatedCopy.editorial,
+    reassurance: useManagedPublicTranslation ? profile.reassuranceItems : generatedCopy.reassurance,
+    discovery: useManagedPublicTranslation ? { ...generatedCopy.discovery, eyebrow: profile.discoveryEyebrow, title: profile.discoveryTitle, text: profile.discoveryText, allShop: profile.discoveryAllShopLabel, browseShop: profile.discoveryBrowseShopLabel } : generatedCopy.discovery,
+    testimonials: useManagedPublicTranslation ? { ...generatedCopy.testimonials, eyebrow: profile.testimonialsEyebrow, title: profile.testimonialsTitle, text: profile.testimonialsText, cta: profile.testimonialsCtaLabel } : generatedCopy.testimonials,
+    closing: useManagedPublicTranslation ? { ...generatedCopy.closing, eyebrow: profile.closingEyebrow, title: profile.closingTitle, text: profile.closingText, shopCta: profile.closingShopCtaLabel, contactCta: profile.closingContactCtaLabel, chfText: profile.closingVisualText } : generatedCopy.closing,
   };
   const discoveryTiles = getDiscoveryTiles(locale);
   const featuredProductsQuery = trpc.products.getFeatured.useQuery(locale, { placeholderData: (prev) => prev });
@@ -79,13 +83,24 @@ export default function Home() {
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
-  const localizedDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
+  const platformDiscoveryTiles = discoveryTileMeta.map((tile, index) => {
     const slug = tile.href.split("/").pop();
     const sourceCategory = categoriesQuery.data?.find(item => item.slug === slug);
     const category = sourceCategory ? getLocalizedCategoryPresentation(locale, sourceCategory) : undefined;
     const fallback = discoveryTiles[index];
-    return { ...tile, title: category?.name || fallback?.title || t(locale, "discover"), description: category?.description || fallback?.description || "" };
+    return { ...tile, title: category?.name || fallback?.title || t(locale, "discover"), description: category?.description || fallback?.description || "", accent: categoryAccents[index % categoryAccents.length] };
   });
+  const storeDiscoveryTiles = (categoriesQuery.data || []).slice(0, 12).map((sourceCategory, index) => {
+    const category = getLocalizedCategoryPresentation(locale, sourceCategory);
+    return {
+      href: `/categorie/${sourceCategory.slug}`,
+      image: sourceCategory.imageUrl || "",
+      title: category.name || sourceCategory.name,
+      description: category.description || sourceCategory.description || "",
+      accent: categoryAccents[index % categoryAccents.length],
+    };
+  });
+  const localizedDiscoveryTiles = isClientStore ? storeDiscoveryTiles : platformDiscoveryTiles;
 
   const orderedKeys = profile.homeOrder?.length ? profile.homeOrder : ["discovery", "story", "testimonials", "editorial", "featured"];
   const orderIndex = (key: string) => { const index = orderedKeys.indexOf(key); return index === -1 ? 90 : index; };
@@ -111,37 +126,22 @@ export default function Home() {
           </div>
         </section>
 
+        {profile.showReassurance && (
         <section className="border-y border-[#eadfd2] bg-white/80">
           <div className="container grid gap-0 md:grid-cols-3">
-            <div className="flex items-center gap-4 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:pr-8">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{copy.reassurance[0].title}</p>
-                <p className="mt-1 text-xs text-slate-500">{copy.reassurance[0].text}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 border-b border-[#eadfd2] py-5 md:border-b-0 md:border-r md:px-8">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700">
-                <Check className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{copy.reassurance[1].title}</p>
-                <p className="mt-1 text-xs text-slate-500">{copy.reassurance[1].text}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4 py-5 md:pl-8">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                <ArrowRight className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{copy.reassurance[2].title}</p>
-                <p className="mt-1 text-xs text-slate-500">{copy.reassurance[2].text}</p>
-              </div>
-            </div>
+            {copy.reassurance.slice(0, 3).map((item, index) => {
+              const icon = useManagedPublicTranslation ? profile.reassuranceItems[index]?.icon : ["sparkles", "check", "arrow"][index];
+              const iconStyle = index === 0 ? "bg-orange-100 text-orange-600" : index === 1 ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700";
+              return <div key={`${item.title}-${index}`} className={`flex items-center gap-4 py-5 ${index < 2 ? "border-b border-[#eadfd2] md:border-b-0 md:border-r" : ""} ${index === 0 ? "md:pr-8" : index === 1 ? "md:px-8" : "md:pl-8"}`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconStyle}`}>
+                  {icon === "check" ? <Check className="h-5 w-5" /> : icon === "arrow" ? <ArrowRight className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+                </div>
+                <div><p className="text-sm font-semibold text-slate-900">{item.title}</p><p className="mt-1 text-xs text-slate-500">{item.text}</p></div>
+              </div>;
+            })}
           </div>
         </section>
+        )}
 
         <div className="flex flex-col">
         {profile.showDiscovery && (
@@ -153,17 +153,17 @@ export default function Home() {
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.discovery.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">{copy.discovery.text}</p>
               </div>
-              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></Link>
+              {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {localizedDiscoveryTiles.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
                 <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
-                  <div className="aspect-[16/10] overflow-hidden bg-[#f3ebe2]"><img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /></div>
+                  <div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
                 </Link>
               ))}
-            </div>
-            <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600"><Link href="/boutique">{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
+            </div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-600">Ajoutez vos catégories dans le catalogue pour les présenter ici.</div>}
+            {copy.discovery.browseShop && profile.discoveryBrowseShopUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600"><a href={useManagedPublicTranslation ? profile.discoveryBrowseShopUrl : "/boutique"}>{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
           </div>
         </section>
         )}
@@ -199,7 +199,7 @@ export default function Home() {
           <div className="container">
             <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
             <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7 text-orange-300" aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
-            <div className="mt-8 text-center"><Button asChild variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"><Link href="/boutique">{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button></div>
+            {copy.testimonials.cta && profile.testimonialsCtaUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"><a href={useManagedPublicTranslation ? profile.testimonialsCtaUrl : "/boutique"}>{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
           </div>
         </section>
         )}
@@ -288,6 +288,7 @@ export default function Home() {
         ))}
         </div>
 
+        {profile.showClosing && (
         <section className="py-16 md:py-24">
           <div className="container">
             <div className="grid gap-8 overflow-hidden rounded-[2rem] bg-slate-950 px-7 py-10 text-white md:grid-cols-[1.15fr_0.85fr] md:px-12 md:py-14">
@@ -296,16 +297,17 @@ export default function Home() {
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">{copy.closing.title}</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">{copy.closing.text}</p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Button asChild className="bg-orange-700 text-white hover:bg-orange-800"><Link href="/boutique">{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
-                  <Button asChild variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white"><Link href="/contact">{copy.closing.contactCta}</Link></Button>
+                  {copy.closing.shopCta && profile.closingShopCtaUrl ? <Button asChild className="bg-orange-700 text-white hover:bg-orange-800"><a href={useManagedPublicTranslation ? profile.closingShopCtaUrl : "/boutique"}>{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></a></Button> : null}
+                  {copy.closing.contactCta && profile.closingContactCtaUrl ? <Button asChild variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white"><a href={useManagedPublicTranslation ? profile.closingContactCtaUrl : "/contact"}>{copy.closing.contactCta}</a></Button> : null}
                 </div>
               </div>
               <div className="relative min-h-[250px] overflow-hidden rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-orange-500/80 via-amber-300/30 to-sky-500/50">
+                {useManagedPublicTranslation && profile.closingImageUrl ? <><img src={profile.closingImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-slate-950/35" /></> : null}
                 <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full border-[28px] border-white/15" />
                 <div className="absolute -bottom-20 -left-10 h-64 w-64 rounded-full border-[36px] border-orange-200/20" />
                 <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
                   <div>
-                    <p className="text-6xl font-semibold tracking-tight text-white/95">CHF</p>
+                    <p className="text-6xl font-semibold tracking-tight text-white/95">{useManagedPublicTranslation ? (profile.closingVisualValue || currencyCode) : currencyCode}</p>
                     <p className="mt-3 text-sm text-white/75">{copy.closing.chfText}</p>
                   </div>
                 </div>
@@ -313,6 +315,7 @@ export default function Home() {
             </div>
           </div>
         </section>
+        )}
       </main>
 
       <Footer />

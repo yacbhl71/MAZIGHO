@@ -99,6 +99,49 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ paletteId: "violet", customColorsEnabled: true }), 77);
   });
 
+  it("saves homepage content only through the current resolved store", async () => {
+    const input = {
+      showReassurance: true,
+      reassuranceItems: [
+        { icon: "sparkles" as const, title: "Créations choisies", text: "Du matériel sélectionné avec soin." },
+        { icon: "check" as const, title: "Atelier préparé", text: "Une boutique claire pour vos projets." },
+        { icon: "arrow" as const, title: "À votre rythme", text: "Explorez les catégories de la boutique." },
+      ],
+      showDiscovery: true,
+      discoveryEyebrow: "Explorer l’atelier",
+      discoveryTitle: "Nos catégories créatives",
+      discoveryText: "Choisissez votre prochain projet parmi les catégories de la boutique.",
+      discoveryAllShopLabel: "Voir la boutique",
+      discoveryAllShopUrl: "/boutique",
+      discoveryBrowseShopLabel: "Découvrir les créations",
+      discoveryBrowseShopUrl: "/boutique",
+      showStory: false,
+      showTestimonials: true,
+      testimonialsEyebrow: "Votre message",
+      testimonialsTitle: "Un atelier à votre image",
+      testimonialsText: "Les avis vérifiés seront publiés uniquement quand ils existeront.",
+      testimonialsCtaLabel: "Voir les créations",
+      testimonialsCtaUrl: "/boutique",
+      showEditorial: false,
+      showFeatured: true,
+      showClosing: true,
+      closingEyebrow: "Créer à votre rythme",
+      closingTitle: "Préparez votre prochain projet.",
+      closingText: "Une sélection pensée par cette boutique, sans contenu imposé.",
+      closingShopCtaLabel: "Voir le catalogue",
+      closingShopCtaUrl: "/boutique",
+      closingContactCtaLabel: "Nous contacter",
+      closingContactCtaUrl: "/contact",
+      closingVisualValue: "",
+      closingVisualText: "Une boutique créative, à votre image.",
+      closingImageUrl: "",
+    };
+    await expect(callerFor().owner.saveHomepageSections(input)).resolves.toMatchObject({ showClosing: true, discoveryTitle: "Nos catégories créatives" });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, closingTitle: "Préparez votre prochain projet." }), 77);
+    expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("design", 1, 77);
+  });
+
   it("edits carousel slides only inside the current resolved store", async () => {
     const caller = callerFor();
     await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);

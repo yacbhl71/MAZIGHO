@@ -6843,7 +6843,12 @@ const defaultStoreNavigationItems: StoreNavigationItem[] = [
   { id: "contact", label: "", href: "/contact", visible: true, kind: "system" },
 ];
 
-export type DesignProfileInput = Omit<DesignProfile, "navigationItems"> & { navigationItems?: StoreNavigationItem[] };
+/**
+ * Storefront settings evolve in small, backward-compatible slices. Callers
+ * may therefore update a scoped subset; the current profile supplies every
+ * unspecified value before normalization.
+ */
+export type DesignProfileInput = Partial<Omit<DesignProfile, "navigationItems">> & { navigationItems?: StoreNavigationItem[] };
 
 export type HomeTextBanner = {
   id: string;
@@ -6884,6 +6889,31 @@ export type DesignProfile = {
   showTestimonials: boolean;
   showEditorial: boolean;
   showFeatured: boolean;
+  showReassurance: boolean;
+  showClosing: boolean;
+  reassuranceItems: Array<{ icon: "sparkles" | "check" | "arrow"; title: string; text: string }>;
+  discoveryEyebrow: string;
+  discoveryTitle: string;
+  discoveryText: string;
+  discoveryAllShopLabel: string;
+  discoveryAllShopUrl: string;
+  discoveryBrowseShopLabel: string;
+  discoveryBrowseShopUrl: string;
+  testimonialsEyebrow: string;
+  testimonialsTitle: string;
+  testimonialsText: string;
+  testimonialsCtaLabel: string;
+  testimonialsCtaUrl: string;
+  closingEyebrow: string;
+  closingTitle: string;
+  closingText: string;
+  closingShopCtaLabel: string;
+  closingShopCtaUrl: string;
+  closingContactCtaLabel: string;
+  closingContactCtaUrl: string;
+  closingVisualValue: string;
+  closingVisualText: string;
+  closingImageUrl: string;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -6922,6 +6952,35 @@ export const defaultDesignProfile: DesignProfile = {
   showTestimonials: true,
   showEditorial: true,
   showFeatured: true,
+  showReassurance: true,
+  showClosing: true,
+  reassuranceItems: [
+    { icon: "sparkles", title: "Une sélection qui a du sens", text: "Des trouvailles utiles pour le quotidien." },
+    { icon: "check", title: "Prix affichés en CHF", text: "Une expérience pensée pour la Suisse." },
+    { icon: "arrow", title: "Un parcours simple", text: "Du produit au panier en quelques clics." },
+  ],
+  discoveryEyebrow: "Explorer MAZIGHO",
+  discoveryTitle: "Découvrez nos univers",
+  discoveryText: "Six catégories visuelles pour passer directement de l’inspiration à la sélection qui vous ressemble.",
+  discoveryAllShopLabel: "Voir toute la boutique",
+  discoveryAllShopUrl: "/boutique",
+  discoveryBrowseShopLabel: "Parcourir toute la boutique",
+  discoveryBrowseShopUrl: "/boutique",
+  testimonialsEyebrow: "La parole à nos clients",
+  testimonialsTitle: "Vos retours font grandir MAZIGHO.",
+  testimonialsText: "Aucun avis client vérifié n’est publié pour le moment.",
+  testimonialsCtaLabel: "Découvrir la sélection",
+  testimonialsCtaUrl: "/boutique",
+  closingEyebrow: "L’esprit MAZIGHO",
+  closingTitle: "Des trouvailles utiles, avec une expérience plus humaine.",
+  closingText: "Nous mettons en avant des produits qui simplifient le quotidien, dans une boutique claire, chaleureuse et pensée pour accompagner chaque décision.",
+  closingShopCtaLabel: "Découvrir la boutique",
+  closingShopCtaUrl: "/boutique",
+  closingContactCtaLabel: "Nous contacter",
+  closingContactCtaUrl: "/contact",
+  closingVisualValue: "",
+  closingVisualText: "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.",
+  closingImageUrl: "",
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
@@ -6949,13 +7008,16 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     "brandName", "brandMessage", "brandLogoUrl", "faviconUrl",
     "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
     "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
+    "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryAllShopUrl", "discoveryBrowseShopLabel", "discoveryBrowseShopUrl",
+    "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel", "testimonialsCtaUrl",
+    "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingShopCtaUrl", "closingContactCtaLabel", "closingContactCtaUrl", "closingVisualValue", "closingVisualText", "closingImageUrl",
     "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
   ] as const;
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
     if (typeof source[field] !== "string") continue;
     const value = source[field].trim();
-    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl") {
+    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl" || field === "closingVisualValue" || field === "closingImageUrl") {
       normalized[field] = value;
       continue;
     }
@@ -6997,9 +7059,22 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
+
+  const reassuranceItems: DesignProfile["reassuranceItems"] = [];
+  if (Array.isArray(source.reassuranceItems)) {
+    for (const raw of source.reassuranceItems.slice(0, 3)) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const title = typeof item.title === "string" ? item.title.trim().slice(0, 100) : "";
+      const text = typeof item.text === "string" ? item.text.trim().slice(0, 220) : "";
+      const icon = ["sparkles", "check", "arrow"].includes(String(item.icon)) ? item.icon as DesignProfile["reassuranceItems"][number]["icon"] : "sparkles";
+      if (title) reassuranceItems.push({ icon, title, text });
+    }
+  }
+  if (reassuranceItems.length === 3) normalized.reassuranceItems = reassuranceItems;
 
   // Custom colors + global component style
   if (typeof source.customColorsEnabled === "boolean") normalized.customColorsEnabled = source.customColorsEnabled;
@@ -7065,7 +7140,7 @@ export async function getDesignProfile(storeId?: number): Promise<DesignProfile>
 
 export async function updateDesignProfile(data: DesignProfileInput, storeId?: number): Promise<DesignProfile> {
   const existing = await getDesignProfile(storeId);
-  const profile = normalizeDesignProfile({ ...data, navigationItems: data.navigationItems ?? existing.navigationItems });
+  const profile = normalizeDesignProfile({ ...existing, ...data, navigationItems: data.navigationItems ?? existing.navigationItems });
   await setStoreSettingValue(storeId, "design_profile", JSON.stringify(profile), "Personnalisation visuelle publique propre à cette boutique");
   return profile;
 }
