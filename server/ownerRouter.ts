@@ -199,7 +199,7 @@ const productFields = z.object({
   options: z.string().trim().max(20000).optional(),
 });
 
-const ownerProductVariantFields = z.object({
+export const ownerProductVariantFields = z.object({
   label: z.string().trim().min(1, "Indiquez le libellé de la variante.").max(160),
   sku: z.string().trim().max(100).optional().nullable(),
   priceAdjustmentCents: z.number().int().min(-10_000_000).max(10_000_000),

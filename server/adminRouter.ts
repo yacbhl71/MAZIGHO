@@ -24,7 +24,7 @@ import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOd
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPixels";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
-import { navigationItem, ownerHomepageSections } from "./ownerRouter";
+import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -1099,6 +1099,48 @@ export const adminRouter = router({
         if (["STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "PROVISIONING_DRAFT_NOT_FOUND"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette modification est réservée à une boutique offerte encore en préparation." });
         throw error;
       }
+    }),
+    getOwnerExistingCatalogueProductVariants: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+    })).query(async ({ input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      return await db.getOwnerProductVariants(input.productId, input.storeId);
+    }),
+    createOwnerExistingCatalogueProductVariant: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      variant: ownerProductVariantFields,
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      const created = await db.createOwnerProductVariant(input.productId, input.variant, input.storeId);
+      logAudit(ctx, { action: "studio.gift_store.catalogue.variant.create", entityType: "product_variant", entityId: created.id, summary: "Variante locale avec stock ajoutée au catalogue Studio", metadata: { storeId: input.storeId, productId: input.productId, stock: input.variant.stock, status: input.variant.status, publicStorefront: false } });
+      return created;
+    }),
+    updateOwnerExistingCatalogueProductVariant: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      variantId: z.number().int().positive(),
+      variant: ownerProductVariantFields,
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      const updated = await db.updateOwnerProductVariant(input.productId, input.variantId, input.variant, input.storeId);
+      logAudit(ctx, { action: "studio.gift_store.catalogue.variant.update", entityType: "product_variant", entityId: input.variantId, summary: "Variante locale avec stock modifiée dans Studio", metadata: { storeId: input.storeId, productId: input.productId, stock: input.variant.stock, status: input.variant.status, publicStorefront: false } });
+      return updated;
+    }),
+    deleteOwnerExistingCatalogueProductVariant: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      variantId: z.number().int().positive(),
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      const deleted = await db.deleteOwnerProductVariant(input.productId, input.variantId, input.storeId);
+      logAudit(ctx, { action: "studio.gift_store.catalogue.variant.delete", entityType: "product_variant", entityId: input.variantId, summary: "Variante locale supprimée du catalogue Studio", metadata: { storeId: input.storeId, productId: input.productId, publicStorefront: false } });
+      return deleted;
     }),
     createOwnerExistingCatalogueProduct: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),

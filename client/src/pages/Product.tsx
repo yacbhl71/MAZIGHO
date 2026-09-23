@@ -285,7 +285,7 @@ export default function Product() {
               </div>
 
               {/* Options */}
-              {(product as any).options && (
+              {(product as any).options && !hasProductVariants && (
                 <ProductOptions
                   options={typeof (product as any).options === 'string' ? JSON.parse((product as any).options) : (product as any).options}
                   onSelectOptions={setSelectedOptions}
