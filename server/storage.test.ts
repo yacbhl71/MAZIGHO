@@ -53,6 +53,19 @@ describe("storefront storage", () => {
     expect(blob.put.mock.calls[0][2]).not.toHaveProperty("token");
   });
 
+  it("prioritizes a connected Blob store even before the rotating OIDC value is visible", async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.BLOB_STORE_ID = "store_example";
+    delete process.env.VERCEL_OIDC_TOKEN;
+    blob.put.mockResolvedValue({ url: "https://example.public.blob.vercel-storage.com/owner-storefront/22/logo.png" });
+
+    await expect(storagePut("owner-storefront/22/logo.png", Buffer.from("image"), "image/png")).resolves.toEqual({
+      key: "owner-storefront/22/logo.png",
+      url: "https://example.public.blob.vercel-storage.com/owner-storefront/22/logo.png",
+    });
+    expect(blob.put).toHaveBeenCalledOnce();
+  });
+
   it("calculates usage only from the requesting store's Blob paths", async () => {
     process.env.BLOB_STORE_ID = "store_example";
     process.env.VERCEL_OIDC_TOKEN = "oidc_test";

@@ -25,8 +25,11 @@ function getBlobToken(): string | null {
   return token || null;
 }
 
-function hasBlobOidcCredentials(): boolean {
-  return Boolean(process.env.BLOB_STORE_ID?.trim() && process.env.VERCEL_OIDC_TOKEN?.trim());
+function hasConnectedBlobStore(): boolean {
+  // A connected Vercel deployment injects the short-lived OIDC credential at
+  // runtime. BLOB_STORE_ID is the stable signal that Blob must take priority
+  // over the retired legacy proxy.
+  return Boolean(process.env.BLOB_STORE_ID?.trim());
 }
 
 export const DEFAULT_STORE_MEDIA_QUOTA_BYTES = 500 * 1024 * 1024;
@@ -39,7 +42,7 @@ export type StoreMediaUsage = {
 };
 
 function usesVercelBlob(): boolean {
-  return Boolean(getBlobToken() || hasBlobOidcCredentials());
+  return Boolean(getBlobToken() || hasConnectedBlobStore());
 }
 
 function getStoreMediaPrefixes(storeId: number): string[] {
@@ -138,7 +141,7 @@ export async function storagePut(
     await assertStoreMediaQuota(options.storeId, byteLength);
   }
   const blobToken = getBlobToken();
-  if (blobToken || hasBlobOidcCredentials()) {
+  if (blobToken || hasConnectedBlobStore()) {
     const blobBody = data instanceof Uint8Array && !Buffer.isBuffer(data) ? Buffer.from(data) : data;
     const uploaded = await put(key, blobBody, {
       access: "public",
@@ -169,7 +172,7 @@ export async function storagePut(
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   const blobToken = getBlobToken();
-  if (blobToken || hasBlobOidcCredentials()) {
+  if (blobToken || hasConnectedBlobStore()) {
     throw new Error("BLOB_URL_LOOKUP_UNSUPPORTED: conservez l’URL renvoyée lors du téléversement.");
   }
   const { baseUrl, apiKey } = getStorageConfig();
