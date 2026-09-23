@@ -4303,24 +4303,24 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
 }
 
 export async function getPublicContentTranslation(contentType: PublicContentType, contentId: number, locale: PublicContentTranslationLocale, readyOnly = false, storeId?: number) {
-  await ensurePublicContentTranslationSchema();
   const db = await getDb();
   if (!db) return undefined;
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const conditions = [eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId), eq(publicContentTranslations.locale, locale)];
-  if (readyOnly) conditions.push(eq(publicContentTranslations.status, "ready"));
-  const rows = await db.select().from(publicContentTranslations).where(and(...conditions)).limit(1);
-  const translation = rows[0];
-  if (!translation) return undefined;
-  const source = await getPublicContentTranslationSource(contentType, contentId, storeId);
-  let candidate: unknown;
   try {
-    candidate = JSON.parse(translation.payload);
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    const conditions = [eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId), eq(publicContentTranslations.locale, locale)];
+    if (readyOnly) conditions.push(eq(publicContentTranslations.status, "ready"));
+    const rows = await db.select().from(publicContentTranslations).where(and(...conditions)).limit(1);
+    const translation = rows[0];
+    if (!translation) return undefined;
+    const source = await getPublicContentTranslationSource(contentType, contentId, storeId);
+    const candidate = JSON.parse(translation.payload);
+    const payload = source ? normalizePublicContentPayload(candidate, source.payload) : undefined;
+    return payload ? { ...translation, payload } : undefined;
   } catch {
+    // Public translations are optional. A legacy schema must never block the
+    // storefront or replace source-language content with an error screen.
     return undefined;
   }
-  const payload = source ? normalizePublicContentPayload(candidate, source.payload) : undefined;
-  return payload ? { ...translation, payload } : undefined;
 }
 
 export async function getPublicContentTranslationOverview(storeId?: number) {
@@ -4367,11 +4367,16 @@ export async function savePublicContentTranslation(input: { contentType: PublicC
 }
 
 export async function markPublicContentTranslationsStale(contentType: PublicContentType, contentId: number, storeId?: number) {
-  await ensurePublicContentTranslationSchema();
   const db = await getDb();
-  if (!db) throw new Error("Database unavailable");
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
+  if (!db) return;
+  try {
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    await db.update(publicContentTranslations).set({ status: "stale" }).where(and(eq(publicContentTranslations.storeId, effectiveStoreId), eq(publicContentTranslations.contentType, contentType), eq(publicContentTranslations.contentId, contentId)));
+  } catch (error) {
+    // Translation freshness is a non-blocking convenience. Content changes are
+    // still safe to publish in French if an older translation table is absent.
+    console.warn("[PublicContentTranslations] Unable to mark translations stale", error);
+  }
 }
 
 export async function getLocalizedDesignProfile(locale: "fr" | PublicContentTranslationLocale, storeId?: number): Promise<DesignProfile & { contentTranslationReady: boolean }> {
@@ -4385,8 +4390,12 @@ export async function getLocalizedActiveBanners(locale: "fr" | PublicContentTran
   const sourceBanners = await getActiveBanners(storeId);
   if (locale === "fr") return sourceBanners.map(banner => ({ ...banner, sourceTitle: banner.title }));
   return await Promise.all(sourceBanners.map(async banner => {
-    const translation = await getPublicContentTranslation("banner", banner.id, locale, true, storeId);
-    return translation ? { ...banner, ...translation.payload, sourceTitle: banner.title } : { ...banner, sourceTitle: banner.title };
+    try {
+      const translation = await getPublicContentTranslation("banner", banner.id, locale, true, storeId);
+      return translation ? { ...banner, ...translation.payload, sourceTitle: banner.title } : { ...banner, sourceTitle: banner.title };
+    } catch {
+      return { ...banner, sourceTitle: banner.title };
+    }
   }));
 }
 
@@ -5579,6 +5588,25 @@ export async function updateCategory(id: number, data: any, storeId?: number) {
   return { success: true };
 }
 
+/**
+ * Applies optional presentation images to the first store-owned categories.
+ * This is deliberately a direct, store-scoped write: Studio theme application
+ * must never run a schema migration while updating a published storefront.
+ */
+export async function applyStorefrontThemeCategoryImages(storeId: number, imageUrls: string[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const storeCategories = await db.select({ id: categories.id }).from(categories)
+    .where(eq(categories.storeId, storeId))
+    .orderBy(asc(categories.displayOrder), asc(categories.name));
+  const assignments = storeCategories.slice(0, imageUrls.length)
+    .map((category, index) => ({ categoryId: category.id, imageUrl: imageUrls[index] }))
+    .filter((assignment): assignment is { categoryId: number; imageUrl: string } => Boolean(assignment.imageUrl));
+  await Promise.all(assignments.map(assignment => db.update(categories).set({ imageUrl: assignment.imageUrl })
+    .where(and(eq(categories.storeId, storeId), eq(categories.id, assignment.categoryId)))));
+  return { updatedCategoryIds: assignments.map(assignment => assignment.categoryId) };
+}
+
 export async function deleteCategory(id: number, storeId?: number) {
   await ensureStoreCatalogScopeSchema();
   const db = await getDb();
@@ -6435,11 +6463,17 @@ export async function getOrderDetail(userId: number, orderId: number, storeId?: 
 
 // Content management: banners
 export async function getAllBanners(storeId?: number) {
-  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  return db.select().from(banners).where(eq(banners.storeId, effectiveStoreId)).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  try {
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    return await db.select().from(banners).where(eq(banners.storeId, effectiveStoreId)).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  } catch (error) {
+    // A public or Studio read must degrade to an empty carousel rather than
+    // trigger a schema migration during page rendering.
+    console.warn("[Banners] Unable to read storefront banners", error);
+    return [];
+  }
 }
 
 export async function getAllSettings() {
@@ -7746,20 +7780,28 @@ export async function getOrderTimeline(orderId: number, storeId?: number) {
 }
 
 export async function getActiveBanners(storeId?: number) {
-  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return [];
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  return db.select().from(banners).where(and(eq(banners.storeId, effectiveStoreId), eq(banners.active, 1))).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  try {
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    return await db.select().from(banners).where(and(eq(banners.storeId, effectiveStoreId), eq(banners.active, 1))).orderBy(asc(banners.displayOrder), desc(banners.createdAt));
+  } catch (error) {
+    console.warn("[Banners] Unable to read active storefront banners", error);
+    return [];
+  }
 }
 
 export async function getBannerById(id: number, storeId?: number) {
-  await ensureStoreContentScopeSchema();
   const db = await getDb();
   if (!db) return null;
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const rows = await db.select().from(banners).where(and(eq(banners.id, id), eq(banners.storeId, effectiveStoreId))).limit(1);
-  return rows[0] ?? null;
+  try {
+    const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+    const rows = await db.select().from(banners).where(and(eq(banners.id, id), eq(banners.storeId, effectiveStoreId))).limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.warn("[Banners] Unable to read storefront banner", error);
+    return null;
+  }
 }
 
 export async function createBanner(data: {

@@ -678,9 +678,16 @@ export const adminRouter = router({
         });
         await db.markPublicContentTranslationsStale("banner", banner.id, input.storeId);
       }));
+      const categoryImages = await db.applyStorefrontThemeCategoryImages(input.storeId, [
+        "/assets/dyama/dyama-hero-diamond-painting.webp",
+        "/assets/dyama/dyama-category-landscape.webp",
+        "/assets/dyama/dyama-category-floral.webp",
+        "/assets/dyama/dyama-category-yarn.webp",
+      ]);
+      await Promise.all(categoryImages.updatedCategoryIds.map(categoryId => db.markPublicContentTranslationsStale("category", categoryId, input.storeId)));
       await db.markPublicContentTranslationsStale("design", 1, input.storeId);
-      logAudit(ctx, { action: "studio.storefront.template.violet_craft.apply", entityType: "store", entityId: input.storeId, summary: "Modèle Atelier créatif violet appliqué à la boutique", metadata: { storeId: input.storeId, publicStorefront: true, replacedHero: true } });
-      return { profile, heroApplied: true };
+      logAudit(ctx, { action: "studio.storefront.template.violet_craft.apply", entityType: "store", entityId: input.storeId, summary: "Modèle Atelier créatif violet appliqué à la boutique", metadata: { storeId: input.storeId, publicStorefront: true, replacedHero: true, categoryImageCount: categoryImages.updatedCategoryIds.length } });
+      return { profile, heroApplied: true, categoryImageCount: categoryImages.updatedCategoryIds.length };
     }),
     saveOwnerPublicStorefrontBanner: platformProcedure.input(z.object({
       storeId: z.number().int().positive(), bannerId: z.number().int().positive().optional(), title: z.string().trim().min(2).max(180), subtitle: z.string().trim().max(600).optional(), imageUrl: visualUrlSchema, linkUrl: z.string().trim().max(300).optional(), active: z.number().int().min(0).max(1), displayOrder: z.number().int().min(0).max(100),
