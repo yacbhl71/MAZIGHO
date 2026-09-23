@@ -9,7 +9,7 @@ import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/store
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 
-const ownerHomepageSections = z.object({
+export const ownerHomepageSections = z.object({
   showReassurance: z.boolean(),
   reassuranceItems: z.array(z.object({
     icon: z.enum(["sparkles", "check", "arrow"]),
@@ -78,7 +78,7 @@ const systemNavigationTargets = {
   contact: "/contact",
 } as const;
 
-const navigationItem = z.object({
+export const navigationItem = z.object({
   id: z.string().trim().min(1).max(60).regex(/^[a-z0-9-]+$/),
   label: z.string().trim().max(40),
   href: z.string().trim().max(300),

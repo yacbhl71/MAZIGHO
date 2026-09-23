@@ -24,6 +24,7 @@ import { cancelOdooSaleOrder, createOdooPartner, getOdooCatalogSyncStatus, getOd
 import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./services/vercelAnalytics";
 import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPixels";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
+import { navigationItem, ownerHomepageSections } from "./ownerRouter";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -35,6 +36,78 @@ const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
   BE: ["belgique", "belgië", "belgie", "belgium"],
   NL: ["pays-bas", "nederland", "netherlands"],
   ES: ["espagne", "españa", "espana", "spain"],
+};
+
+/**
+ * A reversible Studio starter template. It is intentionally an explicit
+ * operator action and is written only to the selected store's profile.
+ */
+const violetCraftThemeTemplate = {
+  paletteId: "violet" as const,
+  typographyId: "editorial" as const,
+  brandName: "Dyama",
+  brandMessage: "L’atelier créatif des projets qui vous ressemblent.",
+  highlightEyebrow: "Créations à votre rythme",
+  highlightTitle: "Donnez de l’éclat à vos idées.",
+  highlightText: "Diamond Painting, broderie, laine et petits accessoires : choisissez le projet qui vous fera plaisir, point par point.",
+  highlightImageUrl: "/assets/dyama/dyama-highlight-craft-table.webp",
+  storyTitle: "Chez Dyama, chaque détail devient une création.",
+  storyText: "Dyama réunit l’inspiration et le matériel pour s’accorder une vraie parenthèse créative. Que vous aimiez les tableaux de Diamond Painting, les fils colorés ou les ouvrages délicats, avancez simplement à votre rythme.",
+  storyImageUrl: "/assets/dyama/dyama-story-embroidery.webp",
+  editorialEyebrow: "L’atelier Dyama",
+  editorialTitle: "Le plaisir de créer, point par point.",
+  editorialImageUrl: "/assets/dyama/dyama-editorial-lavender.webp",
+  showReassurance: true,
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Matériel inspirant", text: "Diamond Painting, broderie et mercerie pour vos envies créatives." },
+    { icon: "check" as const, title: "Pour tous les niveaux", text: "Des idées accessibles pour découvrir, apprendre et se faire plaisir." },
+    { icon: "arrow" as const, title: "Votre pause créative", text: "Prenez le temps de choisir un projet qui vous ressemble." },
+  ],
+  showDiscovery: true,
+  discoveryEyebrow: "Explorer l’atelier",
+  discoveryTitle: "Nos univers créatifs",
+  discoveryText: "Parcourez les catégories Dyama et laissez-vous guider vers votre prochain moment de création.",
+  discoveryAllShopLabel: "Voir la boutique",
+  discoveryAllShopUrl: "/boutique",
+  discoveryBrowseShopLabel: "Découvrir les créations",
+  discoveryBrowseShopUrl: "/boutique",
+  showStory: true,
+  showTestimonials: false,
+  testimonialsEyebrow: "La communauté Dyama",
+  testimonialsTitle: "Vos créations ont leur place ici.",
+  testimonialsText: "Les retours vérifiés de la communauté seront partagés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer la boutique",
+  testimonialsCtaUrl: "/boutique",
+  showEditorial: true,
+  showFeatured: true,
+  showClosing: true,
+  closingEyebrow: "Imaginez, créez, recommencez",
+  closingTitle: "Votre prochain projet créatif commence ici.",
+  closingText: "Choisissez un motif, préparez votre coin atelier et savourez le plaisir d’avancer à votre rythme.",
+  closingShopCtaLabel: "Voir les créations",
+  closingShopCtaUrl: "/boutique",
+  closingContactCtaLabel: "Nous contacter",
+  closingContactCtaUrl: "/contact",
+  closingVisualValue: "",
+  closingVisualText: "Un atelier doux, coloré et entièrement à votre image.",
+  closingImageUrl: "/assets/dyama/dyama-closing-atelier.webp",
+  customColorsEnabled: true,
+  customPrimary: "#6D28D9",
+  customAccent: "#A855F7",
+  customSoft: "#F7F3FF",
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Boutique", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "", href: "/nouveautes", visible: false, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Contact", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-diamond-painting", label: "Diamond Painting", href: "/categorie/diamond-painting", visible: true, kind: "custom" as const },
+    { id: "custom-broderie", label: "Broderie & point de croix", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-laine-crochet", label: "Laine & crochet", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
 };
 function detectDeliveryCountry(address: string | null | undefined): string {
   if (!address) return "—";
@@ -551,6 +624,63 @@ export const adminRouter = router({
       const profile = await db.saveStudioOwnerPublicStorefrontProfile({ storeId: input.storeId, profile: input.profile });
       logAudit(ctx, { action: "studio.gift_store.storefront.profile.save", entityType: "design", entityId: 1, summary: "Contenu public de boutique enregistré dans Studio", metadata: { storeId: input.storeId, publicStorefront: true, hasBrandLogo: Boolean(input.profile.brandLogoUrl) } });
       return profile;
+    }),
+    saveOwnerPublicStorefrontHomepageSections: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      sections: ownerHomepageSections,
+    })).mutation(async ({ ctx, input }) => {
+      const current = await db.getDesignProfile(input.storeId);
+      const profile = await db.saveStudioOwnerPublicStorefrontProfile({ storeId: input.storeId, profile: { ...current, ...input.sections } });
+      const publicCopyFields = [
+        "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryBrowseShopLabel",
+        "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel",
+        "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingContactCtaLabel", "closingVisualValue", "closingVisualText",
+      ] as const;
+      if (publicCopyFields.some(field => current[field] !== profile[field])) await db.markPublicContentTranslationsStale("design", 1, input.storeId);
+      logAudit(ctx, { action: "studio.storefront.home_sections.save", entityType: "design", entityId: 1, summary: "Sections d’accueil enregistrées depuis Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
+      return profile;
+    }),
+    applyVioletCraftStorefrontTemplate: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const current = await db.getDesignProfile(input.storeId);
+      const sections = ownerHomepageSections.parse(violetCraftThemeTemplate);
+      const navigationItems = z.array(navigationItem).min(1).max(16).parse(violetCraftThemeTemplate.navigationItems);
+      const profile = await db.saveStudioOwnerPublicStorefrontProfile({
+        storeId: input.storeId,
+        profile: { ...current, ...violetCraftThemeTemplate, ...sections, navigationItems },
+      });
+      const existingBanners = await db.getAllBanners(input.storeId);
+      const hero = {
+        title: "Diamond Painting & loisirs créatifs",
+        subtitle: "Un univers violet pour imaginer, créer et se détendre à votre rythme.",
+        imageUrl: "/assets/dyama/dyama-hero-diamond-painting.webp",
+        linkUrl: "/categorie/diamond-painting",
+        active: 1,
+        displayOrder: 0,
+      };
+      const firstBanner = existingBanners[0];
+      if (firstBanner) {
+        await db.saveStudioOwnerPublicStorefrontBanner({ storeId: input.storeId, bannerId: firstBanner.id, ...hero });
+        await db.markPublicContentTranslationsStale("banner", firstBanner.id, input.storeId);
+      } else {
+        await db.saveStudioOwnerPublicStorefrontBanner({ storeId: input.storeId, ...hero });
+      }
+      await Promise.all(existingBanners.slice(1).map(async banner => {
+        if (!banner.active) return;
+        await db.saveStudioOwnerPublicStorefrontBanner({
+          storeId: input.storeId,
+          bannerId: banner.id,
+          title: banner.title,
+          subtitle: banner.subtitle || "",
+          imageUrl: banner.imageUrl,
+          linkUrl: banner.linkUrl || "/boutique",
+          active: 0,
+          displayOrder: banner.displayOrder,
+        });
+        await db.markPublicContentTranslationsStale("banner", banner.id, input.storeId);
+      }));
+      await db.markPublicContentTranslationsStale("design", 1, input.storeId);
+      logAudit(ctx, { action: "studio.storefront.template.violet_craft.apply", entityType: "store", entityId: input.storeId, summary: "Modèle Atelier créatif violet appliqué à la boutique", metadata: { storeId: input.storeId, publicStorefront: true, replacedHero: true } });
+      return { profile, heroApplied: true };
     }),
     saveOwnerPublicStorefrontBanner: platformProcedure.input(z.object({
       storeId: z.number().int().positive(), bannerId: z.number().int().positive().optional(), title: z.string().trim().min(2).max(180), subtitle: z.string().trim().max(600).optional(), imageUrl: visualUrlSchema, linkUrl: z.string().trim().max(300).optional(), active: z.number().int().min(0).max(1), displayOrder: z.number().int().min(0).max(100),
