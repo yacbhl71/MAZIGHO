@@ -109,6 +109,137 @@ const violetCraftThemeTemplate = {
     { id: "custom-laine-crochet", label: "Laine & crochet", href: "/boutique", visible: true, kind: "custom" as const },
   ],
 };
+
+const telephonyThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "midnight" as const,
+  typographyId: "modern" as const,
+  brandName: "Connect & Gadgets",
+  brandMessage: "Les essentiels tech qui vous suivent au quotidien.",
+  highlightEyebrow: "Tech essentielle",
+  highlightTitle: "Restez connecté, simplement.",
+  highlightText: "Smartphones, accessoires pratiques et idées connectées : composez l’équipement qui vous accompagne chaque jour.",
+  highlightImageUrl: "/assets/category-high-tech-hero.webp",
+  storyTitle: "La technologie utile, choisie pour vous.",
+  storyText: "Connect & Gadgets réunit les accessoires qui simplifient l’usage de vos appareils : protection, charge, audio et idées connectées.",
+  storyImageUrl: "/assets/category-high-tech.webp",
+  editorialEyebrow: "Connect & Gadgets",
+  editorialTitle: "Vos appareils, mieux équipés.",
+  editorialImageUrl: "/assets/category-high-tech-hero.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Sélection pratique", text: "Des accessoires choisis pour les usages de tous les jours." },
+    { icon: "check" as const, title: "Choix clair", text: "Une présentation simple pour comparer et choisir sereinement." },
+    { icon: "arrow" as const, title: "Toujours connecté", text: "Charge, protection et audio à portée de main." },
+  ],
+  discoveryEyebrow: "Explorer la tech",
+  discoveryTitle: "Nos univers connectés",
+  discoveryText: "Découvrez les catégories de la boutique et trouvez l’accessoire adapté à vos appareils.",
+  discoveryAllShopLabel: "Voir la boutique",
+  discoveryBrowseShopLabel: "Découvrir les accessoires",
+  testimonialsEyebrow: "La communauté Connect & Gadgets",
+  testimonialsTitle: "Vos usages inspirent la sélection.",
+  testimonialsText: "Les retours vérifiés seront publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer la boutique",
+  closingEyebrow: "Connectez-vous à l’essentiel",
+  closingTitle: "L’accessoire utile est juste ici.",
+  closingText: "Équipez vos appareils avec des produits simples, pratiques et faciles à choisir.",
+  closingShopCtaLabel: "Voir les accessoires",
+  closingVisualText: "Une sélection tech claire, à votre image.",
+  closingImageUrl: "/assets/category-high-tech-hero.webp",
+  customColorsEnabled: true,
+  customPrimary: "#1D4ED8",
+  customAccent: "#06B6D4",
+  customSoft: "#EFF6FF",
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Boutique", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "", href: "/nouveautes", visible: false, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Contact", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-smartphones", label: "Smartphones", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-protection", label: "Protection & charge", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-audio", label: "Audio & gadgets", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
+const petThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "sage" as const,
+  typographyId: "editorial" as const,
+  brandName: "Pattes & Compagnie",
+  brandMessage: "Tout le nécessaire pour prendre soin de leurs petites et grandes vies.",
+  highlightEyebrow: "Pour leurs meilleurs moments",
+  highlightTitle: "Le bien-être de vos compagnons, au quotidien.",
+  highlightText: "Des accessoires, jouets et essentiels choisis pour accompagner chiens, chats et leurs familles.",
+  highlightImageUrl: "/assets/themes/pet-category.webp",
+  storyTitle: "Parce qu’ils font partie de la famille.",
+  storyText: "Pattes & Compagnie rassemble des idées pratiques et douces pour les animaux du quotidien : jouer, se promener, se reposer et prendre soin d’eux.",
+  storyImageUrl: "/assets/themes/pet-hero.webp",
+  editorialEyebrow: "Pattes & Compagnie",
+  editorialTitle: "Des attentions choisies pour eux.",
+  editorialImageUrl: "/assets/themes/pet-category.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Pensé pour eux", text: "Des idées pour les jeux, les promenades et le confort." },
+    { icon: "check" as const, title: "Choisir facilement", text: "Une sélection claire pour chaque compagnon." },
+    { icon: "arrow" as const, title: "Pour le quotidien", text: "Des petits essentiels qui font vraiment plaisir." },
+  ],
+  discoveryEyebrow: "Explorer l’univers animalier",
+  discoveryTitle: "Pour chiens, chats et compagnons",
+  discoveryText: "Parcourez les catégories de la boutique et préparez de beaux moments avec votre animal.",
+  discoveryAllShopLabel: "Voir la boutique",
+  discoveryBrowseShopLabel: "Découvrir les essentiels",
+  testimonialsEyebrow: "La communauté Pattes & Compagnie",
+  testimonialsTitle: "Vos compagnons ont leurs préférences.",
+  testimonialsText: "Les retours vérifiés seront publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer la boutique",
+  closingEyebrow: "Pour leurs journées heureuses",
+  closingTitle: "Faites-leur plaisir, simplement.",
+  closingText: "Retrouvez les essentiels qui rendent les journées de vos compagnons plus douces et plus amusantes.",
+  closingShopCtaLabel: "Voir les essentiels",
+  closingVisualText: "Une boutique complice, pensée pour eux.",
+  closingImageUrl: "/assets/themes/pet-category.webp",
+  customColorsEnabled: true,
+  customPrimary: "#3F6212",
+  customAccent: "#D97706",
+  customSoft: "#F7F8E8",
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Boutique", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "", href: "/nouveautes", visible: false, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Contact", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-chien", label: "Chiens", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-chat", label: "Chats", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-promenade", label: "Jeux & promenades", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
+const storefrontThemePresets = {
+  violetCraft: {
+    profile: violetCraftThemeTemplate,
+    hero: { title: "Diamond Painting & loisirs créatifs", subtitle: "Un univers violet pour imaginer, créer et se détendre à votre rythme.", imageUrl: "/assets/dyama/dyama-hero-diamond-painting.webp", linkUrl: "/categorie/diamond-painting" },
+    categoryImages: ["/assets/dyama/dyama-hero-diamond-painting.webp", "/assets/dyama/dyama-category-landscape.webp", "/assets/dyama/dyama-category-floral.webp", "/assets/dyama/dyama-category-yarn.webp"],
+  },
+  telephony: {
+    profile: telephonyThemeTemplate,
+    hero: { title: "Smartphones & accessoires", subtitle: "La technologie utile pour rester connecté, protégée et chargée au quotidien.", imageUrl: "/assets/themes/telephony-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/themes/telephony-category.webp", "/assets/category-high-tech.webp", "/assets/themes/telephony-category.webp"],
+  },
+  pet: {
+    profile: petThemeTemplate,
+    hero: { title: "Pour leurs petits et grands bonheurs", subtitle: "Des accessoires et essentiels choisis pour chiens, chats et leurs familles.", imageUrl: "/assets/themes/pet-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/themes/pet-category.webp", "/assets/themes/pet-category.webp", "/assets/themes/pet-category.webp"],
+  },
+} as const;
+
+const storefrontThemeIdSchema = z.enum(["violetCraft", "telephony", "pet"]);
+type StorefrontThemeId = z.infer<typeof storefrontThemeIdSchema>;
 function detectDeliveryCountry(address: string | null | undefined): string {
   if (!address) return "—";
   const lower = address.toLowerCase();
@@ -285,6 +416,57 @@ function logAudit(ctx: any, entry: {
     actorRole: user?.role ?? null,
     ...entry,
   }).catch(err => console.error("[audit]", entry.action, err instanceof Error ? err.message : err));
+}
+
+const storefrontThemeLabels: Record<StorefrontThemeId, string> = {
+  violetCraft: "Atelier créatif violet",
+  telephony: "Téléphonie & gadgets",
+  pet: "Animalerie complice",
+};
+
+async function applyStorefrontTheme(ctx: any, storeId: number, themeId: StorefrontThemeId) {
+  const preset = storefrontThemePresets[themeId];
+  const current = await db.getDesignProfile(storeId);
+  const sections = ownerHomepageSections.parse(preset.profile);
+  const navigationItems = z.array(navigationItem).min(1).max(16).parse(preset.profile.navigationItems);
+  const profile = await db.saveStudioOwnerPublicStorefrontProfile({
+    storeId,
+    profile: { ...current, ...preset.profile, ...sections, navigationItems },
+  });
+  const existingBanners = await db.getAllBanners(storeId);
+  const hero = { ...preset.hero, active: 1, displayOrder: 0 };
+  const firstBanner = existingBanners[0];
+  if (firstBanner) {
+    await db.saveStudioOwnerPublicStorefrontBanner({ storeId, bannerId: firstBanner.id, ...hero });
+    await db.markPublicContentTranslationsStale("banner", firstBanner.id, storeId);
+  } else {
+    await db.saveStudioOwnerPublicStorefrontBanner({ storeId, ...hero });
+  }
+  await Promise.all(existingBanners.slice(1).map(async banner => {
+    if (!banner.active) return;
+    await db.saveStudioOwnerPublicStorefrontBanner({
+      storeId,
+      bannerId: banner.id,
+      title: banner.title,
+      subtitle: banner.subtitle || "",
+      imageUrl: banner.imageUrl,
+      linkUrl: banner.linkUrl || "/boutique",
+      active: 0,
+      displayOrder: banner.displayOrder,
+    });
+    await db.markPublicContentTranslationsStale("banner", banner.id, storeId);
+  }));
+  const categoryImages = await db.applyStorefrontThemeCategoryImages(storeId, preset.categoryImages);
+  await Promise.all(categoryImages.updatedCategoryIds.map(categoryId => db.markPublicContentTranslationsStale("category", categoryId, storeId)));
+  await db.markPublicContentTranslationsStale("design", 1, storeId);
+  logAudit(ctx, {
+    action: `studio.storefront.template.${themeId}.apply`,
+    entityType: "store",
+    entityId: storeId,
+    summary: `Modèle ${storefrontThemeLabels[themeId]} appliqué à la boutique`,
+    metadata: { storeId, themeId, publicStorefront: true, replacedHero: true, categoryImageCount: categoryImages.updatedCategoryIds.length },
+  });
+  return { profile, heroApplied: true, categoryImageCount: categoryImages.updatedCategoryIds.length, themeId };
 }
 
 export const adminRouter = router({
@@ -640,55 +822,9 @@ export const adminRouter = router({
       logAudit(ctx, { action: "studio.storefront.home_sections.save", entityType: "design", entityId: 1, summary: "Sections d’accueil enregistrées depuis Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
       return profile;
     }),
-    applyVioletCraftStorefrontTemplate: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      const current = await db.getDesignProfile(input.storeId);
-      const sections = ownerHomepageSections.parse(violetCraftThemeTemplate);
-      const navigationItems = z.array(navigationItem).min(1).max(16).parse(violetCraftThemeTemplate.navigationItems);
-      const profile = await db.saveStudioOwnerPublicStorefrontProfile({
-        storeId: input.storeId,
-        profile: { ...current, ...violetCraftThemeTemplate, ...sections, navigationItems },
-      });
-      const existingBanners = await db.getAllBanners(input.storeId);
-      const hero = {
-        title: "Diamond Painting & loisirs créatifs",
-        subtitle: "Un univers violet pour imaginer, créer et se détendre à votre rythme.",
-        imageUrl: "/assets/dyama/dyama-hero-diamond-painting.webp",
-        linkUrl: "/categorie/diamond-painting",
-        active: 1,
-        displayOrder: 0,
-      };
-      const firstBanner = existingBanners[0];
-      if (firstBanner) {
-        await db.saveStudioOwnerPublicStorefrontBanner({ storeId: input.storeId, bannerId: firstBanner.id, ...hero });
-        await db.markPublicContentTranslationsStale("banner", firstBanner.id, input.storeId);
-      } else {
-        await db.saveStudioOwnerPublicStorefrontBanner({ storeId: input.storeId, ...hero });
-      }
-      await Promise.all(existingBanners.slice(1).map(async banner => {
-        if (!banner.active) return;
-        await db.saveStudioOwnerPublicStorefrontBanner({
-          storeId: input.storeId,
-          bannerId: banner.id,
-          title: banner.title,
-          subtitle: banner.subtitle || "",
-          imageUrl: banner.imageUrl,
-          linkUrl: banner.linkUrl || "/boutique",
-          active: 0,
-          displayOrder: banner.displayOrder,
-        });
-        await db.markPublicContentTranslationsStale("banner", banner.id, input.storeId);
-      }));
-      const categoryImages = await db.applyStorefrontThemeCategoryImages(input.storeId, [
-        "/assets/dyama/dyama-hero-diamond-painting.webp",
-        "/assets/dyama/dyama-category-landscape.webp",
-        "/assets/dyama/dyama-category-floral.webp",
-        "/assets/dyama/dyama-category-yarn.webp",
-      ]);
-      await Promise.all(categoryImages.updatedCategoryIds.map(categoryId => db.markPublicContentTranslationsStale("category", categoryId, input.storeId)));
-      await db.markPublicContentTranslationsStale("design", 1, input.storeId);
-      logAudit(ctx, { action: "studio.storefront.template.violet_craft.apply", entityType: "store", entityId: input.storeId, summary: "Modèle Atelier créatif violet appliqué à la boutique", metadata: { storeId: input.storeId, publicStorefront: true, replacedHero: true, categoryImageCount: categoryImages.updatedCategoryIds.length } });
-      return { profile, heroApplied: true, categoryImageCount: categoryImages.updatedCategoryIds.length };
-    }),
+    applyStorefrontTheme: platformProcedure.input(z.object({ storeId: z.number().int().positive(), themeId: storefrontThemeIdSchema })).mutation(async ({ ctx, input }) => applyStorefrontTheme(ctx, input.storeId, input.themeId)),
+    // Compatibility endpoint for the first published Studio preset.
+    applyVioletCraftStorefrontTemplate: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => applyStorefrontTheme(ctx, input.storeId, "violetCraft")),
     saveOwnerPublicStorefrontBanner: platformProcedure.input(z.object({
       storeId: z.number().int().positive(), bannerId: z.number().int().positive().optional(), title: z.string().trim().min(2).max(180), subtitle: z.string().trim().max(600).optional(), imageUrl: visualUrlSchema, linkUrl: z.string().trim().max(300).optional(), active: z.number().int().min(0).max(1), displayOrder: z.number().int().min(0).max(100),
     })).mutation(async ({ ctx, input }) => {

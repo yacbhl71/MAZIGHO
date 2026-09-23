@@ -5593,7 +5593,7 @@ export async function updateCategory(id: number, data: any, storeId?: number) {
  * This is deliberately a direct, store-scoped write: Studio theme application
  * must never run a schema migration while updating a published storefront.
  */
-export async function applyStorefrontThemeCategoryImages(storeId: number, imageUrls: string[]) {
+export async function applyStorefrontThemeCategoryImages(storeId: number, imageUrls: readonly string[]) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const storeCategories = await db.select({ id: categories.id }).from(categories)
