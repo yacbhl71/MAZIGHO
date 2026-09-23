@@ -55,7 +55,7 @@ const discoveryTileMeta = [
 export default function Home() {
   const { locale } = useLocale();
   const { formatStorePrice: formatPrice, currencyCode } = useStorePrice();
-  const { profile, palette } = useDesignProfile(locale);
+  const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
   const useManagedPublicTranslation = locale === "fr" || profile.contentTranslationReady === true;
   const copy = {
@@ -73,6 +73,7 @@ export default function Home() {
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const activeBannersQuery = trpc.content.getActiveBanners.useQuery(locale, { retry: false, refetchOnWindowFocus: false });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const highlightImageUrl = getOptimizedHomeImageUrl(profile.highlightImageUrl);
@@ -105,12 +106,24 @@ export default function Home() {
   const orderedKeys = profile.homeOrder?.length ? profile.homeOrder : ["discovery", "story", "testimonials", "editorial", "featured"];
   const orderIndex = (key: string) => { const index = orderedKeys.indexOf(key); return index === -1 ? 90 : index; };
 
+  // Never reveal the platform template while a client storefront is still
+  // resolving its own identity and carousel. A neutral, size-stable shell is
+  // preferable to showing MAZIGHO content for a fraction of a second.
+  const initialStorefrontLoading = designProfileLoading || storeAvailability.isLoading || activeBannersQuery.isLoading;
+  if (initialStorefrontLoading) {
+    return <div className="min-h-screen bg-slate-50" aria-busy="true" aria-label="Chargement de la boutique">
+      <div className="h-[104px] border-b border-slate-100 bg-white" />
+      <div className="h-[520px] animate-pulse bg-slate-200/80 md:h-[560px] lg:h-[640px]" />
+      <div className="container grid gap-5 py-8 md:grid-cols-3 md:py-12"><div className="h-36 rounded-3xl bg-slate-100" /><div className="h-36 rounded-3xl bg-slate-100" /><div className="h-36 rounded-3xl bg-slate-100" /></div>
+    </div>;
+  }
+
   return (
     <div className="min-h-screen text-slate-900" style={{ backgroundColor: palette.soft }}>
       <Header />
 
       <main>
-        <HeroBanner />
+        <HeroBanner allowPlatformFallback={!isClientStore} />
 
         <section className="container py-8 md:py-12">
           <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">

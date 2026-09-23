@@ -39,7 +39,7 @@ export default function Header() {
   const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
-  const { profile, palette } = useDesignProfile();
+  const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const storeSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
@@ -127,6 +127,10 @@ export default function Header() {
     if (item.id === "creations") return <div key={item.id} className="space-y-1"><Link href="/creations"><div onClick={close} className="cursor-pointer rounded px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50">{label}</div></Link><button onClick={() => setOpenDropdown(openDropdown === 3 ? null : 3)} className="flex w-full items-center justify-between rounded px-4 py-2 text-left text-xs font-medium text-rose-700 hover:bg-rose-50">Explorer les collections<span className={`text-xs transition-transform ${openDropdown === 3 ? "rotate-180" : ""}`}>▼</span></button>{openDropdown === 3 && <div className="space-y-1 rounded bg-rose-50 p-2">{creativeCategories.map(cat => <Link key={cat.id} href={`/categorie/${cat.slug}`}><div onClick={() => { setOpenDropdown(null); close(); }} className="cursor-pointer rounded px-4 py-2 text-xs hover:bg-white">{(cat as any).icon || "✦"} {cat.name}</div></Link>)}</div>}</div>;
     return <Link key={item.id} href={item.href}><div onClick={close} className={`cursor-pointer rounded px-4 py-2 text-sm ${item.id === "promos" ? "font-semibold text-orange-500 hover:bg-orange-50" : "text-slate-700 hover:bg-gray-100"}`}>{label}</div></Link>;
   };
+
+  if (designProfileLoading || storeAvailability.isLoading) {
+    return <header className="sticky top-0 z-50 border-b border-slate-100 bg-white" aria-busy="true" aria-label="Chargement de l’identité de la boutique"><div className="h-9 animate-pulse bg-slate-200/80" /><div className="flex h-16 items-center gap-3 px-4 sm:px-6"><div className="h-9 w-32 animate-pulse rounded-lg bg-slate-100" /><div className="hidden h-6 flex-1 animate-pulse rounded bg-slate-100 xl:block" /><div className="ml-auto h-9 w-28 animate-pulse rounded-lg bg-slate-100" /></div></header>;
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm">

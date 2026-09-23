@@ -42,9 +42,9 @@ type HeroSlide = {
   buttonText: string;
 };
 
-export default function HeroBanner() {
-  const { palette } = useDesignProfile();
+export default function HeroBanner({ allowPlatformFallback = true }: { allowPlatformFallback?: boolean }) {
   const { locale } = useLocale();
+  const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const copy = getPublicCopy(locale);
   const remoteBanners = trpc.content.getActiveBanners.useQuery(locale);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -66,6 +66,8 @@ export default function HeroBanner() {
       });
     }
 
+    if (!allowPlatformFallback) return [];
+
     return getBanners().map((banner) => {
       const localized = copy.hero.banners[banner.title as keyof typeof copy.hero.banners];
       return {
@@ -76,7 +78,7 @@ export default function HeroBanner() {
         imageUrl: imageForBanner(banner.title),
       };
     });
-  }, [remoteBanners.data, copy, locale]);
+  }, [allowPlatformFallback, remoteBanners.data, copy, locale]);
 
   useEffect(() => {
     if (currentSlide >= banners.length) setCurrentSlide(0);
@@ -103,7 +105,10 @@ export default function HeroBanner() {
   };
 
   const currentBanner = banners[currentSlide];
-  if (!currentBanner) return null;
+  if (remoteBanners.isLoading || designProfileLoading) return <div className="h-[520px] w-full animate-pulse bg-slate-200/80 md:h-[560px] lg:h-[640px]" aria-busy="true" aria-label="Chargement de la bannière" />;
+  if (!currentBanner) {
+    return <div className="relative flex h-[520px] w-full items-end overflow-hidden bg-slate-950 px-6 py-10 text-white md:h-[560px] md:px-10 lg:h-[640px] lg:px-16"><div className="absolute inset-0 opacity-30" style={{ background: `linear-gradient(135deg, ${palette.primary}, #020617)` }} /><div className="relative z-10 max-w-xl"><p className="text-xs font-bold uppercase tracking-[0.28em] text-white/70">{profile.brandMessage || "Votre boutique"}</p><h1 className="mt-4 text-4xl font-semibold leading-tight md:text-6xl">{profile.brandName}</h1><p className="mt-4 text-base leading-7 text-white/80">Préparez une bannière personnalisée depuis votre panneau de gestion.</p></div></div>;
+  }
 
   return (
     <div className="relative h-[520px] w-full overflow-hidden md:h-[560px] lg:h-[640px]">
