@@ -25,9 +25,12 @@ const localizedHeroTitles: Record<StorefrontLocale, Record<string, string>> = {
 
 function imageForBanner(title: string, imageUrl?: string | null) {
   const normalizedTitle = title.toLocaleLowerCase("fr");
+  // A store owner’s own image must always take precedence over the historic
+  // generic fallback visuals, including the default fashion and beauty slides.
+  if (imageUrl && !imageUrl.includes("placehold.co")) return imageUrl;
   if (normalizedTitle.includes("mode")) return HERO_MODE_IMAGE;
   if (normalizedTitle.includes("beauté") || normalizedTitle.includes("beaute")) return HERO_BEAUTE_IMAGE;
-  return imageUrl && !imageUrl.includes("placehold.co") ? imageUrl : DEFAULT_HERO_IMAGE;
+  return DEFAULT_HERO_IMAGE;
 }
 
 type HeroSlide = {

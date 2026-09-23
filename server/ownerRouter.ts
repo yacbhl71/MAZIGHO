@@ -127,6 +127,15 @@ const ownerProductVariantFields = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
+const ownerCarouselBanner = z.object({
+  title: z.string().trim().min(2, "Indiquez le titre de la diapositive.").max(160),
+  subtitle: z.string().trim().max(600),
+  imageUrl: visualUrl.refine(value => value.length > 0, "Ajoutez une image à la diapositive."),
+  linkUrl: z.union([z.literal(""), z.string().trim().max(500).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez un lien https:// ou un chemin commençant par /.")]),
+  active: z.boolean(),
+  displayOrder: z.number().int().min(0).max(999),
+});
+
 export const ownerRouter = router({
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
@@ -216,6 +225,22 @@ export const ownerRouter = router({
     if (uniqueIds.size !== input.items.length) throw new Error("NAVIGATION_DUPLICATE_ID");
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, navigationItems: input.items }, ctx.store!.id);
+  }),
+  getCarouselBanners: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getAllBanners(ctx.store!.id);
+  }),
+  createCarouselBanner: storeManagementProcedure.input(ownerCarouselBanner).mutation(async ({ ctx, input }) => {
+    const created = await db.createBanner({ ...input, active: input.active ? 1 : 0, linkUrl: input.linkUrl || undefined }, ctx.store!.id);
+    return created;
+  }),
+  updateCarouselBanner: storeManagementProcedure.input(ownerCarouselBanner.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const { id, ...banner } = input;
+    const updated = await db.updateBanner(id, { ...banner, active: banner.active ? 1 : 0, linkUrl: banner.linkUrl || undefined }, ctx.store!.id);
+    await db.markPublicContentTranslationsStale("banner", id, ctx.store!.id);
+    return updated;
+  }),
+  deleteCarouselBanner: storeManagementProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    return await db.deleteBanner(input.id, ctx.store!.id);
   }),
   createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);

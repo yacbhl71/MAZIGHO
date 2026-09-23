@@ -27,6 +27,11 @@ vi.mock("./db", () => ({
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
   deleteOwnerProductVariant: vi.fn(async () => ({ success: true })),
+  getAllBanners: vi.fn(async () => [{ id: 12, title: "Atelier", subtitle: "Une sélection créative", imageUrl: "/assets/banner.webp", linkUrl: "/boutique", active: 1, displayOrder: 0 }]),
+  createBanner: vi.fn(async () => ({ success: true, id: 13 })),
+  updateBanner: vi.fn(async () => ({ success: true })),
+  deleteBanner: vi.fn(async () => ({ success: true })),
+  markPublicContentTranslationsStale: vi.fn(async () => undefined),
 }));
 
 import * as db from "./db";
@@ -92,6 +97,20 @@ describe("owner product variant routes", () => {
     });
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ paletteId: "violet", customColorsEnabled: true }), 77);
+  });
+
+  it("edits carousel slides only inside the current resolved store", async () => {
+    const caller = callerFor();
+    await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);
+    expect(db.getAllBanners).toHaveBeenCalledWith(77);
+
+    const input = { title: "Créations Dyama", subtitle: "Diamond Painting et broderie", imageUrl: "/assets/dyama.webp", linkUrl: "/categorie/diamond-painting", active: true, displayOrder: 2 };
+    await expect(caller.owner.createCarouselBanner(input)).resolves.toEqual({ success: true, id: 13 });
+    expect(db.createBanner).toHaveBeenCalledWith(expect.objectContaining({ title: "Créations Dyama", active: 1 }), 77);
+
+    await expect(caller.owner.updateCarouselBanner({ id: 12, ...input, active: false })).resolves.toEqual({ success: true });
+    expect(db.updateBanner).toHaveBeenCalledWith(12, expect.objectContaining({ active: 0 }), 77);
+    expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("banner", 12, 77);
   });
 
   it("uses only the resolved store for public market visibility", async () => {
