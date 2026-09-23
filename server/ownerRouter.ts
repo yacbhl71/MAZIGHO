@@ -56,6 +56,38 @@ export const ownerHomepageSections = z.object({
   }
 });
 
+const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
+const ownerFooterSettings = z.object({
+  footerDescription: z.string().trim().max(420),
+  footerNavigationTitle: z.string().trim().max(60),
+  footerCategoriesTitle: z.string().trim().max(60),
+  footerHelpTitle: z.string().trim().max(60),
+  footerContactText: z.string().trim().max(160),
+  footerContactUrl: storefrontLink,
+  footerDeliveryTitle: z.string().trim().max(80),
+  footerDeliveryText: z.string().trim().max(220),
+  footerSecureTitle: z.string().trim().max(80),
+  footerSecureText: z.string().trim().max(220),
+  footerServiceTitle: z.string().trim().max(80),
+  footerServiceText: z.string().trim().max(220),
+  footerCopyrightText: z.string().trim().max(160),
+  footerShowNavigation: z.boolean(),
+  footerShowCategories: z.boolean(),
+  footerShowHelp: z.boolean(),
+  footerShowReassurance: z.boolean(),
+  footerSocialLinks: z.array(z.object({
+    id: z.enum(footerSocialIds),
+    url: z.string().trim().max(500).refine(value => value === "" || /^https:\/\//i.test(value), "Utilisez une URL https:// ou laissez le réseau social vide."),
+  })).length(footerSocialIds.length),
+}).superRefine((input, ctx) => {
+  if (new Set(input.footerSocialLinks.map(link => link.id)).size !== footerSocialIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["footerSocialLinks"], message: "Chaque réseau social ne peut être indiqué qu’une seule fois." });
+  }
+  if (input.footerContactText && !input.footerContactUrl) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["footerContactUrl"], message: "Indiquez le lien associé au message de contact." });
+  }
+});
+
 const storefrontPaletteIds = ["terracotta", "sage", "midnight", "rose", "violet"] as const;
 type StorefrontPaletteId = typeof storefrontPaletteIds[number];
 
@@ -384,6 +416,16 @@ export const ownerRouter = router({
       "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryBrowseShopLabel",
       "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel",
       "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingContactCtaLabel", "closingVisualValue", "closingVisualText",
+    ] as const;
+    if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    return saved;
+  }),
+  saveFooter: storeManagementProcedure.input(ownerFooterSettings).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    const saved = await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+    const publicCopyFields = [
+      "footerDescription", "footerNavigationTitle", "footerCategoriesTitle", "footerHelpTitle", "footerContactText",
+      "footerDeliveryTitle", "footerDeliveryText", "footerSecureTitle", "footerSecureText", "footerServiceTitle", "footerServiceText", "footerCopyrightText",
     ] as const;
     if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;

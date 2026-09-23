@@ -6906,6 +6906,11 @@ export type HomeTextBanner = {
   enabled: boolean;
 };
 
+export type FooterSocialLink = {
+  id: "instagram" | "facebook" | "tiktok" | "youtube" | "pinterest" | "linkedin";
+  url: string;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
@@ -6966,6 +6971,24 @@ export type DesignProfile = {
   customSoft: string;
   buttonRadius: ButtonRadius;
   headerLayout: "inline" | "split" | "searchFirst";
+  footerDescription: string;
+  footerNavigationTitle: string;
+  footerCategoriesTitle: string;
+  footerHelpTitle: string;
+  footerContactText: string;
+  footerContactUrl: string;
+  footerDeliveryTitle: string;
+  footerDeliveryText: string;
+  footerSecureTitle: string;
+  footerSecureText: string;
+  footerServiceTitle: string;
+  footerServiceText: string;
+  footerCopyrightText: string;
+  footerShowNavigation: boolean;
+  footerShowCategories: boolean;
+  footerShowHelp: boolean;
+  footerShowReassurance: boolean;
+  footerSocialLinks: FooterSocialLink[];
   homeOrder: string[];
   textBanners: HomeTextBanner[];
 };
@@ -7034,6 +7057,31 @@ export const defaultDesignProfile: DesignProfile = {
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
   headerLayout: "inline",
+  footerDescription: "Votre destination pour des produits premium de qualité exceptionnelle.",
+  footerNavigationTitle: "Navigation",
+  footerCategoriesTitle: "Catégories",
+  footerHelpTitle: "Besoin d’aide ?",
+  footerContactText: "Écrivez-nous via le formulaire de contact",
+  footerContactUrl: "/contact",
+  footerDeliveryTitle: "Livraison Suisse & Europe",
+  footerDeliveryText: "Les conditions sont précisées avant validation.",
+  footerSecureTitle: "Connexion sécurisée",
+  footerSecureText: "Votre navigation est protégée par HTTPS.",
+  footerServiceTitle: "Service client",
+  footerServiceText: "Une question ? Utilisez notre formulaire.",
+  footerCopyrightText: "Tous droits réservés.",
+  footerShowNavigation: true,
+  footerShowCategories: true,
+  footerShowHelp: true,
+  footerShowReassurance: true,
+  footerSocialLinks: [
+    { id: "instagram", url: "" },
+    { id: "facebook", url: "" },
+    { id: "tiktok", url: "" },
+    { id: "youtube", url: "" },
+    { id: "pinterest", url: "" },
+    { id: "linkedin", url: "" },
+  ],
   homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };
@@ -7060,6 +7108,8 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel", "testimonialsCtaUrl",
     "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingShopCtaUrl", "closingContactCtaLabel", "closingContactCtaUrl", "closingVisualValue", "closingVisualText", "closingImageUrl",
     "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
+    "footerDescription", "footerNavigationTitle", "footerCategoriesTitle", "footerHelpTitle", "footerContactText", "footerContactUrl",
+    "footerDeliveryTitle", "footerDeliveryText", "footerSecureTitle", "footerSecureText", "footerServiceTitle", "footerServiceText", "footerCopyrightText",
   ] as const;
   const normalized = { ...defaultDesignProfile, paletteId, typographyId };
   for (const field of textFields) {
@@ -7107,9 +7157,24 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
+
+  const socialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
+  const socialLinks = new Map<FooterSocialLink["id"], FooterSocialLink>();
+  if (Array.isArray(source.footerSocialLinks)) {
+    for (const raw of source.footerSocialLinks.slice(0, socialIds.length)) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const id = typeof item.id === "string" && socialIds.includes(item.id as FooterSocialLink["id"])
+        ? item.id as FooterSocialLink["id"]
+        : null;
+      const url = typeof item.url === "string" ? item.url.trim().slice(0, 500) : "";
+      if (id && (url === "" || /^https:\/\//i.test(url))) socialLinks.set(id, { id, url });
+    }
+  }
+  normalized.footerSocialLinks = socialIds.map(id => socialLinks.get(id) || { id, url: "" });
 
   const reassuranceItems: DesignProfile["reassuranceItems"] = [];
   if (Array.isArray(source.reassuranceItems)) {

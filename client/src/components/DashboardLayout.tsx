@@ -89,6 +89,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     tone: "sky",
     items: [
       { icon: LayoutDashboard, label: "Tableau de bord", path: "/admin" },
+      { icon: Users, label: "Équipe & accès", path: "/admin/utilisateurs" },
       { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
       { icon: FileSpreadsheet, label: "Export comptable & TVA", path: "/admin/comptabilite" },
       { icon: TrendingUp, label: "Taux de conversion", path: "/admin/conversion" },
@@ -119,7 +120,6 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     label: "Relation & contenu",
     tone: "violet",
     items: [
-      { icon: Users, label: "Utilisateurs", path: "/admin/utilisateurs" },
       { icon: Star, label: "Avis clients", path: "/admin/avis" },
       { icon: MessageSquare, label: "Messages", path: "/admin/messages" },
       { icon: Layout, label: "Contenu", path: "/admin/contenu" },

@@ -124,6 +124,39 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ headerLayout: "searchFirst" }), 77);
   });
 
+  it("saves footer settings only through the current resolved store", async () => {
+    const input = {
+      footerDescription: "Une boutique créative à votre image.",
+      footerNavigationTitle: "Explorer",
+      footerCategoriesTitle: "Univers",
+      footerHelpTitle: "Nous contacter",
+      footerContactText: "Écrivez à l’atelier",
+      footerContactUrl: "/contact",
+      footerDeliveryTitle: "Livraison",
+      footerDeliveryText: "Les conditions sont affichées avant validation.",
+      footerSecureTitle: "Paiement sécurisé",
+      footerSecureText: "Navigation chiffrée par HTTPS.",
+      footerServiceTitle: "Conseil",
+      footerServiceText: "Une question ? Notre équipe vous répond.",
+      footerCopyrightText: "Tous droits réservés.",
+      footerShowNavigation: true,
+      footerShowCategories: true,
+      footerShowHelp: true,
+      footerShowReassurance: false,
+      footerSocialLinks: [
+        { id: "instagram" as const, url: "https://instagram.example.test/atelier" },
+        { id: "facebook" as const, url: "" },
+        { id: "tiktok" as const, url: "" },
+        { id: "youtube" as const, url: "" },
+        { id: "pinterest" as const, url: "" },
+        { id: "linkedin" as const, url: "" },
+      ],
+    };
+    await expect(callerFor().owner.saveFooter(input)).resolves.toMatchObject({ footerDescription: input.footerDescription });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ footerDescription: input.footerDescription, footerSocialLinks: input.footerSocialLinks }), 77);
+  });
+
   it("saves homepage content only through the current resolved store", async () => {
     const input = {
       showReassurance: true,

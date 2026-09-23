@@ -1,72 +1,104 @@
-import { Mail } from "lucide-react";
+import { Facebook, Instagram, Linkedin, Mail, Music2, PinIcon, Youtube } from "lucide-react";
 import { Link } from "wouter";
 import { useLocale } from "@/contexts/LocaleContext";
 import { t } from "@/lib/i18n";
-import { getDiscoveryTiles, getPublicCopy } from "@/lib/publicCopy";
+import { getPublicCopy } from "@/lib/publicCopy";
+import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { trpc } from "@/lib/trpc";
+import { useDesignProfile, type FooterSocialLink } from "@/hooks/useDesignProfile";
 
-const categoryRoutes = [
-  "/categorie/high-tech-gadgets",
-  "/categorie/maison-organisation",
-  "/categorie/beaute-bien-etre",
-  "/categorie/sport-fitness",
-  "/categorie/mode",
-];
+const socialMeta: Record<FooterSocialLink["id"], { label: string; icon: typeof Instagram }> = {
+  instagram: { label: "Instagram", icon: Instagram },
+  facebook: { label: "Facebook", icon: Facebook },
+  tiktok: { label: "TikTok", icon: Music2 },
+  youtube: { label: "YouTube", icon: Youtube },
+  pinterest: { label: "Pinterest", icon: PinIcon },
+  linkedin: { label: "LinkedIn", icon: Linkedin },
+};
+
+function StorefrontFooterLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+  if (/^https:\/\//i.test(href)) return <a href={href} target="_blank" rel="noreferrer" className={className}>{children}</a>;
+  return <Link href={href || "/"}><span className={className}>{children}</span></Link>;
+}
 
 export default function Footer() {
   const { locale } = useLocale();
   const copy = getPublicCopy(locale);
-  const discoveryTiles = getDiscoveryTiles(locale);
-  const categoryLabels = [discoveryTiles[4]?.title, discoveryTiles[2]?.title, discoveryTiles[1]?.title, discoveryTiles[3]?.title, discoveryTiles[0]?.title];
+  const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
+  const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale);
+  const categories = (categoriesQuery.data || [])
+    .map(category => getLocalizedCategoryPresentation(locale, category))
+    .filter(category => category.catalogSection !== "creations")
+    .slice(0, 5);
+  const visibleNavigation = (profile.navigationItems || []).filter(item => item.visible).slice(0, 7);
+  const fallbackNavigationLabels: Record<string, string> = {
+    home: t(locale, "home"),
+    shop: t(locale, "shop"),
+    categories: t(locale, "categories"),
+    creations: t(locale, "creations"),
+    new: t(locale, "new"),
+    "best-sellers": t(locale, "bestSellers"),
+    promos: t(locale, "promotions"),
+    contact: t(locale, "contact"),
+  };
+  const socialLinks = (profile.footerSocialLinks || []).filter(link => link.url);
+  const brandName = profile.brandName?.trim() || "Boutique";
+  const linkClass = "cursor-pointer text-sm text-white/80 transition-colors hover:text-white";
+
+  if (designProfileLoading || storeAvailability.isLoading) {
+    return <footer className="mt-20 bg-slate-900" aria-busy="true" aria-label="Chargement du pied de page"><div className="container mx-auto h-52 animate-pulse px-4 py-12"><div className="h-5 w-40 rounded bg-white/15" /><div className="mt-6 grid gap-6 md:grid-cols-4"><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /></div></div></footer>;
+  }
 
   return (
-    <footer className="mt-20 bg-amber-950 text-white">
-      <div className="container mx-auto py-12 px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+    <footer className="mt-20 text-white" style={{ backgroundColor: palette.primary }}>
+      <div className="container mx-auto px-4 py-12">
+        <div className={`grid grid-cols-1 gap-8 ${[profile.footerShowNavigation && visibleNavigation.length > 0, profile.footerShowCategories && categories.length > 0, profile.footerShowHelp].filter(Boolean).length >= 3 ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
           <div className="space-y-4">
-            <div className="flex items-center gap-2"><span className="text-xl font-semibold tracking-[0.13em] text-white">MAZIGHO</span><span className="h-2 w-2 rounded-full bg-orange-500" aria-hidden="true" /></div>
-            <p className="text-amber-100 text-sm">{copy.footer.description}</p>
+            <StorefrontFooterLink href="/" className="inline-flex items-center gap-3">
+              {profile.brandLogoUrl ? <img src={profile.brandLogoUrl} alt="" className="h-10 w-10 rounded-lg border border-white/20 bg-white object-contain p-0.5" /> : null}
+              <span className="text-xl font-semibold tracking-[0.11em] text-white">{brandName}</span>
+            </StorefrontFooterLink>
+            {profile.footerDescription ? <p className="max-w-xs text-sm leading-6 text-white/80">{profile.footerDescription}</p> : null}
+            {socialLinks.length > 0 ? <div className="flex flex-wrap gap-2 pt-1">{socialLinks.map(link => {
+              const meta = socialMeta[link.id];
+              const Icon = meta.icon;
+              return <a key={link.id} href={link.url} target="_blank" rel="noreferrer" aria-label={meta.label} title={meta.label} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-white transition-colors hover:bg-white/15"><Icon className="h-4 w-4" /></a>;
+            })}</div> : null}
           </div>
 
-          <div>
-            <h3 className="font-semibold text-white mb-4 text-lg">{copy.footer.navigation}</h3>
-            <ul className="space-y-2">
-              <li><Link href="/"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{t(locale, "home")}</span></Link></li>
-              <li><Link href="/boutique"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{t(locale, "shop")}</span></Link></li>
-              <li><Link href="/a-propos"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{copy.footer.about}</span></Link></li>
-              <li><Link href="/contact"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{t(locale, "contact")}</span></Link></li>
-            </ul>
-          </div>
+          {profile.footerShowNavigation && visibleNavigation.length > 0 ? <div>
+            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerNavigationTitle}</h3>
+            <ul className="space-y-2">{visibleNavigation.map(item => <li key={item.id}><StorefrontFooterLink href={item.href} className={linkClass}>{item.label?.trim() || fallbackNavigationLabels[item.id] || "Menu"}</StorefrontFooterLink></li>)}</ul>
+          </div> : null}
 
-          <div>
-            <h3 className="font-semibold text-white mb-4 text-lg">{copy.footer.categories}</h3>
-            <ul className="space-y-2">{categoryLabels.map((label, index) => <li key={categoryRoutes[index]}><Link href={categoryRoutes[index]}><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{label || copy.footer.categoryLabels[index]}</span></Link></li>)}</ul>
-          </div>
+          {profile.footerShowCategories && categories.length > 0 ? <div>
+            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerCategoriesTitle}</h3>
+            <ul className="space-y-2">{categories.map(category => <li key={category.id}><StorefrontFooterLink href={`/categorie/${category.slug}`} className={linkClass}>{category.name}</StorefrontFooterLink></li>)}</ul>
+          </div> : null}
 
-          <div>
-            <h3 className="font-semibold text-white mb-4 text-lg">{copy.footer.help}</h3>
+          {profile.footerShowHelp ? <div>
+            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerHelpTitle}</h3>
             <ul className="space-y-3">
-              <li><Link href="/faq"><span className="text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm">{t(locale, "faq")}</span></Link></li>
-              <li><Link href="/contact"><span className="flex items-start gap-2 text-amber-100 hover:text-orange-400 transition-colors cursor-pointer text-sm"><Mail className="h-4 w-4 mt-0.5 text-orange-500 flex-shrink-0" />{copy.footer.contactForm}</span></Link></li>
-              <li className="text-amber-100 text-sm leading-relaxed">{copy.footer.contactInfo}</li>
+              <li><StorefrontFooterLink href="/faq" className={linkClass}>{t(locale, "faq")}</StorefrontFooterLink></li>
+              {profile.footerContactText ? <li><StorefrontFooterLink href={profile.footerContactUrl} className={`flex items-start gap-2 ${linkClass}`}><Mail className="mt-0.5 h-4 w-4 shrink-0 text-white" />{profile.footerContactText}</StorefrontFooterLink></li> : null}
             </ul>
-          </div>
+          </div> : null}
         </div>
 
-        <div className="border-t border-amber-800 mt-8 pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="text-center md:text-left"><h4 className="font-semibold text-white mb-2 text-sm">{copy.footer.deliveryTitle}</h4><p className="text-amber-100 text-xs">{copy.footer.deliveryText}</p></div>
-            <div className="text-center"><h4 className="font-semibold text-white mb-2 text-sm">{copy.footer.secureTitle}</h4><p className="text-amber-100 text-xs">{copy.footer.secureText}</p></div>
-            <div className="text-center md:text-right"><h4 className="font-semibold text-white mb-2 text-sm">{copy.footer.serviceTitle}</h4><p className="text-amber-100 text-xs">{copy.footer.serviceText}</p></div>
-          </div>
+        {profile.footerShowReassurance ? <div className="mt-8 grid grid-cols-1 gap-4 border-t border-white/20 pt-8 md:grid-cols-3">
+          <div className="text-center md:text-left"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerDeliveryTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerDeliveryText}</p></div>
+          <div className="text-center"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerSecureTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerSecureText}</p></div>
+          <div className="text-center md:text-right"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerServiceTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerServiceText}</p></div>
+        </div> : null}
 
-          <div className="text-center border-t border-amber-800 pt-6">
-            <p className="text-amber-100 text-sm mb-2">© {new Date().getFullYear()} MAZIGHO. {copy.footer.rights}</p>
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-amber-200">
-              <Link href="/conditions-generales"><span className="cursor-pointer hover:text-orange-400">{copy.footer.terms}</span></Link><span aria-hidden="true">•</span>
-              <Link href="/livraison-retours"><span className="cursor-pointer hover:text-orange-400">{copy.footer.returns}</span></Link><span aria-hidden="true">•</span>
-              <Link href="/confidentialite"><span className="cursor-pointer hover:text-orange-400">{copy.footer.privacy}</span></Link><span aria-hidden="true">•</span>
-              <Link href="/mentions-legales"><span className="cursor-pointer hover:text-orange-400">{copy.footer.legal}</span></Link>
-            </div>
+        <div className="mt-8 border-t border-white/20 pt-6 text-center">
+          <p className="mb-2 text-sm text-white/80">© {new Date().getFullYear()} {brandName}. {profile.footerCopyrightText}</p>
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-white/75">
+            <StorefrontFooterLink href="/conditions-generales" className="cursor-pointer hover:text-white">{copy.footer.terms}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/livraison-retours" className="cursor-pointer hover:text-white">{copy.footer.returns}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/confidentialite" className="cursor-pointer hover:text-white">{copy.footer.privacy}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/mentions-legales" className="cursor-pointer hover:text-white">{copy.footer.legal}</StorefrontFooterLink>
           </div>
         </div>
       </div>

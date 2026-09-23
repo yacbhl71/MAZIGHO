@@ -73,10 +73,10 @@ export default function Header() {
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
-  const headerLayout = isPlatformStore ? "inline" : profile.headerLayout || "inline";
+  const headerLayout = profile.headerLayout || "inline";
   const usesSplitHeader = headerLayout === "split";
   const usesSearchFirstHeader = headerLayout === "searchFirst";
-  const faviconUrl = isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : profile.faviconUrl?.trim() || brandLogoUrl;
+  const faviconUrl = profile.faviconUrl?.trim() || brandLogoUrl || (isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : "");
   useEffect(() => {
     if (!faviconUrl || typeof document === "undefined") return;
     const icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
@@ -139,7 +139,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-white shadow-sm" data-storefront-header-layout={headerLayout}>
       <CampaignBar />
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={hasResolvedNonPlatformStore ? { backgroundImage: "none", backgroundColor: palette.primary } : undefined}>
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={{ backgroundImage: "none", backgroundColor: palette.primary }}>
         <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-1 text-xs font-medium md:text-sm">
           <span>{t(locale, "topSelection")}</span>
           <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
@@ -155,7 +155,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
             <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
-              {isPlatformStore ? <div className="flex h-11 w-12 shrink-0 flex-col items-center justify-center" aria-label="MAZIGHO Boutique"><img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-7 w-7 object-contain" /><span className="mt-0.5 text-[8px] font-extrabold leading-none tracking-[0.16em] text-slate-900">MAZIGHO</span></div> : <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" style={hasResolvedNonPlatformStore ? { borderColor: palette.soft } : undefined} /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg" style={hasResolvedNonPlatformStore ? { color: palette.primary } : undefined}>{brandName}</span>{!brandLogoUrl && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" style={hasResolvedNonPlatformStore ? { backgroundColor: palette.accent } : undefined} aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline" style={hasResolvedNonPlatformStore ? { borderColor: palette.soft } : undefined}>{brandMessage}</span> : null}</>}
+              <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" style={{ borderColor: palette.soft }} /> : isPlatformStore ? <img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-8 w-8 shrink-0 object-contain" /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg" style={{ color: palette.primary }}>{brandName}</span>{!brandLogoUrl && !isPlatformStore && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" style={{ backgroundColor: palette.accent }} aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline" style={{ borderColor: palette.soft }}>{brandMessage}</span> : null}</>
             </div>
           </Link>
 
@@ -196,7 +196,7 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md bg-orange-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-orange-800 sm:inline-flex" style={hasResolvedNonPlatformStore ? { backgroundColor: palette.primary } : undefined}>
+            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md bg-orange-700 px-2 py-1.5 text-xs font-medium text-white hover:bg-orange-800 sm:inline-flex" style={{ backgroundColor: palette.primary }}>
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>
             </Link>

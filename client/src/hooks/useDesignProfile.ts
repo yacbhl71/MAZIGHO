@@ -36,6 +36,11 @@ export type ReassuranceItem = {
   text: string;
 };
 
+export type FooterSocialLink = {
+  id: "instagram" | "facebook" | "tiktok" | "youtube" | "pinterest" | "linkedin";
+  url: string;
+};
+
 export type DesignProfile = {
   paletteId: "terracotta" | "sage" | "midnight" | "rose" | "violet";
   typographyId: "editorial" | "modern" | "classic";
@@ -96,6 +101,24 @@ export type DesignProfile = {
   customSoft: string;
   buttonRadius: ButtonRadius;
   headerLayout: HeaderLayout;
+  footerDescription: string;
+  footerNavigationTitle: string;
+  footerCategoriesTitle: string;
+  footerHelpTitle: string;
+  footerContactText: string;
+  footerContactUrl: string;
+  footerDeliveryTitle: string;
+  footerDeliveryText: string;
+  footerSecureTitle: string;
+  footerSecureText: string;
+  footerServiceTitle: string;
+  footerServiceText: string;
+  footerCopyrightText: string;
+  footerShowNavigation: boolean;
+  footerShowCategories: boolean;
+  footerShowHelp: boolean;
+  footerShowReassurance: boolean;
+  footerSocialLinks: FooterSocialLink[];
   homeOrder: string[];
   textBanners: HomeTextBanner[];
   contentTranslationReady?: boolean;
@@ -174,6 +197,31 @@ export const defaultDesignProfile: DesignProfile = {
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
   headerLayout: "inline",
+  footerDescription: "Votre destination pour des produits premium de qualité exceptionnelle.",
+  footerNavigationTitle: "Navigation",
+  footerCategoriesTitle: "Catégories",
+  footerHelpTitle: "Besoin d’aide ?",
+  footerContactText: "Écrivez-nous via le formulaire de contact",
+  footerContactUrl: "/contact",
+  footerDeliveryTitle: "Livraison Suisse & Europe",
+  footerDeliveryText: "Les conditions sont précisées avant validation.",
+  footerSecureTitle: "Connexion sécurisée",
+  footerSecureText: "Votre navigation est protégée par HTTPS.",
+  footerServiceTitle: "Service client",
+  footerServiceText: "Une question ? Utilisez notre formulaire.",
+  footerCopyrightText: "Tous droits réservés.",
+  footerShowNavigation: true,
+  footerShowCategories: true,
+  footerShowHelp: true,
+  footerShowReassurance: true,
+  footerSocialLinks: [
+    { id: "instagram", url: "" },
+    { id: "facebook", url: "" },
+    { id: "tiktok", url: "" },
+    { id: "youtube", url: "" },
+    { id: "pinterest", url: "" },
+    { id: "linkedin", url: "" },
+  ],
   homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };
