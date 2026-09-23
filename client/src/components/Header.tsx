@@ -144,7 +144,7 @@ export default function Header() {
 
       {/* Main Navigation */}
       <nav className="w-full px-3 py-2 sm:px-4 xl:px-6 xl:py-2.5">
-        <div className="flex items-center justify-between gap-2 xl:gap-3">
+        <div className="flex items-center gap-2 xl:gap-3">
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
             <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
@@ -153,21 +153,21 @@ export default function Header() {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden xl:flex flex-shrink-0 items-center gap-0">
+          <div className="hidden xl:flex flex-shrink-0 items-center gap-0 xl:ml-5">
             {navigationItems.map(renderDesktopNavigationItem)}
           </div>
 
           {/* Search Bar - Desktop */}
-          <div className="hidden xl:block w-32 flex-none mx-1">
+          <div className="hidden w-32 flex-none xl:ml-auto xl:block">
             <SearchBar />
           </div>
 
           {showCountrySelector && <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`}><label className="sr-only" htmlFor="delivery-country">{t(locale, "deliveryCountry")}</label><select id="delivery-country" aria-label={`${t(locale, "deliveryCountry")} : ${getLocalizedCountryName(countryCode, locale)}`} value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="w-[4.65rem] bg-transparent font-semibold outline-none"><option disabled value="">🌐 --</option>{activeCountries.map(country => <option key={country.code} value={country.code}>{`${countryFlags[country.code] || "🌐"} ${country.code}`}</option>)}</select></div>}
 
-          {showLanguageSelector && <div className="hidden xl:flex items-center rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-600" title={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`}><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" aria-label={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`} value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="w-[4.65rem] bg-transparent font-semibold outline-none">{activeLanguages.map(option => <option key={option.code} value={option.code}>{`${languageFlags[option.code] || "🌐"} ${option.code.toUpperCase()}`}</option>)}</select></div>}
+          {showLanguageSelector && <div className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-base shadow-sm transition-colors hover:border-orange-300 hover:bg-orange-50 xl:flex" title={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`}><span aria-hidden="true">{languageFlags[locale] || "🌐"}</span><label className="sr-only" htmlFor="storefront-language">{t(locale, "displayLanguage")}</label><select id="storefront-language" aria-label={`${t(locale, "displayLanguage")} : ${localeOptions.find(option => option.code === locale)?.nativeLabel || locale}`} value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0">{activeLanguages.map(option => <option key={option.code} value={option.code}>{`${languageFlags[option.code] || "🌐"} ${option.code.toUpperCase()}`}</option>)}</select></div>}
 
           {/* Right Icons */}
-          <div className="flex items-center gap-0.5">
+          <div className="ml-auto flex items-center gap-0.5 xl:ml-0">
             <ThemeToggle />
             <Link href="/favoris" aria-label="Favoris">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden 2xl:block">
