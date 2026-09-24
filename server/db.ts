@@ -5660,6 +5660,158 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
 }
 
 /**
+ * Read-only owner preflight for the information that must be in place before
+ * a future payment activation can even be considered. It deliberately does
+ * not create orders, change a store status, configure Stripe, or start any
+ * commercial workflow. Every query is scoped to the current store and avoids
+ * optional-schema migrations during a normal owner-panel page load.
+ */
+export async function getOwnerCommercialReadiness(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [storeRows, productRows, imageRows, profile, shipping, legal, markets] = await Promise.all([
+    db.select({ displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
+      .from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ id: products.id, status: products.status, price: products.price, stock: products.stock })
+      .from(products).where(eq(products.storeId, storeId)),
+    db.select({ productId: productImages.productId }).from(productImages).where(eq(productImages.storeId, storeId)),
+    getDesignProfile(storeId),
+    getOwnerShippingReturnsSettings(storeId),
+    getOwnerLegalContactProfile(storeId),
+    getStoreMarketSettings(storeId),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  let variants: Array<{ productId: number; stock: number; status: "active" | "inactive" }> = [];
+  try {
+    variants = await db.select({ productId: ownerProductVariants.productId, stock: ownerProductVariants.stock, status: ownerProductVariants.status })
+      .from(ownerProductVariants)
+      .where(eq(ownerProductVariants.storeId, storeId));
+  } catch (error) {
+    // The table is optional for legacy boutiques. Treat it as no variants rather
+    // than allowing a readiness page to fail or run a migration.
+    console.warn("[OwnerCommercialReadiness] Optional variant table unavailable", error);
+  }
+
+  const imageProductIds = new Set(imageRows.map(row => row.productId));
+  const activeVariantsByProduct = new Map<number, Array<{ stock: number; status: "active" | "inactive" }>>();
+  for (const variant of variants) {
+    const current = activeVariantsByProduct.get(variant.productId) ?? [];
+    current.push({ stock: variant.stock, status: variant.status });
+    activeVariantsByProduct.set(variant.productId, current);
+  }
+  const activeProducts = productRows.filter(product => product.status === "active");
+  const pricedProducts = activeProducts.filter(product => Number(product.price) > 0);
+  const stockedProducts = pricedProducts.filter(product => {
+    const activeVariants = (activeVariantsByProduct.get(product.id) ?? []).filter(variant => variant.status === "active");
+    return activeVariants.length > 0
+      ? activeVariants.some(variant => Number(variant.stock) > 0)
+      : Number(product.stock) > 0;
+  });
+  const productsWithoutImages = activeProducts.filter(product => !imageProductIds.has(product.id));
+  const productsWithoutStock = pricedProducts.filter(product => !stockedProducts.some(stocked => stocked.id === product.id));
+  const productsWithVariants = activeProducts.filter(product => (activeVariantsByProduct.get(product.id) ?? []).some(variant => variant.status === "active"));
+  const activeVariantCount = variants.filter(variant => variant.status === "active").length;
+  const outOfStockVariantCount = variants.filter(variant => variant.status === "active" && Number(variant.stock) <= 0).length;
+
+  const identityReady = Boolean(profile.brandName.trim() && profile.highlightTitle.trim());
+  const catalogueReady = activeProducts.length > 0 && pricedProducts.length === activeProducts.length;
+  const stockReady = activeProducts.length > 0 && stockedProducts.length === activeProducts.length;
+  const mediaReady = activeProducts.length > 0 && productsWithoutImages.length === 0;
+  const shippingReady = Boolean(shipping.servedCountries.length > 0 && shipping.deliveryLeadTime.trim() && shipping.returnsSummary.trim());
+  const legalReady = [legal.operatorName, legal.country, legal.contactEmail, legal.businessStatus, legal.ideVatNumber, legal.deliveryZones, legal.deliveryDetails, legal.returnsPolicy]
+    .every(value => value.trim().length >= 2);
+  const marketsReady = markets.activeLanguages.length > 0
+    && markets.activeCountries.length > 0
+    && markets.activeLanguages.includes(markets.primaryLanguage)
+    && markets.activeCountries.includes(markets.primaryCountry);
+  const publicStorefrontReady = store.status === "active" && Boolean(store.primaryDomain.trim());
+
+  const items = [
+    {
+      id: "vitrine",
+      label: "Identité de la boutique",
+      ready: identityReady,
+      detail: identityReady ? "Nom de marque et titre d’accueil renseignés." : "Ajoutez le nom de la marque et le titre d’accueil de la vitrine.",
+    },
+    {
+      id: "catalogue",
+      label: "Produits et prix",
+      ready: catalogueReady,
+      detail: catalogueReady
+        ? `${activeProducts.length} produit${activeProducts.length > 1 ? "s" : ""} actif${activeProducts.length > 1 ? "s" : ""} avec un prix.`
+        : activeProducts.length === 0 ? "Ajoutez au moins un produit actif." : `${activeProducts.length - pricedProducts.length} produit${activeProducts.length - pricedProducts.length > 1 ? "s" : ""} actif${activeProducts.length - pricedProducts.length > 1 ? "s" : ""} sans prix de vente valide.`,
+    },
+    {
+      id: "stock",
+      label: "Stock vendable",
+      ready: stockReady,
+      detail: stockReady
+        ? `${stockedProducts.length} produit${stockedProducts.length > 1 ? "s" : ""} avec une quantité disponible${activeVariantCount ? ` ; ${activeVariantCount} variante${activeVariantCount > 1 ? "s" : ""} suivie${activeVariantCount > 1 ? "s" : ""}` : ""}.`
+        : activeProducts.length === 0 ? "Ajoutez d’abord un produit actif." : `${productsWithoutStock.length} produit${productsWithoutStock.length > 1 ? "s" : ""} actif${productsWithoutStock.length > 1 ? "s" : ""} sans stock disponible.`,
+    },
+    {
+      id: "catalogue",
+      label: "Images des produits",
+      ready: mediaReady,
+      detail: mediaReady
+        ? "Chaque produit actif possède au moins une image."
+        : activeProducts.length === 0 ? "Ajoutez un produit avant de vérifier ses images." : `${productsWithoutImages.length} produit${productsWithoutImages.length > 1 ? "s" : ""} actif${productsWithoutImages.length > 1 ? "s" : ""} sans image.`,
+    },
+    {
+      id: "operations",
+      label: "Livraison et retours",
+      ready: shippingReady,
+      detail: shippingReady
+        ? `${shipping.servedCountries.length} pays ou zone${shipping.servedCountries.length > 1 ? "s" : ""} annoncé${shipping.servedCountries.length > 1 ? "s" : ""}, délai et retours renseignés.`
+        : "Indiquez les pays servis, le délai annoncé et le résumé des retours.",
+    },
+    {
+      id: "legal",
+      label: "Informations légales",
+      ready: legalReady,
+      detail: legalReady ? "Exploitant, contact et politique publique renseignés." : "Complétez les coordonnées publiques et la politique de retours.",
+    },
+    {
+      id: "markets",
+      label: "Marchés et langues",
+      ready: marketsReady,
+      detail: marketsReady ? `${markets.activeLanguages.length} langue${markets.activeLanguages.length > 1 ? "s" : ""} et ${markets.activeCountries.length} pays actif${markets.activeCountries.length > 1 ? "s" : ""}.` : "Choisissez au moins une langue et un pays cohérents avec le marché principal.",
+    },
+    {
+      id: "public_view",
+      label: "Vitrine publique",
+      ready: publicStorefrontReady,
+      detail: publicStorefrontReady ? `La vitrine est accessible sur ${store.primaryDomain}.` : "La boutique reste en préparation ou son domaine public n’est pas encore défini.",
+    },
+  ] as const;
+  const completed = items.filter(item => item.ready).length;
+
+  return {
+    store: { displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
+    summary: {
+      completed,
+      total: items.length,
+      baseCommerciallyPrepared: completed === items.length,
+      paymentStatus: "not_activated" as const,
+    },
+    inventory: {
+      totalProducts: productRows.length,
+      activeProducts: activeProducts.length,
+      sellableProducts: stockedProducts.length,
+      productsWithoutImages: productsWithoutImages.length,
+      productsWithoutStock: productsWithoutStock.length,
+      activeVariants: activeVariantCount,
+      outOfStockVariants: outOfStockVariantCount,
+      productsWithVariants: productsWithVariants.length,
+    },
+    items,
+  };
+}
+
+/**
  * Owner-only delivery and returns profile. It is deliberately independent from
  * checkout, payment, carrier, supplier and fulfillment activation.
  * The read does not run any schema migration so an unavailable legacy row falls

@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
   team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
   markets: { primaryLanguage: "fr", activeLanguages: ["fr", "en"], showLanguageSelector: true, primaryCountry: "CH", activeCountries: ["CH", "FR"], showCountrySelector: true },
+  commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 8, total: 8, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0, productsWithVariants: 1 }, items: [] },
   profile: { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" } as Record<string, unknown>,
 }));
 
@@ -13,6 +14,7 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
   prepareStoreTeamInvitation: vi.fn(async () => ({
@@ -102,6 +104,11 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("reads commercial readiness only for the current resolved store", async () => {
+    await expect(callerFor().owner.getCommercialReadiness()).resolves.toEqual(state.commercialReadiness);
+    expect(db.getOwnerCommercialReadiness).toHaveBeenCalledWith(77);
   });
 
   it("applies a storefront palette only to the current resolved store", async () => {

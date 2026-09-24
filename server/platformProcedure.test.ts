@@ -118,5 +118,6 @@ describe("MAZIGHO Studio platform guard", () => {
     const caller = appRouter.createCaller(createContext({ role: "user", isPlatformStore: 1 }));
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.getCommercialReadiness()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

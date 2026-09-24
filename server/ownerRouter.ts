@@ -264,6 +264,9 @@ export const ownerRouter = router({
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
   }),
+  getCommercialReadiness: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerCommercialReadiness(ctx.store!.id);
+  }),
   getMediaUsage: storeManagementProcedure.query(async ({ ctx }) => {
     return await getStoreMediaUsage(ctx.store!.id);
   }),
