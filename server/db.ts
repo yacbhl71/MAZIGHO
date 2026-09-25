@@ -36,6 +36,7 @@ import { buildStoreCommercialPublicationPreflight } from "./services/storeCommer
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
+import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -2695,6 +2696,58 @@ export async function getStudioStoreInventory() {
       closed: statusCount("closed"),
     },
     stores: inventory,
+  };
+}
+
+/**
+ * Changes a client-store access state from Studio only after the operator has
+ * explicitly confirmed the exact store name. This never provisions a store,
+ * assigns a member, alters a domain, or creates a billing relationship.
+ */
+export async function updateStudioStoreOperationalStatus(input: {
+  storeId: number;
+  confirmationName: string;
+  nextStatus: schema.Store["status"];
+}) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const rows = await db.select({
+    id: stores.id,
+    displayName: stores.displayName,
+    primaryDomain: stores.primaryDomain,
+    status: stores.status,
+    isPlatformStore: stores.isPlatformStore,
+  }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  const store = rows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("STORE_STATUS_CONFIRMATION_MISMATCH");
+
+  const transition = assessStudioStoreLifecycleTransition({
+    currentStatus: store.status,
+    nextStatus: input.nextStatus,
+    isPlatformStore: Boolean(store.isPlatformStore),
+  });
+  if (!transition.allowed) throw new Error(transition.reason ?? "STORE_STATUS_TRANSITION_FORBIDDEN");
+
+  await db.update(stores).set({ status: input.nextStatus }).where(and(eq(stores.id, store.id), eq(stores.status, store.status)));
+  const updatedRows = await db.select({
+    id: stores.id,
+    displayName: stores.displayName,
+    primaryDomain: stores.primaryDomain,
+    status: stores.status,
+  }).from(stores).where(eq(stores.id, store.id)).limit(1);
+  const updated = updatedRows[0];
+  if (!updated || updated.status !== input.nextStatus) throw new Error("STORE_STATUS_CONCURRENT_UPDATE");
+
+  return {
+    store: updated,
+    previousStatus: store.status,
+    publicStorefrontMayBeServed: updated.status === "active" || updated.status === "limited",
+    billingChanged: false as const,
+    domainChanged: false as const,
+    membershipsChanged: false as const,
   };
 }
 

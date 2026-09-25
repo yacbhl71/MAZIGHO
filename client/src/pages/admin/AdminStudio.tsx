@@ -58,6 +58,15 @@ type ProvisioningDraftForm = {
   notes: string;
 };
 
+type ManagedStoreStatus = "setup" | "active" | "limited" | "suspended" | "closed";
+
+type LifecycleTarget = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
+  status: ManagedStoreStatus;
+};
+
 const emptyProvisioningDraft: ProvisioningDraftForm = {
   displayName: "",
   requestedDomain: "",
@@ -167,6 +176,13 @@ const storeStatusPresentation = {
   closed: { label: "Clôturée", className: "border-slate-200 bg-slate-100 text-slate-700" },
 } as const;
 
+const lifecycleStatusGuidance: Record<Exclude<ManagedStoreStatus, "setup">, string> = {
+  active: "La vitrine publique et le panneau propriétaire restent accessibles selon les droits existants.",
+  limited: "La vitrine reste accessible, mais cet état signale une revue opérateur. Aucun abonnement ou droit n’est modifié automatiquement.",
+  suspended: "La vitrine, le panier et le panneau propriétaire ne sont plus servis. Les données, le domaine et les membres restent inchangés.",
+  closed: "La vitrine, le panier et le panneau propriétaire ne sont plus servis. Cette fermeture reste réversible depuis Studio.",
+};
+
 function formatBusinessType(value: ProvisioningBusinessType) {
   return ({ animalier: "Animalier", bijoux: "Bijoux", vetements: "Vêtements", autre: "Autre univers" } as const)[value];
 }
@@ -212,6 +228,10 @@ export default function AdminStudio() {
   const [domainUpdateConfirmationName, setDomainUpdateConfirmationName] = useState("");
   const [domainUpdateValue, setDomainUpdateValue] = useState("");
   const [domainUpdateAcknowledged, setDomainUpdateAcknowledged] = useState(false);
+  const [lifecycleTarget, setLifecycleTarget] = useState<LifecycleTarget | null>(null);
+  const [lifecycleNextStatus, setLifecycleNextStatus] = useState<Exclude<ManagedStoreStatus, "setup">>("limited");
+  const [lifecycleConfirmationName, setLifecycleConfirmationName] = useState("");
+  const [lifecycleAcknowledged, setLifecycleAcknowledged] = useState(false);
   const [selectedSetupReadinessStoreId, setSelectedSetupReadinessStoreId] = useState<number | null>(null);
   const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
   const [activationConfirmationName, setActivationConfirmationName] = useState("");
@@ -260,6 +280,16 @@ export default function AdminStudio() {
   }, [themePresetFromLibrary]);
   const utils = trpc.useUtils();
   const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
+  const updateStoreOperationalStatusMutation = trpc.admin.studio.updateStoreOperationalStatus.useMutation({
+    onSuccess: async result => {
+      toast.success(`${result.store.displayName} est maintenant en état « ${storeStatusPresentation[result.store.status].label} ».`);
+      setLifecycleTarget(null);
+      setLifecycleConfirmationName("");
+      setLifecycleAcknowledged(false);
+      await utils.admin.studio.getInventory.invalidate();
+    },
+    onError: error => toast.error(error.message || "L’état opérationnel n’a pas pu être modifié."),
+  });
   const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.admin.studio.getProvisioningReviews.useQuery(undefined, { refetchOnWindowFocus: false });
   const preflightQuery = trpc.admin.studio.getLaunchPreflight.useQuery({ draftId: selectedPreflightDraftId ?? 0 }, { enabled: selectedPreflightDraftId !== null, refetchOnWindowFocus: false });
@@ -628,7 +658,7 @@ export default function AdminStudio() {
                         <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
-                        <div>{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link>}</div>
+                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</div>
                       </div>;
                     })}
                   </div>
@@ -638,6 +668,23 @@ export default function AdminStudio() {
             </>
           )}
         </section>
+
+        <Dialog open={Boolean(lifecycleTarget)} onOpenChange={open => { if (!open && !updateStoreOperationalStatusMutation.isPending) { setLifecycleTarget(null); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-violet-700" /> Modifier l’état opérationnel</DialogTitle>
+              <DialogDescription>Contrôle Studio réservé à l’opérateur. Il agit uniquement sur l’accessibilité de cette boutique cliente ; aucun abonnement, paiement, domaine, propriétaire, rôle, mot de passe ou e-mail n’est créé ni modifié.</DialogDescription>
+            </DialogHeader>
+            {lifecycleTarget && <div className="space-y-4">
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm leading-6 text-violet-950"><p><strong>Boutique :</strong> {lifecycleTarget.displayName}</p><p className="mt-1"><strong>Domaine :</strong> {lifecycleTarget.primaryDomain}</p><p className="mt-1"><strong>État actuel :</strong> {storeStatusPresentation[lifecycleTarget.status].label}</p></div>
+              <div className="space-y-2"><Label htmlFor="studio-lifecycle-next-status">Nouvel état</Label><Select value={lifecycleNextStatus} onValueChange={value => setLifecycleNextStatus(value as Exclude<ManagedStoreStatus, "setup">)}><SelectTrigger id="studio-lifecycle-next-status" className="min-h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="limited">Accès limité</SelectItem><SelectItem value="suspended">Suspendue</SelectItem><SelectItem value="closed">Clôturée</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-slate-600">{lifecycleStatusGuidance[lifecycleNextStatus]}</p></div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950"><p className="font-semibold">Garde-fous conservés</p><p className="mt-1">Une boutique en préparation ne peut pas être activée ici : le prévol d’ouverture séparé reste obligatoire. MAZIGHO principal est absent de ce contrôle et ne peut pas être modifié.</p></div>
+              <div className="space-y-2"><Label htmlFor="studio-lifecycle-confirmation">Recopiez le nom de la boutique</Label><Input id="studio-lifecycle-confirmation" value={lifecycleConfirmationName} onChange={event => setLifecycleConfirmationName(event.target.value)} placeholder={lifecycleTarget.displayName} autoComplete="off" /></div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={lifecycleAcknowledged} onChange={event => setLifecycleAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-600" /><span>Je confirme modifier l’état de <strong>{lifecycleTarget.displayName}</strong>. Je comprends que cette action est journalisée, qu’elle n’affecte ni la facturation ni les données de la boutique, et qu’elle est réversible depuis Studio.</span></label>
+            </div>}
+            <DialogFooter><Button type="button" variant="outline" disabled={updateStoreOperationalStatusMutation.isPending} onClick={() => setLifecycleTarget(null)}>Annuler</Button><Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!lifecycleTarget || lifecycleTarget.status === lifecycleNextStatus || lifecycleConfirmationName.trim() !== lifecycleTarget.displayName.trim() || !lifecycleAcknowledged || updateStoreOperationalStatusMutation.isPending} onClick={() => lifecycleTarget && updateStoreOperationalStatusMutation.mutate({ storeId: lifecycleTarget.id, confirmationName: lifecycleConfirmationName, nextStatus: lifecycleNextStatus, acknowledged: true })}>{updateStoreOperationalStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}{lifecycleNextStatus === "active" ? "Réactiver la boutique" : "Confirmer le nouvel état"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm md:p-6" data-testid="studio-direct-owner-access"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-800">Accès direct opérateur</p><h2 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-amber-950"><LockKeyhole className="h-6 w-6" /> Créer un accès temporaire à une boutique offerte</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-amber-950">Utilisez ce bloc pour une boutique offerte déjà créée, y compris si ses anciens ateliers de préparation ne sont plus accessibles. Le mot de passe est généré une seule fois, n’est jamais envoyé par e-mail et le client doit le remplacer après connexion.</p></div><Badge className="w-fit border-0 bg-amber-700 text-white hover:bg-amber-700">Studio uniquement</Badge></div>{(inventory?.stores ?? []).filter(store => !store.isPlatformStore).length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-amber-300 bg-white/70 p-4 text-sm leading-6 text-amber-950">Aucune boutique offerte n’est disponible pour le moment.</div> : <div className="mt-5 space-y-4 rounded-2xl border border-amber-200 bg-white p-4 md:p-5"><div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="direct-owner-store">Boutique offerte</Label><Select value={directAccessStoreId} onValueChange={value => { setDirectAccessStoreId(value); setDirectAccessPassword(null); }}><SelectTrigger id="direct-owner-store"><SelectValue placeholder="Choisir une boutique" /></SelectTrigger><SelectContent>{(inventory?.stores ?? []).filter(store => !store.isPlatformStore).map(store => <SelectItem key={store.id} value={String(store.id)}>{store.displayName} · {store.status}</SelectItem>)}</SelectContent></Select></div><div className="space-y-2"><Label htmlFor="direct-owner-email">E-mail du propriétaire à confirmer</Label><Input id="direct-owner-email" type="email" value={directAccessEmail} onChange={event => setDirectAccessEmail(event.target.value)} placeholder="proprietaire@exemple.ch" autoCapitalize="none" /></div></div><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm leading-6 text-amber-950"><input type="checkbox" checked={directAccessAcknowledged} onChange={event => setDirectAccessAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-600" /><span>Je confirme créer un mot de passe temporaire pour le propriétaire de cette boutique. Je le transmettrai manuellement et lui demanderai de le remplacer dès sa première connexion.</span></label>{directAccessPassword ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-4"><p className="text-sm font-bold text-amber-950">Mot de passe temporaire — copiez-le maintenant</p><div className="mt-3 flex gap-2"><Input value={directAccessPassword} readOnly className="bg-white font-mono text-sm" aria-label="Mot de passe temporaire direct" /><Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => { navigator.clipboard.writeText(directAccessPassword); toast.success("Mot de passe copié dans le presse-papiers."); }} aria-label="Copier le mot de passe temporaire"><Copy className="h-4 w-4" /></Button></div></div> : <Button type="button" className="min-h-11 bg-amber-700 hover:bg-amber-800" disabled={!directAccessStoreId || !directAccessEmail.includes("@") || !directAccessAcknowledged || directOwnerTemporaryPasswordMutation.isPending} onClick={() => directOwnerTemporaryPasswordMutation.mutate({ storeId: Number(directAccessStoreId), confirmationEmail: directAccessEmail, acknowledged: true })}>{directOwnerTemporaryPasswordMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LockKeyhole className="mr-2 h-4 w-4" />}Générer le mot de passe temporaire</Button>}</div>}</section>
 

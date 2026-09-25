@@ -756,6 +756,40 @@ export const adminRouter = router({
   // aggregate storefront signals, never customer records, secrets or catalogue details.
   studio: router({
     getInventory: platformProcedure.query(async () => db.getStudioStoreInventory()),
+    updateStoreOperationalStatus: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      nextStatus: z.enum(["active", "limited", "suspended", "closed"]),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateStudioStoreOperationalStatus(input);
+        logAudit(ctx, {
+          action: "studio.store.lifecycle.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: `État opérationnel mis à jour : ${updated.store.displayName} (${updated.previousStatus} → ${updated.store.status})`,
+          metadata: {
+            previousStatus: updated.previousStatus,
+            nextStatus: updated.store.status,
+            publicStorefrontMayBeServed: updated.publicStorefrontMayBeServed,
+            billingChanged: false,
+            domainChanged: false,
+            membershipsChanged: false,
+          },
+        });
+        return updated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "STORE_STATUS_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier son état." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal est protégé : son état ne peut pas être modifié depuis ce contrôle." });
+        if (code === "SETUP_REQUIRES_ACTIVATION_PREFLIGHT") throw new TRPCError({ code: "CONFLICT", message: "Le statut setup est géré uniquement par le parcours d’activation contrôlé de Studio." });
+        if (code === "NO_STATUS_CHANGE") throw new TRPCError({ code: "BAD_REQUEST", message: "La boutique possède déjà cet état." });
+        if (code === "STORE_STATUS_CONCURRENT_UPDATE") throw new TRPCError({ code: "CONFLICT", message: "L’état a été modifié entre-temps. Actualisez le registre avant de réessayer." });
+        throw error;
+      }
+    }),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
