@@ -17,9 +17,11 @@ import { categoryT, commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { toast } from "sonner";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function Promos() {
   const { locale } = useLocale();
+  const { palette } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
   const copy = getMarketingCopy(locale).promos;
   const productCopy = getProductPublicCopy(locale);
@@ -51,16 +53,16 @@ export default function Promos() {
 
       <main className="flex-1">
         {/* Header Section */}
-        <section className="bg-gradient-to-r from-red-50 to-orange-50 py-12 md:py-16">
+        <section className="py-12 md:py-16" style={{ background: `linear-gradient(120deg, ${palette.soft}, #ffffff)` }}>
           <div className="container mx-auto px-4">
             <Link href="/">
-              <div className="flex items-center gap-2 text-orange-500 hover:text-orange-600 mb-6 cursor-pointer w-fit">
+              <div className="mb-6 flex w-fit cursor-pointer items-center gap-2" style={{ color: palette.accent }}>
                 <ArrowLeft className="h-5 w-5" />
                 <span className="font-medium">{copy.back}</span>
               </div>
             </Link>
             <div className="flex items-center gap-3 mb-4">
-              <Zap className="h-8 w-8 text-red-500" />
+              <Zap className="h-8 w-8" style={{ color: palette.accent }} />
               <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
                 {copy.title}
               </h1>
@@ -72,7 +74,7 @@ export default function Promos() {
         </section>
 
         {/* Promo Banner */}
-        <section className="bg-gradient-to-r from-red-500 to-orange-500 text-white py-8">
+        <section className="py-8 text-white" style={{ background: `linear-gradient(90deg, ${palette.primary}, ${palette.accent})` }}>
           <div className="container mx-auto px-4 text-center">
             <p className="text-xl font-bold mb-2">{copy.codeTitle}</p>
             <p className="text-lg">{copy.codeText}</p>
@@ -84,7 +86,7 @@ export default function Promos() {
           <div className="container mx-auto px-4">
             {productsQuery.isLoading ? (
               <div className="flex justify-center py-20">
-                <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
+                <Loader2 className="h-10 w-10 animate-spin" style={{ color: palette.accent }} />
               </div>
             ) : products.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -93,7 +95,7 @@ export default function Promos() {
                     ((product.originalPrice - product.price) / product.originalPrice) * 100
                   ) : 0;
                   return (
-                    <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow border-2 border-red-200">
+                    <Card key={product.id} className="overflow-hidden border-2 transition-shadow hover:shadow-lg" style={{ borderColor: palette.accent }}>
                       <CardContent className="p-0">
 	                        {/* Product Image */}
 	                        <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden group">
@@ -106,7 +108,7 @@ export default function Promos() {
 	                          ) : (
 	                            <div className="text-6xl group-hover:scale-110 transition-transform">📦</div>
 	                          )}
-	                          <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-2 rounded-full text-center">
+	                          <div className="absolute right-3 top-3 rounded-full px-3 py-2 text-center text-white" style={{ backgroundColor: palette.accent }}>
                             <div className="text-lg font-bold">-{discount}%</div>
                             <div className="text-xs">{copy.badge}</div>
                           </div>
@@ -115,7 +117,7 @@ export default function Promos() {
                         {/* Product Info */}
                         <div className="p-4 space-y-3">
                           <Link href={`/produit/${product.slug}`}>
-                            <h3 className="font-semibold text-gray-800 hover:text-orange-500 transition-colors cursor-pointer line-clamp-2">
+                            <h3 className="line-clamp-2 cursor-pointer font-semibold text-gray-800 transition-colors" style={{ color: palette.primary }}>
                               {product.name}
                             </h3>
                           </Link>
@@ -140,9 +142,9 @@ export default function Promos() {
                           </div>
 
                           {/* Price */}
-                          <div className="bg-red-50 p-3 rounded-lg">
+                          <div className="rounded-lg p-3" style={{ backgroundColor: palette.soft }}>
                             <div className="flex items-baseline gap-2">
-                              <span className="text-2xl font-bold text-red-600">
+                              <span className="text-2xl font-bold" style={{ color: palette.accent }}>
                                 {formatPrice(product.price, locale)}
                               </span>
                               {product.originalPrice && (
@@ -152,7 +154,7 @@ export default function Promos() {
                               )}
                             </div>
                             {product.originalPrice && (
-                              <p className="text-xs text-red-600 font-semibold mt-1">
+                              <p className="mt-1 text-xs font-semibold" style={{ color: palette.accent }}>
                                 {copy.saving.replace("{amount}", formatPrice(product.originalPrice - product.price, locale))}
                               </p>
                             )}
@@ -163,7 +165,7 @@ export default function Promos() {
                             {product.stock > 10 ? (
                               <span className="text-green-600">{categoryT(locale, "inStock")}</span>
                             ) : product.stock > 0 ? (
-                              <span className="text-orange-600">{categoryT(locale, "limitedStock")}</span>
+                              <span style={{ color: palette.primary }}>{categoryT(locale, "limitedStock")}</span>
                             ) : (
                               <span className="text-red-600">{categoryT(locale, "outOfStock")}</span>
                             )}
@@ -172,7 +174,7 @@ export default function Promos() {
                           {/* Actions */}
                           <div className="flex gap-2 pt-2">
                             <Link href={`/produit/${product.slug}`} className="flex-1">
-                              <Button className="w-full bg-red-500 hover:bg-red-600 text-white text-sm">
+                              <Button className="w-full text-sm text-white hover:brightness-95" style={{ backgroundColor: palette.accent }}>
                                 {categoryT(locale, "viewDetails")}
                               </Button>
                             </Link>
@@ -202,7 +204,7 @@ export default function Promos() {
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">{copy.empty.replace("{country}", countryLabel)}</p>
-                <Button asChild className="mt-6 bg-orange-500 hover:bg-orange-600 text-white"><Link href="/boutique">
+                <Button asChild className="mt-6 text-white hover:brightness-95" style={{ backgroundColor: palette.accent }}><Link href="/boutique">
                     {copy.allProducts}
                   </Link></Button>
               </div>

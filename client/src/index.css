@@ -79,6 +79,89 @@
   --chart-5: oklch(0.6 0.12 150);
 }
 
+/*
+ * Storefront palette bridge
+ * -------------------------
+ * The original MAZIGHO shop used Tailwind orange utilities directly in a
+ * number of public pages (prices, catalogue actions, cart and support
+ * details). A boutique palette must take precedence over this legacy brand
+ * colour. Header/useDesignProfile sets the three --mazigho variables per
+ * resolved boutique, so these overrides affect only a rendered storefront,
+ * never the Studio administration interface.
+ */
+:root[data-mazigho-theme] .text-orange-300,
+:root[data-mazigho-theme] .text-orange-400,
+:root[data-mazigho-theme] .text-orange-500,
+:root[data-mazigho-theme] .text-orange-600,
+:root[data-mazigho-theme] .text-orange-700,
+:root[data-mazigho-theme] .text-orange-800,
+:root[data-mazigho-theme] .text-orange-900 {
+  color: var(--mazigho-accent) !important;
+}
+
+:root[data-mazigho-theme] .bg-orange-50,
+:root[data-mazigho-theme] .bg-orange-50\/50,
+:root[data-mazigho-theme] .bg-orange-100 {
+  background-color: var(--mazigho-soft) !important;
+}
+
+:root[data-mazigho-theme] .bg-orange-300,
+:root[data-mazigho-theme] .bg-orange-400,
+:root[data-mazigho-theme] .bg-orange-500,
+:root[data-mazigho-theme] .bg-orange-600,
+:root[data-mazigho-theme] .bg-orange-700 {
+  background-color: var(--mazigho-accent) !important;
+}
+
+:root[data-mazigho-theme] .border-orange-100,
+:root[data-mazigho-theme] .border-orange-200,
+:root[data-mazigho-theme] .border-orange-300,
+:root[data-mazigho-theme] .border-orange-400,
+:root[data-mazigho-theme] .border-orange-500 {
+  border-color: var(--mazigho-primary) !important;
+}
+
+:root[data-mazigho-theme] .hover\:text-orange-300:hover,
+:root[data-mazigho-theme] .hover\:text-orange-400:hover,
+:root[data-mazigho-theme] .hover\:text-orange-500:hover,
+:root[data-mazigho-theme] .hover\:text-orange-600:hover,
+:root[data-mazigho-theme] .hover\:text-orange-700:hover,
+:root[data-mazigho-theme] .hover\:text-orange-800:hover,
+:root[data-mazigho-theme] .hover\:text-orange-900:hover {
+  color: var(--mazigho-primary) !important;
+}
+
+:root[data-mazigho-theme] .hover\:bg-orange-300:hover,
+:root[data-mazigho-theme] .hover\:bg-orange-400:hover,
+:root[data-mazigho-theme] .hover\:bg-orange-500:hover,
+:root[data-mazigho-theme] .hover\:bg-orange-600:hover,
+:root[data-mazigho-theme] .hover\:bg-orange-700:hover {
+  background-color: var(--mazigho-primary) !important;
+}
+
+:root[data-mazigho-theme] .hover\:border-orange-300:hover,
+:root[data-mazigho-theme] .hover\:border-orange-400:hover,
+:root[data-mazigho-theme] .hover\:border-orange-500:hover {
+  border-color: var(--mazigho-accent) !important;
+}
+
+:root[data-mazigho-theme] .focus\:ring-orange-300:focus,
+:root[data-mazigho-theme] .focus\:ring-orange-400:focus,
+:root[data-mazigho-theme] .focus\:ring-orange-500:focus,
+:root[data-mazigho-theme] .focus\:ring-orange-600:focus,
+:root[data-mazigho-theme] .focus-visible\:ring-orange-500:focus-visible {
+  --tw-ring-color: var(--mazigho-accent) !important;
+}
+
+:root[data-mazigho-theme] .from-orange-50 {
+  --tw-gradient-from: var(--mazigho-soft) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: color-mix(in srgb, var(--mazigho-soft), transparent 0%) var(--tw-gradient-to-position) !important;
+}
+
+:root[data-mazigho-theme] .to-orange-50 {
+  --tw-gradient-to: var(--mazigho-soft) var(--tw-gradient-to-position) !important;
+}
+
 .dark {
   --primary: oklch(0.72 0.16 50);
   --primary-foreground: oklch(0.19 0.015 45);
