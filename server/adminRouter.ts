@@ -755,7 +755,13 @@ export const adminRouter = router({
   // MAZIGHO Studio is the platform console. This read-only inventory exposes
   // aggregate storefront signals, never customer records, secrets or catalogue details.
   studio: router({
-    getInventory: platformProcedure.query(async () => db.getStudioStoreInventory()),
+    getInventory: platformProcedure.input(z.object({
+      query: z.string().trim().max(80).optional(),
+      status: z.enum(["setup", "active", "limited", "suspended", "closed"]).optional(),
+      offerMode: z.enum(["undecided", "rental", "perpetual_sale"]).optional(),
+      page: z.number().int().positive().max(10_000).optional(),
+      pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
+    }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
     updateStoreOperationalStatus: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

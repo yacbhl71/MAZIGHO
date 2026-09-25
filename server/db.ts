@@ -42,6 +42,7 @@ import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
+import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -2615,10 +2616,13 @@ export async function getStoreTeamMembers(storeId: number) {
  * operational signals only: no customer identities, credentials, order lines or
  * cross-store catalogue content are exposed here.
  */
-export async function getStudioStoreInventory() {
+export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) {
   await ensureMultiStoreSchema();
   const db = await getDb();
-  if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
+  if (!db) {
+    const page = paginateStudioInventory([], input);
+    return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0, rental: 0, perpetualSale: 0, offerUndecided: 0, clientStoresWithStockAttention: 0 }, ...page, highlights: [] };
+  }
 
   const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows, commercialOfferRows, stockProductRows, stockVariantRows, stockAlertRows] = await Promise.all([
     db.select({
@@ -2722,6 +2726,18 @@ export async function getStudioStoreInventory() {
   });
 
   const statusCount = (status: schema.Store["status"]) => inventory.filter(store => store.status === status).length;
+  const page = paginateStudioInventory(inventory, input);
+  const scoreStoreAttention = (store: typeof inventory[number]) => {
+    if (["suspended", "closed"].includes(store.status)) return 100;
+    if (store.status === "limited") return 90;
+    if (store.status === "setup") return 80;
+    if (!store.isPlatformStore && store.activeOwners === 0) return 70;
+    if (store.stockSignal.out > 0) return 60;
+    if (store.stockSignal.low > 0) return 50;
+    if (!store.isPlatformStore && store.activeProductCount === 0) return 40;
+    return store.isPlatformStore ? 10 : 20;
+  };
+  const highlights = [...inventory].sort((left, right) => scoreStoreAttention(right) - scoreStoreAttention(left) || left.displayName.localeCompare(right.displayName, "fr-CH")).slice(0, 6);
   return {
     summary: {
       total: inventory.length,
@@ -2737,7 +2753,8 @@ export async function getStudioStoreInventory() {
       offerUndecided: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "undecided").length,
       clientStoresWithStockAttention: inventory.filter(store => !store.isPlatformStore && (store.stockSignal.low > 0 || store.stockSignal.out > 0)).length,
     },
-    stores: inventory,
+    ...page,
+    highlights,
   };
 }
 

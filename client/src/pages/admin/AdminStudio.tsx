@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import {
   ArrowUpRight,
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   ClipboardPlus,
   CircleAlert,
   Clock3,
@@ -33,6 +35,8 @@ import {
   LockKeyhole,
   Palette,
   ReceiptText,
+  RotateCcw,
+  Search,
   PanelTop,
   PawPrint,
   Shirt,
@@ -62,6 +66,8 @@ type ProvisioningDraftForm = {
 };
 
 type ManagedStoreStatus = "setup" | "active" | "limited" | "suspended" | "closed";
+type RegistryStatusFilter = "all" | ManagedStoreStatus;
+type RegistryOfferFilter = "all" | StoreCommercialOfferMode;
 
 type LifecycleTarget = {
   id: number;
@@ -261,6 +267,11 @@ export default function AdminStudio() {
   const [commercialOfferConfirmationName, setCommercialOfferConfirmationName] = useState("");
   const [commercialOfferAcknowledged, setCommercialOfferAcknowledged] = useState(false);
   const [mediaUsageTarget, setMediaUsageTarget] = useState<MediaUsageTarget | null>(null);
+  const [registrySearch, setRegistrySearch] = useState("");
+  const [registryStatus, setRegistryStatus] = useState<RegistryStatusFilter>("all");
+  const [registryOffer, setRegistryOffer] = useState<RegistryOfferFilter>("all");
+  const [registryPage, setRegistryPage] = useState(1);
+  const [registryPageSize, setRegistryPageSize] = useState<20 | 50 | 100>(20);
   const [selectedSetupReadinessStoreId, setSelectedSetupReadinessStoreId] = useState<number | null>(null);
   const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
   const [activationConfirmationName, setActivationConfirmationName] = useState("");
@@ -308,7 +319,13 @@ export default function AdminStudio() {
     }));
   }, [themePresetFromLibrary]);
   const utils = trpc.useUtils();
-  const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
+  const inventoryQuery = trpc.admin.studio.getInventory.useQuery({
+    query: registrySearch.trim() || undefined,
+    status: registryStatus === "all" ? undefined : registryStatus,
+    offerMode: registryOffer === "all" ? undefined : registryOffer,
+    page: registryPage,
+    pageSize: registryPageSize,
+  }, { refetchOnWindowFocus: false });
   const studioMediaUsageQuery = trpc.admin.studio.getStoreMediaUsage.useQuery(
     { storeId: mediaUsageTarget?.id ?? 0 },
     { enabled: mediaUsageTarget !== null, refetchOnWindowFocus: false, retry: false },
@@ -504,13 +521,14 @@ export default function AdminStudio() {
     onError: error => toast.error(error.message || "Le brouillon n’a pas pu être supprimé."),
   });
   const inventory = inventoryQuery.data;
+  const inventoryHighlights = inventory?.highlights ?? [];
   const reviewByDraftId = useMemo(() => new Map((reviewsQuery.data ?? []).map(draft => [draft.id, draft.review])), [reviewsQuery.data]);
   const theme = previews[themeId];
   const ThemeIcon = theme.icon;
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
   const giftSetupStores = useMemo(() => (inventory?.stores ?? []).filter(store => store.status === "setup" && store.giftProvisioned), [inventory?.stores]);
-  const inventoryStoreById = useMemo(() => new Map((inventory?.stores ?? []).map(store => [store.id, store])), [inventory?.stores]);
-  const storeHealth = useMemo(() => (inventory?.stores ?? []).map(store => {
+  const inventoryStoreById = useMemo(() => new Map(inventoryHighlights.map(store => [store.id, store])), [inventoryHighlights]);
+  const storeHealth = useMemo(() => inventoryHighlights.map(store => {
     if (["limited", "suspended", "closed"].includes(store.status)) {
       return { id: store.id, label: "Accès à surveiller", detail: `Statut ${store.status} · revue opérateur requise`, tone: "rose", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
     }
@@ -530,8 +548,8 @@ export default function AdminStudio() {
       return { id: store.id, label: "Stock faible", detail: `${store.stockSignal.low} référence${store.stockSignal.low > 1 ? "s" : ""} sous le seuil de la boutique`, tone: "amber", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
     }
     return { id: store.id, label: "Base opérationnelle", detail: `${store.activeOwners} propriétaire actif · ${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""}`, tone: "emerald", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
-  }), [inventory?.stores]);
-  const operatorPriorities = useMemo(() => (inventory?.stores ?? []).map(store => {
+  }), [inventoryHighlights]);
+  const operatorPriorities = useMemo(() => inventoryHighlights.map(store => {
     if (store.isPlatformStore) {
       return {
         id: store.id,
@@ -598,7 +616,15 @@ export default function AdminStudio() {
       action: "Ouvrir le suivi",
       tone: "sky",
     };
-  }), [inventory?.stores]);
+  }), [inventoryHighlights]);
+  const registryPagination = inventory?.pagination;
+  const registryFiltersActive = Boolean(registrySearch.trim() || registryStatus !== "all" || registryOffer !== "all");
+  const resetRegistryFilters = () => {
+    setRegistrySearch("");
+    setRegistryStatus("all");
+    setRegistryOffer("all");
+    setRegistryPage(1);
+  };
 
   return (
     <DashboardLayout>
@@ -708,13 +734,24 @@ export default function AdminStudio() {
                 <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Stock à surveiller</p><p className="mt-2 text-3xl font-bold text-amber-950">{inventory?.summary.clientStoresWithStockAttention ?? 0}</p><p className="mt-1 text-xs text-amber-800">Boutiques avec seuil faible ou rupture</p></div>
               </div>
 
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:p-4" data-testid="studio-inventory-filters">
+                <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_125px_auto]">
+                  <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={registrySearch} onChange={event => { setRegistrySearch(event.target.value); setRegistryPage(1); }} className="min-h-11 bg-white pl-9" placeholder="Nom, sous-domaine ou domaine…" aria-label="Rechercher une boutique" /></div>
+                  <Select value={registryStatus} onValueChange={value => { setRegistryStatus(value as RegistryStatusFilter); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue placeholder="État" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les états</SelectItem><SelectItem value="setup">À préparer</SelectItem><SelectItem value="active">Actives</SelectItem><SelectItem value="limited">Accès limité</SelectItem><SelectItem value="suspended">Suspendues</SelectItem><SelectItem value="closed">Clôturées</SelectItem></SelectContent></Select>
+                  <Select value={registryOffer} onValueChange={value => { setRegistryOffer(value as RegistryOfferFilter); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue placeholder="Offre" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les offres</SelectItem><SelectItem value="rental">Location SaaS</SelectItem><SelectItem value="perpetual_sale">Vente définitive</SelectItem><SelectItem value="undecided">À définir</SelectItem></SelectContent></Select>
+                  <Select value={String(registryPageSize)} onValueChange={value => { setRegistryPageSize(Number(value) as 20 | 50 | 100); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="20">20 / page</SelectItem><SelectItem value="50">50 / page</SelectItem><SelectItem value="100">100 / page</SelectItem></SelectContent></Select>
+                  <Button type="button" variant="outline" className="min-h-11 border-slate-300 bg-white" disabled={!registryFiltersActive} onClick={resetRegistryFilters}><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs leading-5 text-slate-600"><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{registryPagination?.total ?? 0} résultat(s)</Badge><span>La recherche porte uniquement sur le nom, le slug et le domaine enregistrés ; elle ne lit aucune donnée client.</span></div>
+              </div>
+
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
                 <div className="grid min-w-[1030px] grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_120px_105px_150px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
                   <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Stock</span><span>Commandes</span><span>Action Studio</span>
                 </div>
                 <div className="overflow-x-auto">
                   <div className="min-w-[1030px] divide-y divide-slate-100">
-                    {(inventory?.stores ?? []).map(store => {
+                    {(inventory?.stores ?? []).length === 0 ? <div className="px-5 py-12 text-center text-sm leading-6 text-slate-600"><p className="font-semibold text-slate-900">Aucune boutique ne correspond à cette recherche.</p><p className="mt-1">Modifiez les filtres ou réinitialisez-les pour revoir le registre.</p></div> : (inventory?.stores ?? []).map(store => {
                       const status = storeStatusPresentation[store.status];
                       const stockTone = store.stockSignal.out > 0 ? "border-rose-200 bg-rose-50 text-rose-800" : store.stockSignal.low > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800";
                       const stockLabel = store.stockSignal.out > 0 ? `${store.stockSignal.out} rupture${store.stockSignal.out > 1 ? "s" : ""}` : store.stockSignal.low > 0 ? `${store.stockSignal.low} faible${store.stockSignal.low > 1 ? "s" : ""}` : "Stable";
@@ -731,6 +768,7 @@ export default function AdminStudio() {
                   </div>
                 </div>
               </div>
+              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between"><p>{registryPagination?.total ? <>Affichage {registryPagination.from}–{registryPagination.to} sur {registryPagination.total} boutique{registryPagination.total > 1 ? "s" : ""} · page {registryPagination.page} sur {registryPagination.totalPages}</> : "Aucune boutique affichée"}</p><div className="flex gap-2"><Button type="button" size="sm" variant="outline" className="min-h-10 bg-white" disabled={!registryPagination || registryPagination.page <= 1 || inventoryQuery.isFetching} onClick={() => setRegistryPage(current => Math.max(1, current - 1))}><ChevronLeft className="mr-1 h-4 w-4" /> Précédent</Button><Button type="button" size="sm" variant="outline" className="min-h-10 bg-white" disabled={!registryPagination || registryPagination.page >= registryPagination.totalPages || inventoryQuery.isFetching} onClick={() => setRegistryPage(current => Math.min(registryPagination?.totalPages ?? current, current + 1))}>Suivant <ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>
               <div className="mt-5 flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p><strong>Le registre est désormais le point d’entrée Studio.</strong> Une boutique en <code>setup</code> mène vers son centre de préparation ; une boutique active mène vers ses outils Studio de gestion. Aucun lien ne renvoie vers les anciens ateliers de préparation après activation.</p></div>
             </>
           )}
