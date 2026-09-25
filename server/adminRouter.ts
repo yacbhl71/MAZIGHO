@@ -3212,6 +3212,8 @@ export const adminRouter = router({
       bestSellersLead: z.string().trim().min(2).max(420).default("Une sélection affichée uniquement lorsque la livraison est confirmée vers {country}."),
       bestSellersTopLabel: z.string().trim().min(2).max(60).default("🏆 Top {rank}"),
       bestSellersEmptyText: z.string().trim().min(2).max(420).default("Aucun best-seller n’est encore confirmé pour la livraison vers {country}."),
+      showAnnouncement: z.boolean().default(true),
+      announcementItems: z.array(z.string().trim().max(120)).length(3).default(["Une sélection pensée pour le quotidien", "Prix tout compris · livraison offerte", "Coût et délai confirmés avant achat"]),
       customColorsEnabled: z.boolean().default(false),
       customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#c2410c"),
       customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#0f766e"),

@@ -109,6 +109,8 @@ export type DesignProfile = {
   bestSellersLead: string;
   bestSellersTopLabel: string;
   bestSellersEmptyText: string;
+  showAnnouncement: boolean;
+  announcementItems: string[];
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -219,6 +221,8 @@ export const defaultDesignProfile: DesignProfile = {
   bestSellersLead: "Une sélection affichée uniquement lorsque la livraison est confirmée vers {country}.",
   bestSellersTopLabel: "🏆 Top {rank}",
   bestSellersEmptyText: "Aucun best-seller n’est encore confirmé pour la livraison vers {country}.",
+  showAnnouncement: true,
+  announcementItems: ["Une sélection pensée pour le quotidien", "Prix tout compris · livraison offerte", "Coût et délai confirmés avant achat"],
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",

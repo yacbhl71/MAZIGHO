@@ -113,6 +113,10 @@ export default function Header() {
   const isNavigationVisible = (id: string) => Boolean(getNavigationItem(id));
   const customNavigationItems = navigationItems.filter(item => item.kind === "custom");
   const isActive = (path: string) => location === path;
+  const announcementItems = (locale === "fr"
+    ? profile.announcementItems
+    : [t(locale, "topSelection"), t(locale, "topDelivery"), t(locale, "topQuote")]
+  ).map(item => item.trim()).filter(Boolean);
   const fallbackNavigationLabels: Record<string, string> = { home: navigation.home, shop: navigation.shop, categories: navigation.categories, creations: navigation.creations, new: t(locale, "new"), "best-sellers": t(locale, "bestSellers"), promos: t(locale, "promotions"), contact: navigation.contact };
   const desktopLinkClass = (href: string) => `cursor-pointer border-b-2 px-1.5 py-1.5 text-xs font-medium transition-colors ${isActive(href) ? "border-[var(--mazigho-primary)] text-[var(--mazigho-primary)]" : "border-transparent text-slate-600 hover:border-[var(--mazigho-accent)] hover:text-[var(--mazigho-primary)]"}`;
   const renderDesktopNavigationItem = (item: any) => {
@@ -139,15 +143,11 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-white shadow-sm" data-storefront-header-layout={headerLayout}>
       <CampaignBar />
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={{ backgroundImage: "none", backgroundColor: palette.primary }}>
+      {profile.showAnnouncement && announcementItems.length > 0 && <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-white" style={{ backgroundImage: "none", backgroundColor: palette.primary }}>
         <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-7 gap-y-1 text-xs font-medium md:text-sm">
-          <span>{t(locale, "topSelection")}</span>
-          <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
-          <span>{t(locale, "topDelivery")}</span>
-          <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />
-          <span>{t(locale, "topQuote")}</span>
+          {announcementItems.map((item, index) => <div key={`${item}-${index}`} className="contents"><span>{item}</span>{index < announcementItems.length - 1 && <span className="hidden h-1 w-1 rounded-full bg-white/70 sm:block" aria-hidden="true" />}</div>)}
         </div>
-      </div>
+      </div>}
 
       {/* Main Navigation */}
       <nav className="w-full px-3 py-2 sm:px-4 xl:px-6 xl:py-2.5">

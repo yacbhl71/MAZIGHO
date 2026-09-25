@@ -255,6 +255,16 @@ describe("owner product variant routes", () => {
     }), 77);
   });
 
+  it("saves the announcement bar only through the current resolved store", async () => {
+    const input = {
+      showAnnouncement: true,
+      announcementItems: ["Créations choisies avec soin", "Retrait à l’atelier sur rendez-vous", "Une question ? Contactez-nous"],
+    };
+    await expect(callerFor().owner.saveAnnouncementBar(input)).resolves.toMatchObject(input);
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining(input), 77);
+  });
+
   it("edits carousel slides only inside the current resolved store", async () => {
     const caller = callerFor();
     await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);

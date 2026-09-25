@@ -72,6 +72,11 @@ export const ownerCataloguePageCopy = z.object({
   bestSellersEmptyText: z.string().trim().min(2).max(420),
 });
 
+const ownerAnnouncementBar = z.object({
+  showAnnouncement: z.boolean(),
+  announcementItems: z.array(z.string().trim().max(120)).length(3),
+});
+
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
 const ownerFooterSettings = z.object({
   footerDescription: z.string().trim().max(420),
@@ -444,6 +449,10 @@ export const ownerRouter = router({
   saveCataloguePageCopy: storeManagementProcedure.input(ownerCataloguePageCopy).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, ...input, cataloguePageCopyCustomized: true }, ctx.store!.id);
+  }),
+  saveAnnouncementBar: storeManagementProcedure.input(ownerAnnouncementBar).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
   }),
   saveFooter: storeManagementProcedure.input(ownerFooterSettings).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);

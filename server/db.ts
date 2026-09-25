@@ -7131,6 +7131,8 @@ export type DesignProfile = {
   bestSellersLead: string;
   bestSellersTopLabel: string;
   bestSellersEmptyText: string;
+  showAnnouncement: boolean;
+  announcementItems: string[];
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -7231,6 +7233,8 @@ export const defaultDesignProfile: DesignProfile = {
   bestSellersLead: "Une sélection affichée uniquement lorsque la livraison est confirmée vers {country}.",
   bestSellersTopLabel: "🏆 Top {rank}",
   bestSellersEmptyText: "Aucun best-seller n’est encore confirmé pour la livraison vers {country}.",
+  showAnnouncement: true,
+  announcementItems: ["Une sélection pensée pour le quotidien", "Prix tout compris · livraison offerte", "Coût et délai confirmés avant achat"],
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
@@ -7340,8 +7344,12 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "cataloguePageCopyCustomized", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "cataloguePageCopyCustomized", "showAnnouncement", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
+  }
+
+  if (Array.isArray(source.announcementItems) && source.announcementItems.length === 3) {
+    normalized.announcementItems = source.announcementItems.map(item => typeof item === "string" ? item.trim().slice(0, 120) : "");
   }
 
   const socialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
