@@ -7117,6 +7117,20 @@ export type DesignProfile = {
   closingVisualValue: string;
   closingVisualText: string;
   closingImageUrl: string;
+  cataloguePageCopyCustomized: boolean;
+  promosTitle: string;
+  promosLead: string;
+  promosBannerTitle: string;
+  promosBannerText: string;
+  promosEmptyText: string;
+  promosAllProductsLabel: string;
+  newArrivalsTitle: string;
+  newArrivalsLead: string;
+  newArrivalsEmptyText: string;
+  bestSellersTitle: string;
+  bestSellersLead: string;
+  bestSellersTopLabel: string;
+  bestSellersEmptyText: string;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -7203,6 +7217,20 @@ export const defaultDesignProfile: DesignProfile = {
   closingVisualValue: "",
   closingVisualText: "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.",
   closingImageUrl: "",
+  cataloguePageCopyCustomized: false,
+  promosTitle: "Promotions spéciales",
+  promosLead: "Découvrez les réductions applicables aux produits dont la livraison est confirmée vers {country}.",
+  promosBannerTitle: "Réductions affichées dans le prix",
+  promosBannerText: "Aucun code promotionnel supplémentaire n’est actif actuellement.",
+  promosEmptyText: "Aucune promotion n’est encore confirmée pour la livraison vers {country}.",
+  promosAllProductsLabel: "Voir tous les produits",
+  newArrivalsTitle: "Nouveautés",
+  newArrivalsLead: "Découvrez les dernières nouveautés dont la livraison est confirmée vers {country}.",
+  newArrivalsEmptyText: "Aucune nouveauté n’est encore confirmée pour la livraison vers {country}.",
+  bestSellersTitle: "Best-sellers",
+  bestSellersLead: "Une sélection affichée uniquement lorsque la livraison est confirmée vers {country}.",
+  bestSellersTopLabel: "🏆 Top {rank}",
+  bestSellersEmptyText: "Aucun best-seller n’est encore confirmé pour la livraison vers {country}.",
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
@@ -7259,6 +7287,9 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryAllShopUrl", "discoveryBrowseShopLabel", "discoveryBrowseShopUrl",
     "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel", "testimonialsCtaUrl",
     "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingShopCtaUrl", "closingContactCtaLabel", "closingContactCtaUrl", "closingVisualValue", "closingVisualText", "closingImageUrl",
+    "promosTitle", "promosLead", "promosBannerTitle", "promosBannerText", "promosEmptyText", "promosAllProductsLabel",
+    "newArrivalsTitle", "newArrivalsLead", "newArrivalsEmptyText",
+    "bestSellersTitle", "bestSellersLead", "bestSellersTopLabel", "bestSellersEmptyText",
     "navigationHome", "navigationShop", "navigationCategories", "navigationCreations", "navigationContact",
     "footerDescription", "footerNavigationTitle", "footerCategoriesTitle", "footerHelpTitle", "footerContactText", "footerContactUrl",
     "footerDeliveryTitle", "footerDeliveryText", "footerSecureTitle", "footerSecureText", "footerServiceTitle", "footerServiceText", "footerCopyrightText",
@@ -7309,7 +7340,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "cataloguePageCopyCustomized", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
 

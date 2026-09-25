@@ -17,11 +17,20 @@ import { categoryT, commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { toast } from "sonner";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function BestSellers() {
   const { locale } = useLocale();
+  const { profile } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
-  const copy = getMarketingCopy(locale).bestSellers;
+  const defaultCopy = getMarketingCopy(locale).bestSellers;
+  const copy = locale === "fr" && profile.cataloguePageCopyCustomized ? {
+    ...defaultCopy,
+    title: profile.bestSellersTitle,
+    lead: profile.bestSellersLead,
+    top: profile.bestSellersTopLabel,
+    empty: profile.bestSellersEmptyText,
+  } : defaultCopy;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();

@@ -227,6 +227,34 @@ describe("owner product variant routes", () => {
     expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("design", 1, 77);
   });
 
+  it("saves catalogue page copy only through the current resolved store", async () => {
+    const input = {
+      promosTitle: "Offres de l’atelier",
+      promosLead: "Des créations choisies pour {country}.",
+      promosBannerTitle: "Une sélection en ce moment",
+      promosBannerText: "Les prix affichés sont déjà ajustés.",
+      promosEmptyText: "Aucune offre n’est actuellement disponible pour {country}.",
+      promosAllProductsLabel: "Voir les créations",
+      newArrivalsTitle: "Nouvelles créations",
+      newArrivalsLead: "Les dernières arrivées pour {country}.",
+      newArrivalsEmptyText: "Aucune nouveauté n’est disponible pour {country}.",
+      bestSellersTitle: "Les favoris de l’atelier",
+      bestSellersLead: "Les créations les plus appréciées pour {country}.",
+      bestSellersTopLabel: "Coup de cœur n°{rank}",
+      bestSellersEmptyText: "Aucun favori n’est encore disponible pour {country}.",
+    };
+    await expect(callerFor().owner.saveCataloguePageCopy(input)).resolves.toMatchObject({
+      promosTitle: input.promosTitle,
+      cataloguePageCopyCustomized: true,
+    });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({
+      promosTitle: input.promosTitle,
+      bestSellersTopLabel: input.bestSellersTopLabel,
+      cataloguePageCopyCustomized: true,
+    }), 77);
+  });
+
   it("edits carousel slides only inside the current resolved store", async () => {
     const caller = callerFor();
     await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);

@@ -56,6 +56,22 @@ export const ownerHomepageSections = z.object({
   }
 });
 
+export const ownerCataloguePageCopy = z.object({
+  promosTitle: z.string().trim().min(2).max(120),
+  promosLead: z.string().trim().min(2).max(420),
+  promosBannerTitle: z.string().trim().min(2).max(120),
+  promosBannerText: z.string().trim().min(2).max(420),
+  promosEmptyText: z.string().trim().min(2).max(420),
+  promosAllProductsLabel: z.string().trim().min(2).max(60),
+  newArrivalsTitle: z.string().trim().min(2).max(120),
+  newArrivalsLead: z.string().trim().min(2).max(420),
+  newArrivalsEmptyText: z.string().trim().min(2).max(420),
+  bestSellersTitle: z.string().trim().min(2).max(120),
+  bestSellersLead: z.string().trim().min(2).max(420),
+  bestSellersTopLabel: z.string().trim().min(2).max(60),
+  bestSellersEmptyText: z.string().trim().min(2).max(420),
+});
+
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
 const ownerFooterSettings = z.object({
   footerDescription: z.string().trim().max(420),
@@ -424,6 +440,10 @@ export const ownerRouter = router({
     ] as const;
     if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;
+  }),
+  saveCataloguePageCopy: storeManagementProcedure.input(ownerCataloguePageCopy).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, ...input, cataloguePageCopyCustomized: true }, ctx.store!.id);
   }),
   saveFooter: storeManagementProcedure.input(ownerFooterSettings).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);

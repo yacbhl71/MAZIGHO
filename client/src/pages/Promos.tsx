@@ -21,9 +21,18 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function Promos() {
   const { locale } = useLocale();
-  const { palette } = useDesignProfile(locale);
+  const { palette, profile } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
-  const copy = getMarketingCopy(locale).promos;
+  const defaultCopy = getMarketingCopy(locale).promos;
+  const copy = locale === "fr" && profile.cataloguePageCopyCustomized ? {
+    ...defaultCopy,
+    title: profile.promosTitle,
+    lead: profile.promosLead,
+    codeTitle: profile.promosBannerTitle,
+    codeText: profile.promosBannerText,
+    empty: profile.promosEmptyText,
+    allProducts: profile.promosAllProductsLabel,
+  } : defaultCopy;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();

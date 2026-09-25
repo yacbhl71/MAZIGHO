@@ -17,11 +17,19 @@ import { categoryT, commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { toast } from "sonner";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function Nouveautes() {
   const { locale } = useLocale();
+  const { profile } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
-  const copy = getCollectionsCopy(locale).newArrivals;
+  const defaultCopy = getCollectionsCopy(locale).newArrivals;
+  const copy = locale === "fr" && profile.cataloguePageCopyCustomized ? {
+    ...defaultCopy,
+    title: profile.newArrivalsTitle,
+    lead: profile.newArrivalsLead,
+    empty: profile.newArrivalsEmptyText,
+  } : defaultCopy;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();

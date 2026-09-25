@@ -3198,6 +3198,20 @@ export const adminRouter = router({
       showTestimonials: z.boolean(),
       showEditorial: z.boolean(),
       showFeatured: z.boolean().default(true),
+      cataloguePageCopyCustomized: z.boolean().default(false),
+      promosTitle: z.string().trim().min(2).max(120).default("Promotions spéciales"),
+      promosLead: z.string().trim().min(2).max(420).default("Découvrez les réductions applicables aux produits dont la livraison est confirmée vers {country}."),
+      promosBannerTitle: z.string().trim().min(2).max(120).default("Réductions affichées dans le prix"),
+      promosBannerText: z.string().trim().min(2).max(420).default("Aucun code promotionnel supplémentaire n’est actif actuellement."),
+      promosEmptyText: z.string().trim().min(2).max(420).default("Aucune promotion n’est encore confirmée pour la livraison vers {country}."),
+      promosAllProductsLabel: z.string().trim().min(2).max(60).default("Voir tous les produits"),
+      newArrivalsTitle: z.string().trim().min(2).max(120).default("Nouveautés"),
+      newArrivalsLead: z.string().trim().min(2).max(420).default("Découvrez les dernières nouveautés dont la livraison est confirmée vers {country}."),
+      newArrivalsEmptyText: z.string().trim().min(2).max(420).default("Aucune nouveauté n’est encore confirmée pour la livraison vers {country}."),
+      bestSellersTitle: z.string().trim().min(2).max(120).default("Best-sellers"),
+      bestSellersLead: z.string().trim().min(2).max(420).default("Une sélection affichée uniquement lorsque la livraison est confirmée vers {country}."),
+      bestSellersTopLabel: z.string().trim().min(2).max(60).default("🏆 Top {rank}"),
+      bestSellersEmptyText: z.string().trim().min(2).max(420).default("Aucun best-seller n’est encore confirmé pour la livraison vers {country}."),
       customColorsEnabled: z.boolean().default(false),
       customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#c2410c"),
       customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#0f766e"),
@@ -3239,7 +3253,7 @@ export const adminRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const storeId = ctx.store?.id;
       const previous = await db.getDesignProfile(storeId);
-      const profile = await db.updateDesignProfile(input, storeId);
+      const profile = await db.updateDesignProfile({ ...previous, ...input }, storeId);
       const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
       if (editorialFields.some(field => previous[field] !== profile[field])) {
         await db.markPublicContentTranslationsStale("design", 1, storeId);
