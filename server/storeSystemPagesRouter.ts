@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { publicProcedure, router, storeManagementProcedure } from "./_core/trpc";
+import { platformProcedure, publicProcedure, router, storeManagementProcedure } from "./_core/trpc";
 import { mayServeStorefront } from "./services/storeScope";
 import {
   getStoreSystemPages,
@@ -106,6 +106,69 @@ export const ownerSystemPagesRouter = router({
 
   /** Removes the custom version of a page: the storefront falls back to defaults. */
   resetPage: storeManagementProcedure
+    .input(z.object({ pageId: z.enum(storeSystemPageIds) }))
+    .mutation(async ({ ctx, input }) => {
+      await upsertStoreSystemPage(ctx.store!.id, input.pageId, input.pageId === "faq" ? [] : null);
+      return { ok: true as const };
+  }),
+});
+
+/* ------------------------------------------------------------------------- */
+/* MAZIGHO main storefront                                                     */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * The main MAZIGHO shop uses exactly the same editable pages as client
+ * storefronts, but its editor must stay inside the platform administration.
+ * `platformProcedure` deliberately prevents this surface from being used on a
+ * client domain or by a client-store member.
+ */
+export const adminSystemPagesRouter = router({
+  getPages: platformProcedure.query(async ({ ctx }): Promise<{
+    pages: StoreSystemPagesContent;
+    compliance: StoreSystemPagesCompliance;
+  }> => {
+    const pages = await getStoreSystemPages(ctx.store!.id);
+    return { pages, compliance: getSystemPagesCompliance(pages) };
+  }),
+
+  updateFaq: platformProcedure
+    .input(z.object({ items: z.array(faqItemInput).max(60) }))
+    .mutation(async ({ ctx, input }) => {
+      const items = normalizeFaqItems(input.items);
+      if (input.items.length > 0 && items.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Aucune entrée de FAQ valide à enregistrer." });
+      }
+      await upsertStoreSystemPage(ctx.store!.id, "faq", items);
+      return { items };
+    }),
+
+  updateContact: platformProcedure
+    .input(contactPageInput)
+    .mutation(async ({ ctx, input }) => {
+      const content = normalizeContactPageContent(input);
+      if (!content) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Renseignez au moins un titre, une introduction, un e-mail ou une adresse." });
+      }
+      await upsertStoreSystemPage(ctx.store!.id, "contact", content);
+      return { content };
+    }),
+
+  updateTextPage: platformProcedure
+    .input(z.object({
+      pageId: z.enum(["returns", "about"]),
+      content: textPageInput,
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const content = normalizeTextPageContent(input.content);
+      if (!content) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "La page doit contenir au moins un titre ou un texte." });
+      }
+      await upsertStoreSystemPage(ctx.store!.id, input.pageId, content);
+      return { content };
+    }),
+
+  resetPage: platformProcedure
     .input(z.object({ pageId: z.enum(storeSystemPageIds) }))
     .mutation(async ({ ctx, input }) => {
       await upsertStoreSystemPage(ctx.store!.id, input.pageId, input.pageId === "faq" ? [] : null);

@@ -22,7 +22,7 @@ vi.mock("./storeSystemPagesDb", () => ({
   }),
 }));
 
-import { ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
+import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 
 function ownerCaller(role: string = "owner", status: string = "active", storeStatus: "setup" | "active" = "active") {
   membershipState.current = role === "none" ? null : { role, status };
@@ -37,6 +37,20 @@ function storefrontCaller() {
   return storefrontSystemPagesRouter.createCaller({
     user: null,
     store: { id: 77, slug: "boutique-test", displayName: "Pattes & Compagnie", primaryDomain: "boutique.test", status: "active", isPlatformStore: 0 },
+  } as any);
+}
+
+function platformCaller(role: "admin" | "user" = "admin", isPlatformStore = true) {
+  return adminSystemPagesRouter.createCaller({
+    user: { id: 1, role, name: "Administrateur test", email: "admin@example.test" },
+    store: {
+      id: isPlatformStore ? 1 : 77,
+      slug: isPlatformStore ? "mazigho" : "boutique-test",
+      displayName: isPlatformStore ? "MAZIGHO" : "Pattes & Compagnie",
+      primaryDomain: isPlatformStore ? "mazigho.test" : "boutique.test",
+      status: "active",
+      isPlatformStore: isPlatformStore ? 1 : 0,
+    },
   } as any);
 }
 
@@ -128,5 +142,29 @@ describe("storefrontSystemPagesRouter", () => {
       store: { id: 78, slug: "prep", displayName: "En préparation", primaryDomain: "prep.test", status: "setup", isPlatformStore: 0 },
     } as any);
     await expect(caller.getPages()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("adminSystemPagesRouter", () => {
+  beforeEach(() => {
+    pagesState.current = { faq: [], contact: null, returns: null, about: null };
+    pagesState.upserts = [];
+    vi.clearAllMocks();
+  });
+
+  it("lets the platform administrator edit the main storefront pages", async () => {
+    await platformCaller().updateTextPage({
+      pageId: "about",
+      content: { title: "À propos de MAZIGHO", body: "Notre sélection, notre histoire." },
+    });
+    expect(pagesState.upserts).toEqual([{
+      pageId: "about",
+      payload: { title: "À propos de MAZIGHO", body: "Notre sélection, notre histoire." },
+    }]);
+  });
+
+  it("refuses platform-page controls to a client user or on a client storefront", async () => {
+    await expect(platformCaller("user").getPages()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(platformCaller("admin", false).getPages()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

@@ -7,7 +7,7 @@ import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
 import { ownerRouter } from "./ownerRouter";
-import { ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
+import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
@@ -65,6 +65,9 @@ export const appRouter = router({
   auth: authRouter,
   owner: ownerRouter,
   ownerSystemPages: ownerSystemPagesRouter,
+  // Main-store counterpart of ownerSystemPages. Protected by platformProcedure
+  // so it remains unavailable on every customer storefront.
+  adminSystemPages: adminSystemPagesRouter,
   storefrontSystemPages: storefrontSystemPagesRouter,
   checkout: stripeCheckoutRouter,
 

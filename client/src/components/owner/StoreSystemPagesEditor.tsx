@@ -10,9 +10,9 @@ import { trpc } from "@/lib/trpc";
 import type { StoreFaqItem, StoreSystemPagesCompliance } from "@shared/storeSystemPages";
 
 /**
- * Autonomous editor for the store-scoped system pages. Mount it inside the
- * owner panel (/gestion-boutique); it talks to the ownerSystemPages router
- * and keeps every page's fallback intact via "Réinitialiser".
+ * Shared editor for the four public system pages. Client storefronts use the
+ * strictly store-scoped owner router; the main MAZIGHO storefront uses a
+ * separate platform-only router. Both paths keep page data isolated.
  */
 
 type EditorTab = "faq" | "contact" | "returns" | "about";
@@ -49,9 +49,16 @@ function newFaqItem(index: number): StoreFaqItem {
   return { id: `faq-${Date.now()}-${index}`, question: "", answer: "" };
 }
 
-export default function StoreSystemPagesEditor() {
+type StoreSystemPagesEditorProps = {
+  /** `platform` is reserved for the main MAZIGHO administration. */
+  scope?: "owner" | "platform";
+};
+
+export default function StoreSystemPagesEditor({ scope = "owner" }: StoreSystemPagesEditorProps) {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.ownerSystemPages.getPages.useQuery(undefined, { retry: false });
+  const ownerPagesQuery = trpc.ownerSystemPages.getPages.useQuery(undefined, { retry: false, enabled: scope === "owner" });
+  const platformPagesQuery = trpc.adminSystemPages.getPages.useQuery(undefined, { retry: false, enabled: scope === "platform" });
+  const { data, isLoading } = scope === "platform" ? platformPagesQuery : ownerPagesQuery;
 
   const [tab, setTab] = useState<EditorTab>("faq");
   const [showPreview, setShowPreview] = useState(false);
@@ -61,7 +68,7 @@ export default function StoreSystemPagesEditor() {
   const [returns, setReturns] = useState<TextDraft>(EMPTY_TEXT);
   const [about, setAbout] = useState<TextDraft>(EMPTY_TEXT);
 
-  // Hydrate drafts once the store content is loaded.
+  // Hydrate drafts once the resolved storefront content is loaded.
   useEffect(() => {
     if (!data) return;
     setFaqItems(data.pages.faq.map(item => ({ ...item })));
@@ -71,27 +78,71 @@ export default function StoreSystemPagesEditor() {
   }, [data]);
 
   const compliance: StoreSystemPagesCompliance | null = data?.compliance ?? null;
+  const invalidate = () => scope === "platform"
+    ? utils.adminSystemPages.getPages.invalidate()
+    : utils.ownerSystemPages.getPages.invalidate();
 
-  const invalidate = () => utils.ownerSystemPages.getPages.invalidate();
-
-  const saveFaq = trpc.ownerSystemPages.updateFaq.useMutation({
+  const ownerSaveFaq = trpc.ownerSystemPages.updateFaq.useMutation({
     onSuccess: () => { toast.success("FAQ enregistrée."); invalidate(); },
     onError: error => toast.error(error.message || "Enregistrement de la FAQ impossible."),
   });
-  const saveContact = trpc.ownerSystemPages.updateContact.useMutation({
+  const platformSaveFaq = trpc.adminSystemPages.updateFaq.useMutation({
+    onSuccess: () => { toast.success("FAQ enregistrée."); invalidate(); },
+    onError: error => toast.error(error.message || "Enregistrement de la FAQ impossible."),
+  });
+  const ownerSaveContact = trpc.ownerSystemPages.updateContact.useMutation({
     onSuccess: () => { toast.success("Page contact enregistrée."); invalidate(); },
     onError: error => toast.error(error.message || "Enregistrement de la page contact impossible."),
   });
-  const saveTextPage = trpc.ownerSystemPages.updateTextPage.useMutation({
+  const platformSaveContact = trpc.adminSystemPages.updateContact.useMutation({
+    onSuccess: () => { toast.success("Page contact enregistrée."); invalidate(); },
+    onError: error => toast.error(error.message || "Enregistrement de la page contact impossible."),
+  });
+  const ownerSaveTextPage = trpc.ownerSystemPages.updateTextPage.useMutation({
     onSuccess: () => { toast.success("Page enregistrée."); invalidate(); },
     onError: error => toast.error(error.message || "Enregistrement de la page impossible."),
   });
-  const resetPage = trpc.ownerSystemPages.resetPage.useMutation({
+  const platformSaveTextPage = trpc.adminSystemPages.updateTextPage.useMutation({
+    onSuccess: () => { toast.success("Page enregistrée."); invalidate(); },
+    onError: error => toast.error(error.message || "Enregistrement de la page impossible."),
+  });
+  const ownerResetPage = trpc.ownerSystemPages.resetPage.useMutation({
+    onSuccess: () => { toast.success("Page réinitialisée : le texte par défaut s'affiche à nouveau."); invalidate(); },
+    onError: error => toast.error(error.message || "Réinitialisation impossible."),
+  });
+  const platformResetPage = trpc.adminSystemPages.resetPage.useMutation({
     onSuccess: () => { toast.success("Page réinitialisée : le texte par défaut s'affiche à nouveau."); invalidate(); },
     onError: error => toast.error(error.message || "Réinitialisation impossible."),
   });
 
-  const isSaving = saveFaq.isPending || saveContact.isPending || saveTextPage.isPending || resetPage.isPending;
+  const saveFaq = (items: StoreFaqItem[]) => {
+    const input = { items: items.map(item => ({
+      id: item.id,
+      question: item.question,
+      answer: item.answer,
+      category: item.category?.trim() ? item.category.trim() : undefined,
+    })) };
+    if (scope === "platform") platformSaveFaq.mutate(input);
+    else ownerSaveFaq.mutate(input);
+  };
+  const saveContact = (input: ContactDraft) => {
+    if (scope === "platform") platformSaveContact.mutate(input);
+    else ownerSaveContact.mutate(input);
+  };
+  const saveTextPage = (pageId: "returns" | "about", content: TextDraft) => {
+    if (scope === "platform") platformSaveTextPage.mutate({ pageId, content });
+    else ownerSaveTextPage.mutate({ pageId, content });
+  };
+  const resetPage = (pageId: EditorTab) => {
+    if (scope === "platform") platformResetPage.mutate({ pageId });
+    else ownerResetPage.mutate({ pageId });
+  };
+
+  const isFaqSaving = ownerSaveFaq.isPending || platformSaveFaq.isPending;
+  const isContactSaving = ownerSaveContact.isPending || platformSaveContact.isPending;
+  const isTextSaving = ownerSaveTextPage.isPending || platformSaveTextPage.isPending;
+  const isResetting = ownerResetPage.isPending || platformResetPage.isPending;
+  const isSaving = isFaqSaving || isContactSaving || isTextSaving || isResetting;
 
   /* ------------------------------ FAQ editing ---------------------------- */
 
@@ -135,31 +186,26 @@ export default function StoreSystemPagesEditor() {
       return;
     }
     const cleaned = faqItems.filter(item => item.question.trim().length > 0 || item.answer.trim().length > 0);
-    saveFaq.mutate({ items: cleaned.map(item => ({
-      id: item.id,
-      question: item.question,
-      answer: item.answer,
-      category: item.category?.trim() ? item.category.trim() : undefined,
-    })) });
+    saveFaq(cleaned);
   };
 
   const confirmReset = (pageId: EditorTab) => {
     if (window.confirm(`Réinitialiser la page « ${TAB_LABELS[pageId]} » ? Le texte par défaut de la plateforme s'affichera à nouveau sur votre vitrine.`)) {
-      resetPage.mutate({ pageId });
+      resetPage(pageId);
     }
   };
 
   /* -------------------------------- Render ------------------------------- */
 
   if (isLoading) {
-    return <p className="text-sm text-muted-foreground">Chargement des pages de la boutique…</p>;
+    return <p className="text-sm text-muted-foreground">Chargement des pages publiques…</p>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Pages de la boutique</h2>
+          <h2 className="text-xl font-bold text-foreground">Pages publiques</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Personnalisez les pages publiques de votre vitrine. Tant qu'une page n'est pas personnalisée,
             le texte par défaut de la plateforme reste affiché. Variables disponibles :
@@ -295,7 +341,7 @@ export default function StoreSystemPagesEditor() {
                       <RotateCcw className="h-4 w-4" /> Réinitialiser
                     </Button>
                     <Button type="button" className="gap-2" disabled={isSaving} onClick={handleSaveFaq}>
-                      <Save className="h-4 w-4" /> {saveFaq.isPending ? "Enregistrement…" : "Enregistrer la FAQ"}
+                      <Save className="h-4 w-4" /> {isFaqSaving ? "Enregistrement…" : "Enregistrer la FAQ"}
                     </Button>
                   </div>
                 </div>
@@ -356,8 +402,8 @@ export default function StoreSystemPagesEditor() {
                     <RotateCcw className="h-4 w-4" /> Réinitialiser
                   </Button>
                   <Button type="button" className="gap-2" disabled={isSaving}
-                    onClick={() => saveContact.mutate(contact)}>
-                    <Save className="h-4 w-4" /> {saveContact.isPending ? "Enregistrement…" : "Enregistrer"}
+                    onClick={() => saveContact(contact)}>
+                    <Save className="h-4 w-4" /> {isContactSaving ? "Enregistrement…" : "Enregistrer"}
                   </Button>
                 </div>
               </CardContent>
@@ -406,8 +452,8 @@ export default function StoreSystemPagesEditor() {
                       <RotateCcw className="h-4 w-4" /> Réinitialiser
                     </Button>
                     <Button type="button" className="gap-2" disabled={isSaving}
-                      onClick={() => saveTextPage.mutate({ pageId: mutation, content: draft })}>
-                      <Save className="h-4 w-4" /> {saveTextPage.isPending ? "Enregistrement…" : "Enregistrer"}
+                      onClick={() => saveTextPage(mutation, draft)}>
+                      <Save className="h-4 w-4" /> {isTextSaving ? "Enregistrement…" : "Enregistrer"}
                     </Button>
                   </div>
                 </CardContent>
