@@ -1,28 +1,31 @@
 import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 const updatedAt = "23 août 2026";
 
 export default function PrivacyPolicy() {
   const { profile } = useLegalProfile();
+  const { profile: designProfile } = useDesignProfile();
+  const brandName = designProfile.brandName?.trim() || "La boutique";
 
   return (
     <LegalLayout
       eyebrow="Données personnelles"
       title="Politique de confidentialité"
-      description="Cette politique explique quelles données MAZIGHO traite, pourquoi elles sont utilisées et comment exercer vos droits."
+      description={`Cette politique explique quelles données ${brandName} traite, pourquoi elles sont utilisées et comment exercer vos droits.`}
       updatedAt={updatedAt}
     >
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Responsable du traitement</h2>
         <p className="mt-3">
-          Le responsable du traitement des données personnelles est <strong>{profile.operatorName}</strong>, exploitant de MAZIGHO, {profile.addressLine}, {profile.postalCodeCity}, {profile.country}. Pour toute demande relative aux données personnelles, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
+          Le responsable du traitement des données personnelles est <strong>{profile.operatorName}</strong>, exploitant de {brandName}, {profile.addressLine}, {profile.postalCodeCity}, {profile.country}. Pour toute demande relative aux données personnelles, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
 
       <section>
         <h2 className="text-xl font-semibold text-slate-950">2. Données traitées</h2>
-        <p className="mt-3">Selon votre utilisation du site, MAZIGHO peut traiter les catégories de données suivantes :</p>
+        <p className="mt-3">Selon votre utilisation du site, {brandName} peut traiter les catégories de données suivantes :</p>
         <ul className="mt-3 list-disc space-y-2 pl-5">
           <li>les informations de compte, telles que le nom, l’adresse e-mail et les informations nécessaires à la connexion ;</li>
           <li>les informations que vous saisissez dans un formulaire de contact ;</li>
@@ -46,7 +49,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">5. Cookies et stockage local</h2>
         <p className="mt-3">
-          MAZIGHO utilise des mécanismes techniques nécessaires au fonctionnement du site, par exemple pour maintenir une session sécurisée ou conserver le panier et les favoris dans le navigateur. Si des outils non essentiels de mesure d’audience ou de marketing sont activés ultérieurement, cette politique et, si nécessaire, les choix de consentement seront mis à jour avant leur utilisation.
+          {brandName} utilise des mécanismes techniques nécessaires au fonctionnement du site, par exemple pour maintenir une session sécurisée ou conserver le panier et les favoris dans le navigateur. Si des outils non essentiels de mesure d’audience ou de marketing sont activés ultérieurement, cette politique et, si nécessaire, les choix de consentement seront mis à jour avant leur utilisation.
         </p>
       </section>
 
@@ -60,7 +63,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">7. Vos droits</h2>
         <p className="mt-3">
-          Vous pouvez demander l’accès à vos données, leur rectification, leur suppression lorsque les conditions sont réunies, ou des informations sur leur traitement. Pour exercer ces droits, contactez MAZIGHO à l’adresse indiquée ci-dessus. Une réponse pourra nécessiter une vérification raisonnable de votre identité afin de protéger vos données.
+          Vous pouvez demander l’accès à vos données, leur rectification, leur suppression lorsque les conditions sont réunies, ou des informations sur leur traitement. Pour exercer ces droits, contactez {brandName} à l’adresse indiquée ci-dessus. Une réponse pourra nécessiter une vérification raisonnable de votre identité afin de protéger vos données.
         </p>
       </section>
 

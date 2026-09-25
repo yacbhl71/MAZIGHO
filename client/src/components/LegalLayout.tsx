@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 const legalUiCopy: Record<StorefrontLocale, { updatedAt: string; sourceNotice: string; nav: [string, string, string, string] }> = {
   fr: { updatedAt: "Dernière mise à jour", sourceNotice: "", nav: ["Mentions légales", "Confidentialité", "Conditions générales", "Livraison et retours"] },
@@ -23,6 +24,7 @@ type LegalLayoutProps = {
 
 export default function LegalLayout({ eyebrow, title, description, updatedAt, children }: LegalLayoutProps) {
   const { locale } = useLocale();
+  const { palette } = useDesignProfile(locale);
   const ui = legalUiCopy[locale] ?? legalUiCopy.fr;
 
   return (
@@ -32,7 +34,7 @@ export default function LegalLayout({ eyebrow, title, description, updatedAt, ch
         <section className="border-b border-[#eadfd2] bg-white">
           <div className="container mx-auto px-4 py-12 md:py-16">
             <div className="mx-auto max-w-4xl">
-              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-600">{eyebrow}</p>
+              <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{eyebrow}</p>
               <h1 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">{title}</h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">{description}</p>
               <p className="mt-5 text-xs text-slate-500">{ui.updatedAt} : {updatedAt}</p>
@@ -45,7 +47,7 @@ export default function LegalLayout({ eyebrow, title, description, updatedAt, ch
           <article className="mx-auto max-w-4xl space-y-8 rounded-2xl border border-[#eadfd2] bg-white p-6 text-[15px] leading-7 text-slate-700 md:p-10">
             {children}
           </article>
-          <nav className="mx-auto mt-8 flex max-w-4xl flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-orange-700">
+          <nav className="mx-auto mt-8 flex max-w-4xl flex-wrap gap-x-5 gap-y-2 text-sm font-medium" style={{ color: palette.primary }}>
             <Link href="/mentions-legales"><span className="cursor-pointer hover:text-orange-500">{ui.nav[0]}</span></Link>
             <Link href="/confidentialite"><span className="cursor-pointer hover:text-orange-500">{ui.nav[1]}</span></Link>
             <Link href="/conditions-generales"><span className="cursor-pointer hover:text-orange-500">{ui.nav[2]}</span></Link>

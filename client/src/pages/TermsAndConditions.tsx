@@ -1,22 +1,27 @@
 import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { useStorePrice } from "@/hooks/useStorePrice";
 
 const updatedAt = "23 août 2026";
 
 export default function TermsAndConditions() {
   const { profile } = useLegalProfile();
+  const { profile: designProfile } = useDesignProfile();
+  const { currencyCode } = useStorePrice();
+  const brandName = designProfile.brandName?.trim() || "La boutique";
 
   return (
     <LegalLayout
       eyebrow="Cadre de vente"
       title="Conditions générales"
-      description="Ces conditions encadrent l’utilisation de MAZIGHO et seront appliquées aux commandes lorsque le paiement en ligne sera officiellement ouvert."
+      description={`Ces conditions encadrent l’utilisation de ${brandName} et seront appliquées aux commandes lorsque le paiement en ligne sera officiellement ouvert.`}
       updatedAt={updatedAt}
     >
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Champ d’application</h2>
         <p className="mt-3">
-          Les présentes conditions générales régissent l’utilisation de la boutique MAZIGHO et les futures ventes conclues entre {profile.operatorName}, exploitant de MAZIGHO, et ses clients consommateurs. Elles s’appliqueront dans leur version affichée au moment de la validation d’une commande.
+          Les présentes conditions générales régissent l’utilisation de la boutique {brandName} et les futures ventes conclues entre {profile.operatorName}, exploitant de {brandName}, et ses clients consommateurs. Elles s’appliqueront dans leur version affichée au moment de la validation d’une commande.
         </p>
       </section>
 
@@ -30,14 +35,14 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">3. Produits et informations</h2>
         <p className="mt-3">
-          Chaque fiche produit a vocation à présenter les caractéristiques essentielles, le prix, les variantes éventuellement disponibles et les informations utiles à la décision d’achat. Les visuels sont illustratifs. Avant toute commande active, MAZIGHO indiquera de manière claire les informations indispensables à la conclusion du contrat.
+          Chaque fiche produit a vocation à présenter les caractéristiques essentielles, le prix, les variantes éventuellement disponibles et les informations utiles à la décision d’achat. Les visuels sont illustratifs. Avant toute commande active, {brandName} indiquera de manière claire les informations indispensables à la conclusion du contrat.
         </p>
       </section>
 
       <section>
         <h2 className="text-xl font-semibold text-slate-950">4. Prix</h2>
         <p className="mt-3">
-          Les prix affichés sur la boutique sont exprimés en francs suisses (CHF), sauf indication contraire. Les frais obligatoires, les frais de livraison éventuels et les conditions de paiement applicables devront être présentés de façon visible avant toute validation définitive d’une commande.
+          Les prix affichés sur la boutique sont exprimés dans la devise affichée par la boutique ({currencyCode}), sauf indication contraire. Les frais obligatoires, les frais de livraison éventuels et les conditions de paiement applicables devront être présentés de façon visible avant toute validation définitive d’une commande.
         </p>
       </section>
 
@@ -51,7 +56,7 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">6. Paiement</h2>
         <p className="mt-3">
-          Les moyens de paiement acceptés ne seront indiqués qu’après l’intégration effective d’un prestataire de paiement sécurisé. MAZIGHO ne demande actuellement aucune donnée de carte bancaire sur son site.
+          Les moyens de paiement acceptés ne seront indiqués qu’après l’intégration effective d’un prestataire de paiement sécurisé. {brandName} ne demande actuellement aucune donnée de carte bancaire sur son site.
         </p>
       </section>
 
@@ -65,14 +70,14 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">8. Responsabilité</h2>
         <p className="mt-3">
-          MAZIGHO s’efforce de maintenir des informations exactes et un site accessible. Dans les limites du droit applicable, MAZIGHO ne peut toutefois garantir l’absence totale d’interruption, d’erreur technique ou de disponibilité permanente des produits présentés.
+          {brandName} s’efforce de maintenir des informations exactes et un site accessible. Dans les limites du droit applicable, {brandName} ne peut toutefois garantir l’absence totale d’interruption, d’erreur technique ou de disponibilité permanente des produits présentés.
         </p>
       </section>
 
       <section>
         <h2 className="text-xl font-semibold text-slate-950">9. Droit applicable et contact</h2>
         <p className="mt-3">
-          Les présentes conditions sont soumises au droit suisse, sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez MAZIGHO à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
+          Les présentes conditions sont soumises au droit applicable dans le pays déclaré par l’exploitant ({profile.country}), sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez {brandName} à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
     </LegalLayout>
