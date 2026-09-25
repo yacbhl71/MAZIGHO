@@ -1,0 +1,4 @@
+-- Intentionally empty. The editable system pages feature stores its content
+-- in the existing `storeSettings` table (one JSON document per store/page),
+-- so no schema change is required. This file is kept only to keep the
+-- migration numbering sequence untouched; it will be removed before merge.

@@ -5,16 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Mail, Send } from "lucide-react";
+import { Clock, Mail, MapPin, Phone, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getMarketingCopy } from "@/lib/marketingCopy";
+import { useStoreSystemPages } from "@/hooks/useStoreSystemPages";
 
 export default function Contact() {
   const { locale } = useLocale();
   const copy = getMarketingCopy(locale).contact;
+  const { pages } = useStoreSystemPages();
+  const storeContact = pages?.contact ?? null;
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -58,10 +61,10 @@ export default function Contact() {
         <section className="bg-gradient-to-br from-primary/10 via-accent/5 to-secondary/10 py-16 md:py-20">
           <div className="container mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
-              {copy.title}
+              {storeContact?.title || copy.title}
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              {copy.lead}
+              {storeContact?.intro || copy.lead}
             </p>
           </div>
         </section>
@@ -83,25 +86,77 @@ export default function Contact() {
 
                 <Card>
                   <CardContent className="p-6 space-y-6">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Mail className="h-6 w-6 text-primary" />
+                    {storeContact?.email && (
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Mail className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground mb-1">E-mail</h3>
+                          <a className="text-muted-foreground underline underline-offset-4 hover:text-primary" href={`mailto:${storeContact.email}`}>{storeContact.email}</a>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground mb-1">{copy.formCardTitle}</h3>
-                        <p className="text-muted-foreground">{copy.formCardText}</p>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Send className="h-6 w-6 text-primary" />
+                    {storeContact?.phone && (
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Phone className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground mb-1">Téléphone</h3>
+                          <p className="text-muted-foreground">{storeContact.phone}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground mb-1">{copy.followUpTitle}</h3>
-                        <p className="text-muted-foreground">{copy.followUpText}</p>
+                    )}
+
+                    {storeContact?.address && (
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <MapPin className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground mb-1">Adresse</h3>
+                          <p className="text-muted-foreground whitespace-pre-line">{storeContact.address}</p>
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {storeContact?.hours && (
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Clock className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground mb-1">Horaires</h3>
+                          <p className="text-muted-foreground whitespace-pre-line">{storeContact.hours}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {!storeContact && (
+                      <>
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <Mail className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground mb-1">{copy.formCardTitle}</h3>
+                            <p className="text-muted-foreground">{copy.formCardText}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start gap-4">
+                          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <Send className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground mb-1">{copy.followUpTitle}</h3>
+                            <p className="text-muted-foreground">{copy.followUpText}</p>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>
