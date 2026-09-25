@@ -41,6 +41,8 @@ export default function Category() {
   const shopControls = getShopControlsCopy(locale);
   const isCreativeCategory = category?.catalogSection === "creations";
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
+  const heroImageUrl = creativeVisual?.imageUrl || category?.imageUrl || categoryHeroImages[slug]?.src || "/assets/shop-editorial-hero.webp";
+  const usesStoreCategoryImage = Boolean(creativeVisual?.imageUrl || category?.imageUrl);
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   
@@ -98,8 +100,8 @@ export default function Category() {
         {/* Editorial Category Header */}
         <section className="relative min-h-[330px] overflow-hidden bg-slate-950 md:min-h-[390px]">
           <img
-            src={creativeVisual?.imageUrl || categoryHeroImages[slug]?.src || "/assets/shop-editorial-hero.webp"}
-            srcSet={creativeVisual ? undefined : categoryHeroImages[slug]?.srcSet || "/assets/shop-editorial-hero-640.webp 640w, /assets/shop-editorial-hero.webp 1600w"}
+            src={heroImageUrl}
+            srcSet={usesStoreCategoryImage ? undefined : categoryHeroImages[slug]?.srcSet || "/assets/shop-editorial-hero-640.webp 640w, /assets/shop-editorial-hero.webp 1600w"}
             sizes="100vw"
             alt={creativeVisual?.alt || `Sélection ${category.name}`}
             width={1920}
