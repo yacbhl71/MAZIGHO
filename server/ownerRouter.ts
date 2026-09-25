@@ -99,6 +99,16 @@ const ownerProductReassurance = z.object({
   })).length(2),
 });
 
+const ownerCheckoutPageCopy = z.object({
+  cartEyebrow: z.string().trim().max(120),
+  cartTitle: z.string().trim().min(2).max(120),
+  cartIntro: z.string().trim().max(360),
+  checkoutEyebrow: z.string().trim().max(120),
+  checkoutTitle: z.string().trim().min(2).max(120),
+  checkoutIntro: z.string().trim().max(420),
+  checkoutPaymentNotice: z.string().trim().min(2).max(420),
+});
+
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
 const ownerFooterSettings = z.object({
   footerDescription: z.string().trim().max(420),
@@ -499,6 +509,10 @@ export const ownerRouter = router({
     return await db.updateDesignProfile({ ...current, ...input, shopPageCopyCustomized: true }, ctx.store!.id);
   }),
   saveProductReassurance: storeManagementProcedure.input(ownerProductReassurance).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+  }),
+  saveCheckoutPageCopy: storeManagementProcedure.input(ownerCheckoutPageCopy).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
   }),

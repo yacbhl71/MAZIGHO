@@ -320,6 +320,21 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining(input), 77);
   });
 
+  it("saves cart and checkout copy only through the current resolved store", async () => {
+    const input = {
+      cartEyebrow: "Votre sélection créative",
+      cartTitle: "Votre panier atelier",
+      cartIntro: "Relisez vos créations avant la demande pour {country}.",
+      checkoutEyebrow: "Avant de finaliser",
+      checkoutTitle: "Vérifiez votre commande",
+      checkoutIntro: "Les conditions de l’atelier restent visibles avant toute demande.",
+      checkoutPaymentNotice: "Les moyens de paiement de l’atelier seront précisés avant validation.",
+    };
+    await expect(callerFor().owner.saveCheckoutPageCopy(input)).resolves.toMatchObject(input);
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining(input), 77);
+  });
+
   it("edits carousel slides only inside the current resolved store", async () => {
     const caller = callerFor();
     await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);

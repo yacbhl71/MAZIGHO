@@ -130,6 +130,13 @@ export type DesignProfile = {
   showShopReassurance: boolean;
   showProductReassurance: boolean;
   productReassuranceItems: ProductReassuranceItem[];
+  cartEyebrow: string;
+  cartTitle: string;
+  cartIntro: string;
+  checkoutEyebrow: string;
+  checkoutTitle: string;
+  checkoutIntro: string;
+  checkoutPaymentNotice: string;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -258,6 +265,13 @@ export const defaultDesignProfile: DesignProfile = {
     { icon: "shield", title: "Achat préparé avec soin", text: "Les modalités de paiement sont précisées avant toute validation." },
     { icon: "truck", title: "Livraison et retours", text: "Les conditions propres à cette boutique sont affichées avant la commande." },
   ],
+  cartEyebrow: "Votre sélection",
+  cartTitle: "Votre panier",
+  cartIntro: "Vérifiez vos produits avant de poursuivre vers la commande pour {country}.",
+  checkoutEyebrow: "Commande vérifiée",
+  checkoutTitle: "Préparez votre commande",
+  checkoutIntro: "Vérifiez votre sélection et les conditions affichées avant toute demande de paiement.",
+  checkoutPaymentNotice: "Le paiement en ligne n’est pas activé pour cette boutique.",
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
