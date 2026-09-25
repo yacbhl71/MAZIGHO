@@ -3788,6 +3788,76 @@ export async function setStoreTeamMemberStatus(input: {
   return { membershipId: membership.id, status: input.status };
 }
 
+/**
+ * Replaces an unactivated team member's invitation within one boutique only.
+ * The new one-time token invalidates every earlier unused invitation for that
+ * person. It never sends email: the owner transmits the link privately.
+ */
+export async function reissueStoreTeamInvitation(input: {
+  storeId: number;
+  membershipId: number;
+}) {
+  await ensureMultiStoreSchema();
+  await ensureInvitationSchema();
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return await db.transaction(async tx => {
+    const rows = await tx
+      .select({
+        membershipId: storeMemberships.id,
+        membershipStatus: storeMemberships.status,
+        membershipRole: storeMemberships.role,
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        accountStatus: users.accountStatus,
+      })
+      .from(storeMemberships)
+      .innerJoin(users, eq(users.id, storeMemberships.userId))
+      .where(and(
+        eq(storeMemberships.id, input.membershipId),
+        eq(storeMemberships.storeId, input.storeId)
+      ))
+      .limit(1);
+    const member = rows[0];
+
+    // The store id is part of the lookup: a membership id from another
+    // boutique is intentionally indistinguishable from an unknown member.
+    if (!member) throw new Error("TEAM_MEMBERSHIP_NOT_FOUND");
+    if (member.membershipRole === "owner") throw new Error("TEAM_OWNER_ACCESS_PROTECTED");
+    if (member.membershipStatus !== "active") throw new Error("TEAM_MEMBER_ACCESS_BLOCKED");
+    if (member.accountStatus !== "pending_invitation" || !member.email) throw new Error("INVITATION_NOT_PENDING");
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+    const token = randomBytes(32).toString("base64url");
+    await tx
+      .update(accountTokens)
+      .set({ usedAt: now })
+      .where(and(
+        eq(accountTokens.userId, member.userId),
+        eq(accountTokens.purpose, "account_invitation"),
+        isNull(accountTokens.usedAt)
+      ));
+    await tx.insert(accountTokens).values({
+      userId: member.userId,
+      purpose: "account_invitation",
+      tokenHash: hashAccountToken(token),
+      expiresAt,
+    });
+
+    return {
+      membershipId: member.membershipId,
+      userId: member.userId,
+      name: member.name || "",
+      email: member.email,
+      activation: { token, expiresAt },
+    };
+  });
+}
+
 export async function reissuePendingInvitation(userId: number) {
   await ensureInvitationSchema();
   const db = await getDb();

@@ -328,6 +328,16 @@ export const ownerRouter = router({
   })).mutation(async ({ ctx, input }) => {
     return await db.setStoreTeamMemberStatus({ ...input, storeId: ctx.store!.id });
   }),
+  reissueTeamInvitation: storeOwnerProcedure.input(z.object({
+    membershipId: z.number().int().positive(),
+  })).mutation(async ({ ctx, input }) => {
+    const prepared = await db.reissueStoreTeamInvitation({ ...input, storeId: ctx.store!.id });
+    return {
+      ...prepared,
+      activationLink: getAccountInvitationLink(prepared.activation.token),
+      emailSent: false,
+    };
+  }),
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),

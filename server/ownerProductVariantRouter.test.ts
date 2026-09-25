@@ -28,6 +28,13 @@ vi.mock("./db", () => ({
     activation: { token: "one-time-token", expiresAt: new Date("2026-12-01T00:00:00.000Z") },
   })),
   setStoreTeamMemberStatus: vi.fn(async ({ membershipId, status }) => ({ membershipId, status })),
+  reissueStoreTeamInvitation: vi.fn(async ({ membershipId }) => ({
+    membershipId,
+    userId: 15,
+    name: "Éditeur test",
+    email: "editeur@example.test",
+    activation: { token: "replacement-token", expiresAt: new Date("2026-12-02T00:00:00.000Z") },
+  })),
   getOwnerProductVariants: vi.fn(async () => state.variants),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   createOwnerProductVariantMatrix: vi.fn(async () => ({ created: 2, skipped: 0 })),
@@ -410,5 +417,21 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.setTeamMemberStatus({ membershipId: 9, status: "active" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("lets only the owner reissue a pending invitation inside the resolved store", async () => {
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.reissueTeamInvitation({ membershipId: 9 })).resolves.toMatchObject({
+      membershipId: 9,
+      email: "editeur@example.test",
+      activationLink: expect.stringContaining("token=replacement-token"),
+      emailSent: false,
+    });
+    // The client has no store id field to tamper with; the router takes it
+    // exclusively from the resolved host scope.
+    expect(db.reissueStoreTeamInvitation).toHaveBeenCalledWith({ membershipId: 9, storeId: 77 });
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.reissueTeamInvitation({ membershipId: 9 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
