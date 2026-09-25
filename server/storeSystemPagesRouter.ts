@@ -38,6 +38,7 @@ const faqItemInput = z.object({
   id: z.string().trim().max(60).optional(),
   question: z.string().trim().min(3).max(240),
   answer: z.string().trim().min(1).max(4000),
+  category: z.string().trim().max(60).optional(),
 });
 
 const contactPageInput = z.object({
