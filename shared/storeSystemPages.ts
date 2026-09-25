@@ -26,11 +26,14 @@ export type StoreFaqItem = {
   id: string;
   question: string;
   answer: string;
+  /** Optional free-form grouping label ("Livraison", "Commandes"...). */
+  category?: string;
 };
 
 export const MAX_FAQ_ITEMS = 60;
 export const MAX_FAQ_QUESTION_LENGTH = 240;
 export const MAX_FAQ_ANSWER_LENGTH = 4000;
+export const MAX_FAQ_CATEGORY_LENGTH = 60;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -44,7 +47,10 @@ function normalizeFaqItem(input: unknown, index: number): StoreFaqItem | null {
   if (answer.length < 1 || answer.length > MAX_FAQ_ANSWER_LENGTH) return null;
   const rawId = typeof input.id === "string" ? input.id.trim() : "";
   const id = rawId.length > 0 && rawId.length <= 60 && /^[a-z0-9-]+$/.test(rawId) ? rawId : `faq-${index + 1}`;
-  return { id, question, answer };
+  const rawCategory = typeof input.category === "string" ? input.category.trim() : "";
+  const item: StoreFaqItem = { id, question, answer };
+  if (rawCategory.length > 0) item.category = rawCategory.slice(0, MAX_FAQ_CATEGORY_LENGTH);
+  return item;
 }
 
 /**
@@ -74,6 +80,39 @@ export function parseFaqItems(value: string | null | undefined): StoreFaqItem[] 
   } catch {
     return [];
   }
+}
+
+/** Distinct, order-preserving category labels present in a FAQ list. */
+export function getFaqCategories(items: StoreFaqItem[]): string[] {
+  const seen = new Set<string>();
+  const categories: string[] = [];
+  for (const item of items) {
+    const category = item.category?.trim();
+    if (!category) continue;
+    const key = category.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    categories.push(category);
+  }
+  return categories;
+}
+
+/**
+ * Schema.org FAQPage JSON-LD payload for richer search snippets. Kept small:
+ * questions and answers only, no HTML. Returns null when the store FAQ is
+ * empty so the storefront never publishes a meaningless block.
+ */
+export function buildFaqPageJsonLd(items: StoreFaqItem[]): Record<string, unknown> | null {
+  if (items.length === 0) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map(item => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
 }
 
 /* ------------------------------------------------------------------------- */
