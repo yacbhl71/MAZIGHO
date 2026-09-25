@@ -2818,6 +2818,37 @@ export async function getStudioStoreMediaUsage(storeId: number) {
   };
 }
 
+/**
+ * Read-only SaaS supervision snapshot for a single client store. It composes
+ * only aggregate preparation signals already available to that store owner,
+ * the non-billing offer marker and an optional media total. It deliberately
+ * excludes customer, order-line, legal-contact, credential and file details.
+ */
+export async function getStudioStoreCommercialSupervision(storeId: number) {
+  const { store } = await getStudioActiveStoreManagementContext(storeId);
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+
+  const [readiness, rawOffer, mediaResult] = await Promise.all([
+    getOwnerCommercialReadiness(store.id),
+    getStoreSettingValue(store.id, "commercial_offer_mode"),
+    getStoreMediaUsage(store.id)
+      .then(usage => ({ usage, unavailable: false as const }))
+      .catch(error => {
+        console.warn("[Studio] Store media usage unavailable", { storeId: store.id, reason: error instanceof Error ? error.message : "UNKNOWN" });
+        return { usage: null, unavailable: true as const };
+      }),
+  ]);
+
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    readiness,
+    commercialOfferMode: normalizeStoreCommercialOfferMode(rawOffer),
+    mediaUsage: mediaResult.usage,
+    mediaUsageUnavailable: mediaResult.unavailable,
+    paymentStatus: "not_activated" as const,
+  };
+}
+
 async function ensureReviewsSchema() {
   if (_reviewsSchemaReady) return _reviewsSchemaReady;
   _reviewsSchemaReady = (async () => {
