@@ -366,6 +366,11 @@ export const ownerRouter = router({
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),
+  getOrderItemSummaries: storeManagementProcedure.input(z.object({
+    orderId: z.number().int().positive(),
+  })).query(async ({ ctx, input }) => {
+    return await db.getOwnerOrderItemSummaries(input.orderId, ctx.store!.id);
+  }),
   recordOrderDecision: storeManagementProcedure.input(z.object({
     orderId: z.number().int().positive(),
     action: z.enum(["accepted", "rejected"]),

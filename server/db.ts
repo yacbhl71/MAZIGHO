@@ -14,6 +14,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
 import { buildOwnerPrivateCartSimulation, type OwnerPrivateCartLineInput } from "./services/ownerPrivateCartSimulation";
+import { summarizeOwnerOrderItems } from "./services/ownerOrderItems";
 import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureReadiness";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
@@ -6247,6 +6248,30 @@ export async function getOwnerOrderSummaries(storeId: number) {
     .where(eq(orders.storeId, storeId))
     .orderBy(desc(orders.createdAt))
     .limit(100);
+}
+
+/**
+ * Minimal preparation view for the owner panel. This intentionally leaves out
+ * customer identity, delivery details, payment values, suppliers and private
+ * fulfillment snapshots. The orderId predicate remains bound to the store.
+ */
+export async function getOwnerOrderItemSummaries(orderId: number, storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select({
+    id: orderItems.id,
+    quantity: orderItems.quantity,
+    productNameSnapshot: orderItems.productNameSnapshot,
+    productName: products.name,
+    selectedOptions: orderItems.selectedOptions,
+  }).from(orderItems)
+    .leftJoin(products, and(eq(orderItems.productId, products.id), eq(orderItems.storeId, products.storeId)))
+    .innerJoin(orders, and(eq(orderItems.orderId, orders.id), eq(orderItems.storeId, orders.storeId)))
+    .where(and(eq(orderItems.storeId, storeId), eq(orderItems.orderId, orderId), eq(orders.storeId, storeId)));
+
+  return summarizeOwnerOrderItems(rows);
 }
 
 /**

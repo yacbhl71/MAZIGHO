@@ -24,6 +24,7 @@ vi.mock("./db", () => ({
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
+  getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
@@ -206,6 +207,16 @@ describe("owner product variant routes", () => {
       countryCode: "CH",
       lines: [{ productId: 12, quantity: 2 }],
     }));
+  });
+
+  it("reads order item summaries only through the current resolved store", async () => {
+    await expect(callerFor().owner.getOrderItemSummaries({ orderId: 481 })).resolves.toEqual([
+      { id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] },
+    ]);
+    expect(db.getOwnerOrderItemSummaries).toHaveBeenCalledWith(481, 77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getOrderItemSummaries({ orderId: 481 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("records a manual order decision only for the current resolved store", async () => {
