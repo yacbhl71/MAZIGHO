@@ -3,11 +3,11 @@ import { useLegalProfile } from "@/hooks/useLegalProfile";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { useStorePrice } from "@/hooks/useStorePrice";
 
-const updatedAt = "23 août 2026";
+const updatedAt = "25 septembre 2026";
 
 export default function TermsAndConditions() {
   const { profile } = useLegalProfile();
-  const { profile: designProfile } = useDesignProfile();
+  const { profile: designProfile, palette } = useDesignProfile();
   const { currencyCode } = useStorePrice();
   const brandName = designProfile.brandName?.trim() || "La boutique";
 
@@ -77,7 +77,7 @@ export default function TermsAndConditions() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">9. Droit applicable et contact</h2>
         <p className="mt-3">
-          Les présentes conditions sont soumises au droit applicable dans le pays déclaré par l’exploitant ({profile.country}), sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez {brandName} à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
+          Les présentes conditions sont soumises au droit applicable dans le pays déclaré par l’exploitant ({profile.country}), sous réserve des dispositions impératives de protection du consommateur applicables au client. Pour toute question, contactez {brandName} à <a className="underline underline-offset-4 hover:opacity-75" style={{ color: palette.primary }} href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
     </LegalLayout>

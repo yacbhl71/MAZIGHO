@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { defaultLegalProfile, type LegalProfile } from "@/hooks/useLegalProfile";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -23,7 +22,31 @@ import {
   Undo2,
 } from "lucide-react";
 
-type LegalForm = LegalProfile;
+type LegalForm = {
+  operatorName: string;
+  addressLine: string;
+  postalCodeCity: string;
+  country: string;
+  contactEmail: string;
+  businessStatus: string;
+  ideVatNumber: string;
+  deliveryZones: string;
+  deliveryDetails: string;
+  returnsPolicy: string;
+};
+
+const defaultLegalProfile: LegalForm = {
+  operatorName: "Entreprise à renseigner",
+  addressLine: "Adresse à renseigner",
+  postalCodeCity: "Code postal et ville à renseigner",
+  country: "Pays à renseigner",
+  contactEmail: "support@example.com",
+  businessStatus: "Statut juridique à renseigner",
+  ideVatNumber: "Numéro d’entreprise ou régime TVA à renseigner",
+  deliveryZones: "Zones de livraison à renseigner",
+  deliveryDetails: "Les destinations, frais et délais sont indiqués avant validation de la commande.",
+  returnsPolicy: "Politique de retours à renseigner avant l’ouverture des ventes.",
+};
 
 const guideItems = [
   {

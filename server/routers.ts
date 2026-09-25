@@ -158,8 +158,8 @@ export const appRouter = router({
   // Public legal information shown on the storefront
   legal: router({
     get: storefrontProcedure.query(async ({ ctx }) => {
-      const { getLegalProfile } = await import("./db");
-      return await getLegalProfile(ctx.store?.id);
+      const { getPublicLegalProfile } = await import("./db");
+      return await getPublicLegalProfile(ctx.store?.id);
     }),
   }),
 

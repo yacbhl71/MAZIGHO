@@ -7132,6 +7132,13 @@ export type LegalProfile = {
   returnsPolicy: string;
 };
 
+/**
+ * Storefront pages only need a public identity and a contact channel. Detailed
+ * postal coordinates remain reserved for the protected operator profile, so a
+ * public route never serialises an address by accident.
+ */
+export type PublicLegalProfile = Omit<LegalProfile, "addressLine" | "postalCodeCity">;
+
 export const defaultLegalProfile: LegalProfile = {
   operatorName: "Entreprise à renseigner",
   addressLine: "Adresse à renseigner",
@@ -7166,9 +7173,19 @@ export async function getLegalProfile(storeId?: number): Promise<LegalProfile> {
   }
 }
 
+export function toPublicLegalProfile(profile: LegalProfile): PublicLegalProfile {
+  const { addressLine: _addressLine, postalCodeCity: _postalCodeCity, ...publicProfile } = profile;
+  return publicProfile;
+}
+
+/** Public, privacy-minimised legal profile for a resolved storefront only. */
+export async function getPublicLegalProfile(storeId?: number): Promise<PublicLegalProfile> {
+  return toPublicLegalProfile(await getLegalProfile(storeId));
+}
+
 export async function updateLegalProfile(data: LegalProfile, storeId?: number) {
   const profile = normalizeLegalProfile(data);
-  await setStoreSettingValue(storeId, "legal_profile", JSON.stringify(profile), "Informations légales publiques propres à cette boutique");
+  await setStoreSettingValue(storeId, "legal_profile", JSON.stringify(profile), "Profil légal de la boutique ; les coordonnées détaillées ne sont pas renvoyées aux routes publiques");
   return profile;
 }
 

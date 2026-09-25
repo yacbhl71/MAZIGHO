@@ -1,13 +1,16 @@
 import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
 import { useStoreSystemPages } from "@/hooks/useStoreSystemPages";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
-const updatedAt = "23 août 2026";
+const updatedAt = "25 septembre 2026";
 
 export default function ShippingReturns() {
   const { profile } = useLegalProfile();
+  const { profile: designProfile, palette } = useDesignProfile();
   const { pages } = useStoreSystemPages();
   const storeReturns = pages?.returns ?? null;
+  const brandName = designProfile.brandName?.trim() || "La boutique";
 
   // A boutique that wrote its own shipping/returns page replaces the default
   // legal-profile-driven sections entirely.
@@ -30,13 +33,13 @@ export default function ShippingReturns() {
     <LegalLayout
       eyebrow="Informations pratiques"
       title="Livraison et retours"
-      description="Cette page présente l’état actuel des modalités de livraison et de retours de MAZIGHO avant l’ouverture des paiements en ligne."
+      description={`Cette page présente l’état actuel des modalités de livraison et de retours de ${brandName} avant l’ouverture des paiements en ligne.`}
       updatedAt={updatedAt}
     >
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. État actuel</h2>
         <p className="mt-3">
-          Les commandes avec paiement en ligne ne sont pas encore ouvertes. MAZIGHO ne collecte donc actuellement aucune adresse de livraison et n’expédie pas encore de commande depuis le site.
+          Les commandes avec paiement en ligne ne sont pas encore ouvertes. {brandName} ne collecte donc actuellement aucune adresse de livraison et n’expédie pas encore de commande depuis le site.
         </p>
       </section>
 
@@ -64,7 +67,7 @@ export default function ShippingReturns() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">5. Assistance</h2>
         <p className="mt-3">
-          Pour une question concernant une future livraison, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a> ou utilisez le formulaire de contact. Les présentes informations seront mises à jour dès que les conditions de livraison définitives seront déterminées.
+          Pour une question concernant une future livraison, écrivez à <a className="underline underline-offset-4 hover:opacity-75" style={{ color: palette.primary }} href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a> ou utilisez le formulaire de contact. Les présentes informations seront mises à jour dès que les conditions de livraison définitives seront déterminées.
         </p>
       </section>
     </LegalLayout>

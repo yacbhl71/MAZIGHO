@@ -2,8 +2,6 @@ import { trpc } from "@/lib/trpc";
 
 export type LegalProfile = {
   operatorName: string;
-  addressLine: string;
-  postalCodeCity: string;
   country: string;
   contactEmail: string;
   businessStatus: string;
@@ -15,8 +13,6 @@ export type LegalProfile = {
 
 export const defaultLegalProfile: LegalProfile = {
   operatorName: "Entreprise à renseigner",
-  addressLine: "Adresse à renseigner",
-  postalCodeCity: "Code postal et ville à renseigner",
   country: "Pays à renseigner",
   contactEmail: "support@example.com",
   businessStatus: "Statut juridique à renseigner",

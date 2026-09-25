@@ -2,11 +2,11 @@ import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 
-const updatedAt = "23 août 2026";
+const updatedAt = "25 septembre 2026";
 
 export default function PrivacyPolicy() {
   const { profile } = useLegalProfile();
-  const { profile: designProfile } = useDesignProfile();
+  const { profile: designProfile, palette } = useDesignProfile();
   const brandName = designProfile.brandName?.trim() || "La boutique";
 
   return (
@@ -19,7 +19,7 @@ export default function PrivacyPolicy() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Responsable du traitement</h2>
         <p className="mt-3">
-          Le responsable du traitement des données personnelles est <strong>{profile.operatorName}</strong>, exploitant de {brandName}, {profile.addressLine}, {profile.postalCodeCity}, {profile.country}. Pour toute demande relative aux données personnelles, écrivez à <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
+          Le responsable du traitement des données personnelles est <strong>{profile.operatorName}</strong>, exploitant de {brandName}, dans le pays déclaré {profile.country}. Pour toute demande relative aux données personnelles, écrivez à <a className="underline underline-offset-4 hover:opacity-75" style={{ color: palette.primary }} href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>.
         </p>
       </section>
 

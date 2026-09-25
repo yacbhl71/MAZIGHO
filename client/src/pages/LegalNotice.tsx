@@ -2,11 +2,11 @@ import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 
-const updatedAt = "23 août 2026";
+const updatedAt = "25 septembre 2026";
 
 export default function LegalNotice() {
   const { profile } = useLegalProfile();
-  const { profile: designProfile } = useDesignProfile();
+  const { profile: designProfile, palette } = useDesignProfile();
   const brandName = designProfile.brandName?.trim() || "La boutique";
 
   return (
@@ -19,16 +19,10 @@ export default function LegalNotice() {
       <section>
         <h2 className="text-xl font-semibold text-slate-950">1. Exploitant du site</h2>
         <p className="mt-3">
-          Le site et la boutique <strong>{brandName}</strong> sont exploités par <strong>{profile.operatorName}</strong>. Statut déclaré : {profile.businessStatus}.
+          Le site et la boutique <strong>{brandName}</strong> sont exploités par <strong>{profile.operatorName}</strong>. Statut déclaré : {profile.businessStatus}. Pays déclaré : {profile.country}.
         </p>
-        <address className="mt-4 not-italic">
-          <strong>Adresse postale :</strong><br />
-          {profile.addressLine}<br />
-          {profile.postalCodeCity}<br />
-          {profile.country}
-        </address>
         <p className="mt-4">
-          <strong>Adresse e-mail de contact :</strong> <a className="text-orange-700 underline underline-offset-4 hover:text-orange-500" href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>
+          <strong>Canal de contact public :</strong> <a className="underline underline-offset-4 hover:opacity-75" style={{ color: palette.primary }} href={`mailto:${profile.contactEmail}`}>{profile.contactEmail}</a>
         </p>
         <p className="mt-4">{profile.ideVatNumber}</p>
       </section>
