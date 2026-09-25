@@ -202,6 +202,25 @@ function BrowserTitle() {
       return;
     }
     const brandName = profileLoading ? "Boutique" : getStorefrontBrandName(profile);
+    const faviconUrl = profile?.faviconUrl?.trim() || profile?.brandLogoUrl?.trim();
+    if (faviconUrl) {
+      const setIcon = (rel: "icon" | "apple-touch-icon") => {
+        let icon = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+        if (!icon) {
+          icon = document.createElement("link");
+          icon.rel = rel;
+          document.head.appendChild(icon);
+        }
+        icon.href = faviconUrl;
+      };
+      setIcon("icon");
+      setIcon("apple-touch-icon");
+    }
+
+    // Product and category pages know their own title, description and image.
+    // Let their data-driven effects take precedence over generic storefront SEO.
+    if (pathname.startsWith("/produit/") || pathname.startsWith("/categorie/")) return;
+
     const isHome = pathname === "/";
     const fallbackTitle = withStorefrontBrand(publicTitles[pathname] || "MAZIGHO | Boutique en ligne", brandName);
     const title = isHome && storefrontSeo.data?.title?.trim() ? storefrontSeo.data.title.trim() : fallbackTitle;
@@ -226,19 +245,7 @@ function BrowserTitle() {
     setMeta("property", "og:title", title);
     setMeta("name", "twitter:title", title);
 
-    const faviconUrl = profile?.faviconUrl?.trim() || profile?.brandLogoUrl?.trim();
     if (faviconUrl) {
-      const setIcon = (rel: "icon" | "apple-touch-icon") => {
-        let icon = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
-        if (!icon) {
-          icon = document.createElement("link");
-          icon.rel = rel;
-          document.head.appendChild(icon);
-        }
-        icon.href = faviconUrl;
-      };
-      setIcon("icon");
-      setIcon("apple-touch-icon");
       setMeta("property", "og:image", faviconUrl);
       setMeta("name", "twitter:image", faviconUrl);
     }

@@ -68,16 +68,30 @@ export default function Product() {
 
   useEffect(() => {
     if (!product || typeof document === "undefined") return;
-    document.title = `${product.name} | ${profile.brandName || "Boutique"}`;
+    const title = `${product.name} | ${profile.brandName || "Boutique"}`;
+    document.title = title;
     const metaDescription = product.description?.replace(/\s+/g, " ").trim() || product.name;
-    let descriptionTag = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
-    if (!descriptionTag) {
-      descriptionTag = document.createElement("meta");
-      descriptionTag.name = "description";
-      document.head.appendChild(descriptionTag);
+    const description = metaDescription.slice(0, 160);
+    const setMeta = (attribute: "name" | "property", key: string, value: string) => {
+      let element = document.head.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.content = value;
+    };
+    setMeta("name", "description", description);
+    setMeta("property", "og:title", title);
+    setMeta("property", "og:description", description);
+    setMeta("name", "twitter:title", title);
+    setMeta("name", "twitter:description", description);
+    const imageUrl = product.images?.[0]?.imageUrl;
+    if (imageUrl) {
+      setMeta("property", "og:image", imageUrl);
+      setMeta("name", "twitter:image", imageUrl);
     }
-    descriptionTag.content = metaDescription.slice(0, 160);
-  }, [product?.id, product?.name, product?.description, profile.brandName]);
+  }, [product?.id, product?.name, product?.description, product?.images, profile.brandName]);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId

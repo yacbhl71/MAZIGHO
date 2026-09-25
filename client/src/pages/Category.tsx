@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useStorePrice } from "@/hooks/useStorePrice";
 import { useCart } from "@/hooks/useCart";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDeliveryCountry } from "@/contexts/DeliveryCountryContext";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getCollectionVisual } from "@/lib/collectionVisuals";
@@ -17,6 +17,7 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 import { isNewProduct } from "@/lib/isNewProduct";
 import { isProductPurchasableForStorefront, isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -31,6 +32,7 @@ export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
   const { locale } = useLocale();
+  const { profile } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
   const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale }, { placeholderData: (prev) => prev });
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
@@ -45,6 +47,29 @@ export default function Category() {
   const usesStoreCategoryImage = Boolean(creativeVisual?.imageUrl || category?.imageUrl);
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
+
+  useEffect(() => {
+    if (!category || typeof document === "undefined") return;
+    const title = `${category.name} | ${profile.brandName || "Boutique"}`;
+    const description = (category.description || `${category.name} · découvrez la sélection de la boutique.`).replace(/\s+/g, " ").trim().slice(0, 160);
+    const setMeta = (attribute: "name" | "property", key: string, value: string) => {
+      let element = document.head.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.content = value;
+    };
+    document.title = title;
+    setMeta("name", "description", description);
+    setMeta("property", "og:title", title);
+    setMeta("property", "og:description", description);
+    setMeta("property", "og:image", heroImageUrl);
+    setMeta("name", "twitter:title", title);
+    setMeta("name", "twitter:description", description);
+    setMeta("name", "twitter:image", heroImageUrl);
+  }, [category?.description, category?.name, heroImageUrl, profile.brandName]);
   
   const { addToCart } = useCart();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
