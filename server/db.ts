@@ -13,6 +13,7 @@ import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
+import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureReadiness";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
 import { getStoreTaxPolicyForCountry, normalizeStoreTaxPolicies, parseStoreTaxPolicies, type StoreTaxPolicy } from "../shared/storeTaxPolicy";
@@ -5844,7 +5845,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
-  const [storeRows, productRows, imageRows, profile, shipping, legal, markets] = await Promise.all([
+  const [storeRows, productRows, imageRows, profile, shipping, legal, markets, taxPolicies] = await Promise.all([
     db.select({ displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
       .from(stores).where(eq(stores.id, storeId)).limit(1),
     db.select({ id: products.id, status: products.status, price: products.price, stock: products.stock })
@@ -5854,6 +5855,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
     getOwnerShippingReturnsSettings(storeId),
     getOwnerLegalContactProfile(storeId),
     getStoreMarketSettings(storeId),
+    getStoreTaxPolicies(storeId),
   ]);
   const store = storeRows[0];
   if (!store) throw new Error("STORE_NOT_FOUND");
@@ -5901,6 +5903,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
     && markets.activeCountries.length > 0
     && markets.activeLanguages.includes(markets.primaryLanguage)
     && markets.activeCountries.includes(markets.primaryCountry);
+  const taxDisclosureReadiness = getStoreTaxDisclosureReadiness({ activeCountries: markets.activeCountries, policies: taxPolicies });
   const publicStorefrontReady = store.status === "active" && Boolean(store.primaryDomain.trim());
 
   const items = [
@@ -5953,6 +5956,14 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       label: "Marchés et langues",
       ready: marketsReady,
       detail: marketsReady ? `${markets.activeLanguages.length} langue${markets.activeLanguages.length > 1 ? "s" : ""} et ${markets.activeCountries.length} pays actif${markets.activeCountries.length > 1 ? "s" : ""}.` : "Choisissez au moins une langue et un pays cohérents avec le marché principal.",
+    },
+    {
+      id: "legal",
+      label: "Fiscalité par marché",
+      ready: taxDisclosureReadiness.ready,
+      detail: taxDisclosureReadiness.ready
+        ? `${taxDisclosureReadiness.configuredCountries.length} mention${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} fiscale${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} publique${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} vérifiée${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""}.`
+        : `Ajoutez une mention fiscale validée pour : ${taxDisclosureReadiness.missingCountries.join(", ") || "chaque marché visible"}.`,
     },
     {
       id: "public_view",

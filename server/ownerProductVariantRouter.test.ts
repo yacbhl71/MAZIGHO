@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({
   variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
   team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
   markets: { primaryLanguage: "fr", activeLanguages: ["fr", "en"], showLanguageSelector: true, primaryCountry: "CH", activeCountries: ["CH", "FR"], showCountrySelector: true },
-  commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 8, total: 8, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0, productsWithVariants: 1 }, items: [] },
+  commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 9, total: 9, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0, productsWithVariants: 1 }, items: [] },
   profile: { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" } as Record<string, unknown>,
 }));
 
