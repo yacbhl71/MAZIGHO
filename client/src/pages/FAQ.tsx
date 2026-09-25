@@ -7,18 +7,26 @@ import Footer from "@/components/Footer";
 import { useState } from "react";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getFAQCopy, type FAQCategoryKey } from "@/lib/faqCopy";
+import { useStoreSystemPages } from "@/hooks/useStoreSystemPages";
 
 const categoryKeys: FAQCategoryKey[] = ["all", "delivery", "catalog", "account", "support"];
 
 export default function FAQ() {
   const { locale } = useLocale();
   const copy = getFAQCopy(locale);
+  const { pages } = useStoreSystemPages();
   const [selectedCategory, setSelectedCategory] = useState<FAQCategoryKey>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const filteredFAQ = selectedCategory === "all"
-    ? copy.items
-    : copy.items.filter(item => item.category === selectedCategory);
+  // Boutique-customized FAQ wins; the legacy copy stays as the safe fallback.
+  const storeItems = pages?.faq ?? [];
+  const useStoreFaq = storeItems.length > 0;
+
+  const filteredFAQ = useStoreFaq
+    ? storeItems
+    : selectedCategory === "all"
+      ? copy.items
+      : copy.items.filter(item => item.category === selectedCategory);
 
   const toggleExpand = (id: string) => setExpandedId(current => current === id ? null : id);
 
@@ -42,26 +50,29 @@ export default function FAQ() {
 
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            <div className="mb-12">
-              <h2 className="mb-6 text-2xl font-bold text-gray-800">{copy.categoriesTitle}</h2>
-              <div className="flex flex-wrap gap-3">
-                {categoryKeys.map(category => (
-                  <Button
-                    key={category}
-                    type="button"
-                    onClick={() => { setSelectedCategory(category); setExpandedId(null); }}
-                    variant={selectedCategory === category ? "default" : "outline"}
-                    className={selectedCategory === category ? "bg-orange-500 text-white hover:bg-orange-600" : ""}
-                  >
-                    {copy.categories[category]}
-                  </Button>
-                ))}
+            {!useStoreFaq && (
+              <div className="mb-12">
+                <h2 className="mb-6 text-2xl font-bold text-gray-800">{copy.categoriesTitle}</h2>
+                <div className="flex flex-wrap gap-3">
+                  {categoryKeys.map(category => (
+                    <Button
+                      key={category}
+                      type="button"
+                      onClick={() => { setSelectedCategory(category); setExpandedId(null); }}
+                      variant={selectedCategory === category ? "default" : "outline"}
+                      className={selectedCategory === category ? "bg-orange-500 text-white hover:bg-orange-600" : ""}
+                    >
+                      {copy.categories[category]}
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-4">
               {filteredFAQ.length > 0 ? filteredFAQ.map(item => {
                 const isExpanded = expandedId === item.id;
+                const category = "category" in item ? item.category : null;
                 return (
                   <Card
                     key={item.id}
@@ -80,7 +91,9 @@ export default function FAQ() {
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <span className="mb-2 inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">{copy.categories[item.category]}</span>
+                          {category && (
+                            <span className="mb-2 inline-block rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">{copy.categories[category as FAQCategoryKey]}</span>
+                          )}
                           <h3 className="text-lg font-semibold text-gray-800">{item.question}</h3>
                           {isExpanded && <p className="mt-4 leading-relaxed text-gray-700">{item.answer}</p>}
                         </div>
