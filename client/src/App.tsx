@@ -130,6 +130,7 @@ function StorefrontUnavailablePage() {
 function BrowserTitle() {
   const [location] = useLocation();
   const { profile, isLoading: profileLoading } = useDesignProfile();
+  const storefrontSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
 
   useEffect(() => {
     const pathname = location.split("?")[0];
@@ -201,8 +202,47 @@ function BrowserTitle() {
       return;
     }
     const brandName = profileLoading ? "Boutique" : getStorefrontBrandName(profile);
-    document.title = withStorefrontBrand(publicTitles[pathname] || "MAZIGHO | Boutique en ligne", brandName);
-  }, [location, profile, profileLoading]);
+    const isHome = pathname === "/";
+    const fallbackTitle = withStorefrontBrand(publicTitles[pathname] || "MAZIGHO | Boutique en ligne", brandName);
+    const title = isHome && storefrontSeo.data?.title?.trim() ? storefrontSeo.data.title.trim() : fallbackTitle;
+    document.title = title;
+
+    const setMeta = (attribute: "name" | "property", key: string, value: string) => {
+      let element = document.head.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.content = value;
+    };
+
+    const description = storefrontSeo.data?.description?.trim();
+    if (description) {
+      setMeta("name", "description", description);
+      setMeta("property", "og:description", description);
+      setMeta("name", "twitter:description", description);
+    }
+    setMeta("property", "og:title", title);
+    setMeta("name", "twitter:title", title);
+
+    const faviconUrl = profile?.faviconUrl?.trim() || profile?.brandLogoUrl?.trim();
+    if (faviconUrl) {
+      const setIcon = (rel: "icon" | "apple-touch-icon") => {
+        let icon = document.head.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
+        if (!icon) {
+          icon = document.createElement("link");
+          icon.rel = rel;
+          document.head.appendChild(icon);
+        }
+        icon.href = faviconUrl;
+      };
+      setIcon("icon");
+      setIcon("apple-touch-icon");
+      setMeta("property", "og:image", faviconUrl);
+      setMeta("name", "twitter:image", faviconUrl);
+    }
+  }, [location, profile, profileLoading, storefrontSeo.data?.description, storefrontSeo.data?.title]);
 
   return null;
 }

@@ -42,7 +42,6 @@ export default function Header() {
   const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
-  const storeSeo = trpc.content.getStoreSeo.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
   const hasResolvedNonPlatformStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
@@ -59,31 +58,12 @@ export default function Header() {
       setLocale(marketSettings.data.primaryLanguage as typeof locale);
     }
   }, [locale, marketSettings.data, setLocale]);
-  useEffect(() => {
-    if (!storeSeo.data || location.startsWith("/produit/")) return;
-    document.title = storeSeo.data.title;
-    let description = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
-    if (!description) {
-      description = document.createElement("meta");
-      description.name = "description";
-      document.head.appendChild(description);
-    }
-    description.content = storeSeo.data.description;
-  }, [location, storeSeo.data?.description, storeSeo.data?.title]);
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
   const headerLayout = profile.headerLayout || "inline";
   const usesSplitHeader = headerLayout === "split";
   const usesSearchFirstHeader = headerLayout === "searchFirst";
-  const faviconUrl = profile.faviconUrl?.trim() || brandLogoUrl || (isPlatformStore ? MAZIGHO_BOUTIQUE_LOGO : "");
-  useEffect(() => {
-    if (!faviconUrl || typeof document === "undefined") return;
-    const icon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
-    const appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement | null;
-    if (icon) icon.href = faviconUrl;
-    if (appleTouchIcon) appleTouchIcon.href = faviconUrl;
-  }, [faviconUrl]);
   const copy = getPublicCopy(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
   const savedNavigation = locale === "fr" ? undefined : profile.navigationTranslations[locale];
