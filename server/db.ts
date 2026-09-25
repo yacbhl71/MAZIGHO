@@ -2851,13 +2851,16 @@ export async function updateStudioStoreCommercialOfferMode(input: {
  * Everything returned here is an internal draft: no tax document, recipient,
  * payment link, subscription, external accounting sync or email is created.
  */
-export async function getStudioSaasBillingDashboard() {
+export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery = {}) {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const clientStores = await db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
+  const clientStores = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
     .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName));
-  if (clientStores.length === 0) return { stores: [], summary: { plannedSubscriptions: 0, perpetualSales: 0, invoiceDrafts: 0, monthlyEquivalentByCurrency: {}, invoiceDraftTotalsByCurrency: {} } };
+  if (clientStores.length === 0) {
+    const page = paginateStudioInventory([], input);
+    return { ...page, summary: { plannedSubscriptions: 0, perpetualSales: 0, invoiceDrafts: 0, monthlyEquivalentByCurrency: {}, invoiceDraftTotalsByCurrency: {} } };
+  }
   const settingRows = await db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
     .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile"])));
   const settingsByStore = new Map<number, Map<string, string>>();
@@ -2869,7 +2872,7 @@ export async function getStudioSaasBillingDashboard() {
   const storesWithBilling = clientStores.map(store => {
     const values = settingsByStore.get(store.id);
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
-    return { ...store, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing };
+    return { ...store, isPlatformStore: 0 as const, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing };
   });
   const monthlyEquivalentByCurrency: Record<string, number> = {};
   const invoiceDraftTotalsByCurrency: Record<string, number> = {};
@@ -2881,8 +2884,9 @@ export async function getStudioSaasBillingDashboard() {
     }
     for (const invoice of store.billing.invoices) invoiceDraftTotalsByCurrency[invoice.currency] = (invoiceDraftTotalsByCurrency[invoice.currency] ?? 0) + invoice.amountCents;
   }
+  const page = paginateStudioInventory(storesWithBilling, input);
   return {
-    stores: storesWithBilling,
+    ...page,
     summary: {
       plannedSubscriptions: storesWithBilling.filter(store => store.billing.plan?.kind === "rental").length,
       perpetualSales: storesWithBilling.filter(store => store.billing.plan?.kind === "perpetual_sale").length,
