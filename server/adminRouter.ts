@@ -819,6 +819,16 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getStoreMediaUsage: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioStoreMediaUsage(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "Le quota de MAZIGHO principal ne fait pas partie du parc client Studio." });
+        throw error;
+      }
+    }),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),

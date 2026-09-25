@@ -26,6 +26,7 @@ import {
   Copy,
   Eye,
   Gift,
+  HardDrive,
   History,
   Layers3,
   Loader2,
@@ -73,6 +74,12 @@ type CommercialOfferTarget = {
   displayName: string;
   primaryDomain: string;
   mode: StoreCommercialOfferMode;
+};
+
+type MediaUsageTarget = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
 };
 
 const emptyProvisioningDraft: ProvisioningDraftForm = {
@@ -206,6 +213,14 @@ function formatStudioDate(value: Date | string | null) {
   return new Intl.DateTimeFormat("fr-CH", { dateStyle: "medium" }).format(date);
 }
 
+function formatMediaBytes(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 o";
+  const units = ["o", "Ko", "Mo", "Go"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(value) / Math.log(1024)));
+  const display = value / 1024 ** index;
+  return `${display >= 10 || index === 0 ? Math.round(display) : display.toFixed(1)} ${units[index]}`;
+}
+
 function StudioRailItem({ icon: Icon, title, detail }: { icon: typeof Building2; title: string; detail: string }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -244,6 +259,7 @@ export default function AdminStudio() {
   const [commercialOfferMode, setCommercialOfferMode] = useState<StoreCommercialOfferMode>("undecided");
   const [commercialOfferConfirmationName, setCommercialOfferConfirmationName] = useState("");
   const [commercialOfferAcknowledged, setCommercialOfferAcknowledged] = useState(false);
+  const [mediaUsageTarget, setMediaUsageTarget] = useState<MediaUsageTarget | null>(null);
   const [selectedSetupReadinessStoreId, setSelectedSetupReadinessStoreId] = useState<number | null>(null);
   const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
   const [activationConfirmationName, setActivationConfirmationName] = useState("");
@@ -292,6 +308,12 @@ export default function AdminStudio() {
   }, [themePresetFromLibrary]);
   const utils = trpc.useUtils();
   const inventoryQuery = trpc.admin.studio.getInventory.useQuery(undefined, { refetchOnWindowFocus: false });
+  const studioMediaUsageQuery = trpc.admin.studio.getStoreMediaUsage.useQuery(
+    { storeId: mediaUsageTarget?.id ?? 0 },
+    { enabled: mediaUsageTarget !== null, refetchOnWindowFocus: false, retry: false },
+  );
+  const selectedMediaUsage = studioMediaUsageQuery.data?.usage;
+  const selectedMediaUsagePercent = selectedMediaUsage ? Math.min(100, Math.round((selectedMediaUsage.usedBytes / selectedMediaUsage.quotaBytes) * 100)) : 0;
   const updateStoreOperationalStatusMutation = trpc.admin.studio.updateStoreOperationalStatus.useMutation({
     onSuccess: async result => {
       toast.success(`${result.store.displayName} est maintenant en état « ${storeStatusPresentation[result.store.status].label} ».`);
@@ -680,7 +702,7 @@ export default function AdminStudio() {
                         <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
-                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
+                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => setMediaUsageTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain })}><HardDrive className="mr-1.5 h-4 w-4" />Médias</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
                       </div>;
                     })}
                   </div>
@@ -705,6 +727,20 @@ export default function AdminStudio() {
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={lifecycleAcknowledged} onChange={event => setLifecycleAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-600" /><span>Je confirme modifier l’état de <strong>{lifecycleTarget.displayName}</strong>. Je comprends que cette action est journalisée, qu’elle n’affecte ni la facturation ni les données de la boutique, et qu’elle est réversible depuis Studio.</span></label>
             </div>}
             <DialogFooter><Button type="button" variant="outline" disabled={updateStoreOperationalStatusMutation.isPending} onClick={() => setLifecycleTarget(null)}>Annuler</Button><Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!lifecycleTarget || lifecycleTarget.status === lifecycleNextStatus || lifecycleConfirmationName.trim() !== lifecycleTarget.displayName.trim() || !lifecycleAcknowledged || updateStoreOperationalStatusMutation.isPending} onClick={() => lifecycleTarget && updateStoreOperationalStatusMutation.mutate({ storeId: lifecycleTarget.id, confirmationName: lifecycleConfirmationName, nextStatus: lifecycleNextStatus, acknowledged: true })}>{updateStoreOperationalStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}{lifecycleNextStatus === "active" ? "Réactiver la boutique" : "Confirmer le nouvel état"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(mediaUsageTarget)} onOpenChange={open => { if (!open) setMediaUsageTarget(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><HardDrive className="h-5 w-5 text-slate-700" /> Stockage média de la boutique</DialogTitle>
+              <DialogDescription>Lecture Studio limitée au volume agrégé de cette boutique cliente. Aucun fichier, URL, clé ou contenu d’une autre boutique n’est affiché.</DialogDescription>
+            </DialogHeader>
+            {mediaUsageTarget && <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800"><p><strong>Boutique :</strong> {mediaUsageTarget.displayName}</p><p className="mt-1"><strong>Domaine :</strong> {mediaUsageTarget.primaryDomain}</p></div>
+              {studioMediaUsageQuery.isLoading ? <div className="h-32 animate-pulse rounded-xl bg-slate-100" /> : studioMediaUsageQuery.isError ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900"><p className="font-semibold">Lecture indisponible</p><p className="mt-1">Le quota n’a pas pu être lu pour le moment. Aucun média ni paramètre de stockage n’a été modifié.</p></div> : selectedMediaUsage && <><div className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-2xl font-bold text-slate-950">{formatMediaBytes(selectedMediaUsage.usedBytes)} <span className="text-sm font-medium text-slate-500">sur {formatMediaBytes(selectedMediaUsage.quotaBytes)}</span></p><p className="mt-1 text-sm text-slate-600">{formatMediaBytes(selectedMediaUsage.remainingBytes)} encore disponibles.</p></div><Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-800">{selectedMediaUsage.managedBy === "vercel_blob" ? "Blob mutualisé" : "Stockage historique"}</Badge></div><div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100"><div className={selectedMediaUsagePercent >= 90 ? "h-full bg-rose-500" : selectedMediaUsagePercent >= 75 ? "h-full bg-amber-500" : "h-full bg-violet-600"} style={{ width: `${selectedMediaUsagePercent}%` }} /></div><p className="mt-2 text-right text-xs font-medium text-slate-600">{selectedMediaUsagePercent}% du quota</p></div><div className="rounded-xl border border-violet-100 bg-violet-50 p-3 text-xs leading-5 text-violet-950"><p className="font-semibold">Contrôle préventif conservé</p><p className="mt-1">Les téléversements sont vérifiés côté serveur avant écriture. Cette lecture ne modifie pas le quota de 500 Mo, ne supprime aucun fichier et ne déclenche aucun transfert de stockage.</p></div></>}
+            </div>}
+            <DialogFooter><Button type="button" variant="outline" onClick={() => studioMediaUsageQuery.refetch()} disabled={studioMediaUsageQuery.isFetching}>{studioMediaUsageQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Actualiser</Button><Button type="button" onClick={() => setMediaUsageTarget(null)}>Fermer</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 

@@ -37,6 +37,7 @@ import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationRe
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
+import { getStoreMediaUsage } from "./storage";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -2792,6 +2793,28 @@ export async function updateStudioStoreCommercialOfferMode(input: {
     billingChanged: false as const,
     subscriptionChanged: false as const,
     storageTransferStarted: false as const,
+  };
+}
+
+/**
+ * On-demand Studio read of one client store's media quota. The storage helper
+ * lists only store-scoped Blob prefixes and returns totals, never filenames,
+ * public URLs, keys or a cross-tenant media listing.
+ */
+export async function getStudioStoreMediaUsage(storeId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, storeId)).limit(1);
+  const store = rows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+
+  const usage = await getStoreMediaUsage(store.id);
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain },
+    usage,
   };
 }
 
