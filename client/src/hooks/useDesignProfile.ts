@@ -111,6 +111,17 @@ export type DesignProfile = {
   bestSellersEmptyText: string;
   showAnnouncement: boolean;
   announcementItems: string[];
+  shopPageCopyCustomized: boolean;
+  shopEyebrow: string;
+  shopTitle: string;
+  shopIntro: string;
+  shopProductsEyebrow: string;
+  shopProductsTitle: string;
+  showShopEditorial: boolean;
+  shopEditorialEyebrow: string;
+  shopEditorialTitle: string;
+  shopEditorialImageUrl: string;
+  showShopReassurance: boolean;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -223,6 +234,17 @@ export const defaultDesignProfile: DesignProfile = {
   bestSellersEmptyText: "Aucun best-seller n’est encore confirmé pour la livraison vers {country}.",
   showAnnouncement: true,
   announcementItems: ["Une sélection pensée pour le quotidien", "Prix tout compris · livraison offerte", "Coût et délai confirmés avant achat"],
+  shopPageCopyCustomized: false,
+  shopEyebrow: "La boutique",
+  shopTitle: "Nos trouvailles du moment",
+  shopIntro: "Découvrez une sélection de produits dont la livraison est confirmée vers {country}.",
+  shopProductsEyebrow: "Prêts à découvrir",
+  shopProductsTitle: "Les produits disponibles",
+  showShopEditorial: true,
+  shopEditorialEyebrow: "Notre sélection",
+  shopEditorialTitle: "Des objets choisis pour accompagner votre quotidien.",
+  shopEditorialImageUrl: "/assets/shop-editorial-hero.webp",
+  showShopReassurance: true,
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",

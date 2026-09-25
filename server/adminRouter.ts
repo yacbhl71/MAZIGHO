@@ -3214,6 +3214,17 @@ export const adminRouter = router({
       bestSellersEmptyText: z.string().trim().min(2).max(420).default("Aucun best-seller n’est encore confirmé pour la livraison vers {country}."),
       showAnnouncement: z.boolean().default(true),
       announcementItems: z.array(z.string().trim().max(120)).length(3).default(["Une sélection pensée pour le quotidien", "Prix tout compris · livraison offerte", "Coût et délai confirmés avant achat"]),
+      shopPageCopyCustomized: z.boolean().default(false),
+      shopEyebrow: z.string().trim().max(120).default("La boutique"),
+      shopTitle: z.string().trim().min(2).max(180).default("Nos trouvailles du moment"),
+      shopIntro: z.string().trim().min(2).max(420).default("Découvrez une sélection de produits dont la livraison est confirmée vers {country}."),
+      shopProductsEyebrow: z.string().trim().max(120).default("Prêts à découvrir"),
+      shopProductsTitle: z.string().trim().min(2).max(180).default("Les produits disponibles"),
+      showShopEditorial: z.boolean().default(true),
+      shopEditorialEyebrow: z.string().trim().max(120).default("Notre sélection"),
+      shopEditorialTitle: z.string().trim().min(2).max(180).default("Des objets choisis pour accompagner votre quotidien."),
+      shopEditorialImageUrl: visualUrlSchema.default("/assets/shop-editorial-hero.webp"),
+      showShopReassurance: z.boolean().default(true),
       customColorsEnabled: z.boolean().default(false),
       customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#c2410c"),
       customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#0f766e"),
@@ -3255,7 +3266,9 @@ export const adminRouter = router({
     })).mutation(async ({ ctx, input }) => {
       const storeId = ctx.store?.id;
       const previous = await db.getDesignProfile(storeId);
-      const profile = await db.updateDesignProfile({ ...previous, ...input }, storeId);
+      const shopPageFields = ["shopEyebrow", "shopTitle", "shopIntro", "shopProductsEyebrow", "shopProductsTitle", "showShopEditorial", "shopEditorialEyebrow", "shopEditorialTitle", "shopEditorialImageUrl", "showShopReassurance"] as const;
+      const shopPageCopyCustomized = input.shopPageCopyCustomized || shopPageFields.some(field => previous[field] !== input[field]);
+      const profile = await db.updateDesignProfile({ ...previous, ...input, shopPageCopyCustomized }, storeId);
       const editorialFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
       if (editorialFields.some(field => previous[field] !== profile[field])) {
         await db.markPublicContentTranslationsStale("design", 1, storeId);

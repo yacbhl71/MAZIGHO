@@ -77,6 +77,19 @@ const ownerAnnouncementBar = z.object({
   announcementItems: z.array(z.string().trim().max(120)).length(3),
 });
 
+const ownerShopPageContent = z.object({
+  shopEyebrow: z.string().trim().max(120),
+  shopTitle: z.string().trim().min(2).max(180),
+  shopIntro: z.string().trim().min(2).max(420),
+  shopProductsEyebrow: z.string().trim().max(120),
+  shopProductsTitle: z.string().trim().min(2).max(180),
+  showShopEditorial: z.boolean(),
+  shopEditorialEyebrow: z.string().trim().max(120),
+  shopEditorialTitle: z.string().trim().min(2).max(180),
+  shopEditorialImageUrl: visualUrl,
+  showShopReassurance: z.boolean(),
+});
+
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
 const ownerFooterSettings = z.object({
   footerDescription: z.string().trim().max(420),
@@ -453,6 +466,10 @@ export const ownerRouter = router({
   saveAnnouncementBar: storeManagementProcedure.input(ownerAnnouncementBar).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
+  }),
+  saveShopPageContent: storeManagementProcedure.input(ownerShopPageContent).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, ...input, shopPageCopyCustomized: true }, ctx.store!.id);
   }),
   saveFooter: storeManagementProcedure.input(ownerFooterSettings).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);

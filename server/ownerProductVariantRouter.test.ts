@@ -265,6 +265,31 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining(input), 77);
   });
 
+  it("saves shop page content only through the current resolved store", async () => {
+    const input = {
+      shopEyebrow: "L’atelier Sylvie",
+      shopTitle: "Tout pour créer à votre rythme",
+      shopIntro: "Une sélection disponible pour {country}.",
+      shopProductsEyebrow: "À découvrir",
+      shopProductsTitle: "Les créations de l’atelier",
+      showShopEditorial: true,
+      shopEditorialEyebrow: "À votre rythme",
+      shopEditorialTitle: "Un projet créatif commence par une belle idée.",
+      shopEditorialImageUrl: "/media/atelier.webp",
+      showShopReassurance: false,
+    };
+    await expect(callerFor().owner.saveShopPageContent(input)).resolves.toMatchObject({
+      shopTitle: input.shopTitle,
+      shopPageCopyCustomized: true,
+    });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({
+      shopTitle: input.shopTitle,
+      shopEditorialImageUrl: input.shopEditorialImageUrl,
+      shopPageCopyCustomized: true,
+    }), 77);
+  });
+
   it("edits carousel slides only inside the current resolved store", async () => {
     const caller = callerFor();
     await expect(caller.owner.getCarouselBanners()).resolves.toHaveLength(1);
