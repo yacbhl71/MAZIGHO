@@ -319,6 +319,20 @@ export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl"
     root.style.setProperty("--mazigho-primary", palette.primary);
     root.style.setProperty("--mazigho-accent", palette.accent);
     root.style.setProperty("--mazigho-soft", palette.soft);
+    // Bridge a boutique palette to the semantic shadcn/Tailwind colours too.
+    // Many existing storefront pages correctly use `bg-primary`, `bg-accent`
+    // and `bg-background`; without this bridge they would keep MAZIGHO's
+    // terracotta defaults while the header had already switched themes.
+    root.style.setProperty("--primary", palette.accent);
+    root.style.setProperty("--primary-foreground", "#ffffff");
+    root.style.setProperty("--accent", palette.primary);
+    root.style.setProperty("--accent-foreground", "#ffffff");
+    root.style.setProperty("--secondary", palette.soft);
+    root.style.setProperty("--secondary-foreground", palette.primary);
+    root.style.setProperty("--background", palette.soft);
+    root.style.setProperty("--ring", palette.accent);
+    root.style.setProperty("--sidebar-primary", palette.accent);
+    root.style.setProperty("--sidebar-ring", palette.accent);
     root.style.setProperty("--mazigho-body-font", typography.body);
     root.style.setProperty("--mazigho-heading-font", typography.heading);
     root.style.setProperty("--mazigho-button-radius", buttonRadius);
@@ -328,6 +342,16 @@ export function useDesignProfile(locale: "fr" | "de" | "it" | "en" | "es" | "nl"
       root.style.removeProperty("--mazigho-primary");
       root.style.removeProperty("--mazigho-accent");
       root.style.removeProperty("--mazigho-soft");
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--primary-foreground");
+      root.style.removeProperty("--accent");
+      root.style.removeProperty("--accent-foreground");
+      root.style.removeProperty("--secondary");
+      root.style.removeProperty("--secondary-foreground");
+      root.style.removeProperty("--background");
+      root.style.removeProperty("--ring");
+      root.style.removeProperty("--sidebar-primary");
+      root.style.removeProperty("--sidebar-ring");
       root.style.removeProperty("--mazigho-body-font");
       root.style.removeProperty("--mazigho-heading-font");
       root.style.removeProperty("--mazigho-button-radius");
