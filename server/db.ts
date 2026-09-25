@@ -5160,6 +5160,43 @@ export async function createOwnerProductVariant(productId: number, input: OwnerP
   return { id: Number((result as any)[0]?.insertId) };
 }
 
+/**
+ * Adds a bounded group of owner-managed combinations (for example Couleur ×
+ * Taille) without ever replacing existing stock lines. Labels are checked in
+ * the resolved store and product, so a matrix cannot cross boutique scope.
+ */
+export async function createOwnerProductVariantMatrix(productId: number, inputs: OwnerProductVariantDraft[], storeId: number) {
+  const normalizedInputs = inputs.map(normalizeOwnerProductVariantDraft);
+  if (normalizedInputs.some(input => !input)) throw new Error("OWNER_VARIANT_INVALID");
+  const normalized = normalizedInputs.filter((input): input is OwnerProductVariantDraft => Boolean(input));
+  if (!normalized.length || normalized.length > 100) throw new Error("OWNER_VARIANT_MATRIX_INVALID");
+
+  const db = await assertOwnerVariantProduct(productId, storeId);
+  await ensureOwnerProductVariantsSchema();
+  const existingRows = await db.select({ label: ownerProductVariants.label, displayOrder: ownerProductVariants.displayOrder })
+    .from(ownerProductVariants)
+    .where(and(eq(ownerProductVariants.storeId, storeId), eq(ownerProductVariants.productId, productId)));
+  const normalizedLabel = (label: string) => label.trim().replace(/\s+/g, " ").toLocaleLowerCase("fr");
+  const existingLabels = new Set(existingRows.map(row => normalizedLabel(row.label)));
+  const seenLabels = new Set<string>();
+  const candidates = normalized.filter(variant => {
+    const key = normalizedLabel(variant.label);
+    if (existingLabels.has(key) || seenLabels.has(key)) return false;
+    seenLabels.add(key);
+    return true;
+  });
+
+  if (!candidates.length) return { created: 0, skipped: normalized.length };
+  const nextOrder = Math.max(-1, ...existingRows.map(row => Number(row.displayOrder))) + 1;
+  await db.insert(ownerProductVariants).values(candidates.map((variant, index) => ({
+    storeId,
+    productId,
+    ...variant,
+    displayOrder: nextOrder + index,
+  })));
+  return { created: candidates.length, skipped: normalized.length - candidates.length };
+}
+
 /** Replaces the editable fields of a variant after proving its store and product scope. */
 export async function updateOwnerProductVariant(productId: number, variantId: number, input: OwnerProductVariantDraft, storeId: number) {
   const normalized = normalizeOwnerProductVariantDraft(input);

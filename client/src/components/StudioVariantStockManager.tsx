@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import ProductVariantMatrixBuilder from "@/components/ProductVariantMatrixBuilder";
 
 type ProductOption = { name: string; values: string[] };
 type ManagedVariant = { id: number; label: string; sku: string | null; priceAdjustmentCents: number; stock: number; status: "active" | "inactive"; displayOrder: number };
@@ -43,11 +44,17 @@ export default function StudioVariantStockManager({ storeId, productId, basePric
       await utils.admin.studio.getOwnerExistingCatalogueProductVariants.invalidate({ storeId, productId });
     },
   });
+  const createMatrix = trpc.admin.studio.createOwnerExistingCatalogueProductVariantMatrix.useMutation();
   const variants = (variantsQuery.data || []) as ManagedVariant[];
   const suggestedLabels = useMemo(() => options.flatMap(option => option.values.map(value => `${option.name} : ${value}`))
     .filter(label => !variants.some(variant => variant.label.trim().toLocaleLowerCase("fr") === label.toLocaleLowerCase("fr")))
     .slice(0, 40), [options, variants]);
-  const pending = create.isPending || update.isPending;
+  const pending = create.isPending || update.isPending || createMatrix.isPending;
+  const createMatrixRows = async (variants: Array<{ label: string; sku: string | null; priceAdjustmentCents: number; stock: number; status: "active" | "inactive" }>) => {
+    const result = await createMatrix.mutateAsync({ storeId, productId, variants });
+    await utils.admin.studio.getOwnerExistingCatalogueProductVariants.invalidate({ storeId, productId });
+    return result;
+  };
 
   const beginCreate = (label = "") => {
     setFormError("");
@@ -72,6 +79,8 @@ export default function StudioVariantStockManager({ storeId, productId, basePric
   return <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="flex items-center gap-2 text-sm font-bold text-amber-950"><PackagePlus className="h-4 w-4" /> Stock et prix par variante</p><p className="mt-1 max-w-3xl text-xs leading-5 text-amber-900">Créez une ligne pour chaque Taille, Couleur, Dimension, Modèle, Parfum ou combinaison. Chaque ligne possède sa propre quantité, son statut et, si besoin, son ajustement de prix.</p></div><Button type="button" onClick={() => beginCreate()} disabled={Boolean(draft)} className="min-h-11 bg-amber-700 text-white hover:bg-amber-800"><Plus className="mr-2 h-4 w-4" /> Ajouter une variante</Button></div>
     <div className="mt-4 rounded-xl border border-amber-200 bg-white/80 p-3 text-xs leading-5 text-amber-950"><strong>Règle simple :</strong> dès qu’au moins une variante est active, la boutique utilise ces quantités individuelles à la place du stock global. Une variante à 0 apparaît en rupture ; inactive, elle n’est pas proposée au client.</div>
+
+    <ProductVariantMatrixBuilder options={options} existingLabels={variants.map(variant => variant.label)} currencyCode="CHF" pending={pending} onCreate={createMatrixRows} />
 
     {suggestedLabels.length > 0 ? <div className="mt-4"><p className="text-xs font-semibold uppercase tracking-wide text-amber-900">Créer depuis les choix déjà saisis</p><div className="mt-2 flex flex-wrap gap-2">{suggestedLabels.map(label => <Button key={label} type="button" size="sm" variant="outline" disabled={Boolean(draft)} onClick={() => beginCreate(label)} className="border-amber-300 bg-white text-amber-950 hover:bg-amber-100">+ {label}</Button>)}</div></div> : null}
 

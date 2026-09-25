@@ -1119,6 +1119,17 @@ export const adminRouter = router({
       logAudit(ctx, { action: "studio.gift_store.catalogue.variant.create", entityType: "product_variant", entityId: created.id, summary: "Variante locale avec stock ajoutée au catalogue Studio", metadata: { storeId: input.storeId, productId: input.productId, stock: input.variant.stock, status: input.variant.status, publicStorefront: false } });
       return created;
     }),
+    createOwnerExistingCatalogueProductVariantMatrix: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      productId: z.number().int().positive(),
+      variants: z.array(ownerProductVariantFields).min(1).max(100),
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.products.some(product => product.id === input.productId)) throw new TRPCError({ code: "NOT_FOUND", message: "Produit introuvable dans cette boutique." });
+      const created = await db.createOwnerProductVariantMatrix(input.productId, input.variants, input.storeId);
+      logAudit(ctx, { action: "studio.gift_store.catalogue.variant.matrix.create", entityType: "product_variant", entityId: null, summary: `${created.created} combinaison(s) de variantes ajoutée(s) au catalogue Studio`, metadata: { storeId: input.storeId, productId: input.productId, created: created.created, skipped: created.skipped, publicStorefront: false } });
+      return created;
+    }),
     updateOwnerExistingCatalogueProductVariant: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       productId: z.number().int().positive(),

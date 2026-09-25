@@ -28,6 +28,7 @@ vi.mock("./db", () => ({
   setStoreTeamMemberStatus: vi.fn(async ({ membershipId, status }) => ({ membershipId, status })),
   getOwnerProductVariants: vi.fn(async () => state.variants),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
+  createOwnerProductVariantMatrix: vi.fn(async () => ({ created: 2, skipped: 0 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
   deleteOwnerProductVariant: vi.fn(async () => ({ success: true })),
   createCategory: vi.fn(async () => ({ id: 41 })),
@@ -67,6 +68,18 @@ describe("owner product variant routes", () => {
       variant: { label: "Sauge · L", sku: "SAUGE-L", priceAdjustmentCents: 0, stock: 4, status: "active" },
     })).resolves.toEqual({ id: 6 });
     expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", stock: 4 }), 77);
+  });
+
+  it("creates a bounded variant matrix only through the current resolved store", async () => {
+    const variants = [
+      { label: "Couleur : Violet · Taille : S", sku: "TSHIRT-VIOLET-S", priceAdjustmentCents: 0, stock: 2, status: "active" as const },
+      { label: "Couleur : Violet · Taille : M", sku: "TSHIRT-VIOLET-M", priceAdjustmentCents: 150, stock: 7, status: "active" as const },
+    ];
+    await expect(callerFor().owner.createProductVariantMatrix({ productId: 41, variants })).resolves.toEqual({ created: 2, skipped: 0 });
+    expect(db.createOwnerProductVariantMatrix).toHaveBeenCalledWith(41, variants, 77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.createProductVariantMatrix({ productId: 41, variants })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("manages categories only through the current resolved store", async () => {
