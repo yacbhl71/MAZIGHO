@@ -7,6 +7,7 @@ import OwnerCategoryManager from "@/components/OwnerCategoryManager";
 import OwnerCommercialReadiness from "@/components/OwnerCommercialReadiness";
 import OwnerHomepageSectionsEditor from "@/components/OwnerHomepageSectionsEditor";
 import OwnerFooterSettingsEditor from "@/components/OwnerFooterSettingsEditor";
+import StoreSystemPagesEditor from "@/components/owner/StoreSystemPagesEditor";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getOwnerStoreStatusPresentation } from "@shared/ownerStoreStatus";
@@ -25,7 +26,7 @@ import { Activity, ArrowLeft, Camera, CircleAlert, ClipboardList, ExternalLink, 
 import { toast } from "sonner";
 
 type ProductForm = { id?: number; categoryId: string; name: string; slug: string; description: string; longDescription: string; price: string; stock: string; featured: boolean; status: "active" | "draft" | "archived"; images: string; options: string };
-type OwnerModule = "overview" | "readiness" | "public_view" | "team" | "catalogue" | "stock" | "vitrine" | "navigation" | "orders" | "customers" | "marketing" | "markets" | "operations" | "legal" | "seo" | "settings";
+type OwnerModule = "overview" | "readiness" | "public_view" | "team" | "catalogue" | "stock" | "vitrine" | "navigation" | "orders" | "customers" | "marketing" | "markets" | "operations" | "legal" | "seo" | "settings" | "pages";
 type StoreNavigationItem = { id: string; label: string; href: string; visible: boolean; kind: "system" | "custom" };
 type ShippingReturnsForm = { mode: "included" | "flat_rate"; flatShippingRate: string; freeShippingThreshold: string; servedCountries: string[]; deliveryLeadTime: string; returnsSummary: string };
 type OwnerLegalContactForm = { operatorName: string; country: string; contactEmail: string; businessStatus: string; ideVatNumber: string; deliveryZones: string; deliveryDetails: string; returnsPolicy: string };
@@ -99,6 +100,7 @@ const ownerNavigation: Array<{ label: string; items: Array<{ id: OwnerModule; ti
     items: [
       { id: "operations", title: "Livraison & retours", description: "Tarifs, pays servis et politique de retours", icon: Truck, available: true },
       { id: "markets", title: "Marchés & langues", description: "Pays, langues et sélecteurs visibles", icon: Globe2, available: true },
+      { id: "pages", title: "Pages de la boutique", description: "FAQ, contact, livraison et à propos", icon: FileText, available: true },
       { id: "legal", title: "Informations légales", description: "Coordonnées publiques et textes de conformité", icon: FileText, available: true },
       { id: "seo", title: "Référencement", description: "Titre du site et description publique", icon: SearchCheck, available: true },
       { id: "settings", title: "Réglages", description: "Domaine, devise et état de configuration", icon: Settings, available: true },
@@ -112,7 +114,7 @@ const paymentStatusLabels: Record<string, string> = { unpaid: "Non réglé", pai
 const defaultSystemNavigationLabels: Record<string, string> = { home: "Accueil", shop: "Boutique", categories: "Catégories", creations: "Créations", new: "Nouveautés", "best-sellers": "Best-sellers", promos: "Promos", contact: "Contact" };
 
 function slugify(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 220);
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 220);
 }
 
 function fileToDataUrl(file: File) {
@@ -460,6 +462,7 @@ export default function OwnerStorePanel() {
   const selectedNavigation = ownerNavigation.flatMap(section => section.items).find(item => item.id === module);
 
   return <div className="flex min-h-screen flex-col bg-stone-50"><Header /><main className="flex-1"><section className="border-b border-teal-100 bg-gradient-to-br from-teal-950 via-teal-800 to-emerald-700 py-8 text-white"><div className="container mx-auto px-4"><Link href="/mon-compte" className="inline-flex items-center gap-2 text-sm font-semibold text-teal-100 hover:text-white"><ArrowLeft className="h-4 w-4" /> Mon compte</Link><div className="mt-5 flex flex-wrap items-start justify-between gap-4"><div><Badge className="border-0 bg-white/15 text-white hover:bg-white/15">Panneau de pilotage de boutique</Badge><h1 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">{currentStore?.displayName}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-teal-100">Un espace dédié à votre boutique. Les modules sont isolés de MAZIGHO Studio et de toute autre boutique.</p></div>{isSetupStore ? <Button variant="secondary" className="bg-white text-teal-900 hover:bg-teal-50" onClick={() => setModule("readiness")}>Préparer ma boutique</Button> : <Button asChild variant="secondary" className="bg-white text-teal-900 hover:bg-teal-50"><a href={currentStore?.primaryDomain ? `https://${currentStore.primaryDomain}` : "/"} target="_blank" rel="noreferrer">Voir ma boutique</a></Button>}</div></div></section><section className="container mx-auto grid gap-6 px-4 py-7 lg:grid-cols-[248px_minmax(0,1fr)]"><aside className="self-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm lg:sticky lg:top-4"><p className="px-3 pb-2 pt-1 text-xs font-extrabold uppercase tracking-[0.14em] text-teal-700">Pilotage de {currentStore?.displayName}</p><nav className="space-y-4" aria-label="Navigation de la boutique">{ownerNavigation.map(section => <div key={section.label}><p className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{section.label}</p><div className="space-y-1">{section.items.map(item => { const Icon = item.icon; const active = item.id === module; return <button key={item.id} type="button" onClick={() => setModule(item.id)} className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-teal-700 focus:ring-offset-2 ${active ? "bg-teal-800 text-white" : "text-slate-700 hover:bg-teal-50 hover:text-teal-950"}`}><Icon className={`h-4 w-4 shrink-0 ${active ? "text-teal-100" : "text-teal-700"}`} /><span className="min-w-0 flex-1"><span className="block text-sm font-semibold leading-5">{item.title}</span><span className={`block truncate text-xs leading-4 ${active ? "text-teal-100" : "text-slate-500"}`}>{item.description}</span></span>{!item.available && <span className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-amber-300" : "bg-amber-400"}`} title="Module prêt à configurer" />}</button>; })}</div></div>)}</nav><div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3"><p className="text-xs font-semibold text-teal-950">Vos limites d’accès</p><p className="mt-1 text-xs leading-5 text-teal-900">Vous gérez uniquement cette boutique. MAZIGHO Studio, les autres boutiques et les réglages de plateforme restent séparés.</p></div></aside><div className="min-w-0"><div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-700">{selectedNavigation?.available ? "Module disponible" : "Module prêt à configurer"}</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{selectedNavigation?.title}</h2></div>{!selectedNavigation?.available && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">Aucune configuration active</Badge>}</div>
+  {module === "pages" && <StoreSystemPagesEditor />}
   {module === "overview" && <div className="space-y-5">
     <Card className={"border " + statusToneClasses[storeStatus.tone]}>
       <CardHeader>
