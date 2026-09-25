@@ -522,6 +522,12 @@ export default function AdminStudio() {
     if (!store.isPlatformStore && store.activeProductCount === 0) {
       return { id: store.id, label: "Catalogue à compléter", detail: "Aucune fiche active détectée dans le registre", tone: "amber", href: `/admin/studio/gestion-boutique/${store.id}` };
     }
+    if (store.stockSignal.out > 0) {
+      return { id: store.id, label: "Ruptures à surveiller", detail: `${store.stockSignal.out} référence${store.stockSignal.out > 1 ? "s" : ""} en rupture · lecture agrégée`, tone: "rose", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
+    }
+    if (store.stockSignal.low > 0) {
+      return { id: store.id, label: "Stock faible", detail: `${store.stockSignal.low} référence${store.stockSignal.low > 1 ? "s" : ""} sous le seuil de la boutique`, tone: "amber", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
+    }
     return { id: store.id, label: "Base opérationnelle", detail: `${store.activeOwners} propriétaire actif · ${store.activeProductCount} fiche${store.activeProductCount > 1 ? "s" : ""} active${store.activeProductCount > 1 ? "s" : ""}`, tone: "emerald", href: store.isPlatformStore ? "/admin" : `/admin/studio/gestion-boutique/${store.id}` };
   }), [inventory?.stores]);
   const operatorPriorities = useMemo(() => (inventory?.stores ?? []).map(store => {
@@ -556,6 +562,19 @@ export default function AdminStudio() {
         href: `/admin/studio/gestion-boutique/${store.id}`,
         action: "Gérer la boutique",
         tone: "rose",
+      };
+    }
+    if (store.stockSignal.out > 0 || store.stockSignal.low > 0) {
+      const hasRupture = store.stockSignal.out > 0;
+      const count = hasRupture ? store.stockSignal.out : store.stockSignal.low;
+      return {
+        id: store.id,
+        label: hasRupture ? "Stock à réviser" : "Stock faible",
+        title: `Vérifier le stock de ${store.displayName}`,
+        detail: hasRupture ? `${count} référence${count > 1 ? "s" : ""} en rupture · aucune notification envoyée` : `${count} référence${count > 1 ? "s" : ""} sous le seuil de la boutique`,
+        href: `/admin/studio/gestion-boutique/${store.id}`,
+        action: "Ouvrir le suivi",
+        tone: hasRupture ? "rose" : "amber",
       };
     }
     if (store.activeProductCount <= 1 || store.orderCount === 0) {
@@ -685,22 +704,25 @@ export default function AdminStudio() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Boutiques enregistrées</p><p className="mt-2 text-3xl font-bold text-slate-950">{inventory?.summary.total ?? 0}</p><p className="mt-1 text-xs text-slate-500">dont {inventory?.summary.platform ?? 0} plateforme</p></div>
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">Boutiques actives</p><p className="mt-2 text-3xl font-bold text-emerald-950">{inventory?.summary.active ?? 0}</p><p className="mt-1 text-xs text-emerald-800">Aucun accès client n’est créé ici</p></div>
                 <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">À préparer</p><p className="mt-2 text-3xl font-bold text-amber-950">{inventory?.summary.setup ?? 0}</p><p className="mt-1 text-xs text-amber-800">Identité, catalogue ou domaine à finaliser</p></div>
-                <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-700">Accès encadrés</p><p className="mt-2 text-3xl font-bold text-violet-950">{(inventory?.summary.limited ?? 0) + (inventory?.summary.suspended ?? 0)}</p><p className="mt-1 text-xs text-violet-800">États informatifs, sans licence automatique</p></div>
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Stock à surveiller</p><p className="mt-2 text-3xl font-bold text-amber-950">{inventory?.summary.clientStoresWithStockAttention ?? 0}</p><p className="mt-1 text-xs text-amber-800">Boutiques avec seuil faible ou rupture</p></div>
               </div>
 
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
-                <div className="grid min-w-[900px] grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_105px_150px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                  <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Commandes</span><span>Action Studio</span>
+                <div className="grid min-w-[1030px] grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_120px_105px_150px] items-center gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                  <span>Boutique</span><span>État & préparation</span><span>Membres</span><span>Catalogue</span><span>Stock</span><span>Commandes</span><span>Action Studio</span>
                 </div>
                 <div className="overflow-x-auto">
-                  <div className="min-w-[900px] divide-y divide-slate-100">
+                  <div className="min-w-[1030px] divide-y divide-slate-100">
                     {(inventory?.stores ?? []).map(store => {
                       const status = storeStatusPresentation[store.status];
-                      return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_105px_150px] items-center gap-4 px-5 py-4">
+                      const stockTone = store.stockSignal.out > 0 ? "border-rose-200 bg-rose-50 text-rose-800" : store.stockSignal.low > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-800";
+                      const stockLabel = store.stockSignal.out > 0 ? `${store.stockSignal.out} rupture${store.stockSignal.out > 1 ? "s" : ""}` : store.stockSignal.low > 0 ? `${store.stockSignal.low} faible${store.stockSignal.low > 1 ? "s" : ""}` : "Stable";
+                      return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_120px_105px_150px] items-center gap-4 px-5 py-4">
                         <div className="min-w-0"><div className="flex items-center gap-2"><Store className="h-4 w-4 shrink-0 text-slate-500" /><p className="truncate font-semibold text-slate-900">{store.displayName}</p>{Boolean(store.isPlatformStore) && <Badge className="border-0 bg-slate-900 text-white hover:bg-slate-900">Plateforme</Badge>}</div><p className="mt-1 truncate text-xs text-slate-500">{store.primaryDomain} · {store.slug}</p></div>
                         <div><Badge variant="outline" className={status.className}>{status.label}</Badge><p className="mt-1.5 text-xs text-slate-500">{store.setupCompleted ? "Profil initial complété" : "Profil initial à compléter"}</p>{!store.isPlatformStore && <p className="mt-1 text-xs font-medium text-violet-800">{storeCommercialOfferModeLabels[store.commercialOfferMode]}</p>}</div>
                         <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
+                        <div><Badge variant="outline" className={stockTone}>{stockLabel}</Badge><p className="mt-1 text-xs text-slate-500">{store.stockSignal.tracked} référence{store.stockSignal.tracked > 1 ? "s" : ""} suivie{store.stockSignal.tracked > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
                         <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => setMediaUsageTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain })}><HardDrive className="mr-1.5 h-4 w-4" />Médias</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
                       </div>;

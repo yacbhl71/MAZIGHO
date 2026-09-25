@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
+import { isStudioHost, mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
 
 describe("store scope", () => {
   it("normalise un domaine sans protocole, chemin ni port", () => {
@@ -13,10 +13,17 @@ describe("store scope", () => {
     expect(mayUsePlatformStoreFallback("mazigho.ch", "mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("www.mazigho.ch", "mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("www.mazigho.ch", "www.mazigho.ch")).toBe(true);
+    expect(mayUsePlatformStoreFallback("studio.mazigho.ch", "mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("mazigho-shop.vercel.app", "www.mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("mazigho-shop-pr-123.vercel.app", "www.mazigho.ch")).toBe(true);
     expect(mayUsePlatformStoreFallback("animalerie.mazigho.ch", "www.mazigho.ch")).toBe(false);
     expect(mayUsePlatformStoreFallback("inconnu.exemple.ch", "www.mazigho.ch")).toBe(false);
+  });
+
+  it("recognizes only the dedicated Studio hostname", () => {
+    expect(isStudioHost("https://studio.mazigho.ch:443/admin/studio")).toBe(true);
+    expect(isStudioHost("animalerie.mazigho.ch")).toBe(false);
+    expect(isStudioHost("studio.mazigho.com")).toBe(false);
   });
 
   it("ne considère comme servables que les boutiques actives ou limitées", () => {

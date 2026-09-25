@@ -38,6 +38,7 @@ import { buildStoreManualCommercialPassageReview } from "./services/storeManualC
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import { getStoreMediaUsage } from "./storage";
+import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -2611,7 +2612,7 @@ export async function getStudioStoreInventory() {
   const db = await getDb();
   if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
 
-  const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows, commercialOfferRows] = await Promise.all([
+  const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows, commercialOfferRows, stockProductRows, stockVariantRows, stockAlertRows] = await Promise.all([
     db.select({
       id: stores.id,
       slug: stores.slug,
@@ -2644,6 +2645,18 @@ export async function getStudioStoreInventory() {
       .from(storeSettings).where(and(eq(storeSettings.key, "provisioning_mode"), eq(storeSettings.value, "gift"))),
     db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
       .from(storeSettings).where(eq(storeSettings.key, "commercial_offer_mode")),
+    db.select({ id: products.id, storeId: products.storeId, status: products.status, stock: products.stock })
+      .from(products).where(eq(products.status, "active")),
+    db.select({ productId: ownerProductVariants.productId, storeId: ownerProductVariants.storeId, status: ownerProductVariants.status, stock: ownerProductVariants.stock })
+      .from(ownerProductVariants).where(eq(ownerProductVariants.status, "active"))
+      .catch(error => {
+        // Variants are optional for legacy boutiques; their absence means the
+        // aggregate safely falls back to parent product stock.
+        console.warn("[Studio] Variant stock aggregate unavailable", error);
+        return [] as Array<{ productId: number; storeId: number; status: "active" | "inactive"; stock: number }>;
+      }),
+    db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
+      .from(storeSettings).where(eq(storeSettings.key, "owner_stock_alert_profile")),
   ]).catch(async error => {
     // The Studio overview must remain readable when a non-essential aggregate
     // is temporarily unavailable on an existing database.
@@ -2658,7 +2671,7 @@ export async function getStudioStoreInventory() {
       createdAt: stores.createdAt,
       updatedAt: stores.updatedAt,
     }).from(stores).orderBy(desc(stores.isPlatformStore), asc(stores.displayName));
-    return [fallbackStores, [], [], [], [], [], []] as const;
+    return [fallbackStores, [], [], [], [], [], [], [], [], []] as const;
   });
 
   const membershipsByStore = new Map(membershipRows.map(row => [row.storeId, row]));
@@ -2669,11 +2682,21 @@ export async function getStudioStoreInventory() {
   }).map(row => row.storeId));
   const giftProvisionedStoreIds = new Set(giftProvisioningRows.map(row => row.storeId));
   const commercialOfferByStore = new Map(commercialOfferRows.map(row => [row.storeId, normalizeStoreCommercialOfferMode(row.value)]));
+  const stockProductsByStore = new Map<number, Array<{ id: number; storeId: number; status: string; stock: number }>>();
+  const stockVariantsByStore = new Map<number, Array<{ productId: number; storeId: number; status: string; stock: number }>>();
+  for (const product of stockProductRows) stockProductsByStore.set(product.storeId, [...(stockProductsByStore.get(product.storeId) ?? []), product]);
+  for (const variant of stockVariantRows) stockVariantsByStore.set(variant.storeId, [...(stockVariantsByStore.get(variant.storeId) ?? []), variant]);
+  const stockThresholdByStore = new Map(stockAlertRows.map(row => [row.storeId, parseOwnerStockAlertSettings(row.value).lowStockThreshold]));
 
   const inventory = storeRows.map(store => {
     const membership = membershipsByStore.get(store.id);
     const catalog = productsByStore.get(store.id);
     const sales = ordersByStore.get(store.id);
+    const stockSignal = buildStoreStockSignal({
+      products: stockProductsByStore.get(store.id) ?? [],
+      variants: stockVariantsByStore.get(store.id) ?? [],
+      lowStockThreshold: stockThresholdByStore.get(store.id) ?? 5,
+    });
     return {
       ...store,
       setupCompleted: setupStoreIds.has(store.id),
@@ -2686,6 +2709,7 @@ export async function getStudioStoreInventory() {
       orderCount: Number(sales?.orderCount ?? 0),
       paidOrderCount: Number(sales?.paidOrderCount ?? 0),
       latestOrderAt: sales?.latestOrderAt ?? null,
+      stockSignal,
     };
   });
 
@@ -2703,6 +2727,7 @@ export async function getStudioStoreInventory() {
       rental: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "rental").length,
       perpetualSale: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "perpetual_sale").length,
       offerUndecided: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "undecided").length,
+      clientStoresWithStockAttention: inventory.filter(store => !store.isPlatformStore && (store.stockSignal.low > 0 || store.stockSignal.out > 0)).length,
     },
     stores: inventory,
   };

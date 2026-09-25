@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { Route, Switch, useLocation } from "wouter";
+import { Redirect, Route, Switch, useLocation } from "wouter";
 import { lazy, Suspense, useEffect } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -260,6 +260,7 @@ function Router() {
   const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
   const storefrontAvailabilityQuery = trpc.storefront.getAvailability.useQuery(undefined, { refetchOnWindowFocus: false });
   const path = location.split("?")[0];
+  const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -267,6 +268,13 @@ function Router() {
     path.startsWith("/admin") ||
     ["/login", "/register", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/activer-compte"].includes(path);
   const forcePreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview_maintenance") === "1";
+
+  // The Studio hostname is an operator-only front door. It keeps the main
+  // MAZIGHO storefront at its own address while preserving every existing
+  // route and authorization guard behind the same deployment.
+  if (isStudioHost && (path === "/" || path === "/admin")) {
+    return <Redirect to="/admin/studio" replace />;
+  }
 
   if (storefrontAvailabilityQuery.isLoading) {
     return <div className="min-h-screen bg-slate-950" aria-busy="true" />;

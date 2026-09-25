@@ -186,6 +186,7 @@ export default function DashboardLayout({
   });
   const { isLoading: loading, user } = useAuth() as any;
   const [location, setLocation] = useLocation();
+  const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
   const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: Boolean(user) });
   const isPlatformOperator = Boolean(workspaceQuery.data?.store?.isPlatformStore && user?.role === "admin");
   const isStudioPath = location === "/admin/studio" || location.startsWith("/admin/studio/");
@@ -219,7 +220,7 @@ export default function DashboardLayout({
           </div>
           <Button
             onClick={() => {
-              window.location.href = !user ? "/login" : "/";
+              window.location.href = !user ? "/login" : isStudioHost ? "https://mazigho.ch/" : "/";
             }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all bg-orange-500 hover:bg-orange-600"
@@ -242,7 +243,11 @@ export default function DashboardLayout({
           <LockKeyhole className="mx-auto h-9 w-9 text-slate-600" />
           <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">Console plateforme réservée</h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">MAZIGHO Studio est réservé à l’opérateur de la plateforme. Votre espace reste limité à la boutique active et à ses modules autorisés.</p>
-          <Button onClick={() => setLocation(firstAllowedPath(user.role))} className="mt-6 bg-slate-900 hover:bg-slate-800">Revenir à mon espace</Button>
+          <Button onClick={() => {
+            const destination = firstAllowedPath(user.role);
+            if (isStudioHost) window.location.href = `https://mazigho.ch${destination}`;
+            else setLocation(destination);
+          }} className="mt-6 bg-slate-900 hover:bg-slate-800">Revenir à mon espace</Button>
         </div>
       </div>
     );

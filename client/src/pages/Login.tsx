@@ -33,7 +33,7 @@ export default function Login() {
         catalog_editor: "/admin/catalogue-brouillons",
         support_agent: "/admin/assistance",
         order_operator: "/admin/operations-commandes",
-        admin: "/admin",
+        admin: typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch" ? "/admin/studio" : "/admin",
       };
       setLocation(staffDestinations[data.user.role] || "/mon-compte");
     },
