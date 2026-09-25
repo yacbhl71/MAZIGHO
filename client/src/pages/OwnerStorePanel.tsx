@@ -466,17 +466,19 @@ export default function OwnerStorePanel() {
     if (current.activeLanguages.includes(language)) {
       if (current.activeLanguages.length === 1) return current;
       const activeLanguages = current.activeLanguages.filter(code => code !== language);
-      return { ...current, activeLanguages, primaryLanguage: current.primaryLanguage === language ? activeLanguages[0] : current.primaryLanguage };
+      return { ...current, activeLanguages, primaryLanguage: current.primaryLanguage === language ? activeLanguages[0] : current.primaryLanguage, showLanguageSelector: activeLanguages.length > 1 ? current.showLanguageSelector : false };
     }
-    return { ...current, activeLanguages: [...current.activeLanguages, language] };
+    const activeLanguages = [...current.activeLanguages, language];
+    return { ...current, activeLanguages, showLanguageSelector: activeLanguages.length > 1 ? true : current.showLanguageSelector };
   });
   const toggleMarketCountry = (country: OwnerMarketForm["activeCountries"][number]) => setMarketForm(current => {
     if (current.activeCountries.includes(country)) {
       if (current.activeCountries.length === 1) return current;
       const activeCountries = current.activeCountries.filter(code => code !== country);
-      return { ...current, activeCountries, primaryCountry: current.primaryCountry === country ? activeCountries[0] : current.primaryCountry };
+      return { ...current, activeCountries, primaryCountry: current.primaryCountry === country ? activeCountries[0] : current.primaryCountry, showCountrySelector: activeCountries.length > 1 ? current.showCountrySelector : false };
     }
-    return { ...current, activeCountries: [...current.activeCountries, country] };
+    const activeCountries = [...current.activeCountries, country];
+    return { ...current, activeCountries, showCountrySelector: activeCountries.length > 1 ? true : current.showCountrySelector };
   });
   const submitMarketSettings = () => {
     if (!marketForm.activeLanguages.includes(marketForm.primaryLanguage) || !marketForm.activeCountries.includes(marketForm.primaryCountry)) {
