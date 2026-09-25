@@ -119,7 +119,9 @@ export function parseStoreSaasBillingProfile(value: unknown): StoreSaasBillingPr
 export function makeDraftInvoice(input: { id: string; reference: string; issueDate: string; dueDate: string; amountCents: number; currency: SaasBillingCurrency; createdAt?: string }): SaasInvoiceDraft {
   if (!/^[a-zA-Z0-9_-]{8,80}$/.test(input.id)) throw new Error("SAAS_INVOICE_ID_INVALID");
   const createdAt = input.createdAt || new Date().toISOString();
-  return normalizeInvoice({ ...input, createdAt }) || (() => { throw new Error("SAAS_INVOICE_DRAFT_INVALID"); })();
+  const invoice = normalizeInvoice({ ...input, createdAt }) || (() => { throw new Error("SAAS_INVOICE_DRAFT_INVALID"); })();
+  if (invoice.dueDate < invoice.issueDate) throw new Error("SAAS_INVOICE_DUE_DATE_INVALID");
+  return invoice;
 }
 
 export function saasBillingIntervalLabel(interval: SaasBillingInterval) {

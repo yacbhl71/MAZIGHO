@@ -18,6 +18,10 @@ describe("SaaS billing preparation", () => {
     expect(profile.plan?.status).toBe("draft");
   });
 
+  it("refuses an internal draft whose due date precedes its issue date", () => {
+    expect(() => makeDraftInvoice({ id: "draftinvoice0002", reference: "BROUILLON-002", issueDate: "2026-10-15", dueDate: "2026-10-01", amountCents: 4900, currency: "CHF", createdAt: "2026-09-26T00:00:00.000Z" })).toThrow("SAAS_INVOICE_DUE_DATE_INVALID");
+  });
+
   it("does not interpret invalid stored data as a billable profile", () => {
     expect(parseStoreSaasBillingProfile("not-json")).toEqual({ plan: null, invoices: [] });
   });

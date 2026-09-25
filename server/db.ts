@@ -2919,6 +2919,23 @@ export async function createStudioStoreSaasInvoiceDraft(input: { storeId: number
   return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }, invoice, billing: nextProfile };
 }
 
+/** Updates an unissued internal invoice draft. It never issues, sends or pays a document. */
+export async function updateStudioStoreSaasInvoiceDraft(input: { storeId: number; confirmationName: string; invoiceId: string; reference: string; issueDate: string; dueDate: string; amountCents: number; currency: SaasBillingCurrency }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_BILLING_CONFIRMATION_MISMATCH");
+  const rawProfile = await getStoreSettingValue(store.id, "saas_billing_profile");
+  const profile = parseStoreSaasBillingProfile(rawProfile);
+  const existing = profile.invoices.find(invoice => invoice.id === input.invoiceId);
+  if (!existing) throw new Error("SAAS_BILLING_INVOICE_NOT_FOUND");
+  const reference = input.reference.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!reference) throw new Error("SAAS_BILLING_REFERENCE_REQUIRED");
+  if (profile.invoices.some(invoice => invoice.id !== existing.id && invoice.reference.toLowerCase() === reference.toLowerCase())) throw new Error("SAAS_BILLING_REFERENCE_DUPLICATE");
+  const invoice = makeDraftInvoice({ id: existing.id, reference, issueDate: input.issueDate, dueDate: input.dueDate, amountCents: input.amountCents, currency: input.currency, createdAt: existing.createdAt });
+  const nextProfile = { ...profile, invoices: profile.invoices.map(current => current.id === existing.id ? invoice : current) };
+  await setStoreSettingValue(store.id, "saas_billing_profile", JSON.stringify(nextProfile), "Facture interne en brouillon Studio modifiée ; non fiscale, non envoyée et sans paiement ni synchronisation comptable.");
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }, invoice, billing: nextProfile };
+}
+
 /** Removes an unissued internal invoice draft; all actual invoices remain outside this preparatory module. */
 export async function deleteStudioStoreSaasInvoiceDraft(input: { storeId: number; confirmationName: string; invoiceId: string }) {
   const store = await getStudioClientStoreForBilling(input.storeId);

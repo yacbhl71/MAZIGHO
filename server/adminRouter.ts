@@ -886,6 +886,38 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    updateStoreSaasInvoiceDraft: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      invoiceId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
+      reference: z.string().trim().min(1).max(80),
+      issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      amountCents: z.number().int().positive().max(100_000_000),
+      currency: z.enum(["CHF", "EUR", "USD", "GBP"]),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateStudioStoreSaasInvoiceDraft(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_billing.invoice_draft.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: "Brouillon de facture interne mis à jour.",
+          metadata: { reference: updated.invoice.reference, amountCents: updated.invoice.amountCents, currency: updated.invoice.currency, invoiceIssued: false, paymentChanged: false, emailSent: false, accountingSynced: false },
+        });
+        return updated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_BILLING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier le brouillon." });
+        if (code === "SAAS_BILLING_INVOICE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon de facture introuvable." });
+        if (code === "SAAS_BILLING_REFERENCE_DUPLICATE") throw new TRPCError({ code: "CONFLICT", message: "Cette référence existe déjà dans les brouillons de cette boutique." });
+        if (code.startsWith("SAAS_")) throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez la référence, les dates, le montant et la devise du brouillon." });
+        throw error;
+      }
+    }),
     deleteStoreSaasInvoiceDraft: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),
