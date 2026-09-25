@@ -15,6 +15,7 @@ import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSetting
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
+import { getStoreTaxPolicyForCountry, normalizeStoreTaxPolicies, parseStoreTaxPolicies, type StoreTaxPolicy } from "../shared/storeTaxPolicy";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
@@ -6064,6 +6065,56 @@ export async function saveStoreMarketSettings(storeId: number, input: StoreMarke
     await db.insert(storeSettings).values({ storeId, key, value, description });
   }
   return settings;
+}
+
+/**
+ * Tax wording is stored separately from markets, prices and checkout totals.
+ * It is a disclosure prepared by the operator, never an automatic tax engine.
+ */
+export async function getStoreTaxPolicies(storeId: number): Promise<StoreTaxPolicy[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  try {
+    const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_tax_disclosures")))
+      .limit(1);
+    return parseStoreTaxPolicies(row?.value);
+  } catch (error) {
+    console.warn("[StoreTaxPolicy] Unable to read optional disclosures", error);
+    return [];
+  }
+}
+
+/** Saves only declared public tax wording for the resolved boutique. */
+export async function saveStoreTaxPolicies(storeId: number, input: StoreTaxPolicy[]): Promise<StoreTaxPolicy[]> {
+  const policies = normalizeStoreTaxPolicies(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const key = "owner_tax_disclosures";
+  const value = JSON.stringify(policies);
+  const description = "Mentions fiscales publiques déclarées par boutique ; aucune taxe n’est calculée, encaissée, déclarée ou reversée par MAZIGHO";
+  const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, key)))
+    .limit(1);
+
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key, value, description });
+  }
+  return policies;
+}
+
+/** Public read restricted to the current storefront and selected destination only. */
+export async function getCheckoutTaxDisclosure(storeId: number | undefined, countryCode?: string | null) {
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const policy = getStoreTaxPolicyForCountry(await getStoreTaxPolicies(effectiveStoreId), countryCode);
+  return {
+    configured: Boolean(policy && policy.displayMode !== "to_confirm" && policy.notice),
+    countryCode: countryCode?.trim().toUpperCase() || null,
+    displayMode: policy?.displayMode ?? "to_confirm",
+    notice: policy?.notice ?? "",
+  };
 }
 
 /**

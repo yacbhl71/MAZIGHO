@@ -127,6 +127,12 @@ export const appRouter = router({
       const { getCheckoutShippingPolicy } = await import("./db");
       return await getCheckoutShippingPolicy(ctx.store?.id, input?.countryCode);
     }),
+    getCheckoutTaxDisclosure: storefrontProcedure.input(z.object({
+      countryCode: z.string().trim().length(2).regex(/^[A-Za-z]{2}$/).optional(),
+    }).optional()).query(async ({ ctx, input }) => {
+      const { getCheckoutTaxDisclosure } = await import("./db");
+      return await getCheckoutTaxDisclosure(ctx.store?.id, input?.countryCode);
+    }),
     getStoreCurrency: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreCurrencyConfig } = await import("./db");
       return await getStoreCurrencyConfig(ctx.store?.id);

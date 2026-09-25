@@ -14,6 +14,9 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
+  saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
+  getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
   getOwnerShippingReturnsSettings: vi.fn(async () => ({ mode: "included", freeShippingThresholdCents: 0, flatShippingRateCents: 0, servedCountries: ["CH"], deliveryLeadTime: "2 à 4 jours", returnsSummary: "Retours sous 14 jours." })),
   saveOwnerShippingReturnsSettings: vi.fn(async (_storeId, input) => input),
   getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
@@ -144,6 +147,23 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("keeps tax disclosures scoped to the current store and market", async () => {
+    await expect(callerFor().owner.getTaxPolicies()).resolves.toEqual([
+      { countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." },
+    ]);
+    expect(db.getStoreTaxPolicies).toHaveBeenCalledWith(77);
+
+    const policies = [{ countryCode: "CH" as const, displayMode: "included" as const, notice: "Prix affichés taxes comprises." }];
+    await expect(callerFor().owner.saveTaxPolicies(policies)).resolves.toEqual(policies);
+    expect(db.saveStoreTaxPolicies).toHaveBeenCalledWith(77, policies);
+
+    await expect(callerFor().content.getCheckoutTaxDisclosure({ countryCode: "CH" })).resolves.toMatchObject({ configured: true, storeId: 77, countryCode: "CH" });
+    expect(db.getCheckoutTaxDisclosure).toHaveBeenCalledWith(77, "CH");
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.saveTaxPolicies(policies)).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("saves delivery rules only through the current resolved store", async () => {

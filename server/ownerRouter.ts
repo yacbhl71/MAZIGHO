@@ -5,6 +5,7 @@ import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
+import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
@@ -197,6 +198,21 @@ const ownerLegalContactProfile = z.object({
   returnsPolicy: z.string().trim().min(2).max(3_000),
 });
 
+const ownerTaxPolicies = z.array(z.object({
+  countryCode: z.enum(storefrontCountryCodes),
+  displayMode: z.enum(storeTaxDisplayModes),
+  notice: z.string().trim().max(360),
+})).max(storefrontCountryCodes.length).superRefine((policies, ctx) => {
+  if (new Set(policies.map(policy => policy.countryCode)).size !== policies.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Chaque pays ne peut être déclaré qu’une seule fois." });
+  }
+  policies.forEach((policy, index) => {
+    if (policy.displayMode !== "to_confirm" && policy.notice.length < 2) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [index, "notice"], message: "Ajoutez une mention publique validée pour ce pays." });
+    }
+  });
+});
+
 const stockAlertSettings = z.object({
   lowStockThreshold: z.number().int().min(0).max(10_000),
 });
@@ -376,6 +392,9 @@ export const ownerRouter = router({
   getLegalContactProfile: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerLegalContactProfile(ctx.store!.id);
   }),
+  getTaxPolicies: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreTaxPolicies(ctx.store!.id);
+  }),
   getSeoProfile: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreSeoProfile(ctx.store!.id);
   }),
@@ -384,6 +403,9 @@ export const ownerRouter = router({
   }),
   saveLegalContactProfile: storeManagementProcedure.input(ownerLegalContactProfile).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerLegalContactProfile(ctx.store!.id, input);
+  }),
+  saveTaxPolicies: storeManagementProcedure.input(ownerTaxPolicies).mutation(async ({ ctx, input }) => {
+    return await db.saveStoreTaxPolicies(ctx.store!.id, input);
   }),
   saveShippingReturnsSettings: storeManagementProcedure.input(shippingReturnsSettings).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerShippingReturnsSettings(ctx.store!.id, {
