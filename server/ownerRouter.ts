@@ -90,6 +90,15 @@ const ownerShopPageContent = z.object({
   showShopReassurance: z.boolean(),
 });
 
+const ownerProductReassurance = z.object({
+  showProductReassurance: z.boolean(),
+  productReassuranceItems: z.array(z.object({
+    icon: z.enum(["shield", "truck"]),
+    title: z.string().trim().min(2).max(100),
+    text: z.string().trim().min(2).max(220),
+  })).length(2),
+});
+
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
 const ownerFooterSettings = z.object({
   footerDescription: z.string().trim().max(420),
@@ -252,6 +261,18 @@ const ownerCarouselBanner = z.object({
   displayOrder: z.number().int().min(0).max(999),
 });
 
+const ownerCatalogueImportRow = z.object({
+  category: z.string().trim().min(2).max(100),
+  name: z.string().trim().min(2).max(200),
+  shortDescription: z.string().trim().max(2_000),
+  longDescription: z.string().trim().max(6_000),
+  priceCents: z.number().int().min(1).max(10_000_000),
+  stock: z.number().int().min(0).max(999_999),
+  dimensions: z.array(z.string().trim().min(1).max(60)).max(30),
+  imageUrl: z.union([z.literal(""), z.string().trim().url().refine(value => /^https:\/\//i.test(value), "Utilisez une image https://.")]),
+  featured: z.boolean(),
+});
+
 export const ownerRouter = router({
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
@@ -268,6 +289,12 @@ export const ownerRouter = router({
       categories,
       profile,
     };
+  }),
+  importCatalogueProducts: storeManagementProcedure.input(z.object({
+    rows: z.array(ownerCatalogueImportRow).min(1).max(100),
+    acknowledged: z.literal(true),
+  })).mutation(async ({ ctx, input }) => {
+    return await db.importOwnerCatalogueProducts({ storeId: ctx.store!.id, rows: input.rows });
   }),
   getTeam: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreTeamMembers(ctx.store!.id);
@@ -470,6 +497,10 @@ export const ownerRouter = router({
   saveShopPageContent: storeManagementProcedure.input(ownerShopPageContent).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, ...input, shopPageCopyCustomized: true }, ctx.store!.id);
+  }),
+  saveProductReassurance: storeManagementProcedure.input(ownerProductReassurance).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
   }),
   saveFooter: storeManagementProcedure.input(ownerFooterSettings).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);

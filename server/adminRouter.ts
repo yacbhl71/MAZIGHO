@@ -3225,6 +3225,15 @@ export const adminRouter = router({
       shopEditorialTitle: z.string().trim().min(2).max(180).default("Des objets choisis pour accompagner votre quotidien."),
       shopEditorialImageUrl: visualUrlSchema.default("/assets/shop-editorial-hero.webp"),
       showShopReassurance: z.boolean().default(true),
+      showProductReassurance: z.boolean().default(true),
+      productReassuranceItems: z.array(z.object({
+        icon: z.enum(["shield", "truck"]),
+        title: z.string().trim().min(2).max(100),
+        text: z.string().trim().min(2).max(220),
+      })).length(2).default([
+        { icon: "shield", title: "Achat préparé avec soin", text: "Les modalités de paiement sont précisées avant toute validation." },
+        { icon: "truck", title: "Livraison et retours", text: "Les conditions propres à cette boutique sont affichées avant la commande." },
+      ]),
       customColorsEnabled: z.boolean().default(false),
       customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#c2410c"),
       customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default("#0f766e"),

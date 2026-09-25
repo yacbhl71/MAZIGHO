@@ -22,6 +22,7 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { getReviewFormCopy } from "@/lib/reviewFormCopy";
 import { isProductPurchasableForStorefront } from "@shared/storefrontProductVisibility";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
 
 export default function Product() {
   const { key } = useParams<{ key?: string }>();
@@ -31,6 +32,7 @@ export default function Product() {
   const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
   const { locale } = useLocale();
+  const { profile } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
   const copy = getProductPublicCopy(locale);
   const previewQuery = trpc.admin.products.preview.useQuery({ key: key || "", locale }, {
@@ -66,7 +68,7 @@ export default function Product() {
 
   useEffect(() => {
     if (!product || typeof document === "undefined") return;
-    document.title = `${product.name} | MAZIGHO`;
+    document.title = `${product.name} | ${profile.brandName || "Boutique"}`;
     const metaDescription = product.description?.replace(/\s+/g, " ").trim() || product.name;
     let descriptionTag = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
     if (!descriptionTag) {
@@ -75,7 +77,7 @@ export default function Product() {
       document.head.appendChild(descriptionTag);
     }
     descriptionTag.content = metaDescription.slice(0, 160);
-  }, [product?.id, product?.name, product?.description]);
+  }, [product?.id, product?.name, product?.description, profile.brandName]);
   
   const relatedProductsQuery = trpc.products.getByCategory.useQuery({ categoryId: product?.categoryId || 0, locale }, {
     enabled: !!product?.categoryId
@@ -390,19 +392,19 @@ export default function Product() {
                 </Button>
               </div>
 
-              {/* Trust Badges */}
-              <div className="grid grid-cols-2 gap-4 pt-6 border-t border-gray-200">
-                <div className="text-center">
-                  <Shield className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">{commerceT(locale, "paymentSoon")}</p>
-                  <p className="text-xs text-gray-600">{commerceT(locale, "noPaymentNow")}</p>
+              {/* Store-owned product reassurance */}
+              {profile.showProductReassurance && (
+                <div className="grid grid-cols-2 gap-4 border-t border-gray-200 pt-6">
+                  {profile.productReassuranceItems.map(item => {
+                    const Icon = item.icon === "truck" ? Truck : Shield;
+                    return <div key={item.icon} className="text-center">
+                      <Icon className="mx-auto mb-2 h-6 w-6 text-orange-500" />
+                      <p className="text-sm font-medium text-gray-800">{item.title}</p>
+                      <p className="text-xs text-gray-600">{item.text}</p>
+                    </div>;
+                  })}
                 </div>
-                <div className="text-center">
-                  <Truck className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-                  <p className="text-sm font-medium text-gray-800">{commerceT(locale, "orderReview")}</p>
-                  <p className="text-xs text-gray-600">{commerceT(locale, "rechecked")}</p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </section>

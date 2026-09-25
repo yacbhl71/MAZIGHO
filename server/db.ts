@@ -1823,6 +1823,72 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
 }
 
 /**
+ * Imports a pre-validated CSV into the catalogue of one owner-resolved store.
+ * The router supplies the store id from the membership scope; the import never
+ * accepts a store id from the browser and never touches another catalogue.
+ */
+export async function importOwnerCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[] }) {
+  const [existingCategories, existingProducts] = await Promise.all([
+    getAllCategories(input.storeId),
+    getAllProductsAdmin(input.storeId),
+  ]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const categoryByNormalizedName = new Map(existingCategories.map(category => [category.name.trim().toLocaleLowerCase("fr"), category]));
+  const usedCategorySlugs = new Set(existingCategories.map(category => category.slug));
+  const usedProductSlugs = new Set(existingProducts.map(product => product.slug));
+  const productByNormalizedName = new Map(existingProducts.map(product => [product.name.trim().toLocaleLowerCase("fr"), product]));
+  let nextCategoryOrder = existingCategories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
+  let imported = 0;
+  let updated = 0;
+
+  for (const row of input.rows) {
+    const categoryKey = row.category.trim().toLocaleLowerCase("fr");
+    let category = categoryByNormalizedName.get(categoryKey);
+    if (!category) {
+      const slug = uniqueStudioExistingCatalogueSlug(row.category, usedCategorySlugs, "nouvelle-categorie");
+      const result = await db.insert(categories).values({ storeId: input.storeId, name: row.category, slug, description: null, displayOrder: nextCategoryOrder, catalogSection: "standard" });
+      category = {
+        id: Number((result as any)[0].insertId),
+        storeId: input.storeId,
+        name: row.category,
+        slug,
+        description: null,
+        imageUrl: null,
+        icon: null,
+        displayOrder: nextCategoryOrder,
+        catalogSection: "standard",
+        createdAt: new Date(),
+      };
+      categoryByNormalizedName.set(categoryKey, category);
+      usedCategorySlugs.add(slug);
+      nextCategoryOrder += 1;
+    }
+
+    const options = row.dimensions.length ? [{ name: "Formats / dimensions", values: row.dimensions }] : [];
+    const existingProduct = productByNormalizedName.get(row.name.trim().toLocaleLowerCase("fr"));
+    let productId: number;
+    if (existingProduct) {
+      productId = existingProduct.id;
+      await db.update(products).set({ categoryId: category.id, name: row.name, description: row.shortDescription, longDescription: row.longDescription, price: row.priceCents, stock: row.stock, featured: row.featured ? 1 : 0, status: "active", options: options.length ? JSON.stringify(options) : null }).where(and(eq(products.storeId, input.storeId), eq(products.id, productId)));
+      await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, productId)));
+      updated += 1;
+    } else {
+      const slug = uniqueStudioExistingCatalogueSlug(row.name, usedProductSlugs, "nouveau-produit");
+      usedProductSlugs.add(slug);
+      const result = await db.insert(products).values({ storeId: input.storeId, categoryId: category.id, name: row.name, slug, description: row.shortDescription, longDescription: row.longDescription, price: row.priceCents, stock: row.stock, featured: row.featured ? 1 : 0, status: "active", options: options.length ? JSON.stringify(options) : null });
+      productId = Number((result as any)[0].insertId);
+      productByNormalizedName.set(row.name.trim().toLocaleLowerCase("fr"), { id: productId, slug } as Awaited<ReturnType<typeof getAllProductsAdmin>>[number]);
+      imported += 1;
+    }
+    if (row.imageUrl) await db.insert(productImages).values({ storeId: input.storeId, productId, imageUrl: row.imageUrl, displayOrder: 0 });
+  }
+
+  return { imported, updated };
+}
+
+/**
  * Private progress checklist for one offered store in setup. It returns only
  * minimized preparation states; it never verifies or changes public opening.
  */
@@ -7144,6 +7210,8 @@ export type DesignProfile = {
   shopEditorialTitle: string;
   shopEditorialImageUrl: string;
   showShopReassurance: boolean;
+  showProductReassurance: boolean;
+  productReassuranceItems: Array<{ icon: "shield" | "truck"; title: string; text: string }>;
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -7257,6 +7325,11 @@ export const defaultDesignProfile: DesignProfile = {
   shopEditorialTitle: "Des objets choisis pour accompagner votre quotidien.",
   shopEditorialImageUrl: "/assets/shop-editorial-hero.webp",
   showShopReassurance: true,
+  showProductReassurance: true,
+  productReassuranceItems: [
+    { icon: "shield", title: "Achat préparé avec soin", text: "Les modalités de paiement sont précisées avant toute validation." },
+    { icon: "truck", title: "Livraison et retours", text: "Les conditions propres à cette boutique sont affichées avant la commande." },
+  ],
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
@@ -7367,7 +7440,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 
-  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "cataloguePageCopyCustomized", "showAnnouncement", "shopPageCopyCustomized", "showShopEditorial", "showShopReassurance", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
+  for (const field of ["showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing", "cataloguePageCopyCustomized", "showAnnouncement", "shopPageCopyCustomized", "showShopEditorial", "showShopReassurance", "showProductReassurance", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance"] as const) {
     if (typeof source[field] === "boolean") normalized[field] = source[field];
   }
 
@@ -7402,6 +7475,19 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     }
   }
   if (reassuranceItems.length === 3) normalized.reassuranceItems = reassuranceItems;
+
+  const productReassuranceItems: DesignProfile["productReassuranceItems"] = [];
+  if (Array.isArray(source.productReassuranceItems)) {
+    for (const raw of source.productReassuranceItems.slice(0, 2)) {
+      if (!raw || typeof raw !== "object") continue;
+      const item = raw as Record<string, unknown>;
+      const title = typeof item.title === "string" ? item.title.trim().slice(0, 100) : "";
+      const text = typeof item.text === "string" ? item.text.trim().slice(0, 220) : "";
+      const icon = ["shield", "truck"].includes(String(item.icon)) ? item.icon as DesignProfile["productReassuranceItems"][number]["icon"] : "shield";
+      if (title) productReassuranceItems.push({ icon, title, text });
+    }
+  }
+  if (productReassuranceItems.length === 2) normalized.productReassuranceItems = productReassuranceItems;
 
   // Custom colors + global component style
   if (typeof source.customColorsEnabled === "boolean") normalized.customColorsEnabled = source.customColorsEnabled;

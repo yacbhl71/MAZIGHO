@@ -17,6 +17,7 @@ vi.mock("./db", () => ({
   getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
+  importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
     userId: 15,
     name: "Éditeur test",
@@ -80,6 +81,22 @@ describe("owner product variant routes", () => {
 
     await expect(caller.owner.deleteCategory({ id: 41 })).resolves.toEqual({ success: true });
     expect(db.deleteCategory).toHaveBeenCalledWith(41, 77);
+  });
+
+  it("imports catalogue rows only through the current resolved store", async () => {
+    const rows = [{
+      category: "Laine et crochet",
+      name: "Pelote lavande",
+      shortDescription: "Une pelote douce.",
+      longDescription: "Une pelote de laine pour vos créations.",
+      priceCents: 890,
+      stock: 12,
+      dimensions: ["50 g"],
+      imageUrl: "https://images.example.test/pelote.webp",
+      featured: false,
+    }];
+    await expect(callerFor().owner.importCatalogueProducts({ rows, acknowledged: true })).resolves.toEqual({ imported: 2, updated: 1 });
+    expect(db.importOwnerCatalogueProducts).toHaveBeenCalledWith({ storeId: 77, rows });
   });
 
   it("refuses a catalog-only membership from the variant management procedures", async () => {
@@ -288,6 +305,19 @@ describe("owner product variant routes", () => {
       shopEditorialImageUrl: input.shopEditorialImageUrl,
       shopPageCopyCustomized: true,
     }), 77);
+  });
+
+  it("saves product reassurance only through the current resolved store", async () => {
+    const input = {
+      showProductReassurance: true,
+      productReassuranceItems: [
+        { icon: "shield" as const, title: "Paiement à confirmer", text: "Les modalités sont affichées avant validation." },
+        { icon: "truck" as const, title: "Livraison atelier", text: "Les délais sont précisés sur la boutique." },
+      ],
+    };
+    await expect(callerFor().owner.saveProductReassurance(input)).resolves.toMatchObject(input);
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining(input), 77);
   });
 
   it("edits carousel slides only inside the current resolved store", async () => {

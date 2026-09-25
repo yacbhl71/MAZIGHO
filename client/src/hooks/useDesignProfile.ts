@@ -36,6 +36,12 @@ export type ReassuranceItem = {
   text: string;
 };
 
+export type ProductReassuranceItem = {
+  icon: "shield" | "truck";
+  title: string;
+  text: string;
+};
+
 export type FooterSocialLink = {
   id: "instagram" | "facebook" | "tiktok" | "youtube" | "pinterest" | "linkedin";
   url: string;
@@ -122,6 +128,8 @@ export type DesignProfile = {
   shopEditorialTitle: string;
   shopEditorialImageUrl: string;
   showShopReassurance: boolean;
+  showProductReassurance: boolean;
+  productReassuranceItems: ProductReassuranceItem[];
   customColorsEnabled: boolean;
   customPrimary: string;
   customAccent: string;
@@ -245,6 +253,11 @@ export const defaultDesignProfile: DesignProfile = {
   shopEditorialTitle: "Des objets choisis pour accompagner votre quotidien.",
   shopEditorialImageUrl: "/assets/shop-editorial-hero.webp",
   showShopReassurance: true,
+  showProductReassurance: true,
+  productReassuranceItems: [
+    { icon: "shield", title: "Achat préparé avec soin", text: "Les modalités de paiement sont précisées avant toute validation." },
+    { icon: "truck", title: "Livraison et retours", text: "Les conditions propres à cette boutique sont affichées avant la commande." },
+  ],
   customColorsEnabled: false,
   customPrimary: "#c2410c",
   customAccent: "#0f766e",
