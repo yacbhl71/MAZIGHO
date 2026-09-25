@@ -13,6 +13,7 @@ import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
+import { buildOwnerPrivateCartSimulation, type OwnerPrivateCartLineInput } from "./services/ownerPrivateCartSimulation";
 import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureReadiness";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
@@ -5993,6 +5994,66 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       productsWithVariants: productsWithVariants.length,
     },
     items,
+  };
+}
+
+/**
+ * Owner-only, read-only checkout rehearsal for the current boutique catalogue.
+ * It never reads or writes visitor carts, customers, checkout sessions, orders,
+ * supplier data or payment credentials.
+ */
+export async function getOwnerPrivateCartSimulation(input: {
+  storeId: number;
+  countryCode?: string;
+  lines: OwnerPrivateCartLineInput[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const [storeRows, productRows, shippingPolicy, currency] = await Promise.all([
+    db.select({ displayName: stores.displayName }).from(stores).where(eq(stores.id, input.storeId)).limit(1),
+    db.select({
+      id: products.id,
+      name: products.name,
+      description: products.description,
+      price: products.price,
+      stock: products.stock,
+      status: products.status,
+      featured: products.featured,
+    }).from(products).where(eq(products.storeId, input.storeId)).orderBy(desc(products.createdAt)),
+    getCheckoutShippingPolicy(input.storeId, input.countryCode),
+    getStoreCurrencyConfig(input.storeId),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  let variants: Array<{ id: number; productId: number; label: string; priceAdjustmentCents: number; stock: number }> = [];
+  try {
+    variants = await db.select({
+      id: ownerProductVariants.id,
+      productId: ownerProductVariants.productId,
+      label: ownerProductVariants.label,
+      priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
+      stock: ownerProductVariants.stock,
+    }).from(ownerProductVariants).where(and(
+      eq(ownerProductVariants.storeId, input.storeId),
+      eq(ownerProductVariants.status, "active"),
+    )).orderBy(asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id));
+  } catch (error) {
+    // A legacy shop can safely rehearse its base product stock without the
+    // optional variant table; this read deliberately never runs a migration.
+    console.warn("[OwnerPrivateCartSimulation] Optional variant table unavailable", error);
+  }
+
+  return {
+    store: { displayName: store.displayName },
+    ...buildOwnerPrivateCartSimulation({
+      products: productRows,
+      variants,
+      lines: input.lines,
+      shippingPolicy,
+      currency,
+    }),
   };
 }
 

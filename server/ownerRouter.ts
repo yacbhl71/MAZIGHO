@@ -299,6 +299,15 @@ const ownerCatalogueImportRow = z.object({
   featured: z.boolean(),
 });
 
+const ownerPrivateCartSimulation = z.object({
+  countryCode: z.string().trim().length(2).regex(/^[A-Za-z]{2}$/).optional(),
+  lines: z.array(z.object({
+    productId: z.number().int().positive(),
+    variantId: z.number().int().positive().optional(),
+    quantity: z.number().int().min(1).max(99),
+  })).max(24),
+});
+
 export const ownerRouter = router({
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
@@ -376,6 +385,13 @@ export const ownerRouter = router({
   }),
   getCommercialReadiness: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCommercialReadiness(ctx.store!.id);
+  }),
+  getPrivateCartSimulation: storeManagementProcedure.input(ownerPrivateCartSimulation).query(async ({ ctx, input }) => {
+    return await db.getOwnerPrivateCartSimulation({
+      storeId: ctx.store!.id,
+      countryCode: input.countryCode?.toUpperCase(),
+      lines: input.lines,
+    });
   }),
   getMediaUsage: storeManagementProcedure.query(async ({ ctx }) => {
     return await getStoreMediaUsage(ctx.store!.id);

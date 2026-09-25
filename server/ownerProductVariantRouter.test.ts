@@ -20,6 +20,7 @@ vi.mock("./db", () => ({
   getOwnerShippingReturnsSettings: vi.fn(async () => ({ mode: "included", freeShippingThresholdCents: 0, flatShippingRateCents: 0, servedCountries: ["CH"], deliveryLeadTime: "2 à 4 jours", returnsSummary: "Retours sous 14 jours." })),
   saveOwnerShippingReturnsSettings: vi.fn(async (_storeId, input) => input),
   getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
+  getOwnerPrivateCartSimulation: vi.fn(async (input) => ({ ...input, privateCartSimulation: true, persistedCart: false, paymentAvailable: false, orderCreated: false })),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
@@ -189,6 +190,21 @@ describe("owner product variant routes", () => {
   it("reads commercial readiness only for the current resolved store", async () => {
     await expect(callerFor().owner.getCommercialReadiness()).resolves.toEqual(state.commercialReadiness);
     expect(db.getOwnerCommercialReadiness).toHaveBeenCalledWith(77);
+  });
+
+  it("runs cart rehearsal only for the current resolved store", async () => {
+    await expect(callerFor().owner.getPrivateCartSimulation({ countryCode: "CH", lines: [{ productId: 12, quantity: 2 }] })).resolves.toMatchObject({
+      storeId: 77,
+      privateCartSimulation: true,
+      persistedCart: false,
+      paymentAvailable: false,
+      orderCreated: false,
+    });
+    expect(db.getOwnerPrivateCartSimulation).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      countryCode: "CH",
+      lines: [{ productId: 12, quantity: 2 }],
+    }));
   });
 
   it("records a manual order decision only for the current resolved store", async () => {
