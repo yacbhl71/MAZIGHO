@@ -14,6 +14,9 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getOwnerCustomDomainRequest: vi.fn(async () => ({ currentDomain: "boutique.test", supported: true, request: null })),
+  saveOwnerCustomDomainRequest: vi.fn(async (_storeId, domain) => ({ domain, requestedAt: "2026-09-25T10:00:00.000Z", guide: null })),
+  acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
   saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
   getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
@@ -95,6 +98,23 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.getVariantStockOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps custom-domain requests scoped to the store owner", async () => {
+    state.membership = { role: "owner", status: "active" };
+    const caller = callerFor();
+    await expect(caller.owner.getCustomDomainRequest()).resolves.toEqual({ currentDomain: "boutique.test", supported: true, request: null });
+    expect(db.getOwnerCustomDomainRequest).toHaveBeenCalledWith(77);
+
+    await expect(caller.owner.saveCustomDomainRequest({ domain: "atelier-client.ch" })).resolves.toEqual({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: null });
+    expect(db.saveOwnerCustomDomainRequest).toHaveBeenCalledWith(77, "atelier-client.ch");
+
+    await expect(caller.owner.acknowledgeCustomDomainGuide()).resolves.toMatchObject({ domain: "atelier-client.ch", guide: { clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } });
+    expect(db.acknowledgeOwnerCustomDomainGuide).toHaveBeenCalledWith(77);
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.saveCustomDomainRequest({ domain: "other-client.ch" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor().owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates a bounded variant matrix only through the current resolved store", async () => {

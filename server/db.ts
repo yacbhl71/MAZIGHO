@@ -20,7 +20,7 @@ import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
 import { getStoreTaxPolicyForCountry, normalizeStoreTaxPolicies, parseStoreTaxPolicies, type StoreTaxPolicy } from "../shared/storeTaxPolicy";
 import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
-import { mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
+import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
@@ -39,6 +39,7 @@ import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePub
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
+import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -2505,6 +2506,12 @@ export async function resolveStoreForHost(host?: string | null): Promise<StoreSc
       ? await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.primaryDomain, normalizedHost)).limit(1)
       : [];
     if (byDomain[0]) return byDomain[0];
+    const recoverySlug = getStoreSlugForRecoveryHost(normalizedHost);
+    if (recoverySlug) {
+      const byRecoveryHost = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+        .from(stores).where(and(eq(stores.slug, recoverySlug), eq(stores.isPlatformStore, 0))).limit(1);
+      if (byRecoveryHost[0]) return byRecoveryHost[0];
+    }
     const primary = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.slug, "primary-store")).limit(1);
     if (!primary[0] || !mayUsePlatformStoreFallback(normalizedHost, primary[0].primaryDomain)) return null;
     return primary[0];
@@ -2853,9 +2860,10 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
 
-  const [readiness, rawOffer, mediaResult] = await Promise.all([
+  const [readiness, rawOffer, rawDomainRequest, mediaResult] = await Promise.all([
     getOwnerCommercialReadiness(store.id),
     getStoreSettingValue(store.id, "commercial_offer_mode"),
+    getStoreSettingValue(store.id, "owner_custom_domain_request"),
     getStoreMediaUsage(store.id)
       .then(usage => ({ usage, unavailable: false as const }))
       .catch(error => {
@@ -2866,8 +2874,10 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
 
   return {
     store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    recoveryDomain: getStoreRecoveryHost(store.slug),
     readiness,
     commercialOfferMode: normalizeStoreCommercialOfferMode(rawOffer),
+    domainRequest: parseOwnerCustomDomainRequest(rawDomainRequest),
     mediaUsage: mediaResult.usage,
     mediaUsageUnavailable: mediaResult.unavailable,
     paymentStatus: "not_activated" as const,
@@ -6045,6 +6055,145 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
     paymentsConfigured: false,
     supplierConfigured: false,
   };
+}
+
+/**
+ * Reads a store owner's requested custom domain. This is a non-operational
+ * intent record only: it never changes primaryDomain, DNS, Vercel or the
+ * storefront status.
+ */
+export async function getOwnerCustomDomainRequest(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [storeRows, requestRows] = await Promise.all([
+    db.select({ primaryDomain: stores.primaryDomain, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_custom_domain_request"))).limit(1),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  return {
+    currentDomain: store.primaryDomain,
+    supported: !Boolean(store.isPlatformStore),
+    request: parseOwnerCustomDomainRequest(requestRows[0]?.value),
+  };
+}
+
+/**
+ * Saves a review request scoped to the current store. It intentionally does
+ * not perform a DNS lookup, touch a Vercel project or change the live domain.
+ */
+export async function saveOwnerCustomDomainRequest(storeId: number, value: string) {
+  const domain = normalizeOwnerCustomDomainRequest(value);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN");
+
+  const request = { domain, requestedAt: new Date().toISOString(), guide: null };
+  await setStoreSettingValue(store.id, "owner_custom_domain_request", JSON.stringify(request), "Demande de domaine propriétaire à examiner manuellement dans MAZIGHO Studio ; aucun DNS, domaine ou statut n’est modifié.");
+  return request;
+}
+
+/**
+ * The operator writes a copyable DNS guide after reviewing the request. This
+ * stores instructions only: no provider API, DNS validation or Vercel domain
+ * assignment is invoked here.
+ */
+export async function prepareStudioOwnerCustomDomainGuide(input: { storeId: number; providerLabel?: string; records: unknown; note?: string }) {
+  const snapshot = await getOwnerCustomDomainRequest(input.storeId);
+  if (!snapshot.supported) throw new Error("OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN");
+  if (!snapshot.request) throw new Error("OWNER_CUSTOM_DOMAIN_REQUEST_REQUIRED");
+  const guide = {
+    ...normalizeOwnerDomainConnectionGuide(input),
+    preparedAt: new Date().toISOString(),
+    clientAcknowledgedAt: null,
+  };
+  const request = { ...snapshot.request, guide };
+  await setStoreSettingValue(input.storeId, "owner_custom_domain_request", JSON.stringify(request), "Guide DNS manuel préparé par MAZIGHO Studio ; aucune connexion, vérification ou modification DNS n’est exécutée.");
+  return request;
+}
+
+/** The owner can acknowledge reading the guide; it remains unverified. */
+export async function acknowledgeOwnerCustomDomainGuide(storeId: number) {
+  const snapshot = await getOwnerCustomDomainRequest(storeId);
+  if (!snapshot.supported) throw new Error("OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN");
+  if (!snapshot.request?.guide) throw new Error("OWNER_CUSTOM_DOMAIN_GUIDE_REQUIRED");
+  const request = {
+    ...snapshot.request,
+    guide: { ...snapshot.request.guide, clientAcknowledgedAt: new Date().toISOString() },
+  };
+  await setStoreSettingValue(storeId, "owner_custom_domain_request", JSON.stringify(request), "Guide DNS lu par le propriétaire ; la configuration, la vérification et le rattachement restent manuels et séparés.");
+  return request;
+}
+
+/**
+ * Restores the stable MAZIGHO recovery address after a client-side DNS mistake.
+ * The wildcard is already controlled by the platform; this does not edit the
+ * customer's registrar, validate a DNS record or publish/open the storefront.
+ */
+export async function restoreStudioStoreRecoveryDomain(input: { storeId: number; confirmationName: string }) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("STORE_RECOVERY_DOMAIN_CONFIRMATION_MISMATCH");
+  const recoveryDomain = getStoreRecoveryHost(store.slug);
+  if (!recoveryDomain) throw new Error("STORE_RECOVERY_DOMAIN_UNAVAILABLE");
+  if (store.primaryDomain === recoveryDomain) return { store, previousDomain: store.primaryDomain, recoveryDomain, changed: false };
+  await db.update(stores).set({ primaryDomain: recoveryDomain, updatedAt: new Date() }).where(eq(stores.id, store.id));
+  return {
+    store: { ...store, primaryDomain: recoveryDomain },
+    previousDomain: store.primaryDomain,
+    recoveryDomain,
+    changed: true,
+  };
+}
+
+/**
+ * Opens a non-platform store only after the operator has manually verified its
+ * domain and explicitly confirmed the owner and commercial readiness. It never
+ * configures a payment, modifies DNS, sends email or creates a subscription.
+ */
+export async function activateStudioClientStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; readinessVerified: boolean; activationAcknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const readiness = await getOwnerCommercialReadiness(input.storeId);
+  const nonPublicChecksReady = readiness.items.filter(item => item.id !== "public_view").every(item => item.ready);
+  if (!nonPublicChecksReady) throw new Error("STORE_ACTIVATION_READINESS_INCOMPLETE");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+    if (store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
+    if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
+    if (!input.domainVerified || !input.readinessVerified || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
+    const ownerEmail = normaliseEmail(input.confirmationOwnerEmail);
+    const ownerRows = await tx.select({ email: users.email }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId))
+      .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active")));
+    if (!ownerRows.some(owner => owner.email && normaliseEmail(owner.email) === ownerEmail)) throw new Error("ACTIVATION_OWNER_CONFIRMATION_MISMATCH");
+
+    const activated = await tx.update(stores).set({ status: "active", updatedAt: new Date() }).where(and(eq(stores.id, store.id), eq(stores.status, "setup")));
+    const affectedRows = Number((activated as any)?.[0]?.affectedRows ?? (activated as any)?.affectedRows ?? 0);
+    if (affectedRows !== 1) throw new Error("STORE_ACTIVATION_CONFLICT");
+    const activatedAt = new Date();
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "public_activation_record",
+      value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true }),
+      description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio ; aucun paiement n’est activé.",
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio ; aucun paiement n’est activé." } });
+    return { store: { ...store, status: "active" as const }, activatedAt };
+  });
 }
 
 /**

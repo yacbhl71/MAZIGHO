@@ -11,6 +11,25 @@ export function isStudioHost(host?: string | null) {
   return normalizeStoreHost(host) === "studio.mazigho.ch";
 }
 
+/**
+ * Every client store keeps a stable MAZIGHO recovery address. It is derived
+ * from the immutable store slug, is not a custom-domain assignment and lets an
+ * operator recover access if a client breaks their own registrar settings.
+ */
+export function getStoreRecoveryHost(slug: string) {
+  const normalizedSlug = slug.trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalizedSlug) || normalizedSlug === "studio" || normalizedSlug === "primary-store") return null;
+  return `${normalizedSlug}.mazigho.ch`;
+}
+
+export function getStoreSlugForRecoveryHost(host?: string | null) {
+  const normalizedHost = normalizeStoreHost(host);
+  const match = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.mazigho\.ch$/.exec(normalizedHost);
+  if (!match) return null;
+  const slug = match[1];
+  return getStoreRecoveryHost(slug) === normalizedHost ? slug : null;
+}
+
 /** A limited store may still serve its configured public status page; suspended and closed stores must not serve a checkout. */
 export function mayServeStorefront(status: StorefrontStatus) {
   return status === "active" || status === "limited";

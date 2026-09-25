@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isStudioHost, mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
+import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, isStudioHost, mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
 
 describe("store scope", () => {
   it("normalise un domaine sans protocole, chemin ni port", () => {
@@ -24,6 +24,15 @@ describe("store scope", () => {
     expect(isStudioHost("https://studio.mazigho.ch:443/admin/studio")).toBe(true);
     expect(isStudioHost("animalerie.mazigho.ch")).toBe(false);
     expect(isStudioHost("studio.mazigho.com")).toBe(false);
+  });
+
+  it("derives client recovery hosts without exposing Studio or the platform store", () => {
+    expect(getStoreRecoveryHost("dyama")).toBe("dyama.mazigho.ch");
+    expect(getStoreSlugForRecoveryHost("https://dyama.mazigho.ch:443/")).toBe("dyama");
+    expect(getStoreRecoveryHost("studio")).toBeNull();
+    expect(getStoreRecoveryHost("primary-store")).toBeNull();
+    expect(getStoreSlugForRecoveryHost("studio.mazigho.ch")).toBeNull();
+    expect(getStoreSlugForRecoveryHost("two.parts.mazigho.ch")).toBeNull();
   });
 
   it("ne considère comme servables que les boutiques actives ou limitées", () => {

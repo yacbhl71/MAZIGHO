@@ -41,6 +41,9 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.updateStoreCommercialOfferMode({ storeId: 1, confirmationName: "Boutique cliente", mode: "rental", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreMediaUsage({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreCommercialSupervision({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.prepareOwnerCustomDomainGuide({ storeId: 1, records: [{ type: "A", host: "@", value: "76.76.21.21" }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.restoreStoreRecoveryDomain({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.activateClientStore({ storeId: 1, confirmationName: "Boutique cliente", confirmationOwnerEmail: "client@example.test", domainVerified: true, readinessVerified: true, activationAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.createProvisioningDraft({
       displayName: "Boutique cliente",
       requestedDomain: "client.test",
@@ -126,6 +129,9 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.owner.getCommercialReadiness()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getPrivateCartSimulation({ countryCode: "CH", lines: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getVariantStockOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.getCustomDomainRequest()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.saveCustomDomainRequest({ domain: "boutique-client.ch" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getOrderItemSummaries({ orderId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.updateOrderTracking({ orderId: 1, status: "shipped" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });

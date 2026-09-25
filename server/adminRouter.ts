@@ -839,6 +839,90 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    prepareOwnerCustomDomainGuide: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      providerLabel: z.string().trim().max(80).optional(),
+      records: z.array(z.object({
+        type: z.enum(["A", "CNAME", "TXT"]),
+        host: z.string().trim().min(1).max(80),
+        value: z.string().trim().min(1).max(500),
+      })).min(1).max(4),
+      note: z.string().trim().max(500).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const prepared = await db.prepareStudioOwnerCustomDomainGuide(input);
+        logAudit(ctx, {
+          action: "studio.store.domain_guide.prepare",
+          entityType: "store",
+          entityId: input.storeId,
+          summary: "Guide DNS manuel préparé pour une boutique cliente.",
+          metadata: { recordCount: prepared.guide?.records.length ?? 0, domainAssigned: false, dnsChanged: false, storefrontActivated: false },
+        });
+        return prepared;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN") throw new TRPCError({ code: "FORBIDDEN", message: "Le domaine de MAZIGHO principal reste protégé." });
+        if (code === "OWNER_CUSTOM_DOMAIN_REQUEST_REQUIRED") throw new TRPCError({ code: "CONFLICT", message: "Le propriétaire doit d’abord enregistrer son domaine souhaité." });
+        if (code.startsWith("OWNER_DOMAIN_GUIDE_")) throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez les enregistrements DNS indiqués dans le guide." });
+        throw error;
+      }
+    }),
+    restoreStoreRecoveryDomain: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const restored = await db.restoreStudioStoreRecoveryDomain(input);
+        logAudit(ctx, {
+          action: "studio.store.domain.recovery.restore",
+          entityType: "store",
+          entityId: restored.store.id,
+          summary: "Adresse de récupération MAZIGHO rétablie pour une boutique cliente.",
+          metadata: { previousDomain: restored.previousDomain, recoveryDomain: restored.recoveryDomain, changed: restored.changed, dnsChanged: false, storefrontActivated: false },
+        });
+        return restored;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal est protégé : son domaine ne peut pas être rétabli ici." });
+        if (code === "STORE_RECOVERY_DOMAIN_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant le rétablissement." });
+        if (code === "STORE_RECOVERY_DOMAIN_UNAVAILABLE") throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne possède pas d’adresse de récupération valide." });
+        throw error;
+      }
+    }),
+    activateClientStore: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      confirmationOwnerEmail: z.string().trim().email().max(320),
+      domainVerified: z.literal(true),
+      readinessVerified: z.literal(true),
+      activationAcknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const activated = await db.activateStudioClientStore(input);
+        logAudit(ctx, {
+          action: "studio.store.activation.confirm",
+          entityType: "store",
+          entityId: activated.store.id,
+          summary: "Boutique cliente ouverte après confirmation manuelle du domaine et de la préparation.",
+          metadata: { domainVerifiedManually: true, readinessVerifiedManually: true, paymentActivated: false, subscriptionChanged: false, dnsChanged: false },
+        });
+        return activated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne peut pas être ouvert par ce contrôle." });
+        if (code === "STORE_NOT_ELIGIBLE_FOR_ACTIVATION") throw new TRPCError({ code: "CONFLICT", message: "Seule une boutique cliente encore en préparation peut être ouverte ici." });
+        if (code === "STORE_ACTIVATION_READINESS_INCOMPLETE") throw new TRPCError({ code: "CONFLICT", message: "La préparation commerciale n’est pas complète. Corrigez les éléments du panneau propriétaire avant l’ouverture." });
+        if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant l’ouverture." });
+        if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "L’e-mail ne correspond pas à un propriétaire actif de cette boutique." });
+        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmez la vérification du domaine, la préparation et l’ouverture publique." });
+        if (code === "STORE_ACTIVATION_CONFLICT") throw new TRPCError({ code: "CONFLICT", message: "Le statut a changé entre-temps. Actualisez avant de réessayer." });
+        throw error;
+      }
+    }),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
