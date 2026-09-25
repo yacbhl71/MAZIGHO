@@ -1,10 +1,30 @@
 import LegalLayout from "@/components/LegalLayout";
 import { useLegalProfile } from "@/hooks/useLegalProfile";
+import { useStoreSystemPages } from "@/hooks/useStoreSystemPages";
 
 const updatedAt = "23 août 2026";
 
 export default function ShippingReturns() {
   const { profile } = useLegalProfile();
+  const { pages } = useStoreSystemPages();
+  const storeReturns = pages?.returns ?? null;
+
+  // A boutique that wrote its own shipping/returns page replaces the default
+  // legal-profile-driven sections entirely.
+  if (storeReturns) {
+    return (
+      <LegalLayout
+        eyebrow="Informations pratiques"
+        title={storeReturns.title || "Livraison et retours"}
+        description=""
+        updatedAt={updatedAt}
+      >
+        <section>
+          <p className="mt-3 whitespace-pre-line">{storeReturns.body}</p>
+        </section>
+      </LegalLayout>
+    );
+  }
 
   return (
     <LegalLayout
