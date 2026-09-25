@@ -6,6 +6,7 @@ import { mayServeStorefront } from "./services/storeScope";
 import { createStripePendingOrder, getOrderForStripeSessionForStore, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { convertChfCents } from "../shared/storeCurrency";
+import { getCheckoutPaymentGate } from "./services/checkoutPaymentGate";
 
 const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.store) {
@@ -18,15 +19,20 @@ const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }
 });
 
 function getStripeTestClient() {
+  if (!getCheckoutPaymentGate().enabled) return null;
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key || !key.startsWith("sk_test_")) return null;
   return new Stripe(key);
 }
 
 function stripeUnavailable(operation: "create" | "retrieve") {
+  const gate = getCheckoutPaymentGate();
+  if (gate.reason === "live_key_rejected") {
+    return "Une clé Stripe Live ne peut pas activer ce checkout. Le paiement reste désactivé.";
+  }
   return operation === "create"
-    ? "Le paiement de test est temporairement indisponible."
-    : "Le statut du paiement de test n’a pas pu être vérifié.";
+    ? "Le paiement de test n’est pas activé pour cette boutique."
+    : "Le statut d’un paiement de test ne peut pas être vérifié tant que ce mode n’est pas explicitement activé.";
 }
 
 export const stripeCheckoutRouter = router({
