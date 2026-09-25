@@ -43,6 +43,7 @@ vi.mock("./db", () => ({
     activation: { token: "replacement-token", expiresAt: new Date("2026-12-02T00:00:00.000Z") },
   })),
   getOwnerProductVariants: vi.fn(async () => state.variants),
+  getOwnerVariantStockOverview: vi.fn(async () => [{ productId: 41, productName: "T-shirt atelier", productStatus: "active", id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }]),
   createOwnerProductVariant: vi.fn(async () => ({ id: 6 })),
   createOwnerProductVariantMatrix: vi.fn(async () => ({ created: 2, skipped: 0 })),
   updateOwnerProductVariant: vi.fn(async () => ({ success: true })),
@@ -84,6 +85,16 @@ describe("owner product variant routes", () => {
       variant: { label: "Sauge · L", sku: "SAUGE-L", priceAdjustmentCents: 0, stock: 4, status: "active" },
     })).resolves.toEqual({ id: 6 });
     expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", stock: 4 }), 77);
+  });
+
+  it("reads the variant stock overview only through the current resolved store", async () => {
+    await expect(callerFor().owner.getVariantStockOverview()).resolves.toEqual([
+      { productId: 41, productName: "T-shirt atelier", productStatus: "active", id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 },
+    ]);
+    expect(db.getOwnerVariantStockOverview).toHaveBeenCalledWith(77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getVariantStockOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates a bounded variant matrix only through the current resolved store", async () => {

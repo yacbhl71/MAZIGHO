@@ -5170,6 +5170,41 @@ export async function getOwnerProductVariants(productId: number, storeId: number
 }
 
 /**
+ * Lists the variant quantities a store manager can adjust from the stock
+ * screen. It is deliberately scoped through both the variant and its parent
+ * product, and has no supplier, customer, order or payment data.
+ */
+export async function getOwnerVariantStockOverview(storeId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    return await db.select({
+      productId: products.id,
+      productName: products.name,
+      productStatus: products.status,
+      id: ownerProductVariants.id,
+      label: ownerProductVariants.label,
+      sku: ownerProductVariants.sku,
+      priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
+      stock: ownerProductVariants.stock,
+      status: ownerProductVariants.status,
+      displayOrder: ownerProductVariants.displayOrder,
+    }).from(ownerProductVariants)
+      .innerJoin(products, and(eq(ownerProductVariants.productId, products.id), eq(ownerProductVariants.storeId, products.storeId)))
+      .where(and(
+        eq(ownerProductVariants.storeId, storeId),
+        eq(products.storeId, storeId),
+        inArray(products.status, ["active", "draft"]),
+      ))
+      .orderBy(asc(products.name), asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id));
+  } catch (error) {
+    console.warn("[OwnerVariants] Optional variant table unavailable for stock overview; returning an empty list", error);
+    return [];
+  }
+}
+
+/**
  * Returns only the public facts needed to choose a locally managed variant on
  * a storefront. Supplier references and internal SKUs intentionally stay out
  * of this response. Reading stays DDL-free so an older boutique without the

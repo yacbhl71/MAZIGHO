@@ -492,6 +492,9 @@ export const ownerRouter = router({
   getProductVariants: storeManagementProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     return await db.getOwnerProductVariants(input.productId, ctx.store!.id);
   }),
+  getVariantStockOverview: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerVariantStockOverview(ctx.store!.id);
+  }),
   createProductVariant: storeManagementProcedure.input(z.object({ productId: z.number().int().positive(), variant: ownerProductVariantFields })).mutation(async ({ ctx, input }) => {
     return await db.createOwnerProductVariant(input.productId, input.variant, ctx.store!.id);
   }),
