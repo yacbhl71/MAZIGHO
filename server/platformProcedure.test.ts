@@ -121,5 +121,6 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getCommercialReadiness()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getPrivateCartSimulation({ countryCode: "CH", lines: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.updateOrderTracking({ orderId: 1, status: "shipped" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

@@ -377,6 +377,26 @@ export const ownerRouter = router({
       storeId: ctx.store!.id,
     });
   }),
+  updateOrderTracking: storeManagementProcedure.input(z.object({
+    orderId: z.number().int().positive(),
+    status: z.enum(["shipped", "delivered"]),
+    trackingNumber: z.string().trim().max(100).optional(),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      return await db.updateOperationalOrderTracking({
+        id: input.orderId,
+        status: input.status,
+        trackingNumber: input.trackingNumber?.trim() || undefined,
+        storeId: ctx.store!.id,
+      });
+    } catch (error) {
+      const code = String(error);
+      if (code.includes("ORDER_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable dans cette boutique." });
+      if (code.includes("ORDER_NOT_OPERATIONAL")) throw new TRPCError({ code: "FORBIDDEN", message: "Cette commande doit d’abord être acceptée pour préparation manuelle." });
+      if (code.includes("ORDER_REQUIRES_SHIPMENT")) throw new TRPCError({ code: "BAD_REQUEST", message: "Marquez d’abord la commande comme expédiée." });
+      throw error;
+    }
+  }),
   getCustomerOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);
   }),

@@ -25,6 +25,7 @@ vi.mock("./db", () => ({
   updateDesignProfile: vi.fn(async (input) => input),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
+  updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
     userId: 15,
     name: "Éditeur test",
@@ -223,6 +224,25 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.recordOrderDecision({ orderId: 481, action: "rejected" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("records manual shipment status only for the current resolved store", async () => {
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped", trackingNumber: " CH123456 " })).resolves.toMatchObject({
+      success: true,
+      id: 481,
+      status: "shipped",
+      trackingNumber: "CH123456",
+      storeId: 77,
+    });
+    expect(db.updateOperationalOrderTracking).toHaveBeenCalledWith({
+      id: 481,
+      status: "shipped",
+      trackingNumber: "CH123456",
+      storeId: 77,
+    });
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "delivered" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("applies a storefront palette only to the current resolved store", async () => {

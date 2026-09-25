@@ -6238,7 +6238,9 @@ export async function getOwnerOrderSummaries(storeId: number) {
     paymentStatus: orders.paymentStatus,
     totalAmount: orders.totalAmount,
     currencyCode: orders.currencyCode,
+    trackingNumber: orders.trackingNumber,
     createdAt: orders.createdAt,
+    updatedAt: orders.updatedAt,
   }).from(orders)
     .where(eq(orders.storeId, storeId))
     .orderBy(desc(orders.createdAt))
