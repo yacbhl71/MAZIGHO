@@ -2,6 +2,10 @@ export type PublicCheckoutShippingPolicy = {
   mode: "included" | "flat_rate";
   freeShippingThresholdCents: number;
   flatShippingRateCents: number;
+  servedCountries?: string[];
+  countryServed?: boolean;
+  deliveryLeadTime?: string;
+  returnsSummary?: string;
 };
 
 /**

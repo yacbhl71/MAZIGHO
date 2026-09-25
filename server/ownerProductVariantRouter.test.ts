@@ -14,6 +14,8 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getOwnerShippingReturnsSettings: vi.fn(async () => ({ mode: "included", freeShippingThresholdCents: 0, flatShippingRateCents: 0, servedCountries: ["CH"], deliveryLeadTime: "2 à 4 jours", returnsSummary: "Retours sous 14 jours." })),
+  saveOwnerShippingReturnsSettings: vi.fn(async (_storeId, input) => input),
   getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
@@ -134,6 +136,26 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("saves delivery rules only through the current resolved store", async () => {
+    const input = {
+      mode: "flat_rate" as const,
+      freeShippingThresholdCents: 7_500,
+      flatShippingRateCents: 650,
+      servedCountries: ["ch", "fr"],
+      deliveryLeadTime: "2 à 4 jours ouvrés",
+      returnsSummary: "Retours sous 14 jours après réception.",
+    };
+
+    await expect(callerFor().owner.saveShippingReturnsSettings(input)).resolves.toMatchObject({
+      mode: "flat_rate",
+      servedCountries: ["CH", "FR"],
+    });
+    expect(db.saveOwnerShippingReturnsSettings).toHaveBeenCalledWith(77, expect.objectContaining({
+      servedCountries: ["CH", "FR"],
+      flatShippingRateCents: 650,
+    }));
   });
 
   it("reads commercial readiness only for the current resolved store", async () => {

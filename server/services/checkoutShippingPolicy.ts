@@ -6,6 +6,23 @@ export type CheckoutShippingPolicy = {
   freeShippingThresholdCents: number;
   /** Customer shipping charge, in cents, applied once per order in flat_rate mode. */
   flatShippingRateCents: number;
+  /** Countries explicitly served by an owner-managed storefront. An empty list preserves legacy platform behavior. */
+  servedCountries: string[];
+  /** True when the requested country is allowed by the owner's delivery rule. */
+  countryServed: boolean;
+  /** Public operational information shown alongside the checkout estimate. */
+  deliveryLeadTime: string;
+  /** Public returns summary, never a refund or carrier workflow. */
+  returnsSummary: string;
+};
+
+export type OwnerShippingCheckoutOverlay = {
+  mode: CheckoutShippingMode;
+  freeShippingThresholdCents: number;
+  flatShippingRateCents: number;
+  servedCountries: string[];
+  deliveryLeadTime: string;
+  returnsSummary: string;
 };
 
 export type CheckoutShippingCalculation = {
@@ -21,6 +38,10 @@ export const DEFAULT_CHECKOUT_SHIPPING_POLICY: CheckoutShippingPolicy = {
   mode: "included",
   freeShippingThresholdCents: 10_000,
   flatShippingRateCents: 500,
+  servedCountries: [],
+  countryServed: true,
+  deliveryLeadTime: "",
+  returnsSummary: "",
 };
 
 const MAX_MONEY_CENTS = 10_000_000;
@@ -50,6 +71,39 @@ export function parseCheckoutShippingPolicy(settings: Array<{ key: string; value
       values.get("flat_shipping_rate"),
       DEFAULT_CHECKOUT_SHIPPING_POLICY.flatShippingRateCents,
     ),
+    servedCountries: [],
+    countryServed: true,
+    deliveryLeadTime: "",
+    returnsSummary: "",
+  };
+}
+
+/**
+ * Applies the owner-managed delivery rule to the public estimate and server
+ * checkout check. A missing rule deliberately keeps the older platform policy
+ * intact; once a boutique has selected served countries, that selection is
+ * enforced rather than merely displayed in its administration panel.
+ */
+export function resolveCheckoutShippingPolicy(
+  settings: Array<{ key: string; value: string }>,
+  ownerRule?: OwnerShippingCheckoutOverlay | null,
+  countryCode?: string | null,
+): CheckoutShippingPolicy {
+  const legacy = parseCheckoutShippingPolicy(settings);
+  const servedCountries = Array.from(new Set((ownerRule?.servedCountries ?? [])
+    .map(country => country.trim().toUpperCase())
+    .filter(country => /^[A-Z]{2,3}$/.test(country))));
+  const ownerRuleConfigured = servedCountries.length > 0;
+  const requestedCountry = countryCode?.trim().toUpperCase() || "";
+
+  return {
+    mode: ownerRuleConfigured ? ownerRule!.mode : legacy.mode,
+    freeShippingThresholdCents: ownerRuleConfigured ? ownerRule!.freeShippingThresholdCents : legacy.freeShippingThresholdCents,
+    flatShippingRateCents: ownerRuleConfigured ? ownerRule!.flatShippingRateCents : legacy.flatShippingRateCents,
+    servedCountries,
+    countryServed: !ownerRuleConfigured || !requestedCountry || servedCountries.includes(requestedCountry),
+    deliveryLeadTime: ownerRuleConfigured ? ownerRule!.deliveryLeadTime : "",
+    returnsSummary: ownerRuleConfigured ? ownerRule!.returnsSummary : "",
   };
 }
 

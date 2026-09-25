@@ -4,6 +4,7 @@ import { staffRouter } from "./staffRouter";
 import { shopRouter } from "./shopRouter";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { z } from "zod";
 import { mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
 import { ownerRouter } from "./ownerRouter";
@@ -120,9 +121,11 @@ export const appRouter = router({
       const { getActiveCampaign } = await import("./db");
       return await getActiveCampaign(ctx.store?.id);
     }),
-    getCheckoutShippingPolicy: storefrontProcedure.query(async ({ ctx }) => {
+    getCheckoutShippingPolicy: storefrontProcedure.input(z.object({
+      countryCode: z.string().trim().length(2).regex(/^[A-Za-z]{2}$/).optional(),
+    }).optional()).query(async ({ ctx, input }) => {
       const { getCheckoutShippingPolicy } = await import("./db");
-      return await getCheckoutShippingPolicy(ctx.store?.id);
+      return await getCheckoutShippingPolicy(ctx.store?.id, input?.countryCode);
     }),
     getStoreCurrency: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreCurrencyConfig } = await import("./db");

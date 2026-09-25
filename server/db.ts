@@ -8,7 +8,7 @@ import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
 import { buildAliExpressPreparationManifest } from "./services/aliExpressManifest";
-import { calculateCheckoutShipping, parseCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
+import { calculateCheckoutShipping, resolveCheckoutShippingPolicy } from "./services/checkoutShippingPolicy";
 import { sanitizeTrackingPixels } from "./services/trackingPixels";
 import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
@@ -6823,9 +6823,17 @@ export async function saveStoreSeoProfile(storeId: number, input: StoreSeoProfil
   return profile;
 }
 
-export async function getCheckoutShippingPolicy(storeId?: number) {
-  const allSettings = await getAllStorefrontSettings(storeId);
-  return parseCheckoutShippingPolicy(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
+export async function getCheckoutShippingPolicy(storeId?: number, countryCode?: string) {
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const [allSettings, ownerShipping] = await Promise.all([
+    getAllStorefrontSettings(effectiveStoreId),
+    getOwnerShippingReturnsSettings(effectiveStoreId),
+  ]);
+  return resolveCheckoutShippingPolicy(
+    allSettings.map(setting => ({ key: setting.key, value: setting.value })),
+    ownerShipping,
+    countryCode,
+  );
 }
 
 /** Public sale currency. Catalogue and supplier records remain canonical CHF values. */
@@ -8469,7 +8477,9 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   }
 
   const productSubtotalChf = verifiedItems.reduce((sum, item) => sum + item.unitAmountChf * item.quantity, 0);
-  const shippingChf = calculateCheckoutShipping(productSubtotalChf, await getCheckoutShippingPolicy(effectiveStoreId));
+  const shippingPolicy = await getCheckoutShippingPolicy(effectiveStoreId, normalizedCountry);
+  if (!shippingPolicy.countryServed) throw new Error("STORE_DELIVERY_COUNTRY_NOT_SERVED");
+  const shippingChf = calculateCheckoutShipping(productSubtotalChf, shippingPolicy);
   const currency = await getStoreCurrencyConfig(effectiveStoreId);
   const items = verifiedItems.map(item => ({ ...item, unitAmount: convertChfCents(item.unitAmountChf, currency) }));
   const converted = calculateConvertedCartTotals({

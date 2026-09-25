@@ -3,6 +3,7 @@ import {
   calculateCheckoutShipping,
   DEFAULT_CHECKOUT_SHIPPING_POLICY,
   parseCheckoutShippingPolicy,
+  resolveCheckoutShippingPolicy,
 } from "./checkoutShippingPolicy";
 
 describe("checkout shipping policy", () => {
@@ -54,5 +55,38 @@ describe("checkout shipping policy", () => {
       shippingAmountCents: 490,
       freeShippingApplied: false,
     });
+  });
+
+  it("enforces a boutique's selected delivery countries and rates", () => {
+    const policy = resolveCheckoutShippingPolicy([], {
+      mode: "flat_rate",
+      freeShippingThresholdCents: 7_500,
+      flatShippingRateCents: 650,
+      servedCountries: ["CH", "fr", "CH"],
+      deliveryLeadTime: "2 à 4 jours ouvrés",
+      returnsSummary: "Retours sous 14 jours.",
+    }, "FR");
+
+    expect(policy).toMatchObject({
+      mode: "flat_rate",
+      flatShippingRateCents: 650,
+      servedCountries: ["CH", "FR"],
+      countryServed: true,
+      deliveryLeadTime: "2 à 4 jours ouvrés",
+    });
+    expect(calculateCheckoutShipping(5_000, policy).shippingAmountCents).toBe(650);
+  });
+
+  it("flags a destination not selected by the boutique", () => {
+    const policy = resolveCheckoutShippingPolicy([], {
+      mode: "included",
+      freeShippingThresholdCents: 0,
+      flatShippingRateCents: 0,
+      servedCountries: ["CH"],
+      deliveryLeadTime: "3 jours",
+      returnsSummary: "Retours sous 14 jours.",
+    }, "DZ");
+
+    expect(policy.countryServed).toBe(false);
   });
 });
