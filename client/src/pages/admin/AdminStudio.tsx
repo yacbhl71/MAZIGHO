@@ -526,7 +526,7 @@ export default function AdminStudio() {
   const theme = previews[themeId];
   const ThemeIcon = theme.icon;
   const themeCollections = useMemo(() => theme.collections, [theme.collections]);
-  const giftSetupStores = useMemo(() => (inventory?.stores ?? []).filter(store => store.status === "setup" && store.giftProvisioned), [inventory?.stores]);
+  const giftSetupStores = useMemo(() => inventory?.giftSetupStores ?? [], [inventory?.giftSetupStores]);
   const inventoryStoreById = useMemo(() => new Map(inventoryHighlights.map(store => [store.id, store])), [inventoryHighlights]);
   const storeHealth = useMemo(() => inventoryHighlights.map(store => {
     if (["limited", "suspended", "closed"].includes(store.status)) {

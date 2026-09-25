@@ -2621,7 +2621,7 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
   const db = await getDb();
   if (!db) {
     const page = paginateStudioInventory([], input);
-    return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0, rental: 0, perpetualSale: 0, offerUndecided: 0, clientStoresWithStockAttention: 0 }, ...page, highlights: [] };
+    return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0, rental: 0, perpetualSale: 0, offerUndecided: 0, clientStoresWithStockAttention: 0 }, ...page, highlights: [], giftSetupStores: [] };
   }
 
   const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows, commercialOfferRows, stockProductRows, stockVariantRows, stockAlertRows] = await Promise.all([
@@ -2738,6 +2738,7 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
     return store.isPlatformStore ? 10 : 20;
   };
   const highlights = [...inventory].sort((left, right) => scoreStoreAttention(right) - scoreStoreAttention(left) || left.displayName.localeCompare(right.displayName, "fr-CH")).slice(0, 6);
+  const giftSetupStores = inventory.filter(store => store.status === "setup" && store.giftProvisioned);
   return {
     summary: {
       total: inventory.length,
@@ -2755,6 +2756,7 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
     },
     ...page,
     highlights,
+    giftSetupStores,
   };
 }
 
