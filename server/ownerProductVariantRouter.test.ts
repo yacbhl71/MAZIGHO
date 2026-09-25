@@ -20,6 +20,7 @@ vi.mock("./db", () => ({
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
+  recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
     userId: 15,
     name: "Éditeur test",
@@ -168,6 +169,24 @@ describe("owner product variant routes", () => {
   it("reads commercial readiness only for the current resolved store", async () => {
     await expect(callerFor().owner.getCommercialReadiness()).resolves.toEqual(state.commercialReadiness);
     expect(db.getOwnerCommercialReadiness).toHaveBeenCalledWith(77);
+  });
+
+  it("records a manual order decision only for the current resolved store", async () => {
+    await expect(callerFor().owner.recordOrderDecision({ orderId: 481, action: "accepted" })).resolves.toMatchObject({
+      success: true,
+      storeId: 77,
+      actorUserId: 7,
+      action: "accepted",
+    });
+    expect(db.recordOrderDecision).toHaveBeenCalledWith({
+      orderId: 481,
+      action: "accepted",
+      actorUserId: 7,
+      storeId: 77,
+    });
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.recordOrderDecision({ orderId: 481, action: "rejected" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("applies a storefront palette only to the current resolved store", async () => {
