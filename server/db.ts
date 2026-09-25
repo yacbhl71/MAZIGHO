@@ -6010,7 +6010,7 @@ export async function getOwnerPrivateCartSimulation(input: {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
-  const [storeRows, productRows, shippingPolicy, currency] = await Promise.all([
+  const [storeRows, productRows, shippingPolicy, currency, taxDisclosure] = await Promise.all([
     db.select({ displayName: stores.displayName }).from(stores).where(eq(stores.id, input.storeId)).limit(1),
     db.select({
       id: products.id,
@@ -6023,6 +6023,7 @@ export async function getOwnerPrivateCartSimulation(input: {
     }).from(products).where(eq(products.storeId, input.storeId)).orderBy(desc(products.createdAt)),
     getCheckoutShippingPolicy(input.storeId, input.countryCode),
     getStoreCurrencyConfig(input.storeId),
+    getCheckoutTaxDisclosure(input.storeId, input.countryCode),
   ]);
   const store = storeRows[0];
   if (!store) throw new Error("STORE_NOT_FOUND");
@@ -6047,6 +6048,7 @@ export async function getOwnerPrivateCartSimulation(input: {
 
   return {
     store: { displayName: store.displayName },
+    taxDisclosure,
     ...buildOwnerPrivateCartSimulation({
       products: productRows,
       variants,
