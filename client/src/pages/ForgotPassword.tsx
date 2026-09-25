@@ -11,10 +11,14 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getAccountSecurityCopy } from "@/lib/accountSecurityCopy";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 
 export default function ForgotPassword() {
   const { locale } = useLocale();
-  const copy = getAccountSecurityCopy(locale);
+  const { profile } = useDesignProfile(locale);
+  const brandName = getStorefrontBrandName(profile);
+  const copy = withStorefrontBrand( getAccountSecurityCopy(locale), brandName);
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null);

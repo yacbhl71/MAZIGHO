@@ -11,12 +11,16 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getAuthCopy } from "@/lib/authCopy";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 
 export default function Register() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { locale } = useLocale();
-  const copy = getAuthCopy(locale);
+  const { profile } = useDesignProfile(locale);
+  const brandName = getStorefrontBrandName(profile);
+  const copy = withStorefrontBrand( getAuthCopy(locale), brandName);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

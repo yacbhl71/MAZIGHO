@@ -7,6 +7,8 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getAccountCopy } from "@/lib/accountCopy";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 import { trpc } from "@/lib/trpc";
 import { getStoreMembershipRolePresentation, getStoreStaffWorkspace, isStoreManagementRole } from "@shared/storeMembershipRole";
 
@@ -14,7 +16,9 @@ export default function Account() {
   const [, navigate] = useLocation();
   const { user, loading: isLoading, isAuthenticated, logout } = useAuth();
   const { locale } = useLocale();
-  const copy = getAccountCopy(locale);
+  const { profile } = useDesignProfile(locale);
+  const brandName = getStorefrontBrandName(profile);
+  const copy = withStorefrontBrand( getAccountCopy(locale), brandName);
   const workspace = trpc.workspace.getCurrent.useQuery(undefined, { enabled: isAuthenticated });
   const activeStoreMembership = workspace.data?.store && !workspace.data.store.isPlatformStore && workspace.data.membership?.status === "active" ? workspace.data.membership : null;
   const isStoreManager = isStoreManagementRole(activeStoreMembership?.role);

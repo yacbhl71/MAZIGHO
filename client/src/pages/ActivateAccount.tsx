@@ -11,13 +11,17 @@ import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useLocale } from "@/contexts/LocaleContext";
 import { getAccountSecurityCopy } from "@/lib/accountSecurityCopy";
+import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 import { getSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 
 export default function ActivateAccount() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { locale } = useLocale();
-  const copy = getAccountSecurityCopy(locale);
+  const { profile } = useDesignProfile(locale);
+  const brandName = getStorefrontBrandName(profile);
+  const copy = withStorefrontBrand( getAccountSecurityCopy(locale), brandName);
   const token = useMemo(() => new URLSearchParams(window.location.search).get("token") || "", []);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
