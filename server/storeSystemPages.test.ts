@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_FAQ_ITEMS,
+  buildFaqPageJsonLd,
+  getFaqCategories,
   getSystemPagesCompliance,
   normalizeContactPageContent,
   normalizeFaqItems,
@@ -42,11 +44,64 @@ describe("normalizeFaqItems", () => {
     expect(new Set(result.map(item => item.id)).size).toBe(result.length);
   });
 
+  it("keeps a trimmed optional category and drops empty ones", () => {
+    expect(normalizeFaqItems([
+      { question: "Livrez-vous ?", answer: "Oui.", category: " Livraison " },
+      { question: "Puis-je payer en plusieurs fois ?", answer: "Non.", category: "   " },
+    ])).toEqual([
+      { id: "faq-1", question: "Livrez-vous ?", answer: "Oui.", category: "Livraison" },
+      { id: "faq-2", question: "Puis-je payer en plusieurs fois ?", answer: "Non." },
+    ]);
+  });
+
+  it("caps the category label length", () => {
+    const long = "x".repeat(200);
+    const [item] = normalizeFaqItems([{ question: "Q valide ?", answer: "R", category: long }]);
+    expect(item.category).toHaveLength(60);
+  });
+
   it("returns an empty list for non-array input so the storefront falls back", () => {
     expect(normalizeFaqItems(null)).toEqual([]);
     expect(normalizeFaqItems({ question: "x" })).toEqual([]);
     expect(parseFaqItems("not-json")).toEqual([]);
     expect(parseFaqItems(null)).toEqual([]);
+  });
+});
+
+describe("getFaqCategories", () => {
+  it("lists distinct categories in first-appearance order, case-insensitively", () => {
+    expect(getFaqCategories([
+      { id: "a", question: "Q1 ?", answer: "R", category: "Livraison" },
+      { id: "b", question: "Q2 ?", answer: "R" },
+      { id: "c", question: "Q3 ?", answer: "R", category: "livraison" },
+      { id: "d", question: "Q4 ?", answer: "R", category: "Commandes" },
+    ])).toEqual(["Livraison", "Commandes"]);
+  });
+
+  it("returns an empty list when no item is categorized", () => {
+    expect(getFaqCategories([{ id: "a", question: "Q ?", answer: "R" }])).toEqual([]);
+  });
+});
+
+describe("buildFaqPageJsonLd", () => {
+  it("builds a schema.org FAQPage payload", () => {
+    expect(buildFaqPageJsonLd([
+      { id: "faq-1", question: "Livrez-vous ?", answer: "Oui, sous 3 à 5 jours." },
+    ])).toEqual({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Livrez-vous ?",
+          acceptedAnswer: { "@type": "Answer", text: "Oui, sous 3 à 5 jours." },
+        },
+      ],
+    });
+  });
+
+  it("returns null for an empty FAQ so no block is published", () => {
+    expect(buildFaqPageJsonLd([])).toBeNull();
   });
 });
 
