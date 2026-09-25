@@ -819,6 +819,98 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getSaasBillingDashboard: platformProcedure.query(async () => {
+      return await db.getStudioSaasBillingDashboard();
+    }),
+    saveStoreSaasBillingPlan: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      plan: z.object({
+        kind: z.enum(["rental", "perpetual_sale"]),
+        label: z.string().trim().min(1).max(90),
+        amountCents: z.number().int().positive().max(100_000_000),
+        currency: z.enum(["CHF", "EUR", "USD", "GBP"]),
+        interval: z.enum(["monthly", "yearly", "one_time"]),
+      }),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioStoreSaasBillingPlan(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_billing.plan_draft.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: "Plan SaaS enregistré comme brouillon interne.",
+          metadata: { kind: saved.billing.plan?.kind, interval: saved.billing.plan?.interval, amountCents: saved.billing.plan?.amountCents, currency: saved.billing.plan?.currency, subscriptionActivated: false, paymentCreated: false, invoiceIssued: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_BILLING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant d’enregistrer le brouillon." });
+        if (code === "SAAS_BILLING_OFFER_MISMATCH") throw new TRPCError({ code: "CONFLICT", message: "Choisissez d’abord le même modèle commercial dans le registre Studio." });
+        if (code.startsWith("SAAS_BILLING_")) throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez le montant, la devise et la périodicité du brouillon." });
+        throw error;
+      }
+    }),
+    createStoreSaasInvoiceDraft: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      reference: z.string().trim().min(1).max(80),
+      issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      amountCents: z.number().int().positive().max(100_000_000),
+      currency: z.enum(["CHF", "EUR", "USD", "GBP"]),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const created = await db.createStudioStoreSaasInvoiceDraft(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_billing.invoice_draft.create",
+          entityType: "store",
+          entityId: created.store.id,
+          summary: "Facture interne créée comme brouillon non fiscal.",
+          metadata: { reference: created.invoice.reference, amountCents: created.invoice.amountCents, currency: created.invoice.currency, invoiceIssued: false, paymentCreated: false, emailSent: false, accountingSynced: false },
+        });
+        return created;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_BILLING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de créer le brouillon." });
+        if (code === "SAAS_BILLING_PLAN_REQUIRED") throw new TRPCError({ code: "CONFLICT", message: "Enregistrez d’abord un plan SaaS interne pour cette boutique." });
+        if (code === "SAAS_BILLING_REFERENCE_DUPLICATE") throw new TRPCError({ code: "CONFLICT", message: "Cette référence existe déjà dans les brouillons de cette boutique." });
+        if (code === "SAAS_BILLING_INVOICE_LIMIT_REACHED") throw new TRPCError({ code: "CONFLICT", message: "La limite de 24 brouillons est atteinte pour cette boutique." });
+        if (code.startsWith("SAAS_")) throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez la référence, les dates, le montant et la devise du brouillon." });
+        throw error;
+      }
+    }),
+    deleteStoreSaasInvoiceDraft: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      invoiceId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const deleted = await db.deleteStudioStoreSaasInvoiceDraft(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_billing.invoice_draft.delete",
+          entityType: "store",
+          entityId: deleted.store.id,
+          summary: "Brouillon de facture interne supprimé.",
+          metadata: { invoiceId: input.invoiceId, invoiceIssued: false, paymentChanged: false, emailSent: false },
+        });
+        return deleted;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_BILLING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de supprimer le brouillon." });
+        if (code === "SAAS_BILLING_INVOICE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon de facture introuvable." });
+        throw error;
+      }
+    }),
     getStoreMediaUsage: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
       try {
         return await db.getStudioStoreMediaUsage(input.storeId);

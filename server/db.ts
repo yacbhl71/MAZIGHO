@@ -41,6 +41,7 @@ import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
+import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -2826,6 +2827,109 @@ export async function updateStudioStoreCommercialOfferMode(input: {
     subscriptionChanged: false as const,
     storageTransferStarted: false as const,
   };
+}
+
+/**
+ * Operator-only planning dashboard for future SaaS subscriptions and invoices.
+ * Everything returned here is an internal draft: no tax document, recipient,
+ * payment link, subscription, external accounting sync or email is created.
+ */
+export async function getStudioSaasBillingDashboard() {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const clientStores = await db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
+    .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName));
+  if (clientStores.length === 0) return { stores: [], summary: { plannedSubscriptions: 0, perpetualSales: 0, invoiceDrafts: 0, monthlyEquivalentByCurrency: {}, invoiceDraftTotalsByCurrency: {} } };
+  const settingRows = await db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
+    .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile"])));
+  const settingsByStore = new Map<number, Map<string, string>>();
+  for (const setting of settingRows) {
+    const current = settingsByStore.get(setting.storeId) ?? new Map<string, string>();
+    current.set(setting.key, setting.value);
+    settingsByStore.set(setting.storeId, current);
+  }
+  const storesWithBilling = clientStores.map(store => {
+    const values = settingsByStore.get(store.id);
+    const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
+    return { ...store, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing };
+  });
+  const monthlyEquivalentByCurrency: Record<string, number> = {};
+  const invoiceDraftTotalsByCurrency: Record<string, number> = {};
+  for (const store of storesWithBilling) {
+    const plan = store.billing.plan;
+    if (plan && plan.interval !== "one_time") {
+      const monthlyAmount = plan.interval === "monthly" ? plan.amountCents : Math.round(plan.amountCents / 12);
+      monthlyEquivalentByCurrency[plan.currency] = (monthlyEquivalentByCurrency[plan.currency] ?? 0) + monthlyAmount;
+    }
+    for (const invoice of store.billing.invoices) invoiceDraftTotalsByCurrency[invoice.currency] = (invoiceDraftTotalsByCurrency[invoice.currency] ?? 0) + invoice.amountCents;
+  }
+  return {
+    stores: storesWithBilling,
+    summary: {
+      plannedSubscriptions: storesWithBilling.filter(store => store.billing.plan?.kind === "rental").length,
+      perpetualSales: storesWithBilling.filter(store => store.billing.plan?.kind === "perpetual_sale").length,
+      invoiceDrafts: storesWithBilling.reduce((total, store) => total + store.billing.invoices.length, 0),
+      monthlyEquivalentByCurrency,
+      invoiceDraftTotalsByCurrency,
+    },
+  };
+}
+
+async function getStudioClientStoreForBilling(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  return store;
+}
+
+/** Stores a non-binding SaaS plan draft after the commercial offer was explicitly selected. */
+export async function saveStudioStoreSaasBillingPlan(input: { storeId: number; confirmationName: string; plan: unknown }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_BILLING_CONFIRMATION_MISMATCH");
+  const [rawOffer, rawProfile] = await Promise.all([
+    getStoreSettingValue(store.id, "commercial_offer_mode"),
+    getStoreSettingValue(store.id, "saas_billing_profile"),
+  ]);
+  const plan = normalizeSaasBillingPlan(input.plan);
+  if (normalizeStoreCommercialOfferMode(rawOffer) !== plan.kind) throw new Error("SAAS_BILLING_OFFER_MISMATCH");
+  const profile = parseStoreSaasBillingProfile(rawProfile);
+  const nextProfile = { plan, invoices: profile.invoices };
+  await setStoreSettingValue(store.id, "saas_billing_profile", JSON.stringify(nextProfile), "Plan SaaS et factures internes en brouillon Studio ; sans abonnement actif, facture officielle, prélèvement, paiement, e-mail ou synchronisation comptable.");
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }, billing: nextProfile };
+}
+
+/** Adds an internal invoice draft only. It cannot represent an issued fiscal invoice or payment demand. */
+export async function createStudioStoreSaasInvoiceDraft(input: { storeId: number; confirmationName: string; reference: string; issueDate: string; dueDate: string; amountCents: number; currency: SaasBillingCurrency }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_BILLING_CONFIRMATION_MISMATCH");
+  const rawProfile = await getStoreSettingValue(store.id, "saas_billing_profile");
+  const profile = parseStoreSaasBillingProfile(rawProfile);
+  if (!profile.plan) throw new Error("SAAS_BILLING_PLAN_REQUIRED");
+  if (profile.invoices.length >= 24) throw new Error("SAAS_BILLING_INVOICE_LIMIT_REACHED");
+  const reference = input.reference.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (!reference) throw new Error("SAAS_BILLING_REFERENCE_REQUIRED");
+  if (profile.invoices.some(invoice => invoice.reference.toLowerCase() === reference.toLowerCase())) throw new Error("SAAS_BILLING_REFERENCE_DUPLICATE");
+  const invoice = makeDraftInvoice({ id: randomUUID().replace(/-/g, ""), reference, issueDate: input.issueDate, dueDate: input.dueDate, amountCents: input.amountCents, currency: input.currency });
+  const nextProfile = { ...profile, invoices: [invoice, ...profile.invoices] };
+  await setStoreSettingValue(store.id, "saas_billing_profile", JSON.stringify(nextProfile), "Facture interne en brouillon Studio ; non fiscale, non envoyée et sans paiement ni synchronisation comptable.");
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }, invoice, billing: nextProfile };
+}
+
+/** Removes an unissued internal invoice draft; all actual invoices remain outside this preparatory module. */
+export async function deleteStudioStoreSaasInvoiceDraft(input: { storeId: number; confirmationName: string; invoiceId: string }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_BILLING_CONFIRMATION_MISMATCH");
+  const rawProfile = await getStoreSettingValue(store.id, "saas_billing_profile");
+  const profile = parseStoreSaasBillingProfile(rawProfile);
+  const nextInvoices = profile.invoices.filter(invoice => invoice.id !== input.invoiceId);
+  if (nextInvoices.length === profile.invoices.length) throw new Error("SAAS_BILLING_INVOICE_NOT_FOUND");
+  const nextProfile = { ...profile, invoices: nextInvoices };
+  await setStoreSettingValue(store.id, "saas_billing_profile", JSON.stringify(nextProfile), "Factures internes en brouillon Studio ; non fiscales, non envoyées et sans paiement ni synchronisation comptable.");
+  return { store: { id: store.id, displayName: store.displayName }, billing: nextProfile };
 }
 
 /**

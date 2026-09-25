@@ -79,6 +79,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     items: [
       { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
       { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
+      { icon: ReceiptText, label: "Abonnements & factures", path: "/admin/studio/facturation" },
       { icon: Palette, label: "Thèmes de boutiques", path: "/admin/studio/themes" },
       { icon: TrendingUp, label: "Priorités Studio", path: "/admin/studio#studio-priorities" },
       { icon: Activity, label: "Santé des boutiques", path: "/admin/studio#studio-health" },
@@ -311,7 +312,11 @@ function DashboardLayoutContent({
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
-  const isStudio = location === "/admin/studio" || location.startsWith("/admin/studio/");
+  const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
+  const isStudio = isStudioHost;
+  const visibleMenuSections = isStudioHost
+    ? menuSections.filter(section => section.label === "Plateforme")
+    : menuSections.filter(section => section.label !== "Plateforme");
 
   useEffect(() => {
     if (isCollapsed) {
@@ -402,9 +407,9 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0 overflow-y-auto">
-            {menuSections.map(section => {
+            {visibleMenuSections.map(section => {
               const items = section.items.filter(item => {
-                const isStudioShortcut = item.path === "/admin/studio" || item.path.startsWith("/admin/studio#");
+                const isStudioShortcut = item.path === "/admin/studio" || item.path.startsWith("/admin/studio/") || item.path.startsWith("/admin/studio#");
                 if (isStudioShortcut && !isPlatformOperator) return false;
                 return isPathAllowed((user as any)?.role || "admin", item.path.split("#")[0]);
               });

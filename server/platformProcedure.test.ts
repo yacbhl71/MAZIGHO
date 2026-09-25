@@ -41,6 +41,10 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.updateStoreCommercialOfferMode({ storeId: 1, confirmationName: "Boutique cliente", mode: "rental", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreMediaUsage({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreCommercialSupervision({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getSaasBillingDashboard()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.saveStoreSaasBillingPlan({ storeId: 1, confirmationName: "Boutique cliente", plan: { kind: "rental", label: "SaaS Pro", amountCents: 4900, currency: "CHF", interval: "monthly" }, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.createStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", reference: "BROUILLON-001", issueDate: "2026-10-01", dueDate: "2026-10-15", amountCents: 4900, currency: "CHF", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.deleteStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", invoiceId: "draftinvoice0001", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.prepareOwnerCustomDomainGuide({ storeId: 1, records: [{ type: "A", host: "@", value: "76.76.21.21" }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.restoreStoreRecoveryDomain({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.activateClientStore({ storeId: 1, confirmationName: "Boutique cliente", confirmationOwnerEmail: "client@example.test", domainVerified: true, readinessVerified: true, activationAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });

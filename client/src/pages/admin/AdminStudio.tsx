@@ -32,6 +32,7 @@ import {
   Loader2,
   LockKeyhole,
   Palette,
+  ReceiptText,
   PanelTop,
   PawPrint,
   Shirt,
@@ -689,7 +690,7 @@ export default function AdminStudio() {
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Les boutiques enregistrées, sans ouvrir leurs données internes.</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque ligne regroupe uniquement l’état opérationnel, les membres actifs, le catalogue et les commandes. Les identités client, secrets et contenus détaillés restent isolés.</p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/admin/studio/themes"><Button variant="outline" className="border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100"><Palette className="mr-2 h-4 w-4" /> Thèmes</Button></Link><Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
+            <div className="flex flex-wrap gap-2"><Link href="/admin/studio/facturation"><Button variant="outline" className="border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"><ReceiptText className="mr-2 h-4 w-4" /> Abonnements & factures</Button></Link><Link href="/admin/studio/themes"><Button variant="outline" className="border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100"><Palette className="mr-2 h-4 w-4" /> Thèmes</Button></Link><Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
               <RefreshCw className={`mr-2 h-4 w-4 ${inventoryQuery.isFetching ? "animate-spin" : ""}`} /> Actualiser
             </Button></div>
           </div>

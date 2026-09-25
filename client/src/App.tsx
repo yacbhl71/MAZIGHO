@@ -31,6 +31,7 @@ const Account = lazy(() => import("./pages/Account"));
 const OwnerStorePanel = lazy(() => import("./pages/OwnerStorePanel"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
+const AdminStudioSaasBilling = lazy(() => import("./pages/admin/AdminStudioSaasBilling"));
 const AdminStudioThemes = lazy(() => import("./pages/admin/AdminStudioThemes"));
 const AdminStudioPreview = lazy(() => import("./pages/admin/AdminStudioPreview"));
 const AdminStudioOwnerWorkspacePreview = lazy(() => import("./pages/admin/AdminStudioOwnerWorkspacePreview"));
@@ -127,6 +128,13 @@ function StorefrontUnavailablePage() {
   );
 }
 
+function ExternalLocationRedirect({ href }: { href: string }) {
+  useEffect(() => {
+    window.location.replace(href);
+  }, [href]);
+  return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
+}
+
 function BrowserTitle() {
   const [location] = useLocation();
   const { profile, isLoading: profileLoading } = useDesignProfile();
@@ -196,7 +204,7 @@ function BrowserTitle() {
       "/livraison-retours": "Livraison et retours | MAZIGHO",
     };
 
-    const studioTitle = pathname === "/admin/studio/themes" ? "MAZIGHO Studio | Thèmes de boutiques" : pathname.startsWith("/admin/studio/gestion-boutique/") ? "MAZIGHO Studio | Gestion de boutique" : pathname.startsWith("/admin/studio/contenu-public/") ? "MAZIGHO Studio | Contenu storefront" : pathname.startsWith("/admin/studio/catalogue-existant/") ? "MAZIGHO Studio | Catalogue existant" : pathname.startsWith("/admin/studio/publication-catalogue/") ? "MAZIGHO Studio | Publication catalogue" : pathname.startsWith("/admin/studio/revue-passage/") ? "MAZIGHO Studio | Revue de passage" : pathname.startsWith("/admin/studio/revue-etancheite/") ? "MAZIGHO Studio | Revue d’étanchéité" : pathname.startsWith("/admin/studio/prevol-commercial/") ? "MAZIGHO Studio | Revue commerciale" : pathname.startsWith("/admin/studio/panier-simulation/") ? "MAZIGHO Studio | Panier simulé" : pathname.startsWith("/admin/studio/stock-fournisseurs/") ? "MAZIGHO Studio | Stock et fournisseur" : pathname.startsWith("/admin/studio/produits/") ? "MAZIGHO Studio | Fiches produits" : pathname.startsWith("/admin/studio/collections/") ? "MAZIGHO Studio | Collections de boutique" : pathname.startsWith("/admin/studio/lancement/") ? "MAZIGHO Studio | Centre de lancement" : pathname.startsWith("/admin/studio/page-preview/") ? "MAZIGHO Studio | Aperçu complet" : pathname.startsWith("/admin/studio/navigation/") ? "MAZIGHO Studio | Navigation de boutique" : pathname.startsWith("/admin/studio/checklist/") ? "MAZIGHO Studio | Checklist de préparation" : pathname.startsWith("/admin/studio/pages/") ? "MAZIGHO Studio | Éditeur de pages" : pathname.startsWith("/admin/studio/constructeur/") ? "MAZIGHO Studio | Créateur de boutique" : pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : undefined;
+    const studioTitle = pathname === "/admin/studio/facturation" ? "MAZIGHO Studio | Abonnements et factures" : pathname === "/admin/studio/themes" ? "MAZIGHO Studio | Thèmes de boutiques" : pathname.startsWith("/admin/studio/gestion-boutique/") ? "MAZIGHO Studio | Gestion de boutique" : pathname.startsWith("/admin/studio/contenu-public/") ? "MAZIGHO Studio | Contenu storefront" : pathname.startsWith("/admin/studio/catalogue-existant/") ? "MAZIGHO Studio | Catalogue existant" : pathname.startsWith("/admin/studio/publication-catalogue/") ? "MAZIGHO Studio | Publication catalogue" : pathname.startsWith("/admin/studio/revue-passage/") ? "MAZIGHO Studio | Revue de passage" : pathname.startsWith("/admin/studio/revue-etancheite/") ? "MAZIGHO Studio | Revue d’étanchéité" : pathname.startsWith("/admin/studio/prevol-commercial/") ? "MAZIGHO Studio | Revue commerciale" : pathname.startsWith("/admin/studio/panier-simulation/") ? "MAZIGHO Studio | Panier simulé" : pathname.startsWith("/admin/studio/stock-fournisseurs/") ? "MAZIGHO Studio | Stock et fournisseur" : pathname.startsWith("/admin/studio/produits/") ? "MAZIGHO Studio | Fiches produits" : pathname.startsWith("/admin/studio/collections/") ? "MAZIGHO Studio | Collections de boutique" : pathname.startsWith("/admin/studio/lancement/") ? "MAZIGHO Studio | Centre de lancement" : pathname.startsWith("/admin/studio/page-preview/") ? "MAZIGHO Studio | Aperçu complet" : pathname.startsWith("/admin/studio/navigation/") ? "MAZIGHO Studio | Navigation de boutique" : pathname.startsWith("/admin/studio/checklist/") ? "MAZIGHO Studio | Checklist de préparation" : pathname.startsWith("/admin/studio/pages/") ? "MAZIGHO Studio | Éditeur de pages" : pathname.startsWith("/admin/studio/constructeur/") ? "MAZIGHO Studio | Créateur de boutique" : pathname.startsWith("/admin/studio/espace-proprietaire/") ? "MAZIGHO Studio | Aperçu panneau propriétaire" : pathname.startsWith("/admin/studio/apercu/") ? "MAZIGHO Studio | Aperçu privé" : undefined;
     if (studioTitle || pathname.startsWith("/admin")) {
       document.title = studioTitle || adminTitles[pathname] || "MAZIGHO Admin";
       return;
@@ -260,7 +268,9 @@ function Router() {
   const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
   const storefrontAvailabilityQuery = trpc.storefront.getAvailability.useQuery(undefined, { refetchOnWindowFocus: false });
   const path = location.split("?")[0];
-  const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
+  const currentHostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  const isStudioHost = currentHostname === "studio.mazigho.ch";
+  const isPrimaryMazighoHost = currentHostname === "mazigho.ch" || currentHostname === "www.mazigho.ch";
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -274,6 +284,12 @@ function Router() {
   // route and authorization guard behind the same deployment.
   if (isStudioHost && (path === "/" || path === "/admin")) {
     return <Redirect to="/admin/studio" replace />;
+  }
+  if (isStudioHost && path.startsWith("/admin") && !path.startsWith("/admin/studio")) {
+    return <Redirect to="/admin/studio" replace />;
+  }
+  if (isPrimaryMazighoHost && path.startsWith("/admin/studio")) {
+    return <ExternalLocationRedirect href={`https://studio.mazigho.ch${location}`} />;
   }
 
   if (storefrontAvailabilityQuery.isLoading) {
@@ -350,6 +366,7 @@ function Router() {
         <Route path={"/admin/studio/constructeur/:storeId"} component={AdminStudioOwnerBuilder} />
         <Route path={"/admin/studio/espace-proprietaire/:storeId"} component={AdminStudioOwnerWorkspacePreview} />
         <Route path={"/admin/studio/apercu/:storeId"} component={AdminStudioPreview} />
+        <Route path={"/admin/studio/facturation"} component={AdminStudioSaasBilling} />
         <Route path={"/admin/studio/themes"} component={AdminStudioThemes} />
         <Route path={"/admin/studio"} component={AdminStudio} />
         <Route path={"/admin/produits"} component={AdminProducts} />
