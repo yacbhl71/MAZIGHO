@@ -144,7 +144,7 @@ export default function Home() {
           <div className="container grid gap-0 md:grid-cols-3">
             {copy.reassurance.slice(0, 3).map((item, index) => {
               const icon = useManagedPublicTranslation ? profile.reassuranceItems[index]?.icon : ["sparkles", "check", "arrow"][index];
-              const iconStyle = index === 0 ? "bg-orange-100 text-orange-600" : index === 1 ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700";
+              const iconStyle = index === 0 ? "bg-[var(--mazigho-soft)] text-[var(--mazigho-accent)]" : index === 1 ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700";
               return <div key={`${item.title}-${index}`} className={`flex items-center gap-4 py-5 ${index < 2 ? "border-b border-[#eadfd2] md:border-b-0 md:border-r" : ""} ${index === 0 ? "md:pr-8" : index === 1 ? "md:px-8" : "md:pl-8"}`}>
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconStyle}`}>
                   {icon === "check" ? <Check className="h-5 w-5" /> : icon === "arrow" ? <ArrowRight className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
@@ -162,21 +162,21 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-700">{copy.discovery.eyebrow}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.discovery.eyebrow}</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.discovery.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">{copy.discovery.text}</p>
               </div>
-              {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
+              {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-[var(--mazigho-accent)]">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
             </div>
             {localizedDiscoveryTiles.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
-                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl">
+                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl">
                   <div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div>
-                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-orange-600">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0 text-orange-500" /></div>
+                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-[var(--mazigho-primary)]">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div>
                 </Link>
               ))}
             </div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-600">Ajoutez vos catégories dans le catalogue pour les présenter ici.</div>}
-            {copy.discovery.browseShop && profile.discoveryBrowseShopUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-orange-300 hover:text-orange-600"><a href={useManagedPublicTranslation ? profile.discoveryBrowseShopUrl : "/boutique"}>{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
+            {copy.discovery.browseShop && profile.discoveryBrowseShopUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-[var(--mazigho-accent)] hover:text-[var(--mazigho-primary)]"><a href={useManagedPublicTranslation ? profile.discoveryBrowseShopUrl : "/boutique"}>{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
           </div>
         </section>
         )}
@@ -196,7 +196,7 @@ export default function Home() {
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
               </div>
-              <Button asChild className="bg-orange-700 text-white shadow-lg shadow-orange-700/20 hover:bg-orange-800"><Link href="/boutique" className="mt-8 inline-block">{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+              <Button asChild className="text-white shadow-lg shadow-fuchsia-700/20 hover:brightness-95"><Link href="/boutique" className="mt-8 inline-block" style={{ backgroundColor: palette.accent }}>{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
               <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
@@ -310,7 +310,7 @@ export default function Home() {
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">{copy.closing.title}</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">{copy.closing.text}</p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  {copy.closing.shopCta && profile.closingShopCtaUrl ? <Button asChild className="bg-orange-700 text-white hover:bg-orange-800"><a href={useManagedPublicTranslation ? profile.closingShopCtaUrl : "/boutique"}>{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></a></Button> : null}
+                  {copy.closing.shopCta && profile.closingShopCtaUrl ? <Button asChild className="text-white hover:brightness-95"><a href={useManagedPublicTranslation ? profile.closingShopCtaUrl : "/boutique"} style={{ backgroundColor: palette.accent }}>{copy.closing.shopCta} <ArrowRight className="ml-2 h-4 w-4" /></a></Button> : null}
                   {copy.closing.contactCta && profile.closingContactCtaUrl ? <Button asChild variant="outline" className="border-slate-600 bg-transparent text-white hover:bg-white/10 hover:text-white"><a href={useManagedPublicTranslation ? profile.closingContactCtaUrl : "/contact"}>{copy.closing.contactCta}</a></Button> : null}
                 </div>
               </div>

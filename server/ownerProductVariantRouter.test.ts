@@ -123,6 +123,26 @@ describe("owner product variant routes", () => {
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ paletteId: "violet", customColorsEnabled: true }), 77);
   });
 
+  it("saves custom storefront colors only to the current resolved store", async () => {
+    await expect(callerFor().owner.saveStorefrontCustomColors({
+      primary: "#6d28d9",
+      accent: "#c80aff",
+      soft: "#f7f3ff",
+    })).resolves.toMatchObject({
+      customColorsEnabled: true,
+      customPrimary: "#6D28D9",
+      customAccent: "#C80AFF",
+      customSoft: "#F7F3FF",
+    });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({
+      customColorsEnabled: true,
+      customPrimary: "#6D28D9",
+      customAccent: "#C80AFF",
+      customSoft: "#F7F3FF",
+    }), 77);
+  });
+
   it("saves the header layout only through the current resolved store", async () => {
     await expect(callerFor().owner.saveStorefrontHeaderLayout({ headerLayout: "searchFirst" })).resolves.toMatchObject({
       headerLayout: "searchFirst",

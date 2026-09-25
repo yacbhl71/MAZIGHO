@@ -99,6 +99,8 @@ const storefrontPaletteColors: Record<StorefrontPaletteId, { customPrimary: stri
   violet: { customPrimary: "#6D28D9", customAccent: "#A855F7", customSoft: "#F7F3FF" },
 };
 
+const storefrontHexColor = z.string().trim().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Utilisez une couleur hexadécimale, par exemple #C80AFF.");
+
 const systemNavigationTargets = {
   home: "/",
   shop: "/boutique",
@@ -442,6 +444,20 @@ export const ownerRouter = router({
       paletteId: input.paletteId,
       customColorsEnabled: true,
       ...storefrontPaletteColors[input.paletteId],
+    }, ctx.store!.id);
+  }),
+  saveStorefrontCustomColors: storeManagementProcedure.input(z.object({
+    primary: storefrontHexColor,
+    accent: storefrontHexColor,
+    soft: storefrontHexColor,
+  })).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    return await db.updateDesignProfile({
+      ...current,
+      customColorsEnabled: true,
+      customPrimary: input.primary.toUpperCase(),
+      customAccent: input.accent.toUpperCase(),
+      customSoft: input.soft.toUpperCase(),
     }, ctx.store!.id);
   }),
   saveStorefrontHeaderLayout: storeManagementProcedure.input(z.object({
