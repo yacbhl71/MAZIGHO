@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { storeCommercialOfferModeDescriptions, storeCommercialOfferModeLabels, type StoreCommercialOfferMode } from "@shared/storeCommercialOffer";
 import { toast } from "sonner";
 import {
   ArrowUpRight,
@@ -65,6 +66,13 @@ type LifecycleTarget = {
   displayName: string;
   primaryDomain: string;
   status: ManagedStoreStatus;
+};
+
+type CommercialOfferTarget = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
+  mode: StoreCommercialOfferMode;
 };
 
 const emptyProvisioningDraft: ProvisioningDraftForm = {
@@ -232,6 +240,10 @@ export default function AdminStudio() {
   const [lifecycleNextStatus, setLifecycleNextStatus] = useState<Exclude<ManagedStoreStatus, "setup">>("limited");
   const [lifecycleConfirmationName, setLifecycleConfirmationName] = useState("");
   const [lifecycleAcknowledged, setLifecycleAcknowledged] = useState(false);
+  const [commercialOfferTarget, setCommercialOfferTarget] = useState<CommercialOfferTarget | null>(null);
+  const [commercialOfferMode, setCommercialOfferMode] = useState<StoreCommercialOfferMode>("undecided");
+  const [commercialOfferConfirmationName, setCommercialOfferConfirmationName] = useState("");
+  const [commercialOfferAcknowledged, setCommercialOfferAcknowledged] = useState(false);
   const [selectedSetupReadinessStoreId, setSelectedSetupReadinessStoreId] = useState<number | null>(null);
   const [activationConfirmOpen, setActivationConfirmOpen] = useState(false);
   const [activationConfirmationName, setActivationConfirmationName] = useState("");
@@ -289,6 +301,16 @@ export default function AdminStudio() {
       await utils.admin.studio.getInventory.invalidate();
     },
     onError: error => toast.error(error.message || "L’état opérationnel n’a pas pu être modifié."),
+  });
+  const updateStoreCommercialOfferModeMutation = trpc.admin.studio.updateStoreCommercialOfferMode.useMutation({
+    onSuccess: async result => {
+      toast.success(`Mode commercial préparatoire enregistré : ${storeCommercialOfferModeLabels[result.mode]}.`);
+      setCommercialOfferTarget(null);
+      setCommercialOfferConfirmationName("");
+      setCommercialOfferAcknowledged(false);
+      await utils.admin.studio.getInventory.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le mode commercial n’a pas pu être enregistré."),
   });
   const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.admin.studio.getProvisioningReviews.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -654,11 +676,11 @@ export default function AdminStudio() {
                       const status = storeStatusPresentation[store.status];
                       return <div key={store.slug} className="grid grid-cols-[minmax(220px,1.35fr)_150px_90px_105px_105px_150px] items-center gap-4 px-5 py-4">
                         <div className="min-w-0"><div className="flex items-center gap-2"><Store className="h-4 w-4 shrink-0 text-slate-500" /><p className="truncate font-semibold text-slate-900">{store.displayName}</p>{Boolean(store.isPlatformStore) && <Badge className="border-0 bg-slate-900 text-white hover:bg-slate-900">Plateforme</Badge>}</div><p className="mt-1 truncate text-xs text-slate-500">{store.primaryDomain} · {store.slug}</p></div>
-                        <div><Badge variant="outline" className={status.className}>{status.label}</Badge><p className="mt-1.5 text-xs text-slate-500">{store.setupCompleted ? "Profil initial complété" : "Profil initial à compléter"}</p></div>
+                        <div><Badge variant="outline" className={status.className}>{status.label}</Badge><p className="mt-1.5 text-xs text-slate-500">{store.setupCompleted ? "Profil initial complété" : "Profil initial à compléter"}</p>{!store.isPlatformStore && <p className="mt-1 text-xs font-medium text-violet-800">{storeCommercialOfferModeLabels[store.commercialOfferMode]}</p>}</div>
                         <div><p className="font-semibold text-slate-900">{store.activeMembers}</p><p className="text-xs text-slate-500">{store.activeOwners} propriétaire{store.activeOwners > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
-                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</div>
+                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
                       </div>;
                     })}
                   </div>
@@ -683,6 +705,23 @@ export default function AdminStudio() {
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={lifecycleAcknowledged} onChange={event => setLifecycleAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-600" /><span>Je confirme modifier l’état de <strong>{lifecycleTarget.displayName}</strong>. Je comprends que cette action est journalisée, qu’elle n’affecte ni la facturation ni les données de la boutique, et qu’elle est réversible depuis Studio.</span></label>
             </div>}
             <DialogFooter><Button type="button" variant="outline" disabled={updateStoreOperationalStatusMutation.isPending} onClick={() => setLifecycleTarget(null)}>Annuler</Button><Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!lifecycleTarget || lifecycleTarget.status === lifecycleNextStatus || lifecycleConfirmationName.trim() !== lifecycleTarget.displayName.trim() || !lifecycleAcknowledged || updateStoreOperationalStatusMutation.isPending} onClick={() => lifecycleTarget && updateStoreOperationalStatusMutation.mutate({ storeId: lifecycleTarget.id, confirmationName: lifecycleConfirmationName, nextStatus: lifecycleNextStatus, acknowledged: true })}>{updateStoreOperationalStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}{lifecycleNextStatus === "active" ? "Réactiver la boutique" : "Confirmer le nouvel état"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(commercialOfferTarget)} onOpenChange={open => { if (!open && !updateStoreCommercialOfferModeMutation.isPending) { setCommercialOfferTarget(null); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Layers3 className="h-5 w-5 text-sky-700" /> Préparer le modèle commercial</DialogTitle>
+              <DialogDescription>Cette information sert uniquement au suivi interne du parc SaaS. Elle ne crée ni abonnement, ni facture, ni prélèvement, ni contrat, ni accès à un stockage externe.</DialogDescription>
+            </DialogHeader>
+            {commercialOfferTarget && <div className="space-y-4">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><p><strong>Boutique :</strong> {commercialOfferTarget.displayName}</p><p className="mt-1"><strong>Domaine :</strong> {commercialOfferTarget.primaryDomain}</p><p className="mt-1"><strong>Mode actuel :</strong> {storeCommercialOfferModeLabels[commercialOfferTarget.mode]}</p></div>
+              <div className="space-y-2"><Label htmlFor="studio-commercial-offer-mode">Mode préparatoire</Label><Select value={commercialOfferMode} onValueChange={value => setCommercialOfferMode(value as StoreCommercialOfferMode)}><SelectTrigger id="studio-commercial-offer-mode" className="min-h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="undecided">À définir</SelectItem><SelectItem value="rental">Location SaaS</SelectItem><SelectItem value="perpetual_sale">Vente définitive</SelectItem></SelectContent></Select><p className="text-xs leading-5 text-slate-600">{storeCommercialOfferModeDescriptions[commercialOfferMode]}</p></div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950"><p className="font-semibold">Frontière explicite</p><p className="mt-1">Cette sélection ne modifie pas l’état de la boutique, sa visibilité, ses médias, son quota Blob, ses propriétaires, son domaine ou ses paiements. Les futures options de stockage client feront l’objet d’une conception séparée et sécurisée.</p></div>
+              <div className="space-y-2"><Label htmlFor="studio-commercial-offer-confirmation">Recopiez le nom de la boutique</Label><Input id="studio-commercial-offer-confirmation" value={commercialOfferConfirmationName} onChange={event => setCommercialOfferConfirmationName(event.target.value)} placeholder={commercialOfferTarget.displayName} autoComplete="off" /></div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={commercialOfferAcknowledged} onChange={event => setCommercialOfferAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600" /><span>Je confirme enregistrer ce repère commercial pour <strong>{commercialOfferTarget.displayName}</strong>. Je comprends qu’il ne déclenche aucune facturation, licence, abonnement, transfert ou communication externe.</span></label>
+            </div>}
+            <DialogFooter><Button type="button" variant="outline" disabled={updateStoreCommercialOfferModeMutation.isPending} onClick={() => setCommercialOfferTarget(null)}>Annuler</Button><Button type="button" className="bg-sky-700 hover:bg-sky-800" disabled={!commercialOfferTarget || commercialOfferConfirmationName.trim() !== commercialOfferTarget.displayName.trim() || !commercialOfferAcknowledged || updateStoreCommercialOfferModeMutation.isPending} onClick={() => commercialOfferTarget && updateStoreCommercialOfferModeMutation.mutate({ storeId: commercialOfferTarget.id, confirmationName: commercialOfferConfirmationName, mode: commercialOfferMode, acknowledged: true })}>{updateStoreCommercialOfferModeMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Layers3 className="mr-2 h-4 w-4" />}Enregistrer le repère</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 

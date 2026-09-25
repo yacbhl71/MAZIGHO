@@ -790,6 +790,35 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    updateStoreCommercialOfferMode: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      mode: z.enum(["undecided", "rental", "perpetual_sale"]),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateStudioStoreCommercialOfferMode(input);
+        logAudit(ctx, {
+          action: "studio.store.commercial_offer.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: `Mode commercial préparatoire mis à jour : ${updated.store.displayName} (${updated.mode})`,
+          metadata: {
+            mode: updated.mode,
+            billingChanged: false,
+            subscriptionChanged: false,
+            storageTransferStarted: false,
+          },
+        });
+        return updated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal est protégé : son offre commerciale n’est pas modifiable ici." });
+        if (code === "STORE_COMMERCIAL_OFFER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier son mode commercial." });
+        throw error;
+      }
+    }),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),

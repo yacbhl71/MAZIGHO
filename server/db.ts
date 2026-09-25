@@ -37,6 +37,7 @@ import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationRe
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
+import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -2609,7 +2610,7 @@ export async function getStudioStoreInventory() {
   const db = await getDb();
   if (!db) return { summary: { total: 0, platform: 0, client: 0, setup: 0, active: 0, limited: 0, suspended: 0, closed: 0 }, stores: [] };
 
-  const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows] = await Promise.all([
+  const [storeRows, membershipRows, productRows, orderRows, setupRows, giftProvisioningRows, commercialOfferRows] = await Promise.all([
     db.select({
       id: stores.id,
       slug: stores.slug,
@@ -2640,6 +2641,8 @@ export async function getStudioStoreInventory() {
       .from(storeSettings).where(eq(storeSettings.key, "setup_wizard_status")),
     db.select({ storeId: storeSettings.storeId })
       .from(storeSettings).where(and(eq(storeSettings.key, "provisioning_mode"), eq(storeSettings.value, "gift"))),
+    db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
+      .from(storeSettings).where(eq(storeSettings.key, "commercial_offer_mode")),
   ]).catch(async error => {
     // The Studio overview must remain readable when a non-essential aggregate
     // is temporarily unavailable on an existing database.
@@ -2654,7 +2657,7 @@ export async function getStudioStoreInventory() {
       createdAt: stores.createdAt,
       updatedAt: stores.updatedAt,
     }).from(stores).orderBy(desc(stores.isPlatformStore), asc(stores.displayName));
-    return [fallbackStores, [], [], [], [], []] as const;
+    return [fallbackStores, [], [], [], [], [], []] as const;
   });
 
   const membershipsByStore = new Map(membershipRows.map(row => [row.storeId, row]));
@@ -2664,6 +2667,7 @@ export async function getStudioStoreInventory() {
     try { return Boolean(JSON.parse(row.value)?.completedAt); } catch { return false; }
   }).map(row => row.storeId));
   const giftProvisionedStoreIds = new Set(giftProvisioningRows.map(row => row.storeId));
+  const commercialOfferByStore = new Map(commercialOfferRows.map(row => [row.storeId, normalizeStoreCommercialOfferMode(row.value)]));
 
   const inventory = storeRows.map(store => {
     const membership = membershipsByStore.get(store.id);
@@ -2673,6 +2677,7 @@ export async function getStudioStoreInventory() {
       ...store,
       setupCompleted: setupStoreIds.has(store.id),
       giftProvisioned: giftProvisionedStoreIds.has(store.id),
+      commercialOfferMode: commercialOfferByStore.get(store.id) ?? "undecided",
       activeMembers: Number(membership?.activeMembers ?? 0),
       activeOwners: Number(membership?.activeOwners ?? 0),
       productCount: Number(catalog?.productCount ?? 0),
@@ -2694,6 +2699,9 @@ export async function getStudioStoreInventory() {
       limited: statusCount("limited"),
       suspended: statusCount("suspended"),
       closed: statusCount("closed"),
+      rental: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "rental").length,
+      perpetualSale: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "perpetual_sale").length,
+      offerUndecided: inventory.filter(store => !store.isPlatformStore && store.commercialOfferMode === "undecided").length,
     },
     stores: inventory,
   };
@@ -2748,6 +2756,42 @@ export async function updateStudioStoreOperationalStatus(input: {
     billingChanged: false as const,
     domainChanged: false as const,
     membershipsChanged: false as const,
+  };
+}
+
+/**
+ * Stores an operator-only commercial intention for a client boutique. It is
+ * metadata for the SaaS portfolio, not a subscription, invoice, contract,
+ * storage transfer or permission change.
+ */
+export async function updateStudioStoreCommercialOfferMode(input: {
+  storeId: number;
+  confirmationName: string;
+  mode: StoreCommercialOfferMode;
+}) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const rows = await db.select({
+    id: stores.id,
+    displayName: stores.displayName,
+    primaryDomain: stores.primaryDomain,
+    status: stores.status,
+    isPlatformStore: stores.isPlatformStore,
+  }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  const store = rows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("STORE_COMMERCIAL_OFFER_CONFIRMATION_MISMATCH");
+
+  await setStoreSettingValue(store.id, "commercial_offer_mode", input.mode, "Mode commercial préparatoire Studio ; aucune facturation ni automatisation.");
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    mode: input.mode,
+    billingChanged: false as const,
+    subscriptionChanged: false as const,
+    storageTransferStarted: false as const,
   };
 }
 
