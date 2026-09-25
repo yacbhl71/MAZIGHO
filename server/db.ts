@@ -2995,17 +2995,19 @@ export async function getStudioStoreMediaUsage(storeId: number) {
 /**
  * Read-only SaaS supervision snapshot for a single client store. It composes
  * only aggregate preparation signals already available to that store owner,
- * the non-billing offer marker and an optional media total. It deliberately
- * excludes customer, order-line, legal-contact, credential and file details.
+ * the non-billing offer marker, internal SaaS draft totals and an optional
+ * media total. It deliberately excludes customer, order-line, legal-contact,
+ * credential and file details.
  */
 export async function getStudioStoreCommercialSupervision(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
 
-  const [readiness, rawOffer, rawDomainRequest, mediaResult] = await Promise.all([
+  const [readiness, rawOffer, rawDomainRequest, rawBilling, mediaResult] = await Promise.all([
     getOwnerCommercialReadiness(store.id),
     getStoreSettingValue(store.id, "commercial_offer_mode"),
     getStoreSettingValue(store.id, "owner_custom_domain_request"),
+    getStoreSettingValue(store.id, "saas_billing_profile"),
     getStoreMediaUsage(store.id)
       .then(usage => ({ usage, unavailable: false as const }))
       .catch(error => {
@@ -3013,12 +3015,17 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
         return { usage: null, unavailable: true as const };
       }),
   ]);
+  const billing = parseStoreSaasBillingProfile(rawBilling);
 
   return {
     store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
     recoveryDomain: getStoreRecoveryHost(store.slug),
     readiness,
     commercialOfferMode: normalizeStoreCommercialOfferMode(rawOffer),
+    billing: {
+      plan: billing.plan ? { kind: billing.plan.kind, label: billing.plan.label, amountCents: billing.plan.amountCents, currency: billing.plan.currency, interval: billing.plan.interval } : null,
+      invoiceDrafts: billing.invoices.length,
+    },
     domainRequest: parseOwnerCustomDomainRequest(rawDomainRequest),
     mediaUsage: mediaResult.usage,
     mediaUsageUnavailable: mediaResult.unavailable,
