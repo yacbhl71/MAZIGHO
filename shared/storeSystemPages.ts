@@ -62,14 +62,14 @@ export function normalizeFaqItems(input: unknown): StoreFaqItem[] {
   if (!Array.isArray(input)) return [];
   const seen = new Set<string>();
   const items: StoreFaqItem[] = [];
-  for (const [index, raw] of input.entries()) {
+  input.forEach((raw, index) => {
+    if (items.length >= MAX_FAQ_ITEMS) return;
     const item = normalizeFaqItem(raw, index);
-    if (!item) continue;
-    if (seen.has(item.id)) continue;
+    if (!item) return;
+    if (seen.has(item.id)) return;
     seen.add(item.id);
     items.push(item);
-    if (items.length >= MAX_FAQ_ITEMS) break;
-  }
+  });
   return items;
 }
 
