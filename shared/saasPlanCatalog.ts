@@ -1,3 +1,5 @@
+import { getMazighoSaasPlan } from "./mazighoSaasPlans";
+
 export const saasPlanFeatureIds = [
   "brand_customization",
   "catalog_csv_import",
@@ -135,4 +137,3 @@ export function normalizeSaasPlanCatalog(value: unknown): SaasPlanCatalog {
     .map(([id, plan]) => normalizePlan(plan, { id, name: "Nouvelle offre", description: "Offre interne à préparer.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [], status: "draft" }));
   return { plans: [...required, ...custom].slice(0, 12) };
 }
-import { getMazighoSaasPlan } from "./mazighoSaasPlans";

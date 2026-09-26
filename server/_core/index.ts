@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic } from "./static";
 import { stripeWebhookHandler } from "../stripeWebhook";
+import { lemonSqueezyWebhookHandler } from "../lemonSqueezyWebhook";
 import { securityHeaders } from "./securityHeaders";
 import { JSON_BODY_LIMIT, payloadTooLargeHandler, URL_ENCODED_BODY_LIMIT } from "./requestLimits";
 import { configuredOwnerAccessRepair } from "../ownerAccessRepair";
@@ -40,6 +41,9 @@ export function configureApi(targetApp: Express = app) {
   targetApp.use(configuredOwnerAccessRepair);
   // Stripe requires the raw request body for signature verification.
   targetApp.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+  // Lemon Squeezy signs raw webhook bodies. This endpoint is limited to
+  // MAZIGHO SaaS Test billing and is isolated from storefront checkout.
+  targetApp.post("/api/lemon-squeezy/webhook", express.raw({ type: "application/json" }), lemonSqueezyWebhookHandler);
   // Base64 uploads have dedicated schema limits; this parser limit keeps room
   // for the largest allowed accounting document without accepting 50 MiB.
   targetApp.use(express.json({ limit: JSON_BODY_LIMIT }));

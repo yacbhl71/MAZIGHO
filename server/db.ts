@@ -52,6 +52,7 @@ import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } 
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
+import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
@@ -60,7 +61,7 @@ import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCs
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns, stripeConnectedAccounts } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns, stripeConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -2874,21 +2875,77 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName));
   if (clientStores.length === 0) {
     const page = paginateStudioInventory([], input);
-    return { ...page, summary: buildSaasPortfolioMetrics([]) };
+    return {
+      ...page,
+      summary: {
+        ...buildSaasPortfolioMetrics([]),
+        lemonSqueezyTest: { enabled: getLemonSqueezyBillingConfiguration().enabled, schemaReady: false, active: 0, attention: 0, awaitingCheckout: 0 },
+      },
+    };
   }
-  const settingRows = await db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-    .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment"])));
+  const clientStoreIds = clientStores.map(store => store.id);
+  const readLemonCheckouts = async () => {
+    try {
+      const rows = await db.select({ storeId: lemonSqueezyBillingCheckouts.storeId, planId: lemonSqueezyBillingCheckouts.planId, status: lemonSqueezyBillingCheckouts.status, createdAt: lemonSqueezyBillingCheckouts.createdAt, paidAt: lemonSqueezyBillingCheckouts.paidAt })
+        .from(lemonSqueezyBillingCheckouts).where(inArray(lemonSqueezyBillingCheckouts.storeId, clientStoreIds));
+      return { rows, schemaReady: true as const };
+    } catch (error) {
+      // Production may temporarily run the code before migration 0029. The
+      // commercial portfolio remains available without applying DDL on reads.
+      if (!lemonSchemaMissing(error)) throw error;
+      return { rows: [] as Array<{ storeId: number; planId: string; status: "created" | "paid" | "void"; createdAt: Date; paidAt: Date | null }>, schemaReady: false as const };
+    }
+  };
+  const readLemonSubscriptions = async () => {
+    try {
+      const rows = await db.select({ storeId: lemonSqueezySubscriptions.storeId, status: lemonSqueezySubscriptions.status, renewsAt: lemonSqueezySubscriptions.renewsAt, endsAt: lemonSqueezySubscriptions.endsAt, updatedAt: lemonSqueezySubscriptions.updatedAt })
+        .from(lemonSqueezySubscriptions).where(inArray(lemonSqueezySubscriptions.storeId, clientStoreIds));
+      return { rows, schemaReady: true as const };
+    } catch (error) {
+      if (!lemonSchemaMissing(error)) throw error;
+      return { rows: [] as Array<{ storeId: number; status: LemonSqueezySubscriptionStatus; renewsAt: Date | null; endsAt: Date | null; updatedAt: Date }>, schemaReady: false as const };
+    }
+  };
+  const [settingRows, checkoutResult, subscriptionResult] = await Promise.all([
+    db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
+      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment"]))),
+    readLemonCheckouts(),
+    readLemonSubscriptions(),
+  ]);
+  const checkoutRows = checkoutResult.rows;
+  const subscriptionRows = subscriptionResult.rows;
+  const lemonSchemaReady = checkoutResult.schemaReady && subscriptionResult.schemaReady;
   const settingsByStore = new Map<number, Map<string, string>>();
   for (const setting of settingRows) {
     const current = settingsByStore.get(setting.storeId) ?? new Map<string, string>();
     current.set(setting.key, setting.value);
     settingsByStore.set(setting.storeId, current);
   }
+  const latestCheckoutByStore = new Map<number, { planId: string; status: "created" | "paid" | "void"; createdAt: Date; paidAt: Date | null }>();
+  for (const checkout of checkoutRows) {
+    const current = latestCheckoutByStore.get(checkout.storeId);
+    if (!current || checkout.createdAt.getTime() > current.createdAt.getTime()) latestCheckoutByStore.set(checkout.storeId, checkout);
+  }
+  const subscriptionByStore = new Map(subscriptionRows.map(row => [row.storeId, row]));
+  const lemonConfiguration = getLemonSqueezyBillingConfiguration();
   const storesWithBilling = clientStores.map(store => {
     const values = settingsByStore.get(store.id);
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
     const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
     const commercialOfferMode = normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode"));
+    const officialPlan = getMazighoSaasPlan(planAssignment?.planId);
+    const checkout = latestCheckoutByStore.get(store.id) ?? null;
+    const subscription = subscriptionByStore.get(store.id) ?? null;
+    const billingAccess = !officialPlan
+      ? "not_assigned"
+      : officialPlan.id === "basic"
+        ? "basic_included"
+        : officialPlan.id === "lifetime"
+          ? checkout?.status === "paid" ? "active" : "awaiting_checkout"
+          : subscription && hasLemonSqueezySubscriptionAccess(subscription.status, subscription.endsAt)
+            ? "active"
+            : subscription?.status === "past_due" || subscription?.status === "unpaid" ? "past_due"
+              : subscription ? "inactive" : "awaiting_checkout";
     return {
       ...store,
       isPlatformStore: 0 as const,
@@ -2896,12 +2953,29 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
       billing,
       planAssignment,
       operatorReadiness: getStoreSaasBillingDraftReadiness({ commercialOfferMode, billing }),
+      lemonSqueezy: {
+        schemaReady: lemonSchemaReady,
+        configuration: { enabled: lemonConfiguration.enabled, mode: "test" as const, reason: lemonConfiguration.enabled ? undefined : lemonConfiguration.reason },
+        plan: officialPlan ? { id: officialPlan.id, name: officialPlan.name, billable: Boolean(getLemonSqueezyBillablePlan(officialPlan.id)) } : null,
+        checkout,
+        subscription: subscription ? { status: subscription.status, renewsAt: subscription.renewsAt, endsAt: subscription.endsAt, updatedAt: subscription.updatedAt } : null,
+        billingAccess,
+      },
     };
   });
   const page = paginateStudioInventory(storesWithBilling, input);
   return {
     ...page,
-    summary: buildSaasPortfolioMetrics(storesWithBilling),
+    summary: {
+      ...buildSaasPortfolioMetrics(storesWithBilling),
+      lemonSqueezyTest: {
+        enabled: lemonConfiguration.enabled,
+        schemaReady: lemonSchemaReady,
+        active: storesWithBilling.filter(store => store.lemonSqueezy.billingAccess === "active").length,
+        attention: storesWithBilling.filter(store => store.lemonSqueezy.billingAccess === "past_due" || store.lemonSqueezy.billingAccess === "inactive").length,
+        awaitingCheckout: storesWithBilling.filter(store => store.lemonSqueezy.billingAccess === "awaiting_checkout").length,
+      },
+    },
   };
 }
 
@@ -6457,6 +6531,193 @@ export async function getStoreStripeConnectCheckoutContext(storeId: number) {
   const setup = await getStoreStripeConnectSetup(storeId);
   if (!setup.paymentReadiness.enabled) return { setup, ready: false as const };
   return { setup, ready: true as const, accountId: setup.paymentReadiness.accountId, commissionRateBps: setup.paymentReadiness.commissionRateBps, planId: setup.paymentReadiness.planId };
+}
+
+export type StoreLemonSqueezyBillingStatus = {
+  schemaReady: boolean;
+  configuration: { enabled: boolean; mode: "test"; reason?: string };
+  plan: { id: MazighoSaasPlanId; name: string; billable: boolean } | null;
+  checkout: { status: "created" | "paid" | "void"; createdAt: Date; paidAt: Date | null } | null;
+  subscription: { status: LemonSqueezySubscriptionStatus; renewsAt: Date | null; endsAt: Date | null; activeAccess: boolean; updatedAt: Date } | null;
+  billingAccess: "basic_included" | "awaiting_checkout" | "active" | "past_due" | "inactive" | "not_assigned";
+};
+
+function lemonSchemaMissing(error: unknown) {
+  const message = String(error).toLowerCase();
+  return message.includes("lemonsqueez") || message.includes("doesn't exist") || message.includes("does not exist");
+}
+
+/**
+ * Returns a strictly store-scoped SaaS billing projection. It never changes a
+ * store lifecycle status: an expired or unpaid subscription remains a billing
+ * signal for Studio until a human decides what operational action is proper.
+ */
+export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promise<StoreLemonSqueezyBillingStatus> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const assignment = await getOwnerSaasPlanAssignment(storeId);
+  const plan = getMazighoSaasPlan(assignment?.planId);
+  const billablePlan = getLemonSqueezyBillablePlan(plan?.id);
+  const configuration = getLemonSqueezyBillingConfiguration();
+  const unavailable = (): StoreLemonSqueezyBillingStatus => ({
+    schemaReady: false,
+    configuration: { enabled: configuration.enabled, mode: "test", reason: configuration.enabled ? undefined : configuration.reason },
+    plan: plan ? { id: plan.id, name: plan.name, billable: Boolean(billablePlan) } : null,
+    checkout: null,
+    subscription: null,
+    billingAccess: !plan ? "not_assigned" : plan.id === "basic" ? "basic_included" : "awaiting_checkout",
+  });
+  try {
+    const [checkoutRows, subscriptionRows] = await Promise.all([
+      db.select({ status: lemonSqueezyBillingCheckouts.status, createdAt: lemonSqueezyBillingCheckouts.createdAt, paidAt: lemonSqueezyBillingCheckouts.paidAt })
+        .from(lemonSqueezyBillingCheckouts)
+        .where(and(eq(lemonSqueezyBillingCheckouts.storeId, storeId), eq(lemonSqueezyBillingCheckouts.planId, plan?.id ?? "")))
+        .orderBy(desc(lemonSqueezyBillingCheckouts.createdAt)).limit(1),
+      db.select({ status: lemonSqueezySubscriptions.status, renewsAt: lemonSqueezySubscriptions.renewsAt, endsAt: lemonSqueezySubscriptions.endsAt, updatedAt: lemonSqueezySubscriptions.updatedAt })
+        .from(lemonSqueezySubscriptions).where(eq(lemonSqueezySubscriptions.storeId, storeId)).limit(1),
+    ]);
+    const subscriptionRow = subscriptionRows[0];
+    const subscription = subscriptionRow ? {
+      status: subscriptionRow.status,
+      renewsAt: subscriptionRow.renewsAt,
+      endsAt: subscriptionRow.endsAt,
+      updatedAt: subscriptionRow.updatedAt,
+      activeAccess: hasLemonSqueezySubscriptionAccess(subscriptionRow.status, subscriptionRow.endsAt),
+    } : null;
+    const checkout = checkoutRows[0] ?? null;
+    const billingAccess: StoreLemonSqueezyBillingStatus["billingAccess"] = !plan
+      ? "not_assigned"
+      : plan.id === "basic"
+        ? "basic_included"
+        : plan.id === "lifetime"
+          ? checkout?.status === "paid" ? "active" : "awaiting_checkout"
+          : subscription?.activeAccess ? "active"
+            : subscription?.status === "past_due" || subscription?.status === "unpaid" ? "past_due"
+              : subscription ? "inactive" : "awaiting_checkout";
+    return {
+      schemaReady: true,
+      configuration: { enabled: configuration.enabled, mode: "test", reason: configuration.enabled ? undefined : configuration.reason },
+      plan: plan ? { id: plan.id, name: plan.name, billable: Boolean(billablePlan) } : null,
+      checkout,
+      subscription,
+      billingAccess,
+    };
+  } catch (error) {
+    if (!lemonSchemaMissing(error)) throw error;
+    return unavailable();
+  }
+}
+
+/** Reserves an opaque, single-use local checkout binding before calling Lemon Squeezy. */
+export async function createStoreLemonSqueezyBillingCheckout(input: { storeId: number; planId: "pro" | "lifetime"; checkoutNonce: string; expiresAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  if (!/^[A-Za-z0-9_-]{24,160}$/.test(input.checkoutNonce)) throw new Error("LEMONSQUEEZY_CHECKOUT_NONCE_INVALID");
+  if (!getLemonSqueezyBillablePlan(input.planId)) throw new Error("LEMONSQUEEZY_PLAN_INVALID");
+  await db.insert(lemonSqueezyBillingCheckouts).values({
+    storeId: input.storeId,
+    checkoutNonce: input.checkoutNonce,
+    planId: input.planId,
+    expiresAt: input.expiresAt,
+  });
+  return { checkoutNonce: input.checkoutNonce, expiresAt: input.expiresAt };
+}
+
+export async function bindStoreLemonSqueezyBillingCheckout(input: { storeId: number; checkoutNonce: string; lemonCheckoutId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (!/^[A-Za-z0-9_-]{1,120}$/.test(input.lemonCheckoutId)) throw new Error("LEMONSQUEEZY_CHECKOUT_ID_INVALID");
+  const result = await db.update(lemonSqueezyBillingCheckouts).set({ lemonCheckoutId: input.lemonCheckoutId })
+    .where(and(eq(lemonSqueezyBillingCheckouts.storeId, input.storeId), eq(lemonSqueezyBillingCheckouts.checkoutNonce, input.checkoutNonce), eq(lemonSqueezyBillingCheckouts.status, "created")));
+  if (!result[0]?.affectedRows) throw new Error("LEMONSQUEEZY_CHECKOUT_BINDING_NOT_FOUND");
+}
+
+export async function voidStoreLemonSqueezyBillingCheckout(input: { storeId: number; checkoutNonce: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(lemonSqueezyBillingCheckouts).set({ status: "void" })
+    .where(and(eq(lemonSqueezyBillingCheckouts.storeId, input.storeId), eq(lemonSqueezyBillingCheckouts.checkoutNonce, input.checkoutNonce), eq(lemonSqueezyBillingCheckouts.status, "created")));
+}
+
+export async function beginLemonSqueezyWebhookEvent(input: { bodyHash: string; eventName: string; resourceType: string | null; resourceId: string | null; storeId: number | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (!/^[a-f0-9]{64}$/.test(input.bodyHash) || !input.eventName.trim()) throw new Error("LEMONSQUEEZY_WEBHOOK_EVENT_INVALID");
+  const [existing] = await db.select({ status: lemonSqueezyWebhookEvents.status }).from(lemonSqueezyWebhookEvents)
+    .where(eq(lemonSqueezyWebhookEvents.bodyHash, input.bodyHash)).limit(1);
+  if (!shouldProcessLemonSqueezyWebhookEvent(existing?.status)) return { shouldProcess: false as const };
+  if (existing?.status === "failed") {
+    await db.update(lemonSqueezyWebhookEvents).set({ status: "processing", failureCode: null, processedAt: null })
+      .where(eq(lemonSqueezyWebhookEvents.bodyHash, input.bodyHash));
+    return { shouldProcess: true as const };
+  }
+  await db.insert(lemonSqueezyWebhookEvents).values({
+    bodyHash: input.bodyHash,
+    eventName: input.eventName.trim().slice(0, 80),
+    resourceType: input.resourceType?.slice(0, 40) ?? null,
+    resourceId: input.resourceId?.slice(0, 120) ?? null,
+    storeId: input.storeId,
+  });
+  return { shouldProcess: true as const };
+}
+
+export async function completeLemonSqueezyWebhookEvent(bodyHash: string, outcome: { failureCode?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.update(lemonSqueezyWebhookEvents).set({
+    status: outcome.failureCode ? "failed" : "processed",
+    failureCode: outcome.failureCode?.slice(0, 120) ?? null,
+    processedAt: outcome.failureCode ? null : new Date(),
+  }).where(eq(lemonSqueezyWebhookEvents.bodyHash, bodyHash));
+}
+
+/** Applies a verified provider event only after its opaque nonce matches one local tenant checkout. */
+export async function applyLemonSqueezyBillingWebhook(event: ParsedLemonSqueezyWebhook) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const configuration = getLemonSqueezyBillingConfiguration();
+  if (!configuration.enabled) return { accepted: false as const, reason: "provider_store_mismatch" as const };
+  const [checkout] = await db.select({ id: lemonSqueezyBillingCheckouts.id, planId: lemonSqueezyBillingCheckouts.planId, storeId: lemonSqueezyBillingCheckouts.storeId, status: lemonSqueezyBillingCheckouts.status, lemonOrderId: lemonSqueezyBillingCheckouts.lemonOrderId })
+    .from(lemonSqueezyBillingCheckouts)
+    .where(and(eq(lemonSqueezyBillingCheckouts.checkoutNonce, event.checkoutNonce), eq(lemonSqueezyBillingCheckouts.storeId, event.storeId), eq(lemonSqueezyBillingCheckouts.planId, event.planId)))
+    .limit(1);
+  const expectedVariantId = configuration.variants[event.planId === "lifetime" ? "lifetime" : "pro"];
+  const decision = decideLemonSqueezyWebhookApplication({
+    event,
+    checkout: checkout ?? null,
+    expectedProviderStoreId: configuration.storeId,
+    expectedVariantId,
+  });
+  if (!decision.accepted) return decision;
+  if (decision.action === "already_recorded") return { accepted: true as const, kind: "already_recorded" as const };
+  if (decision.action === "mark_lifetime_paid") {
+    await db.update(lemonSqueezyBillingCheckouts).set({ status: "paid", lemonOrderId: event.orderId, paidAt: new Date() })
+      .where(and(eq(lemonSqueezyBillingCheckouts.id, checkout!.id), eq(lemonSqueezyBillingCheckouts.storeId, event.storeId), eq(lemonSqueezyBillingCheckouts.status, "created")));
+    return { accepted: true as const, kind: "lifetime_order" as const };
+  }
+  if (!event.subscription) return { accepted: false as const, reason: "unexpected_subscription_plan" as const };
+  await db.insert(lemonSqueezySubscriptions).values({
+    storeId: event.storeId,
+    lemonSubscriptionId: event.resourceId,
+    lemonOrderId: event.orderId,
+    planId: event.planId,
+    status: event.subscription.status,
+    renewsAt: event.subscription.renewsAt,
+    endsAt: event.subscription.endsAt,
+    lastEventAt: new Date(),
+  }).onDuplicateKeyUpdate({ set: {
+    lemonSubscriptionId: event.resourceId,
+    lemonOrderId: event.orderId,
+    planId: event.planId,
+    status: event.subscription.status,
+    renewsAt: event.subscription.renewsAt,
+    endsAt: event.subscription.endsAt,
+    lastEventAt: new Date(),
+  } });
+  return { accepted: true as const, kind: "subscription" as const };
 }
 
 /**

@@ -10,6 +10,7 @@ import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
 import { storeSupportTicketTopics } from "../shared/storeSupportTickets";
 import { ownerCsvExportKinds } from "./services/ownerCsvExport";
+import { createOwnerLemonSqueezyBillingCheckout } from "./lemonSqueezyCheckout";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
@@ -601,6 +602,32 @@ export const ownerRouter = router({
   }),
   getStripeConnectSetup: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreStripeConnectSetup(ctx.store!.id);
+  }),
+  // Lemon Squeezy is exclusively the MAZIGHO SaaS billing channel for a
+  // boutique owner. It cannot charge visitors or expose a store payment token.
+  getLemonSqueezyBillingStatus: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getStoreLemonSqueezyBillingStatus(ctx.store!.id);
+  }),
+  createLemonSqueezyBillingCheckout: storeOwnerProcedure.input(z.object({
+    acknowledged: z.literal(true),
+  })).mutation(async ({ ctx }) => {
+    try {
+      return await createOwnerLemonSqueezyBillingCheckout({
+        storeId: ctx.store!.id,
+        primaryDomain: ctx.store!.primaryDomain,
+        owner: { id: ctx.user!.id, email: ctx.user!.email ?? null, name: ctx.user!.name ?? null },
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "LEMONSQUEEZY_PLAN_NOT_BILLABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Votre offre BASIC ne nécessite pas de paiement d’abonnement. MAZIGHO Studio doit attribuer PRO ou LIFETIME pour ouvrir ce checkout." });
+      if (code === "LEMONSQUEEZY_PLAN_AMOUNT_INVALID") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le prix LIFETIME n’est pas verrouillé dans votre attribution. Demandez à MAZIGHO Studio de vérifier l’offre." });
+      const normalizedCode = code.toUpperCase();
+      if (normalizedCode.includes("TEST_MODE_DISABLED")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La facturation Lemon Squeezy Test n’est pas encore activée par MAZIGHO Studio." });
+      if (normalizedCode.includes("API_KEY_MISSING") || normalizedCode.includes("STORE_ID_MISSING") || normalizedCode.includes("VARIANT_MISSING")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La configuration Lemon Squeezy Test est incomplète dans MAZIGHO Studio. Aucun paiement n’a été créé." });
+      if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "La boutique principale MAZIGHO ne fait pas partie de la facturation SaaS cliente." });
+      console.error("Lemon Squeezy SaaS checkout creation error", error);
+      throw new TRPCError({ code: "BAD_GATEWAY", message: "Le checkout Lemon Squeezy n’a pas pu être préparé. Aucun débit n’a été créé." });
+    }
   }),
   createStripeConnectOnboarding: storeOwnerProcedure.input(z.object({ countryCode: z.enum(storefrontCountryCodes) })).mutation(async ({ ctx, input }) => {
     const stripe = getStripeConnectTestClient();

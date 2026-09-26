@@ -344,6 +344,76 @@ export const stripeConnectedAccounts = mysqlTable("stripeConnectedAccounts", {
 export type StripeConnectedAccount = typeof stripeConnectedAccounts.$inferSelect;
 export type InsertStripeConnectedAccount = typeof stripeConnectedAccounts.$inferInsert;
 
+// Lemon Squeezy bills MAZIGHO's own SaaS offers to boutique owners. It never
+// participates in a storefront customer's order or in Stripe Connect Direct
+// Charges. These rows hold opaque provider IDs and billing state only: no API
+// token, card field, customer name, e-mail or signed portal URL is persisted.
+export const lemonSqueezyBillingCheckouts = mysqlTable("lemonSqueezyBillingCheckouts", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  checkoutNonce: varchar("checkoutNonce", { length: 160 }).notNull(),
+  planId: varchar("planId", { length: 40 }).notNull(),
+  mode: mysqlEnum("mode", ["test"]).default("test").notNull(),
+  status: mysqlEnum("status", ["created", "paid", "void"]).default("created").notNull(),
+  lemonCheckoutId: varchar("lemonCheckoutId", { length: 120 }),
+  lemonOrderId: varchar("lemonOrderId", { length: 120 }),
+  paidAt: timestamp("paidAt"),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  nonceUnique: uniqueIndex("lemon_squeezy_billing_checkout_nonce_unique").on(table.checkoutNonce),
+  storeStatusCreatedIndex: index("lemon_squeezy_billing_checkout_store_status_created_idx").on(table.storeId, table.status, table.createdAt),
+  orderUnique: uniqueIndex("lemon_squeezy_billing_checkout_order_unique").on(table.lemonOrderId),
+}));
+
+export type LemonSqueezyBillingCheckout = typeof lemonSqueezyBillingCheckouts.$inferSelect;
+export type InsertLemonSqueezyBillingCheckout = typeof lemonSqueezyBillingCheckouts.$inferInsert;
+
+export const lemonSqueezySubscriptions = mysqlTable("lemonSqueezySubscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  lemonSubscriptionId: varchar("lemonSubscriptionId", { length: 120 }).notNull(),
+  lemonOrderId: varchar("lemonOrderId", { length: 120 }),
+  planId: varchar("planId", { length: 40 }).notNull(),
+  mode: mysqlEnum("mode", ["test"]).default("test").notNull(),
+  status: mysqlEnum("status", ["on_trial", "active", "paused", "past_due", "unpaid", "cancelled", "expired"]).notNull(),
+  renewsAt: timestamp("renewsAt"),
+  endsAt: timestamp("endsAt"),
+  lastEventAt: timestamp("lastEventAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeUnique: uniqueIndex("lemon_squeezy_subscription_store_unique").on(table.storeId),
+  subscriptionUnique: uniqueIndex("lemon_squeezy_subscription_id_unique").on(table.lemonSubscriptionId),
+  statusIndex: index("lemon_squeezy_subscription_status_idx").on(table.status, table.updatedAt),
+}));
+
+export type LemonSqueezySubscription = typeof lemonSqueezySubscriptions.$inferSelect;
+export type InsertLemonSqueezySubscription = typeof lemonSqueezySubscriptions.$inferInsert;
+
+// A SHA-256 digest of the raw body is sufficient for idempotency and avoids
+// retaining provider payloads that could contain personal billing data.
+export const lemonSqueezyWebhookEvents = mysqlTable("lemonSqueezyWebhookEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  bodyHash: varchar("bodyHash", { length: 64 }).notNull(),
+  eventName: varchar("eventName", { length: 80 }).notNull(),
+  resourceType: varchar("resourceType", { length: 40 }),
+  resourceId: varchar("resourceId", { length: 120 }),
+  storeId: int("storeId"),
+  status: mysqlEnum("status", ["processing", "processed", "failed"]).default("processing").notNull(),
+  processedAt: timestamp("processedAt"),
+  failureCode: varchar("failureCode", { length: 120 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  bodyHashUnique: uniqueIndex("lemon_squeezy_webhook_body_hash_unique").on(table.bodyHash),
+  storeCreatedIndex: index("lemon_squeezy_webhook_store_created_idx").on(table.storeId, table.createdAt),
+}));
+
+export type LemonSqueezyWebhookEvent = typeof lemonSqueezyWebhookEvents.$inferSelect;
+export type InsertLemonSqueezyWebhookEvent = typeof lemonSqueezyWebhookEvents.$inferInsert;
+
 // Administrative decision trail. These decisions never trigger a supplier order or a payment refund by themselves.
 export const orderDecisions = mysqlTable("orderDecisions", {
   id: int("id").autoincrement().primaryKey(),
