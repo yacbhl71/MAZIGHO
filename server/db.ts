@@ -43,6 +43,7 @@ import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide,
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
+import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -2910,6 +2911,28 @@ async function getStudioClientStoreForBilling(storeId: number) {
   return store;
 }
 
+/**
+ * Reads the global catalogue of draft SaaS templates. It is a Studio-only
+ * planning aid: it neither assigns a plan to a store nor enforces a feature.
+ */
+export async function getStudioSaasPlanCatalog(): Promise<SaasPlanCatalog> {
+  return parseSaasPlanCatalog(await getSettingValue("saas.plan_catalog"));
+}
+
+/**
+ * Saves Studio plan templates and feature labels only. This cannot create an
+ * active subscription, change tenant access or trigger billing automation.
+ */
+export async function saveStudioSaasPlanCatalog(catalog: unknown): Promise<SaasPlanCatalog> {
+  const normalized = normalizeSaasPlanCatalog(catalog);
+  await setSettingValue(
+    "saas.plan_catalog",
+    JSON.stringify(normalized),
+    "Catalogue interne de plans SaaS et fonctionnalités proposées ; brouillons non assignés, sans feature flag appliqué, abonnement, facturation, paiement ni automatisation.",
+  );
+  return normalized;
+}
+
 /** Stores a non-binding SaaS plan draft after the commercial offer was explicitly selected. */
 export async function saveStudioStoreSaasBillingPlan(input: { storeId: number; confirmationName: string; plan: unknown }) {
   const store = await getStudioClientStoreForBilling(input.storeId);
@@ -2998,19 +3021,20 @@ export async function getStudioStoreMediaUsage(storeId: number) {
 /**
  * Read-only SaaS supervision snapshot for a single client store. It composes
  * only aggregate preparation signals already available to that store owner,
- * the non-billing offer marker, internal SaaS draft totals and an optional
- * media total. It deliberately excludes customer, order-line, legal-contact,
- * credential and file details.
+ * the non-billing offer marker, internal SaaS draft totals, integration intent
+ * labels and an optional media total. It deliberately excludes customer,
+ * order-line, legal-contact, credential and file details.
  */
 export async function getStudioStoreCommercialSupervision(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
 
-  const [readiness, rawOffer, rawDomainRequest, rawBilling, mediaResult] = await Promise.all([
+  const [readiness, rawOffer, rawDomainRequest, rawBilling, rawIntegrationRequests, mediaResult] = await Promise.all([
     getOwnerCommercialReadiness(store.id),
     getStoreSettingValue(store.id, "commercial_offer_mode"),
     getStoreSettingValue(store.id, "owner_custom_domain_request"),
     getStoreSettingValue(store.id, "saas_billing_profile"),
+    getStoreSettingValue(store.id, "owner_integration_requests"),
     getStoreMediaUsage(store.id)
       .then(usage => ({ usage, unavailable: false as const }))
       .catch(error => {
@@ -3029,6 +3053,7 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
       plan: billing.plan ? { kind: billing.plan.kind, label: billing.plan.label, amountCents: billing.plan.amountCents, currency: billing.plan.currency, interval: billing.plan.interval } : null,
       invoiceDrafts: billing.invoices.length,
     },
+    integrationRequests: parseStoreIntegrationRequestProfile(rawIntegrationRequests).requests,
     domainRequest: parseOwnerCustomDomainRequest(rawDomainRequest),
     mediaUsage: mediaResult.usage,
     mediaUsageUnavailable: mediaResult.unavailable,

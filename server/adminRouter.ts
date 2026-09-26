@@ -834,6 +834,20 @@ export const adminRouter = router({
     }).optional()).query(async ({ input }) => {
       return await db.getStudioSaasBillingDashboard(input ?? {});
     }),
+    getSaasPlanCatalog: platformProcedure.query(async () => {
+      return await db.getStudioSaasPlanCatalog();
+    }),
+    saveSaasPlanCatalog: platformProcedure.input(z.object({ catalog: z.unknown() })).mutation(async ({ ctx, input }) => {
+      const catalog = await db.saveStudioSaasPlanCatalog(input.catalog);
+      logAudit(ctx, {
+        action: "studio.saas.plan_catalog.save",
+        entityType: "settings",
+        entityId: 0,
+        summary: "Catalogue de plans SaaS mis à jour comme brouillon interne.",
+        metadata: { planCount: catalog.plans.length, tenantAssignmentsChanged: false, featureFlagsApplied: false, subscriptionActivated: false, paymentCreated: false },
+      });
+      return catalog;
+    }),
     saveStoreSaasBillingPlan: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),
