@@ -49,6 +49,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.clearStoreSaasPlanAssignment({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreSupportTickets()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateStoreSupportTicket({ storeId: 1, ticketId: "supportticket123", status: "reviewing", operatorReply: "Nous regardons." })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.startStoreSupportImpersonation({ storeId: 1, ticketId: "supportticket123", confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.endStoreSupportImpersonation()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveStoreSaasBillingPlan({ storeId: 1, confirmationName: "Boutique cliente", plan: { kind: "rental", label: "SaaS Pro", amountCents: 4900, currency: "CHF", interval: "monthly" }, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.createStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", reference: "BROUILLON-001", issueDate: "2026-10-01", dueDate: "2026-10-15", amountCents: 4900, currency: "CHF", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", invoiceId: "draftinvoice0001", reference: "BROUILLON-001", issueDate: "2026-10-01", dueDate: "2026-10-15", amountCents: 4900, currency: "CHF", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -148,5 +150,20 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getOrderItemSummaries({ orderId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.updateOrderTracking({ orderId: 1, status: "shipped" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("blocks all store mutations while a support session is active", async () => {
+    const context = createContext({ role: "user", isPlatformStore: 0 });
+    context.supportImpersonation = {
+      operatorUserId: 7,
+      operatorName: "Opérateur MAZIGHO",
+      storeId: context.store!.id,
+      expiresAt: "2026-09-26T10:00:00.000Z",
+    };
+    const caller = appRouter.createCaller(context);
+    await expect(caller.owner.createSupportTicket({ topic: "technical", subject: "Lecture seule", message: "La session support ne doit rien modifier." })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: expect.stringContaining("lecture seule"),
+    });
   });
 });

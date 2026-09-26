@@ -3,6 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Redirect, Route, Switch, useLocation } from "wouter";
 import { lazy, Suspense, useEffect } from "react";
+import { Eye, Loader2, LogOut, ShieldCheck } from "lucide-react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { DeliveryCountryProvider } from "./contexts/DeliveryCountryContext";
@@ -111,6 +112,39 @@ function ScrollToTop() {
   }, [location]);
 
   return null;
+}
+
+function SupportImpersonationBanner() {
+  const { user } = useAuth() as any;
+  const support = user?.supportImpersonation as {
+    storeName: string;
+    operatorName: string;
+    expiresAt: string;
+    readOnly: boolean;
+  } | null | undefined;
+  const utils = trpc.useUtils();
+  const finish = trpc.admin.studio.endStoreSupportImpersonation.useMutation({
+    onSuccess: async result => {
+      await utils.auth.me.invalidate();
+      window.location.assign(result.studioUrl);
+    },
+  });
+
+  if (!support) return null;
+  const remainingMinutes = Math.max(0, Math.ceil((new Date(support.expiresAt).getTime() - Date.now()) / 60_000));
+  return (
+    <div className="sticky top-0 z-[80] border-b border-sky-300 bg-sky-950 px-3 py-3 text-white shadow-lg md:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <Eye className="mt-0.5 h-5 w-5 shrink-0 text-sky-200" />
+          <div className="min-w-0"><p className="font-semibold">Session support — {support.storeName}</p><p className="mt-0.5 text-xs leading-5 text-sky-100"><ShieldCheck className="mr-1 inline h-3.5 w-3.5" />Lecture seule, journalisée, limitée à cette boutique. Fin automatique dans {remainingMinutes || 1} min.</p></div>
+        </div>
+        <button type="button" disabled={finish.isPending} onClick={() => finish.mutate()} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-sky-950 transition hover:bg-sky-100 disabled:opacity-60">
+          {finish.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Fin…</> : <><LogOut className="mr-2 h-4 w-4" />Terminer le support</>}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function StorefrontUnavailablePage() {
@@ -275,6 +309,7 @@ function Router() {
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
+  const isSupportImpersonating = Boolean((user as any)?.supportImpersonation);
   const isExemptPath =
     path.startsWith("/admin") ||
     ["/login", "/register", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/activer-compte"].includes(path);
@@ -292,6 +327,9 @@ function Router() {
   if (isPrimaryMazighoHost && path.startsWith("/admin/studio")) {
     return <ExternalLocationRedirect href={`https://studio.mazigho.ch${location}`} />;
   }
+  if (isSupportImpersonating && path !== "/gestion-boutique") {
+    return <ExternalLocationRedirect href="/gestion-boutique" />;
+  }
 
   if (storefrontAvailabilityQuery.isLoading) {
     return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
@@ -300,11 +338,11 @@ function Router() {
   // A setup boutique stays unavailable to the public. Its authenticated owner
   // may nevertheless reach the isolated management panel through the explicit
   // preparation hint; server-side membership guards still enforce access.
-  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel) {
+  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating) {
     return <StorefrontUnavailablePage />;
   }
 
-  if (maintenance && (forcePreview || (maintenance.enabled && !isStaff && !isExemptPath))) {
+  if (maintenance && !isSupportImpersonating && (forcePreview || (maintenance.enabled && !isStaff && !isExemptPath))) {
     return (
       <>
         <ScrollToTop />
@@ -315,6 +353,7 @@ function Router() {
 
   return (
     <>
+      <SupportImpersonationBanner />
       <ScrollToTop />
       <BrowserTitle />
       <Suspense fallback={null}>

@@ -3,6 +3,7 @@ import {
   COOKIE_NAME,
   decodeOAuthState,
   ONE_YEAR_MS,
+  SUPPORT_IMPERSONATION_COOKIE_NAME,
 } from "@shared/const";
 import { ForbiddenError } from "@shared/_core/errors";
 import axios, { type AxiosInstance } from "axios";
@@ -28,6 +29,11 @@ export type SessionPayload = {
   openId: string;
   appId: string;
   name: string;
+  supportImpersonation?: {
+    operatorOpenId: string;
+    storeId: number;
+    expiresAt?: string;
+  };
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -198,6 +204,28 @@ class SDKServer {
     );
   }
 
+  /**
+   * Creates a short-lived, purpose-bound support session. It is deliberately
+   * separate from normal logins so the operator can return to Studio safely.
+   */
+  async createSupportImpersonationToken(input: {
+    operatorOpenId: string;
+    targetOpenId: string;
+    storeId: number;
+    name: string;
+    expiresInMs: number;
+  }): Promise<string> {
+    return this.signSession({
+      openId: input.targetOpenId,
+      appId: ENV.appId,
+      name: input.name,
+      supportImpersonation: {
+        operatorOpenId: input.operatorOpenId,
+        storeId: input.storeId,
+      },
+    }, { expiresInMs: input.expiresInMs });
+  }
+
   async signSession(
     payload: SessionPayload,
     options: { expiresInMs?: number } = {}
@@ -211,6 +239,12 @@ class SDKServer {
       openId: payload.openId,
       appId: payload.appId,
       name: payload.name,
+      ...(payload.supportImpersonation ? {
+        supportImpersonation: {
+          operatorOpenId: payload.supportImpersonation.operatorOpenId,
+          storeId: payload.supportImpersonation.storeId,
+        },
+      } : {}),
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -219,7 +253,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<SessionPayload | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -230,7 +264,7 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { openId, appId, name, supportImpersonation } = payload as Record<string, unknown>;
 
       if (
         !isNonEmptyString(openId) ||
@@ -241,10 +275,23 @@ class SDKServer {
         return null;
       }
 
+      const supportSource = supportImpersonation && typeof supportImpersonation === "object"
+        ? supportImpersonation as Record<string, unknown>
+        : null;
+      const operatorOpenId = typeof supportSource?.operatorOpenId === "string" ? supportSource.operatorOpenId : null;
+      const storeId = typeof supportSource?.storeId === "number" ? supportSource.storeId : null;
+      const expiresAt = typeof payload.exp === "number" && Number.isFinite(payload.exp)
+        ? new Date(payload.exp * 1000).toISOString()
+        : null;
+      const supportSession = operatorOpenId && operatorOpenId.length <= 64 && typeof storeId === "number" && Number.isInteger(storeId) && storeId > 0 && expiresAt
+        ? { operatorOpenId, storeId, expiresAt }
+        : undefined;
+
       return {
         openId,
         appId,
         name,
+        ...(supportSession ? { supportImpersonation: supportSession } : {}),
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
@@ -321,6 +368,15 @@ class SDKServer {
     });
 
     return user;
+  }
+
+  /** Reads only the signed, short-lived support cookie; normal sessions never qualify here. */
+  async getSupportImpersonationSession(req: Request): Promise<(SessionPayload & { supportImpersonation: { operatorOpenId: string; storeId: number; expiresAt: string } }) | null> {
+    const cookies = this.parseCookies(req.headers.cookie);
+    const session = await this.verifySession(cookies.get(SUPPORT_IMPERSONATION_COOKIE_NAME));
+    return session?.supportImpersonation
+      ? session as SessionPayload & { supportImpersonation: { operatorOpenId: string; storeId: number; expiresAt: string } }
+      : null;
   }
 }
 

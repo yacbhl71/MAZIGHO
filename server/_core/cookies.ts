@@ -49,3 +49,18 @@ export function getSessionCookieOptions(
     secure,
   };
 }
+
+/**
+ * The support session must move only between the operator console and the
+ * selected managed recovery address. It is never shared with arbitrary client
+ * domains, and local development keeps a host-only cookie.
+ */
+export function getSupportImpersonationCookieOptions(
+  req: Request
+): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
+  const base = getSessionCookieOptions(req);
+  const hostname = req.hostname?.toLowerCase() || "";
+  return hostname === "mazigho.ch" || hostname.endsWith(".mazigho.ch")
+    ? { ...base, domain: ".mazigho.ch" }
+    : base;
+}

@@ -12,12 +12,26 @@ const t = initTRPC.context<TrpcContext>().create({
 export const router = t.router;
 export const publicProcedure = t.procedure;
 
+function rejectSupportMutation(ctx: TrpcContext, type: string, path: string, allowSessionExit = false) {
+  if (ctx.supportImpersonation && type === "mutation" && !(allowSessionExit && path === "admin.studio.endStoreSupportImpersonation")) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Cette session support est en lecture seule. Terminez-la avant toute modification.",
+    });
+  }
+}
+
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
 
   if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
+
+  // Support impersonation is intentionally observation-only. The sole allowed
+  // mutation is the explicit session exit, so an operator cannot change a
+  // password, team, catalogue, payment, access or storefront by accident.
+  rejectSupportMutation(ctx, opts.type, opts.path, true);
 
   return next({
     ctx: {
@@ -34,7 +48,8 @@ type StoreStaffRole = "catalog_editor" | "support_agent" | "order_operator";
 
 function requireOpenStoreForPanels(ctx: TrpcContext) {
   const allowsVerifiedSetupOwnerPanel = ctx.store?.status === "setup" && ctx.setupOwnerPanel === true;
-  if (!ctx.store || (!ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status) && !allowsVerifiedSetupOwnerPanel)) {
+  const allowsScopedSupportRepair = Boolean(ctx.supportImpersonation && ctx.store && ctx.supportImpersonation.storeId === ctx.store.id);
+  if (!ctx.store || (!ctx.store.isPlatformStore && !mayServeStorefront(ctx.store.status) && !allowsVerifiedSetupOwnerPanel && !allowsScopedSupportRepair)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et son espace d’administration n’est pas encore ouvert." });
   }
 }
@@ -51,6 +66,7 @@ function storeMembershipProcedureFor(...allowedRoles: StoreMembershipRole[]) {
     t.middleware(async opts => {
       const { ctx, next } = opts;
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+      rejectSupportMutation(ctx, opts.type, opts.path);
       requireOpenStoreForPanels(ctx);
       if (!ctx.store || ctx.store.isPlatformStore) throw new TRPCError({ code: "FORBIDDEN", message: "Cet espace est réservé aux membres actifs de leur boutique." });
       const membership = await getActiveClientStoreMembership(ctx);
@@ -69,6 +85,7 @@ function staffProcedureFor(...allowedRoles: StaffRole[]) {
       if (!ctx.user) {
         throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
       }
+      rejectSupportMutation(ctx, opts.type, opts.path);
       requireOpenStoreForPanels(ctx);
       if (!ctx.store) throw new TRPCError({ code: "FORBIDDEN", message: "Aucune boutique n’est associée à cet accès." });
 
@@ -106,6 +123,7 @@ export const adminProcedure = t.procedure.use(
     if (!ctx.user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
     }
+    rejectSupportMutation(ctx, opts.type, opts.path);
 
     if (ctx.user.role !== "admin") {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
@@ -130,6 +148,7 @@ export const platformProcedure = t.procedure.use(
     if (!ctx.user) {
       throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
     }
+    rejectSupportMutation(ctx, opts.type, opts.path);
     if (ctx.user.role !== "admin" || !ctx.store?.isPlatformStore) {
       throw new TRPCError({ code: "FORBIDDEN", message: "Accès réservé à MAZIGHO Studio." });
     }

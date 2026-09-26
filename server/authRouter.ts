@@ -81,9 +81,19 @@ async function createSession(
 }
 
 export const authRouter = router({
-  me: publicProcedure.query(opts =>
-    opts.ctx.user ? safeUser(opts.ctx.user) : null
-  ),
+  me: publicProcedure.query(opts => {
+    if (!opts.ctx.user) return null;
+    return {
+      ...safeUser(opts.ctx.user),
+      supportImpersonation: opts.ctx.supportImpersonation ? {
+        storeId: opts.ctx.supportImpersonation.storeId,
+        storeName: opts.ctx.store?.displayName || "Boutique cliente",
+        operatorName: opts.ctx.supportImpersonation.operatorName,
+        expiresAt: opts.ctx.supportImpersonation.expiresAt,
+        readOnly: true as const,
+      } : null,
+    };
+  }),
 
   register: publicProcedure
     .input(

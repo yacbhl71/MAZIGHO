@@ -1,7 +1,7 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
-import { getSetupStoreForOwnerPanel, resolveStoreForHost, type StoreScope } from "../db";
+import { getSetupStoreForOwnerPanel, getStudioSupportImpersonationTarget, getUserByOpenId, resolveStoreForHost, type StoreScope } from "../db";
 import { parseSetupStoreId, setupStoreAccessHeader } from "../../shared/setupStoreOwnerAccess";
 
 export type TrpcContext = {
@@ -12,6 +12,13 @@ export type TrpcContext = {
   store?: StoreScope | null;
   /** True only for a setup store resolved from the platform host and an explicit routing hint. */
   setupOwnerPanel?: boolean;
+  /** Present only during a short, Studio-issued, audited support session. */
+  supportImpersonation?: {
+    operatorUserId: number;
+    operatorName: string;
+    storeId: number;
+    expiresAt: string;
+  } | null;
 };
 
 export async function createContext(
@@ -26,8 +33,29 @@ export async function createContext(
     user = null;
   }
 
+  const supportSession = await sdk.getSupportImpersonationSession(opts.req);
+  let supportImpersonation: TrpcContext["supportImpersonation"] = null;
+  let supportStore: StoreScope | null = null;
+  if (supportSession) {
+    const [operator, target, supportTarget] = await Promise.all([
+      getUserByOpenId(supportSession.supportImpersonation.operatorOpenId),
+      getUserByOpenId(supportSession.openId),
+      getStudioSupportImpersonationTarget(supportSession.supportImpersonation.storeId).catch(() => null),
+    ]);
+    if (operator?.role === "admin" && operator.accountStatus === "active" && target?.accountStatus === "active" && supportTarget?.target.openId === supportSession.openId) {
+      user = target;
+      supportStore = { ...supportTarget.store, isPlatformStore: 0 };
+      supportImpersonation = {
+        operatorUserId: operator.id,
+        operatorName: operator.name || operator.email || "Opérateur MAZIGHO",
+        storeId: supportTarget.store.id,
+        expiresAt: supportSession.supportImpersonation.expiresAt,
+      };
+    }
+  }
+
   const hostStore = await resolveStoreForHost(opts.req.headers.host);
-  const requestedSetupStoreId = hostStore?.isPlatformStore
+  const requestedSetupStoreId = !supportStore && hostStore?.isPlatformStore
     ? parseSetupStoreId(opts.req.headers[setupStoreAccessHeader])
     : null;
   // A setup boutique can be managed through the platform host before its
@@ -37,13 +65,14 @@ export async function createContext(
   const setupStore = requestedSetupStoreId
     ? await getSetupStoreForOwnerPanel(requestedSetupStoreId)
     : null;
-  const store = setupStore ?? hostStore;
+  const store = supportStore ?? setupStore ?? hostStore;
 
   return {
     req: opts.req,
     res: opts.res,
     user,
     store,
-    setupOwnerPanel: Boolean(setupStore),
+    setupOwnerPanel: Boolean(setupStore) || Boolean(supportStore?.status === "setup"),
+    supportImpersonation,
   };
 }

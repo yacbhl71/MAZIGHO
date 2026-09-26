@@ -6429,6 +6429,82 @@ export async function updateStudioSupportTicket(input: { storeId: number; ticket
 }
 
 /**
+ * Resolves one active owner account for a single client boutique. It is used
+ * only when Studio creates a short-lived, audited support session. The lookup
+ * never accepts a user id from the browser, never returns a password or a
+ * customer record, and rejects the MAZIGHO platform storefront.
+ */
+export async function getStudioSupportImpersonationTarget(storeId: number, ticketId?: string) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const rows = await db
+    .select({
+      storeId: stores.id,
+      slug: stores.slug,
+      displayName: stores.displayName,
+      primaryDomain: stores.primaryDomain,
+      status: stores.status,
+      isPlatformStore: stores.isPlatformStore,
+      userId: users.id,
+      openId: users.openId,
+      name: users.name,
+      email: users.email,
+      accountStatus: users.accountStatus,
+      membershipId: storeMemberships.id,
+      membershipRole: storeMemberships.role,
+      membershipStatus: storeMemberships.status,
+    })
+    .from(stores)
+    .innerJoin(storeMemberships, eq(storeMemberships.storeId, stores.id))
+    .innerJoin(users, eq(users.id, storeMemberships.userId))
+    .where(and(
+      eq(stores.id, storeId),
+      eq(stores.isPlatformStore, 0),
+      eq(storeMemberships.role, "owner"),
+      eq(storeMemberships.status, "active"),
+      eq(users.accountStatus, "active"),
+    ))
+    .orderBy(asc(storeMemberships.createdAt))
+    .limit(1);
+
+  const target = rows[0];
+  if (!target) {
+    const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+    throw new Error("SUPPORT_IMPERSONATION_OWNER_UNAVAILABLE");
+  }
+
+  if (ticketId) {
+    const [ticketRow] = await db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, target.storeId), eq(storeSettings.key, "owner_support_tickets"))).limit(1);
+    const ticket = parseStoreSupportTicketProfile(ticketRow?.value).tickets.find(candidate => candidate.id === ticketId);
+    if (!ticket) throw new Error("SUPPORT_TICKET_NOT_FOUND");
+    if (ticket.status === "resolved") throw new Error("SUPPORT_IMPERSONATION_TICKET_RESOLVED");
+  }
+
+  return {
+    store: {
+      id: target.storeId,
+      slug: target.slug,
+      displayName: target.displayName,
+      primaryDomain: target.primaryDomain,
+      status: target.status,
+    },
+    target: {
+      id: target.userId,
+      openId: target.openId,
+      name: target.name,
+      email: target.email,
+      membershipId: target.membershipId,
+      role: target.membershipRole,
+    },
+  };
+}
+
+/**
  * Reads a store owner's requested custom domain. This is a non-operational
  * intent record only: it never changes primaryDomain, DNS, Vercel or the
  * storefront status.

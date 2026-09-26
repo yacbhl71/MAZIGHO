@@ -1,8 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import Stripe from "stripe";
-import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, platformProcedure, router } from "./_core/trpc";
+import { adminProcedure, catalogEditorProcedure, orderOperatorProcedure, platformProcedure, protectedProcedure, router } from "./_core/trpc";
 import * as db from "./db";
+import { SUPPORT_IMPERSONATION_COOKIE_NAME } from "../shared/const";
+import { getSupportImpersonationCookieOptions } from "./_core/cookies";
+import { sdk } from "./_core/sdk";
+import { normalizeSupportImpersonationIdentity, SUPPORT_IMPERSONATION_TTL_MS, supportImpersonationExpiresAt } from "./services/supportImpersonationSession";
+import { getStoreRecoveryHost } from "./services/storeScope";
 import { getAccountInvitationLink, isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { createBrevoMarketingCampaignDraft, getBrevoMarketingStatus, listBrevoMarketingLists } from "./brevoMarketing";
 import { storagePut } from "./storage";
@@ -929,6 +934,94 @@ export const adminRouter = router({
         if (code === "SUPPORT_TICKET_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez le statut et la réponse du ticket." });
         throw error;
       }
+    }),
+    startStoreSupportImpersonation: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      ticketId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const target = await db.getStudioSupportImpersonationTarget(input.storeId, input.ticketId);
+        if (target.store.displayName.trim() !== input.confirmationName.trim()) {
+          throw new Error("SUPPORT_IMPERSONATION_CONFIRMATION_MISMATCH");
+        }
+        const recoveryHost = getStoreRecoveryHost(target.store.slug);
+        if (!recoveryHost) throw new Error("SUPPORT_IMPERSONATION_RECOVERY_HOST_UNAVAILABLE");
+        const identity = normalizeSupportImpersonationIdentity({
+          operatorOpenId: ctx.user.openId,
+          targetOpenId: target.target.openId,
+          storeId: target.store.id,
+        });
+
+        const expiresAt = supportImpersonationExpiresAt();
+        const sessionToken = await sdk.createSupportImpersonationToken({
+          operatorOpenId: identity.operatorOpenId,
+          targetOpenId: identity.targetOpenId,
+          storeId: identity.storeId,
+          name: target.target.name || target.store.displayName,
+          expiresInMs: SUPPORT_IMPERSONATION_TTL_MS,
+        });
+        await db.recordAuditLog({
+          storeId: target.store.id,
+          actorUserId: ctx.user.id,
+          actorName: ctx.user.name || ctx.user.email || "Opérateur MAZIGHO",
+          actorRole: ctx.user.role,
+          action: "studio.store.support_impersonation.start",
+          entityType: "support_session",
+          entityId: target.target.membershipId,
+          summary: "Session support temporaire, limitée à une boutique, ouverte depuis un ticket actif.",
+          metadata: {
+            ticketId: input.ticketId,
+            targetRole: target.target.role,
+            expiresAt,
+            durationMinutes: Math.round(SUPPORT_IMPERSONATION_TTL_MS / 60_000),
+            readOnlyIntent: true,
+            passwordRead: false,
+            paymentAccess: false,
+            apiKeyAccess: false,
+          },
+        });
+        const cookieOptions = getSupportImpersonationCookieOptions(ctx.req);
+        ctx.res.cookie(SUPPORT_IMPERSONATION_COOKIE_NAME, sessionToken, {
+          ...cookieOptions,
+          maxAge: SUPPORT_IMPERSONATION_TTL_MS,
+        });
+
+        return {
+          store: target.store,
+          expiresAt,
+          ownerPanelUrl: `https://${recoveryHost}/gestion-boutique`,
+          readOnlyIntent: true as const,
+        };
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND" || code === "SUPPORT_TICKET_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Ticket ou boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne peut jamais être ouvert en session support." });
+        if (code === "SUPPORT_IMPERSONATION_OWNER_UNAVAILABLE") throw new TRPCError({ code: "CONFLICT", message: "Aucun propriétaire actif n’est disponible pour cette boutique." });
+        if (code === "SUPPORT_IMPERSONATION_TICKET_RESOLVED") throw new TRPCError({ code: "CONFLICT", message: "Rouvrez ou mettez ce ticket en cours avant une intervention support." });
+        if (code === "SUPPORT_IMPERSONATION_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant d’ouvrir la session support." });
+        if (code === "SUPPORT_IMPERSONATION_RECOVERY_HOST_UNAVAILABLE") throw new TRPCError({ code: "CONFLICT", message: "L’adresse de récupération sécurisée de cette boutique est indisponible." });
+        throw error;
+      }
+    }),
+    endStoreSupportImpersonation: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.supportImpersonation) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Aucune session support active à terminer." });
+      }
+      const cookieOptions = getSupportImpersonationCookieOptions(ctx.req);
+      ctx.res.clearCookie(SUPPORT_IMPERSONATION_COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      await db.recordAuditLog({
+        storeId: ctx.supportImpersonation.storeId,
+        actorUserId: ctx.supportImpersonation.operatorUserId,
+        actorName: ctx.supportImpersonation.operatorName,
+        actorRole: "admin",
+        action: "studio.store.support_impersonation.end",
+        entityType: "support_session",
+        summary: "Session support temporaire terminée par l’opérateur.",
+        metadata: { endedExplicitly: true, targetUserId: ctx.user.id, passwordRead: false, paymentAccess: false },
+      });
+      return { success: true as const, studioUrl: "https://studio.mazigho.ch/admin/studio/assistance" };
     }),
     saveStoreSaasBillingPlan: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),

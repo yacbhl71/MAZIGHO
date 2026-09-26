@@ -1,6 +1,8 @@
 // Public identifier of the MAZIGHO Manus project used by the built-in WebDev OAuth flow.
 export const MANUS_APP_ID = "ZeggCID74CxiFXIPhJtXpb";
 export const COOKIE_NAME = "app_session_id";
+/** Temporary operator-only session, distinct from every normal customer login. */
+export const SUPPORT_IMPERSONATION_COOKIE_NAME = "mazigho_support_impersonation";
 export const OAUTH_STATE_COOKIE = "__Host-oauth_state";
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 export const AXIOS_TIMEOUT_MS = 30_000;
