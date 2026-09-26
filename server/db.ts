@@ -4857,6 +4857,7 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
     return {
       title: "Accueil, histoire et sélection éditoriale",
       payload: {
+        brandMessage: profile.brandMessage,
         highlightEyebrow: profile.highlightEyebrow,
         highlightTitle: profile.highlightTitle,
         highlightText: profile.highlightText,
@@ -4864,6 +4865,8 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
         storyText: profile.storyText,
         editorialEyebrow: profile.editorialEyebrow,
         editorialTitle: profile.editorialTitle,
+        discoveryAllShopLabel: profile.discoveryAllShopLabel,
+        discoveryBrowseShopLabel: profile.discoveryBrowseShopLabel,
       },
       sourceUpdatedAt: new Date(),
     };

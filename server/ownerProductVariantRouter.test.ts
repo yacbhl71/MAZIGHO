@@ -69,6 +69,10 @@ vi.mock("./db", () => ({
   updateBanner: vi.fn(async () => ({ success: true })),
   deleteBanner: vi.fn(async () => ({ success: true })),
   markPublicContentTranslationsStale: vi.fn(async () => undefined),
+  getPublicContentTranslationOverview: vi.fn(async () => [{ contentType: "banner", contentId: 12, title: "Atelier", fields: ["title", "subtitle"], translations: [] }]),
+  getPublicContentTranslationSource: vi.fn(async () => ({ title: "Atelier", payload: { title: "Atelier", subtitle: "Une sélection créative" } })),
+  getPublicContentTranslation: vi.fn(async () => undefined),
+  savePublicContentTranslation: vi.fn(async input => ({ ...input, status: "ready", payload: input.payload })),
 }));
 
 import * as db from "./db";
@@ -248,6 +252,41 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("keeps storefront translations inside the resolved store and reserves publication to its owner", async () => {
+    const caller = callerFor();
+    await expect(caller.owner.publicContentTranslations.getOverview()).resolves.toMatchObject([
+      { contentType: "banner", contentId: 12 },
+    ]);
+    expect(db.getPublicContentTranslationOverview).toHaveBeenCalledWith(77);
+
+    await expect(caller.owner.publicContentTranslations.getSource({ contentType: "banner", contentId: 12 })).resolves.toMatchObject({
+      payload: { title: "Atelier" },
+    });
+    expect(db.getPublicContentTranslationSource).toHaveBeenCalledWith("banner", 12, 77);
+
+    await expect(caller.owner.publicContentTranslations.save({
+      contentType: "banner",
+      contentId: 12,
+      locale: "en",
+      payload: { title: "Creative studio", subtitle: "A creative selection" },
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.publicContentTranslations.save({
+      contentType: "banner",
+      contentId: 12,
+      locale: "en",
+      payload: { title: "Creative studio", subtitle: "A creative selection" },
+    })).resolves.toMatchObject({ status: "ready" });
+    expect(db.savePublicContentTranslation).toHaveBeenCalledWith(expect.objectContaining({
+      contentType: "banner",
+      contentId: 12,
+      locale: "en",
+      machineGenerated: false,
+      storeId: 77,
+    }));
   });
 
   it("keeps tax disclosures scoped to the current store and market", async () => {

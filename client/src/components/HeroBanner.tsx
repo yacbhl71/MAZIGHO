@@ -48,6 +48,12 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
   const copy = getPublicCopy(locale);
   const remoteBanners = trpc.content.getActiveBanners.useQuery(locale);
   const [currentSlide, setCurrentSlide] = useState(0);
+  // These labels belong to the storefront profile, not to MAZIGHO's generic
+  // copy. They can therefore be changed in the owner panel and translated as
+  // part of the design content when the boutique publishes another language.
+  const heroEyebrow = profile.brandMessage?.trim() || profile.brandName?.trim() || copy.hero.eyebrow;
+  const primaryCtaLabel = profile.discoveryBrowseShopLabel?.trim() || copy.discovery.browseShop;
+  const secondaryCtaLabel = profile.discoveryAllShopLabel?.trim() || copy.hero.secondaryCta;
 
   const banners = useMemo<HeroSlide[]>(() => {
     if (remoteBanners.data && remoteBanners.data.length > 0) {
@@ -133,14 +139,14 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
 
         <div className="relative flex h-full items-center justify-start px-6 sm:px-10 lg:px-16">
           <div className="z-10 max-w-2xl text-left text-white">
-            <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{copy.hero.eyebrow}</p>
+            <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{heroEyebrow}</p>
             <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">{currentBanner.title}</h1>
             <p className="mb-8 max-w-xl text-base leading-7 text-white/85 md:text-xl">{currentBanner.subtitle}</p>
             <div className="flex flex-col justify-start gap-3 sm:flex-row">
               <Link href={currentBanner.buttonLink}>
-                <Button className="px-8 py-3 text-lg font-semibold text-white hover:brightness-95" style={{ backgroundColor: palette.accent }}>{currentBanner.buttonText}</Button>
+                <Button className="px-8 py-3 text-lg font-semibold text-white hover:brightness-95" style={{ backgroundColor: palette.accent }}>{primaryCtaLabel}</Button>
               </Link>
-              <Button asChild variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white"><Link href="/best-sellers">{copy.hero.secondaryCta}</Link></Button>
+              <Button asChild variant="outline" className="border-white/70 bg-white/5 px-8 py-3 text-lg font-semibold text-white hover:bg-white/15 hover:text-white"><Link href="/best-sellers">{secondaryCtaLabel}</Link></Button>
             </div>
           </div>
         </div>

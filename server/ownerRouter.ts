@@ -570,6 +570,49 @@ export const ownerRouter = router({
   deleteCarouselBanner: storeManagementProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
     return await db.deleteBanner(input.id, ctx.store!.id);
   }),
+  // Public-facing translations remain scoped to the resolved store. Reading is
+  // available to the management team; generating or publishing a version is
+  // deliberately reserved for the store owner because it consumes platform
+  // resources and changes what visitors can read.
+  publicContentTranslations: router({
+    getOverview: storeManagementProcedure.query(async ({ ctx }) => {
+      return await db.getPublicContentTranslationOverview(ctx.store!.id);
+    }),
+    getSource: storeManagementProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+    })).query(async ({ ctx, input }) => {
+      return await db.getPublicContentTranslationSource(input.contentType, input.contentId, ctx.store!.id);
+    }),
+    get: storeManagementProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+    })).query(async ({ ctx, input }) => {
+      return await db.getPublicContentTranslation(input.contentType, input.contentId, input.locale, false, ctx.store!.id);
+    }),
+    generate: storeOwnerProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const { translatePublicContentFromFrench } = await import("./publicContentTranslation");
+        return await translatePublicContentFromFrench(input.contentType, input.contentId, input.locales, ctx.store!.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: message || "La traduction est momentanément indisponible. Réessayez dans quelques instants." });
+      }
+    }),
+    save: storeOwnerProcedure.input(z.object({
+      contentType: z.enum(["design", "banner", "category"]),
+      contentId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+      payload: z.record(z.string(), z.string().max(1200)),
+    })).mutation(async ({ ctx, input }) => {
+      return await db.savePublicContentTranslation({ ...input, machineGenerated: false, storeId: ctx.store!.id });
+    }),
+  }),
   createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
   }),
@@ -662,7 +705,7 @@ export const ownerRouter = router({
   })).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
     const saved = await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
-    const publicCopyFields = ["highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
+    const publicCopyFields = ["brandMessage", "highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
     if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;
   }),
