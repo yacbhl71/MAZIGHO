@@ -66,6 +66,26 @@ export function isVerifiedPaidStripeTestSession(session: Stripe.Checkout.Session
   return session.livemode === false && session.mode === "payment" && session.payment_status === "paid";
 }
 
+const stripeConnectPaidCheckoutEventTypes = new Set([
+  "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
+]);
+
+export function isStripeConnectPaidCheckoutEventType(eventType: string) {
+  return stripeConnectPaidCheckoutEventTypes.has(eventType);
+}
+
+/**
+ * Direct Charge events are emitted in the connected-account scope. A missing
+ * or malformed top-level account therefore proves neither the merchant nor
+ * the tenant, and must never advance a customer order.
+ */
+export function getStripeConnectWebhookAccount(event: Stripe.Event): string | null {
+  return typeof event.account === "string" && /^acct_[A-Za-z0-9]+$/.test(event.account)
+    ? event.account
+    : null;
+}
+
 export async function completePaidStripeOrder(session: Stripe.Checkout.Session, options: { sendCustomerEmail?: boolean } = {}) {
   // The Stripe event has no storefront host. Resolve its tenant only from the
   // durable local order before persisting any downstream operational metadata.
@@ -113,17 +133,19 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   }
 
   try {
-    if (event.type === "checkout.session.completed") {
+    if (isStripeConnectPaidCheckoutEventType(event.type)) {
       const session = event.data.object as Stripe.Checkout.Session;
       if (isVerifiedPaidStripeTestSession(session)) {
-        const connectedAccountId = typeof event.account === "string" ? event.account : null;
-        if (connectedAccountId) {
-          const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
-          const ownership = await confirmStripeConnectSessionOwner({ sessionId: session.id, stripeAccountId: connectedAccountId, paymentIntentId });
-          if (!ownership.accepted) {
-            console.warn("[Stripe Connect] Ignored webhook for an unbound or cross-store session", { eventId: event.id, connectedAccountId });
-            return res.json({ received: true, ignored: true });
-          }
+        const connectedAccountId = getStripeConnectWebhookAccount(event);
+        if (!connectedAccountId) {
+          console.warn("[Stripe Connect] Ignored Test checkout event without a connected-account scope", { eventId: event.id, eventType: event.type });
+          return res.json({ received: true, ignored: true });
+        }
+        const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
+        const ownership = await confirmStripeConnectSessionOwner({ sessionId: session.id, stripeAccountId: connectedAccountId, paymentIntentId });
+        if (!ownership.accepted) {
+          console.warn("[Stripe Connect] Ignored webhook for an unbound or cross-store session", { eventId: event.id, connectedAccountId });
+          return res.json({ received: true, ignored: true });
         }
         const paid = await markOrderPaidByStripeSession(session.id);
         // Re-run the idempotent downstream handoff even after a Stripe retry:
