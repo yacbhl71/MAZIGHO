@@ -393,7 +393,7 @@ function DashboardLayoutContent({
                       alt="Logo"
                     />
                     <span className="font-semibold tracking-tight truncate">
-                      {isStudio ? "MAZIGHO Studio" : `${APP_TITLE} Admin`}
+                      {isStudio ? "MAZIGHO Studio" : "Pilotage boutique MAZIGHO"}
                     </span>
                   </div>
                   <button

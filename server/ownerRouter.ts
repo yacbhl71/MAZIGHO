@@ -8,6 +8,7 @@ import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/store
 import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
 import { storeSupportTicketTopics } from "../shared/storeSupportTickets";
+import { ownerCsvExportKinds } from "./services/ownerCsvExport";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
@@ -412,6 +413,64 @@ export const ownerRouter = router({
   }),
   getCustomerOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);
+  }),
+  getCustomerRelations: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerCustomerRelations(ctx.store!.id);
+  }),
+  updateReviewModeration: storeManagementProcedure.input(z.object({
+    reviewId: z.number().int().positive(),
+    status: z.enum(["pending", "approved", "rejected"]),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.updateOwnerReviewModeration({ storeId: ctx.store!.id, ...input });
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name,
+        actorRole: ctx.user!.role,
+        action: "owner.review.moderate",
+        entityType: "review",
+        entityId: input.reviewId,
+        summary: `Statut d’avis mis à jour : ${input.status}.`,
+        metadata: { status: input.status },
+      });
+      return result;
+    } catch (error) {
+      if (String(error).includes("REVIEW_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Avis introuvable dans cette boutique." });
+      throw error;
+    }
+  }),
+  updateContactMessageStatus: storeManagementProcedure.input(z.object({
+    messageId: z.number().int().positive(),
+    status: z.enum(["unread", "read", "archived"]),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.updateOwnerContactMessageStatus({ storeId: ctx.store!.id, ...input });
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name,
+        actorRole: ctx.user!.role,
+        action: "owner.contact_message.update_status",
+        entityType: "contact_message",
+        entityId: input.messageId,
+        summary: `Statut de message client mis à jour : ${input.status}.`,
+        metadata: { status: input.status },
+      });
+      return result;
+    } catch (error) {
+      if (String(error).includes("MESSAGE_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Message introuvable dans cette boutique." });
+      throw error;
+    }
+  }),
+  prepareCsvExport: storeManagementProcedure.input(z.object({
+    kind: z.enum(ownerCsvExportKinds),
+  })).mutation(async ({ ctx, input }) => {
+    return await db.getOwnerCsvExport({
+      storeId: ctx.store!.id,
+      kind: input.kind,
+      actor: { id: ctx.user!.id, name: ctx.user!.name, role: ctx.user!.role },
+    });
   }),
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);

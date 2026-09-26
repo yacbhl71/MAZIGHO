@@ -54,6 +54,7 @@ import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSu
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
 import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequestRegistryQuery } from "../shared/studioIntegrationRequestRegistry";
+import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCsvExport, type OwnerCsvExportKind } from "./services/ownerCsvExport";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -6339,6 +6340,176 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
   ]);
   if (!store[0]) throw new Error("STORE_NOT_FOUND");
   return parseStoreSaasPlanAssignment(row[0]?.value);
+}
+
+/**
+ * Reads the two existing customer-facing inboxes strictly through the current
+ * boutique. Contact information is returned only to owner/manager procedures;
+ * no message is sent and no customer account is changed by this read.
+ */
+export async function getOwnerCustomerRelations(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [reviewRows, messageRows] = await Promise.all([
+    db.select({
+      id: reviews.id,
+      rating: reviews.rating,
+      comment: reviews.comment,
+      status: reviews.status,
+      createdAt: reviews.createdAt,
+      productName: products.name,
+      authorName: reviews.authorName,
+    }).from(reviews)
+      .leftJoin(products, and(eq(reviews.productId, products.id), eq(reviews.storeId, products.storeId)))
+      .where(eq(reviews.storeId, storeId))
+      .orderBy(desc(reviews.createdAt))
+      .limit(200),
+    db.select({
+      id: contactMessages.id,
+      name: contactMessages.name,
+      email: contactMessages.email,
+      subject: contactMessages.subject,
+      message: contactMessages.message,
+      status: contactMessages.status,
+      createdAt: contactMessages.createdAt,
+    }).from(contactMessages)
+      .where(eq(contactMessages.storeId, storeId))
+      .orderBy(desc(contactMessages.createdAt))
+      .limit(200),
+  ]);
+  return { reviews: reviewRows, messages: messageRows };
+}
+
+export async function updateOwnerReviewModeration(input: { storeId: number; reviewId: number; status: "pending" | "approved" | "rejected" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [review] = await db.select({ id: reviews.id }).from(reviews)
+    .where(and(eq(reviews.storeId, input.storeId), eq(reviews.id, input.reviewId)))
+    .limit(1);
+  if (!review) throw new Error("REVIEW_NOT_FOUND");
+  await db.update(reviews).set({ status: input.status })
+    .where(and(eq(reviews.storeId, input.storeId), eq(reviews.id, review.id)));
+  return { id: review.id, status: input.status };
+}
+
+export async function updateOwnerContactMessageStatus(input: { storeId: number; messageId: number; status: "unread" | "read" | "archived" }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [message] = await db.select({ id: contactMessages.id }).from(contactMessages)
+    .where(and(eq(contactMessages.storeId, input.storeId), eq(contactMessages.id, input.messageId)))
+    .limit(1);
+  if (!message) throw new Error("MESSAGE_NOT_FOUND");
+  await db.update(contactMessages).set({ status: input.status })
+    .where(and(eq(contactMessages.storeId, input.storeId), eq(contactMessages.id, message.id)));
+  return { id: message.id, status: input.status };
+}
+
+/**
+ * Builds a short-lived, in-memory CSV for the resolved store only. The
+ * explicit column allowlists avoid supplier, fiscal, payment and personal
+ * customer data. Nothing is persisted or made public.
+ */
+export async function getOwnerCsvExport(input: { storeId: number; kind: OwnerCsvExportKind; actor?: { id: number; name?: string | null; role?: string | null } }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, slug: stores.slug }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+
+  let exported;
+  if (input.kind === "catalogue") {
+    const rows = await db.select({
+      id: products.id,
+      name: products.name,
+      slug: products.slug,
+      categoryName: categories.name,
+      status: products.status,
+      priceCents: products.price,
+      stock: products.stock,
+      featured: products.featured,
+      updatedAt: products.updatedAt,
+    }).from(products)
+      .leftJoin(categories, and(eq(products.categoryId, categories.id), eq(products.storeId, categories.storeId)))
+      .where(eq(products.storeId, input.storeId))
+      .orderBy(asc(products.name), asc(products.id))
+      .limit(2_000);
+    exported = makeOwnerCatalogueCsvExport(store.slug, rows.map(row => ({
+      reference: `P-${row.id}`,
+      name: row.name,
+      slug: row.slug,
+      category: row.categoryName || "",
+      status: row.status,
+      priceCents: row.priceCents,
+      stock: row.stock,
+      featured: Boolean(row.featured),
+      updatedAt: row.updatedAt,
+    })));
+  } else if (input.kind === "stock") {
+    const rows = await db.select({
+      productId: products.id,
+      productName: products.name,
+      productStatus: products.status,
+      productStock: products.stock,
+      productUpdatedAt: products.updatedAt,
+      variantId: ownerProductVariants.id,
+      variantLabel: ownerProductVariants.label,
+      sku: ownerProductVariants.sku,
+      variantStock: ownerProductVariants.stock,
+      variantStatus: ownerProductVariants.status,
+      variantUpdatedAt: ownerProductVariants.updatedAt,
+    }).from(products)
+      .leftJoin(ownerProductVariants, and(eq(products.id, ownerProductVariants.productId), eq(products.storeId, ownerProductVariants.storeId)))
+      .where(eq(products.storeId, input.storeId))
+      .orderBy(asc(products.name), asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id))
+      .limit(4_000);
+    exported = makeOwnerStockCsvExport(store.slug, rows.map(row => ({
+      reference: `P-${row.productId}`,
+      productName: row.productName,
+      productStatus: row.productStatus,
+      productStock: row.productStock,
+      variantLabel: row.variantId ? row.variantLabel : null,
+      sku: row.variantId ? row.sku : null,
+      variantStock: row.variantId ? row.variantStock : null,
+      variantStatus: row.variantId ? row.variantStatus : null,
+      updatedAt: row.variantId ? row.variantUpdatedAt : row.productUpdatedAt,
+    })));
+  } else {
+    const rows = await db.select({
+      orderId: orders.id,
+      status: orders.status,
+      fulfillmentState: orders.fulfillmentState,
+      createdAt: orders.createdAt,
+      updatedAt: orders.updatedAt,
+      productName: orderItems.productNameSnapshot,
+      selectedOptions: orderItems.selectedOptions,
+      quantity: orderItems.quantity,
+    }).from(orders)
+      .leftJoin(orderItems, and(eq(orders.id, orderItems.orderId), eq(orders.storeId, orderItems.storeId)))
+      .where(eq(orders.storeId, input.storeId))
+      .orderBy(desc(orders.createdAt), asc(orderItems.id))
+      .limit(4_000);
+    exported = makeOwnerOrdersCsvExport(store.slug, rows.map(row => ({
+      reference: `C-${row.orderId}`,
+      status: row.status,
+      fulfillmentState: row.fulfillmentState,
+      productName: row.productName,
+      selectedOptions: row.selectedOptions,
+      quantity: row.quantity,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })));
+  }
+
+  await recordAuditLog({
+    storeId: input.storeId,
+    actorUserId: input.actor?.id,
+    actorName: input.actor?.name ?? null,
+    actorRole: input.actor?.role ?? null,
+    action: `owner.export.${input.kind}`,
+    entityType: "owner_export",
+    summary: `Export CSV ${input.kind} préparé pour la boutique (${exported.rowCount} ligne(s)).`,
+    metadata: { kind: input.kind, rowCount: exported.rowCount, persisted: false, columns: exported.columns },
+  });
+  return exported;
 }
 
 /**

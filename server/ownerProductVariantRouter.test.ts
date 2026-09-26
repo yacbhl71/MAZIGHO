@@ -22,6 +22,11 @@ vi.mock("./db", () => ({
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
   getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
   createOwnerSupportTicket: vi.fn(async ({ storeId, ...input }) => ({ tickets: [{ id: "support123", ...input, storeId, status: "open", createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", operatorReply: "" }] })),
+  getOwnerCustomerRelations: vi.fn(async () => ({ reviews: [{ id: 9, rating: 5, comment: "Très bien", status: "pending", createdAt: new Date("2026-09-26T08:00:00.000Z"), productName: "Kit créatif", authorName: "Client" }], messages: [{ id: 12, name: "Client", email: "client@example.test", subject: "Question", message: "Pouvez-vous aider ?", status: "unread", createdAt: new Date("2026-09-26T08:00:00.000Z") }] })),
+  updateOwnerReviewModeration: vi.fn(async (input) => ({ id: input.reviewId, status: input.status })),
+  updateOwnerContactMessageStatus: vi.fn(async (input) => ({ id: input.messageId, status: input.status })),
+  getOwnerCsvExport: vi.fn(async (input) => ({ kind: input.kind, fileName: "boutique-test-catalogue-2026-09-26.csv", content: "\uFEFFNom\nKit", rowCount: 1, columns: ["Nom"] })),
+  recordAuditLog: vi.fn(async () => undefined),
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
   saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
   getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
@@ -155,6 +160,28 @@ describe("owner product variant routes", () => {
       tickets: [expect.objectContaining({ topic: "technical", subject: "Aide sur le menu", storeId: 77, status: "open" })],
     });
     expect(db.createOwnerSupportTicket).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, topic: "technical" }));
+  });
+
+  it("keeps customer relations and manual exports inside the resolved boutique", async () => {
+    const caller = callerFor();
+    await expect(caller.owner.getCustomerRelations()).resolves.toMatchObject({
+      reviews: [expect.objectContaining({ id: 9, status: "pending" })],
+      messages: [expect.objectContaining({ id: 12, status: "unread" })],
+    });
+    expect(db.getOwnerCustomerRelations).toHaveBeenCalledWith(77);
+
+    await expect(caller.owner.updateReviewModeration({ reviewId: 9, status: "approved" })).resolves.toEqual({ id: 9, status: "approved" });
+    expect(db.updateOwnerReviewModeration).toHaveBeenCalledWith({ storeId: 77, reviewId: 9, status: "approved" });
+
+    await expect(caller.owner.updateContactMessageStatus({ messageId: 12, status: "read" })).resolves.toEqual({ id: 12, status: "read" });
+    expect(db.updateOwnerContactMessageStatus).toHaveBeenCalledWith({ storeId: 77, messageId: 12, status: "read" });
+
+    await expect(caller.owner.prepareCsvExport({ kind: "catalogue" })).resolves.toMatchObject({ kind: "catalogue", rowCount: 1 });
+    expect(db.getOwnerCsvExport).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, kind: "catalogue", actor: expect.objectContaining({ id: 7 }) }));
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getCustomerRelations()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor().owner.prepareCsvExport({ kind: "orders" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates a bounded variant matrix only through the current resolved store", async () => {
