@@ -79,6 +79,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     items: [
       { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
       { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
+      { icon: Network, label: "Domaines personnalisés", path: "/admin/studio/domaines" },
       { icon: ReceiptText, label: "Abonnements & factures", path: "/admin/studio/facturation" },
       { icon: Headphones, label: "Assistance boutiques", path: "/admin/studio/assistance" },
       { icon: Palette, label: "Thèmes de boutiques", path: "/admin/studio/themes" },

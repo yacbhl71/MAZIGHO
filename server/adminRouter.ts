@@ -767,6 +767,58 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
+    getCustomDomainRegistry: platformProcedure.input(z.object({
+      query: z.string().trim().max(80).optional(),
+      status: z.enum(["requested", "guide_ready", "client_acknowledged", "linked", "recovery_active", "needs_attention"]).optional(),
+      page: z.number().int().positive().max(10_000).optional(),
+      pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
+    }).optional()).query(async ({ input }) => db.getStudioCustomDomainRegistry(input ?? {})),
+    checkOwnerCustomDomainDns: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.checkStudioOwnerCustomDomainDns(input.storeId);
+        logAudit(ctx, {
+          action: "studio.store.domain.dns_check",
+          entityType: "store",
+          entityId: input.storeId,
+          summary: "Observation DNS publique effectuée pour un domaine client.",
+          metadata: { domain: result.domain, reachable: result.reachable, dnsChanged: false, domainAssigned: false, storefrontActivated: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN") throw new TRPCError({ code: "FORBIDDEN", message: "Le domaine de MAZIGHO principal reste protégé." });
+        if (code === "OWNER_CUSTOM_DOMAIN_REQUEST_REQUIRED") throw new TRPCError({ code: "CONFLICT", message: "Le propriétaire doit d’abord enregistrer son domaine souhaité." });
+        throw error;
+      }
+    }),
+    linkOwnerCustomDomain: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      domainVerifiedInVercel: z.literal(true),
+      linkAcknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const linked = await db.linkStudioOwnerCustomDomain(input);
+        logAudit(ctx, {
+          action: "studio.store.domain.link_confirm",
+          entityType: "store",
+          entityId: linked.store.id,
+          summary: "Domaine personnalisé rattaché à la boutique après vérification manuelle dans Vercel.",
+          metadata: { previousDomain: linked.previousDomain, domain: linked.store.primaryDomain, dnsChanged: false, vercelVerifiedManually: true, storefrontActivated: false, paymentActivated: false },
+        });
+        return linked;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne peut pas recevoir ce domaine client." });
+        if (code === "CUSTOM_DOMAIN_LINK_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant le rattachement." });
+        if (code === "CUSTOM_DOMAIN_LINK_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmez la vérification Vercel et le rattachement manuel." });
+        if (code === "CUSTOM_DOMAIN_GUIDE_NOT_ACKNOWLEDGED") throw new TRPCError({ code: "CONFLICT", message: "Le propriétaire doit d’abord confirmer la lecture du guide DNS." });
+        if (code === "CUSTOM_DOMAIN_ALREADY_ASSIGNED") throw new TRPCError({ code: "CONFLICT", message: "Ce domaine est déjà attribué à une autre boutique." });
+        throw error;
+      }
+    }),
     getTenantResourceSummary: platformProcedure.query(async () => {
       return await db.getStudioTenantResourceSummary();
     }),

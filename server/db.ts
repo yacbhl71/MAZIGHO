@@ -42,6 +42,7 @@ import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
+import { getStudioCustomDomainConnectionStatus, inspectStoreCustomDomainDns, makeStoreCustomDomainConnection, parseStoreCustomDomainConnection } from "./services/storeCustomDomainConnection";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
@@ -49,6 +50,7 @@ import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } 
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
+import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -6575,6 +6577,146 @@ export async function acknowledgeOwnerCustomDomainGuide(storeId: number) {
   };
   await setStoreSettingValue(storeId, "owner_custom_domain_request", JSON.stringify(request), "Guide DNS lu par le propriétaire ; la configuration, la vérification et le rattachement restent manuels et séparés.");
   return request;
+}
+
+/**
+ * Scalable Studio-only domain registry. It exposes only store identity, the
+ * owner-provided request and the connection stage: no registrar credentials,
+ * DNS secrets, customers or payment data are read here.
+ */
+export async function getStudioCustomDomainRegistry(input: StudioCustomDomainRegistryQuery = {}) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) {
+    const page = paginateStudioCustomDomainRegistry([], input);
+    return { summary: { total: 0, requested: 0, guideReady: 0, clientAcknowledged: 0, linked: 0, recoveryActive: 0, needsAttention: 0 }, ...page };
+  }
+  const [storeRows, settingRows] = await Promise.all([
+    db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
+      .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName)),
+    db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value })
+      .from(storeSettings).where(inArray(storeSettings.key, ["owner_custom_domain_request", "store_custom_domain_connection"])),
+  ]);
+  const settingsByStore = new Map<number, Map<string, string>>();
+  for (const row of settingRows) {
+    const values = settingsByStore.get(row.storeId) ?? new Map<string, string>();
+    values.set(row.key, row.value);
+    settingsByStore.set(row.storeId, values);
+  }
+  const registry = storeRows.map(store => {
+    const settings = settingsByStore.get(store.id);
+    const request = parseOwnerCustomDomainRequest(settings?.get("owner_custom_domain_request"));
+    const connection = parseStoreCustomDomainConnection(settings?.get("store_custom_domain_connection"));
+    const recoveryDomain = getStoreRecoveryHost(store.slug);
+    const connectionStatus = getStudioCustomDomainConnectionStatus({
+      currentDomain: store.primaryDomain,
+      recoveryDomain,
+      requestedDomain: request?.domain ?? null,
+      connection,
+    });
+    return {
+      ...store,
+      recoveryDomain,
+      requestedDomain: request?.domain ?? null,
+      guidePreparedAt: request?.guide?.preparedAt ?? null,
+      clientAcknowledgedAt: request?.guide?.clientAcknowledgedAt ?? null,
+      connectionStatus,
+      linkedAt: connection?.linkedAt ?? null,
+      lastDnsCheckAt: connection?.lastDnsCheckAt ?? null,
+    };
+  });
+  const page = paginateStudioCustomDomainRegistry(registry, input);
+  const countStatus = (status: typeof registry[number]["connectionStatus"]) => registry.filter(store => store.connectionStatus === status).length;
+  return {
+    summary: {
+      total: registry.length,
+      requested: countStatus("requested"),
+      guideReady: countStatus("guide_ready"),
+      clientAcknowledged: countStatus("client_acknowledged"),
+      linked: countStatus("linked"),
+      recoveryActive: countStatus("recovery_active"),
+      needsAttention: registry.filter(store => ["requested", "guide_ready", "client_acknowledged", "recovery_active"].includes(store.connectionStatus)).length,
+    },
+    ...page,
+  };
+}
+
+/**
+ * Observes public DNS for a reviewed client domain. This cannot change a DNS
+ * record, assign a Vercel project or publish the storefront.
+ */
+export async function checkStudioOwnerCustomDomainDns(storeId: number) {
+  const snapshot = await getOwnerCustomDomainRequest(storeId);
+  if (!snapshot.supported) throw new Error("OWNER_CUSTOM_DOMAIN_PLATFORM_STORE_FORBIDDEN");
+  if (!snapshot.request) throw new Error("OWNER_CUSTOM_DOMAIN_REQUEST_REQUIRED");
+  const dnsCheck = await inspectStoreCustomDomainDns(snapshot.request.domain);
+  const connection = parseStoreCustomDomainConnection(await getStoreSettingValue(storeId, "store_custom_domain_connection"));
+  const connectionStatus = connection?.status === "linked"
+    ? "linked"
+    : snapshot.request.guide?.clientAcknowledgedAt
+      ? "client_acknowledged"
+      : snapshot.request.guide
+        ? "guide_ready"
+        : "requested";
+  await setStoreSettingValue(storeId, "store_custom_domain_connection", JSON.stringify(makeStoreCustomDomainConnection({
+    domain: snapshot.request.domain,
+    status: connectionStatus,
+    linkedAt: connection?.linkedAt,
+    recoveryActivatedAt: connection?.recoveryActivatedAt,
+    lastDnsCheckAt: dnsCheck.checkedAt,
+  })), "Observation DNS publique enregistrée par MAZIGHO Studio ; aucun DNS, rattachement Vercel ou statut de boutique n’est modifié.");
+  return dnsCheck;
+}
+
+/**
+ * Commits the already reviewed client domain to the resolved store only after
+ * the operator has confirmed its separate attachment in Vercel. It cannot
+ * touch the customer's registrar or open the storefront.
+ */
+export async function linkStudioOwnerCustomDomain(input: { storeId: number; confirmationName: string; domainVerifiedInVercel: boolean; linkAcknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return await db.transaction(async tx => {
+    const [store] = await tx.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+    if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("CUSTOM_DOMAIN_LINK_CONFIRMATION_MISMATCH");
+    if (!input.domainVerifiedInVercel || !input.linkAcknowledged) throw new Error("CUSTOM_DOMAIN_LINK_CONFIRMATION_INCOMPLETE");
+    const requestRows = await tx.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, store.id), eq(storeSettings.key, "owner_custom_domain_request"))).limit(1);
+    const request = parseOwnerCustomDomainRequest(requestRows[0]?.value);
+    if (!request?.guide?.clientAcknowledgedAt) throw new Error("CUSTOM_DOMAIN_GUIDE_NOT_ACKNOWLEDGED");
+    const [existing] = await tx.select({ id: stores.id }).from(stores)
+      .where(and(eq(stores.primaryDomain, request.domain), ne(stores.id, store.id))).limit(1);
+    if (existing) throw new Error("CUSTOM_DOMAIN_ALREADY_ASSIGNED");
+    const linkedAt = new Date().toISOString();
+    const connectionRows = await tx.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, store.id), eq(storeSettings.key, "store_custom_domain_connection"))).limit(1);
+    const currentConnection = parseStoreCustomDomainConnection(connectionRows[0]?.value);
+    await tx.update(stores).set({ primaryDomain: request.domain, updatedAt: new Date() }).where(eq(stores.id, store.id));
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "store_custom_domain_connection",
+      value: JSON.stringify(makeStoreCustomDomainConnection({
+        domain: request.domain,
+        status: "linked",
+        linkedAt,
+        lastDnsCheckAt: currentConnection?.lastDnsCheckAt,
+      })),
+      description: "Domaine personnalisé confirmé manuellement dans Vercel par MAZIGHO Studio ; aucun DNS registrar ni statut public n’est modifié.",
+    }).onDuplicateKeyUpdate({ set: {
+      value: JSON.stringify(makeStoreCustomDomainConnection({
+        domain: request.domain,
+        status: "linked",
+        linkedAt,
+        lastDnsCheckAt: currentConnection?.lastDnsCheckAt,
+      })),
+      description: "Domaine personnalisé confirmé manuellement dans Vercel par MAZIGHO Studio ; aucun DNS registrar ni statut public n’est modifié.",
+    } });
+    return { store: { ...store, primaryDomain: request.domain }, previousDomain: store.primaryDomain, linkedAt, storefrontActivated: false };
+  });
 }
 
 /**
