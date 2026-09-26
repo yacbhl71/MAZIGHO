@@ -39,6 +39,7 @@ import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePub
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
+import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
@@ -2863,7 +2864,7 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName));
   if (clientStores.length === 0) {
     const page = paginateStudioInventory([], input);
-    return { ...page, summary: { plannedSubscriptions: 0, perpetualSales: 0, invoiceDrafts: 0, monthlyEquivalentByCurrency: {}, invoiceDraftTotalsByCurrency: {} } };
+    return { ...page, summary: buildSaasPortfolioMetrics([]) };
   }
   const settingRows = await db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
     .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile"])));
@@ -2878,26 +2879,10 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
     return { ...store, isPlatformStore: 0 as const, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing };
   });
-  const monthlyEquivalentByCurrency: Record<string, number> = {};
-  const invoiceDraftTotalsByCurrency: Record<string, number> = {};
-  for (const store of storesWithBilling) {
-    const plan = store.billing.plan;
-    if (plan && plan.interval !== "one_time") {
-      const monthlyAmount = plan.interval === "monthly" ? plan.amountCents : Math.round(plan.amountCents / 12);
-      monthlyEquivalentByCurrency[plan.currency] = (monthlyEquivalentByCurrency[plan.currency] ?? 0) + monthlyAmount;
-    }
-    for (const invoice of store.billing.invoices) invoiceDraftTotalsByCurrency[invoice.currency] = (invoiceDraftTotalsByCurrency[invoice.currency] ?? 0) + invoice.amountCents;
-  }
   const page = paginateStudioInventory(storesWithBilling, input);
   return {
     ...page,
-    summary: {
-      plannedSubscriptions: storesWithBilling.filter(store => store.billing.plan?.kind === "rental").length,
-      perpetualSales: storesWithBilling.filter(store => store.billing.plan?.kind === "perpetual_sale").length,
-      invoiceDrafts: storesWithBilling.reduce((total, store) => total + store.billing.invoices.length, 0),
-      monthlyEquivalentByCurrency,
-      invoiceDraftTotalsByCurrency,
-    },
+    summary: buildSaasPortfolioMetrics(storesWithBilling),
   };
 }
 
