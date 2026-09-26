@@ -42,6 +42,7 @@ import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
+import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -6206,6 +6207,41 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
     paymentsConfigured: false,
     supplierConfigured: false,
   };
+}
+
+/**
+ * Reads owner requests for external integrations. This store-scoped record
+ * holds intent only: no credentials, provider identifiers or connection state.
+ */
+export async function getOwnerIntegrationRequests(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_integration_requests"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  return parseStoreIntegrationRequestProfile(row[0]?.value);
+}
+
+/**
+ * Saves the owner’s reviewed integration wishlist, never an integration.
+ * It intentionally cannot persist a key, OAuth token, endpoint or provider ID.
+ */
+export async function saveOwnerIntegrationRequests(storeId: number, ids: readonly StoreIntegrationId[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  const profile = makeStoreIntegrationRequestProfile(ids);
+  await setStoreSettingValue(
+    store.id,
+    "owner_integration_requests",
+    JSON.stringify(profile),
+    "Demandes d’intégrations externes à examiner dans MAZIGHO Studio ; sans clé, OAuth, paiement, pixel, cookie, e-mail, campagne ni connexion active.",
+  );
+  return profile;
 }
 
 /**

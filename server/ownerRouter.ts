@@ -6,10 +6,12 @@ import { getStoreMediaUsage, storagePut } from "./storage";
 import { getAccountInvitationLink } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
+import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
+const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 
 export const ownerHomepageSections = z.object({
   showReassurance: z.boolean(),
@@ -408,6 +410,12 @@ export const ownerRouter = router({
   }),
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
+  }),
+  getIntegrationRequests: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerIntegrationRequests(ctx.store!.id);
+  }),
+  saveIntegrationRequests: storeOwnerProcedure.input(ownerIntegrationRequests).mutation(async ({ ctx, input }) => {
+    return await db.saveOwnerIntegrationRequests(ctx.store!.id, input.integrationIds);
   }),
   getCustomDomainRequest: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomDomainRequest(ctx.store!.id);

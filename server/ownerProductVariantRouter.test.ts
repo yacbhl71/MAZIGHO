@@ -17,6 +17,8 @@ vi.mock("./db", () => ({
   getOwnerCustomDomainRequest: vi.fn(async () => ({ currentDomain: "boutique.test", supported: true, request: null })),
   saveOwnerCustomDomainRequest: vi.fn(async (_storeId, domain) => ({ domain, requestedAt: "2026-09-25T10:00:00.000Z", guide: null })),
   acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
+  getOwnerIntegrationRequests: vi.fn(async () => ({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] })),
+  saveOwnerIntegrationRequests: vi.fn(async (_storeId, ids) => ({ requests: ids.map((id: string) => ({ id, requestedAt: "2026-09-26T00:00:00.000Z" })) })),
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
   saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
   getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
@@ -115,6 +117,22 @@ describe("owner product variant routes", () => {
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.saveCustomDomainRequest({ domain: "other-client.ch" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(callerFor().owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps integration requests visible to managers but writable only by the current store owner", async () => {
+    await expect(callerFor().owner.getIntegrationRequests()).resolves.toEqual({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] });
+    expect(db.getOwnerIntegrationRequests).toHaveBeenCalledWith(77);
+
+    await expect(callerFor().owner.saveIntegrationRequests({ integrationIds: ["stripe"] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.saveIntegrationRequests({ integrationIds: ["stripe", "transactional_email"] })).resolves.toEqual({
+      requests: [
+        { id: "stripe", requestedAt: "2026-09-26T00:00:00.000Z" },
+        { id: "transactional_email", requestedAt: "2026-09-26T00:00:00.000Z" },
+      ],
+    });
+    expect(db.saveOwnerIntegrationRequests).toHaveBeenCalledWith(77, ["stripe", "transactional_email"]);
   });
 
   it("creates a bounded variant matrix only through the current resolved store", async () => {
