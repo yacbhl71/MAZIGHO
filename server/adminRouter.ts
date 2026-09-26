@@ -848,6 +848,53 @@ export const adminRouter = router({
       });
       return catalog;
     }),
+    assignStoreSaasPlanTemplate: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      planId: z.string().regex(/^[a-z][a-z0-9-]{1,39}$/),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const assigned = await db.assignStudioStoreSaasPlanTemplate(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_plan.assignment.save",
+          entityType: "store",
+          entityId: assigned.store.id,
+          summary: `Plan SaaS descriptif attribué : ${assigned.assignment.planName}.`,
+          metadata: { planId: assigned.assignment.planId, featureCount: assigned.assignment.features.length, featureFlagsApplied: false, subscriptionActivated: false, paymentCreated: false, emailSent: false },
+        });
+        return assigned;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND" || code === "SAAS_PLAN_TEMPLATE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique ou modèle de plan introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant d’attribuer le plan." });
+        throw error;
+      }
+    }),
+    clearStoreSaasPlanAssignment: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const cleared = await db.clearStudioStoreSaasPlanAssignment(input);
+        logAudit(ctx, {
+          action: "studio.store.saas_plan.assignment.clear",
+          entityType: "store",
+          entityId: cleared.store.id,
+          summary: "Attribution de plan SaaS brouillon retirée.",
+          metadata: { featureFlagsApplied: false, subscriptionChanged: false, paymentChanged: false, emailSent: false },
+        });
+        return cleared;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de retirer le plan." });
+        throw error;
+      }
+    }),
     getStoreSupportTickets: platformProcedure.input(z.object({
       query: z.string().trim().max(100).optional(),
       status: z.enum(["open", "reviewing", "resolved"]).optional(),

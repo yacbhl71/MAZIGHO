@@ -45,6 +45,7 @@ import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
+import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
@@ -2868,7 +2869,7 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     return { ...page, summary: buildSaasPortfolioMetrics([]) };
   }
   const settingRows = await db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-    .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile"])));
+    .where(and(inArray(storeSettings.storeId, clientStores.map(store => store.id)), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment"])));
   const settingsByStore = new Map<number, Map<string, string>>();
   for (const setting of settingRows) {
     const current = settingsByStore.get(setting.storeId) ?? new Map<string, string>();
@@ -2878,7 +2879,8 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
   const storesWithBilling = clientStores.map(store => {
     const values = settingsByStore.get(store.id);
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
-    return { ...store, isPlatformStore: 0 as const, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing };
+    const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
+    return { ...store, isPlatformStore: 0 as const, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing, planAssignment };
   });
   const page = paginateStudioInventory(storesWithBilling, input);
   return {
@@ -2917,6 +2919,40 @@ export async function saveStudioSaasPlanCatalog(catalog: unknown): Promise<SaasP
     "Catalogue interne de plans SaaS et fonctionnalités proposées ; brouillons non assignés, sans feature flag appliqué, abonnement, facturation, paiement ni automatisation.",
   );
   return normalized;
+}
+
+/**
+ * Assigns a current catalog template as a descriptive tenant snapshot. It is
+ * deliberately explicit, reversible and non-enforcing: no existing owner
+ * capability, storefront module, payment or subscription changes here.
+ */
+export async function assignStudioStoreSaasPlanTemplate(input: { storeId: number; confirmationName: string; planId: string }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH");
+  const catalog = await getStudioSaasPlanCatalog();
+  const template = catalog.plans.find(plan => plan.id === input.planId);
+  if (!template) throw new Error("SAAS_PLAN_TEMPLATE_NOT_FOUND");
+  const assignment = assignStoreSaasPlanTemplate(template);
+  await setStoreSettingValue(
+    store.id,
+    "saas_plan_assignment",
+    JSON.stringify(assignment),
+    "Attribution explicite d’un plan SaaS comme brouillon descriptif ; fonctionnalités non appliquées, sans changement d’accès, abonnement, paiement, facture, e-mail ou automatisation.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, assignment, featureFlagsApplied: false as const };
+}
+
+/** Clears a draft plan assignment without changing the storefront or any already available tenant capability. */
+export async function clearStudioStoreSaasPlanAssignment(input: { storeId: number; confirmationName: string }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH");
+  await setStoreSettingValue(
+    store.id,
+    "saas_plan_assignment",
+    "",
+    "Attribution de plan SaaS brouillon retirée ; aucune fonctionnalité, souscription, paiement, facture, e-mail ou automatisation n’est modifié.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, assignment: null, featureFlagsApplied: false as const };
 }
 
 /** Stores a non-binding SaaS plan draft after the commercial offer was explicitly selected. */
@@ -3015,11 +3051,12 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
 
-  const [readiness, rawOffer, rawDomainRequest, rawBilling, rawIntegrationRequests, mediaResult] = await Promise.all([
+  const [readiness, rawOffer, rawDomainRequest, rawBilling, rawPlanAssignment, rawIntegrationRequests, mediaResult] = await Promise.all([
     getOwnerCommercialReadiness(store.id),
     getStoreSettingValue(store.id, "commercial_offer_mode"),
     getStoreSettingValue(store.id, "owner_custom_domain_request"),
     getStoreSettingValue(store.id, "saas_billing_profile"),
+    getStoreSettingValue(store.id, "saas_plan_assignment"),
     getStoreSettingValue(store.id, "owner_integration_requests"),
     getStoreMediaUsage(store.id)
       .then(usage => ({ usage, unavailable: false as const }))
@@ -3039,6 +3076,7 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
       plan: billing.plan ? { kind: billing.plan.kind, label: billing.plan.label, amountCents: billing.plan.amountCents, currency: billing.plan.currency, interval: billing.plan.interval } : null,
       invoiceDrafts: billing.invoices.length,
     },
+    planAssignment: parseStoreSaasPlanAssignment(rawPlanAssignment),
     integrationRequests: parseStoreIntegrationRequestProfile(rawIntegrationRequests).requests,
     domainRequest: parseOwnerCustomDomainRequest(rawDomainRequest),
     mediaUsage: mediaResult.usage,
