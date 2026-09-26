@@ -17,11 +17,12 @@ export type TenantResourceCounters = {
  * intentionally does not estimate database bytes or traffic: neither can be
  * inferred accurately from the application database without provider metrics.
  */
-export function buildTenantResourceSummary(counters: TenantResourceCounters) {
+export function buildTenantResourceSummary(counters: TenantResourceCounters, generatedAt = new Date().toISOString()) {
   const records = [counters.categories, counters.products, counters.productImages, counters.variants, counters.orders, counters.carts, counters.cartItems, counters.settings]
     .reduce((total, value) => total + Math.max(0, Math.trunc(value || 0)), 0);
   const stores = Math.max(0, Math.trunc(counters.clientStores || 0));
   return {
+    generatedAt,
     clientStores: stores,
     database: {
       trackedRecords: records,

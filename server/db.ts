@@ -46,7 +46,7 @@ import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { getStudioCustomDomainConnectionStatus, inspectStoreCustomDomainDns, makeStoreCustomDomainConnection, parseStoreCustomDomainConnection } from "./services/storeCustomDomainConnection";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
-import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
+import { getStoreSaasBillingDraftReadiness, makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
@@ -2885,7 +2885,15 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     const values = settingsByStore.get(store.id);
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
     const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
-    return { ...store, isPlatformStore: 0 as const, commercialOfferMode: normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode")), billing, planAssignment };
+    const commercialOfferMode = normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode"));
+    return {
+      ...store,
+      isPlatformStore: 0 as const,
+      commercialOfferMode,
+      billing,
+      planAssignment,
+      operatorReadiness: getStoreSaasBillingDraftReadiness({ commercialOfferMode, billing }),
+    };
   });
   const page = paginateStudioInventory(storesWithBilling, input);
   return {

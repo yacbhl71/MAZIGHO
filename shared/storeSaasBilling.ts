@@ -32,6 +32,21 @@ export type StoreSaasBillingProfile = {
   invoices: SaasInvoiceDraft[];
 };
 
+export type StoreSaasBillingDraftReadiness = "offer_missing" | "plan_missing" | "plan_ready";
+
+/**
+ * Indicates only whether the Studio portfolio has the two preparatory records
+ * needed for its internal billing workflow. It does not represent a live
+ * subscription, a payment status, an invoice status, or a tenant restriction.
+ */
+export function getStoreSaasBillingDraftReadiness(input: {
+  commercialOfferMode: StoreCommercialOfferMode;
+  billing: StoreSaasBillingProfile;
+}): StoreSaasBillingDraftReadiness {
+  if (input.commercialOfferMode === "undecided") return "offer_missing";
+  return input.billing.plan ? "plan_ready" : "plan_missing";
+}
+
 export const emptyStoreSaasBillingProfile: StoreSaasBillingProfile = {
   plan: null,
   invoices: [],

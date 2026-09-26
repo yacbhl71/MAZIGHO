@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile } from "../shared/storeSaasBilling";
+import { getStoreSaasBillingDraftReadiness, makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile } from "../shared/storeSaasBilling";
 
 describe("SaaS billing preparation", () => {
+  it("labels internal portfolio preparation without treating it as subscription status", () => {
+    expect(getStoreSaasBillingDraftReadiness({ commercialOfferMode: "undecided", billing: { plan: null, invoices: [] } })).toBe("offer_missing");
+    expect(getStoreSaasBillingDraftReadiness({ commercialOfferMode: "rental", billing: { plan: null, invoices: [] } })).toBe("plan_missing");
+    expect(getStoreSaasBillingDraftReadiness({
+      commercialOfferMode: "perpetual_sale",
+      billing: { plan: normalizeSaasBillingPlan({ kind: "perpetual_sale", label: "Vente", amountCents: 9900, currency: "CHF", interval: "one_time" }), invoices: [] },
+    })).toBe("plan_ready");
+  });
+
   it("keeps rental plans as non-binding internal drafts", () => {
     const plan = normalizeSaasBillingPlan({ kind: "rental", label: "SaaS Pro", amountCents: 4900, currency: "CHF", interval: "monthly" }, "2026-09-26T00:00:00.000Z");
     expect(plan).toEqual({ kind: "rental", label: "SaaS Pro", amountCents: 4900, currency: "CHF", interval: "monthly", status: "draft", updatedAt: "2026-09-26T00:00:00.000Z" });
