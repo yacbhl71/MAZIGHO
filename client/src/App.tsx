@@ -18,6 +18,7 @@ import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIde
 import { MaintenancePage } from "./components/MaintenancePage";
 import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
+const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
 const Category = lazy(() => import("./pages/Category"));
@@ -179,6 +180,27 @@ function BrowserTitle() {
 
   useEffect(() => {
     const pathname = location.split("?")[0];
+    const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+    if (pathname === "/mazigho-saas" || (hostname === "pro.mazigho.ch" && pathname === "/")) {
+      const title = "MAZIGHO | Créez et pilotez votre boutique en ligne";
+      document.title = title;
+      const description = "MAZIGHO aide les commerçants indépendants à créer, personnaliser et piloter leur boutique en ligne.";
+      const setMeta = (attribute: "name" | "property", key: string, value: string) => {
+        let element = document.head.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+        if (!element) {
+          element = document.createElement("meta");
+          element.setAttribute(attribute, key);
+          document.head.appendChild(element);
+        }
+        element.content = value;
+      };
+      setMeta("name", "description", description);
+      setMeta("property", "og:title", title);
+      setMeta("property", "og:description", description);
+      setMeta("name", "twitter:title", title);
+      setMeta("name", "twitter:description", description);
+      return;
+    }
     const adminTitles: Record<string, string> = {
       "/admin": "MAZIGHO Admin | Tableau de bord",
       "/admin/studio": "MAZIGHO Studio | Console opérateur",
@@ -217,6 +239,7 @@ function BrowserTitle() {
     };
     const publicTitles: Record<string, string> = {
       "/": "MAZIGHO | Boutique en ligne",
+      "/mazigho-saas": "MAZIGHO | Créez et pilotez votre boutique en ligne",
       "/boutique": "Boutique | MAZIGHO",
       "/creations": "Collections créatives | MAZIGHO",
       "/nouveautes": "Nouveautés | MAZIGHO",
@@ -299,6 +322,15 @@ function BrowserTitle() {
   return null;
 }
 
+/** The SaaS landing does not load storefront advertising pixels or their consent UI. */
+function StorefrontMarketing() {
+  const [location] = useLocation();
+  const pathname = location.split("?")[0];
+  const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+  if (pathname === "/mazigho-saas" || hostname === "pro.mazigho.ch") return null;
+  return <><MarketingPixels /><MarketingConsentBanner /></>;
+}
+
 function Router() {
   const [location] = useLocation();
   const { user } = useAuth();
@@ -307,7 +339,9 @@ function Router() {
   const path = location.split("?")[0];
   const currentHostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const isStudioHost = currentHostname === "studio.mazigho.ch";
+  const isSaasLandingHost = currentHostname === "pro.mazigho.ch";
   const isPrimaryMazighoHost = currentHostname === "mazigho.ch" || currentHostname === "www.mazigho.ch";
+  const isPublicSaasLanding = path === "/mazigho-saas" || isSaasLandingHost;
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -333,14 +367,14 @@ function Router() {
     return <ExternalLocationRedirect href="/gestion-boutique" />;
   }
 
-  if (storefrontAvailabilityQuery.isLoading) {
+  if (storefrontAvailabilityQuery.isLoading && !isPublicSaasLanding) {
     return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
   }
 
   // A setup boutique stays unavailable to the public. Its authenticated owner
   // may nevertheless reach the isolated management panel through the explicit
   // preparation hint; server-side membership guards still enforce access.
-  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating) {
+  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding) {
     return <StorefrontUnavailablePage />;
   }
 
@@ -360,7 +394,8 @@ function Router() {
       <BrowserTitle />
       <Suspense fallback={null}>
         <Switch>
-      <Route path={"/"} component={Home} />
+      <Route path={"/"} component={isSaasLandingHost ? MazighoSaasLanding : Home} />
+      <Route path={"/mazigho-saas"} component={MazighoSaasLanding} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
       <Route path={"/categorie/:slug"} component={Category} />
@@ -453,8 +488,7 @@ function Router() {
         <Route component={NotFound} />
         </Switch>
       </Suspense>
-      <MarketingPixels />
-      <MarketingConsentBanner />
+      <StorefrontMarketing />
     </>
   );
 }
