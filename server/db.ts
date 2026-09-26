@@ -40,6 +40,7 @@ import { assessStudioStoreLifecycleTransition } from "./services/storeLifecycleP
 import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
+import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
@@ -3016,6 +3017,44 @@ export async function deleteStudioStoreSaasInvoiceDraft(input: { storeId: number
   const nextProfile = { ...profile, invoices: nextInvoices };
   await setStoreSettingValue(store.id, "saas_billing_profile", JSON.stringify(nextProfile), "Factures internes en brouillon Studio ; non fiscales, non envoyées et sans paiement ni synchronisation comptable.");
   return { store: { id: store.id, displayName: store.displayName }, billing: nextProfile };
+}
+
+/**
+ * Platform-level resource signals for the client tenant fleet. The database
+ * can report scoped row counts reliably, while actual database bytes and HTTP
+ * bandwidth remain intentionally unavailable without a provider metric source.
+ */
+export async function getStudioTenantResourceSummary() {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const clientStoreRows = await db.select({ id: stores.id }).from(stores).where(eq(stores.isPlatformStore, 0));
+  const clientStoreIds = clientStoreRows.map(store => store.id);
+  if (clientStoreIds.length === 0) {
+    return buildTenantResourceSummary({ clientStores: 0, categories: 0, products: 0, productImages: 0, variants: 0, orders: 0, carts: 0, cartItems: 0, settings: 0 });
+  }
+  const [categoryRows, productRows, imageRows, variantRows, orderRows, cartRows, cartItemRows, settingRows] = await Promise.all([
+    db.select({ value: count() }).from(categories).where(inArray(categories.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(products).where(inArray(products.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(productImages).where(inArray(productImages.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(ownerProductVariants).where(inArray(ownerProductVariants.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(orders).where(inArray(orders.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(carts).where(inArray(carts.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(cartItems).where(inArray(cartItems.storeId, clientStoreIds)),
+    db.select({ value: count() }).from(storeSettings).where(inArray(storeSettings.storeId, clientStoreIds)),
+  ]);
+  const asCount = (rows: Array<{ value: unknown }>) => Number(rows[0]?.value ?? 0);
+  return buildTenantResourceSummary({
+    clientStores: clientStoreIds.length,
+    categories: asCount(categoryRows),
+    products: asCount(productRows),
+    productImages: asCount(imageRows),
+    variants: asCount(variantRows),
+    orders: asCount(orderRows),
+    carts: asCount(cartRows),
+    cartItems: asCount(cartItemRows),
+    settings: asCount(settingRows),
+  });
 }
 
 /**

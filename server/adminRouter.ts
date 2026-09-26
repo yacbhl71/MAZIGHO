@@ -762,6 +762,9 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
+    getTenantResourceSummary: platformProcedure.query(async () => {
+      return await db.getStudioTenantResourceSummary();
+    }),
     updateStoreOperationalStatus: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

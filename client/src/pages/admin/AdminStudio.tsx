@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
+import StudioTenantResourceSummary from "@/components/StudioTenantResourceSummary";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -708,6 +709,8 @@ export default function AdminStudio() {
             return <Link key={health.id} href={health.href} className="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-start gap-3"><span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${palette.dot}`} /><div className="min-w-0"><p className="truncate font-semibold text-slate-950">{store?.displayName}</p><p className="mt-1 text-sm leading-5 text-slate-600">{health.detail}</p></div></div><div className="flex shrink-0 items-center gap-3"><Badge variant="outline" className={palette.badge}>{health.label}</Badge><ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-slate-900" /></div></Link>;
           })}</div>}
         </section>
+
+        <StudioTenantResourceSummary />
 
         <section id="studio-boutiques" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
