@@ -99,16 +99,37 @@ describe("Stripe Connect Test checkout route", () => {
 
   it("reconciles the browser return only through the same tenant account and user", async () => {
     dbMocks.getStoreStripeConnectSetup.mockResolvedValue({ account: { accountId: "acct_testBoutique" } });
-    dbMocks.getOrderForStripeSessionForStore.mockResolvedValue({ id: 91 });
+    dbMocks.getOrderForStripeSessionForStore
+      .mockResolvedValueOnce({ id: 91, status: "pending", paymentStatus: "unpaid", totalAmount: 10_000, currencyCode: "CHF" })
+      .mockResolvedValueOnce({ id: 91, status: "processing", paymentStatus: "paid", totalAmount: 10_000, currencyCode: "CHF" });
     stripeMocks.retrieveSession.mockResolvedValue({ id: "cs_test_123", metadata: { user_id: "7" }, payment_status: "paid" });
     webhookMocks.isVerifiedPaidStripeTestSession.mockReturnValue(true);
     dbMocks.markOrderPaidByStripeSession.mockResolvedValue({ success: true, justPaid: true, processingUpdated: false });
 
-    await expect(callerFor().getSessionStatus({ sessionId: "cs_test_123" })).resolves.toEqual({ status: "paid", total: undefined, email: undefined });
+    await expect(callerFor().getSessionStatus({ sessionId: "cs_test_123" })).resolves.toEqual({
+      status: "paid",
+      order: { id: 91, status: "processing", paymentStatus: "paid", totalAmount: 10_000, currencyCode: "CHF" },
+    });
 
     expect(stripeMocks.retrieveSession).toHaveBeenCalledWith("cs_test_123", {}, { stripeAccount: "acct_testBoutique" });
     expect(dbMocks.getOrderForStripeSessionForStore).toHaveBeenCalledWith("cs_test_123", 7, 72);
+    expect(dbMocks.getOrderForStripeSessionForStore).toHaveBeenCalledTimes(2);
     expect(dbMocks.markOrderPaidByStripeSession).toHaveBeenCalledWith("cs_test_123");
     expect(webhookMocks.completePaidStripeOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "cs_test_123" }), { sendCustomerEmail: true });
+  });
+
+  it("does not confirm or advance an unpaid return session", async () => {
+    dbMocks.getStoreStripeConnectSetup.mockResolvedValue({ account: { accountId: "acct_testBoutique" } });
+    dbMocks.getOrderForStripeSessionForStore.mockResolvedValue({ id: 91, status: "pending", paymentStatus: "unpaid", totalAmount: 10_000, currencyCode: "CHF" });
+    stripeMocks.retrieveSession.mockResolvedValue({ id: "cs_test_123", metadata: { user_id: "7" }, payment_status: "unpaid" });
+    webhookMocks.isVerifiedPaidStripeTestSession.mockReturnValue(false);
+
+    await expect(callerFor().getSessionStatus({ sessionId: "cs_test_123" })).resolves.toEqual({
+      status: "unpaid",
+      order: { id: 91, status: "pending", paymentStatus: "unpaid", totalAmount: 10_000, currencyCode: "CHF" },
+    });
+
+    expect(dbMocks.markOrderPaidByStripeSession).not.toHaveBeenCalled();
+    expect(webhookMocks.completePaidStripeOrder).not.toHaveBeenCalled();
   });
 });

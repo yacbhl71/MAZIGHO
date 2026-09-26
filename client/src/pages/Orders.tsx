@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, ArrowLeft, Package, Truck, RotateCcw, Loader2 } from "lucide-react";
+import { ShoppingBag, ArrowLeft, CheckCircle2, CircleAlert, Package, Truck, RotateCcw, Loader2 } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
@@ -28,8 +28,8 @@ const RETURN_STATUS: Record<string, { label: string; className: string }> = {
   refunded: { label: "Remboursée", className: "bg-emerald-100 text-emerald-800" },
 };
 
-function money(cents: number) {
-  return `${(Number(cents || 0) / 100).toFixed(2)} CHF`;
+function money(cents: number, currencyCode = "CHF") {
+  return `${(Number(cents || 0) / 100).toFixed(2)} ${currencyCode || "CHF"}`;
 }
 
 function formatDate(value: Date | string) {
@@ -41,9 +41,10 @@ export default function Orders() {
   const [location] = useLocation();
   const { clearCart } = useCart();
   const stripeSessionId = new URLSearchParams(location.split("?")[1] || "").get("stripe_session_id");
+  const hasValidStripeSessionId = Boolean(stripeSessionId && /^cs_[A-Za-z0-9_]+$/.test(stripeSessionId));
   const ordersQuery = trpc.shop.orders.getMyOrders.useQuery(undefined, { enabled: Boolean(user) });
   const returnsQuery = trpc.shop.orders.getMyReturns.useQuery(undefined, { enabled: Boolean(user) });
-  const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && stripeSessionId && /^cs_[A-Za-z0-9_]+$/.test(stripeSessionId)) });
+  const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && hasValidStripeSessionId) });
   const [returnOrderId, setReturnOrderId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
 
@@ -56,13 +57,16 @@ export default function Orders() {
   const { refetch: refetchOrders } = ordersQuery;
   const returns = returnsQuery.data ?? [];
   const returnByOrder = new Map(returns.map(r => [r.orderId, r]));
+  const returnedOrder = stripeCheckoutStatus.data?.order;
+  const confirmedOrder = stripeCheckoutStatus.data?.status === "paid" && returnedOrder?.paymentStatus === "paid" ? returnedOrder : null;
+  const checkoutConfirmed = Boolean(confirmedOrder);
 
   useEffect(() => {
-    if (stripeCheckoutStatus.data?.status === "paid") {
+    if (checkoutConfirmed) {
       clearCart();
       void refetchOrders();
     }
-  }, [clearCart, refetchOrders, stripeCheckoutStatus.data?.status]);
+  }, [checkoutConfirmed, clearCart, refetchOrders]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -78,7 +82,7 @@ export default function Orders() {
 
         <section className="py-12 md:py-16">
           <div className="container mx-auto px-4">
-            {stripeSessionId && <div className={stripeCheckoutStatus.data?.status === "paid" ? "mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950" : "mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950"} data-testid="stripe-checkout-return"><div className="flex items-start gap-3">{stripeCheckoutStatus.isLoading ? <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" /> : stripeCheckoutStatus.data?.status === "paid" ? <ShoppingBag className="mt-0.5 h-5 w-5 shrink-0" /> : <Package className="mt-0.5 h-5 w-5 shrink-0" />}<div><p className="font-semibold">{stripeCheckoutStatus.isLoading ? "Vérification du paiement Test…" : stripeCheckoutStatus.data?.status === "paid" ? "Paiement Test confirmé" : "Paiement en attente de confirmation"}</p><p className="mt-1 text-sm leading-6">{stripeCheckoutStatus.data?.status === "paid" ? "Votre commande est enregistrée et son suivi apparaît ci-dessous. Aucun paiement Live n’a été encaissé." : "Stripe n’a pas encore confirmé ce paiement. Actualisez dans quelques instants ou consultez le statut de votre session Stripe Test."}</p></div></div></div>}
+            {stripeSessionId && <div className={checkoutConfirmed ? "mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950" : stripeCheckoutStatus.isError || !hasValidStripeSessionId ? "mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-950" : "mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950"} data-testid="stripe-checkout-return"><div className="flex items-start gap-3">{stripeCheckoutStatus.isLoading ? <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" /> : checkoutConfirmed ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /> : stripeCheckoutStatus.isError || !hasValidStripeSessionId ? <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /> : <Package className="mt-0.5 h-5 w-5 shrink-0" />}<div className="min-w-0 flex-1"><p className="font-semibold">{stripeCheckoutStatus.isLoading ? "Vérification du paiement Test…" : confirmedOrder ? `Paiement Test confirmé · commande #${confirmedOrder.id}` : stripeCheckoutStatus.isError || !hasValidStripeSessionId ? "Vérification du paiement impossible" : "Paiement en attente de confirmation"}</p><p className="mt-1 text-sm leading-6">{stripeCheckoutStatus.isLoading ? "Le statut est vérifié directement auprès de Stripe Test et de cette boutique." : confirmedOrder ? <>Votre commande est enregistrée pour {money(confirmedOrder.totalAmount, confirmedOrder.currencyCode)} et passe en préparation. Le panier a été vidé. Aucun paiement Live n’a été encaissé.</> : stripeCheckoutStatus.isError || !hasValidStripeSessionId ? "Ce lien ne peut pas confirmer un paiement pour cette boutique. Aucun panier, statut de commande ou paiement n’a été modifié." : "Stripe n’a pas encore confirmé ce paiement. Vous pouvez vérifier de nouveau dans quelques instants ; le panier est conservé tant que la confirmation serveur n’existe pas."}</p>{!stripeCheckoutStatus.isLoading && !checkoutConfirmed && hasValidStripeSessionId && <Button type="button" size="sm" variant="outline" className="mt-3 min-h-10 border-current bg-white/65 text-current hover:bg-white" onClick={() => stripeCheckoutStatus.refetch()} disabled={stripeCheckoutStatus.isFetching}>{stripeCheckoutStatus.isFetching ? "Vérification…" : "Vérifier à nouveau"}</Button>}</div></div></div>}
             {authLoading || (user && ordersQuery.isLoading) ? (
               <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>
             ) : !user ? (

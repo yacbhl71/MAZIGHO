@@ -189,13 +189,26 @@ export const stripeCheckoutRouter = router({
         if (!order) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable pour cette boutique." });
         }
+        let resolvedOrder = order;
         if (isVerifiedPaidStripeTestSession(session)) {
           const paid = await markOrderPaidByStripeSession(input.sessionId);
           // The browser return path is a safe recovery route when Stripe has
           // delivered a webhook before Odoo or the CJ test queue was available.
           await completePaidStripeOrder(session, { sendCustomerEmail: paid.justPaid });
+          const refreshedOrder = await getOrderForStripeSessionForStore(input.sessionId, ctx.user.id, ctx.store?.id);
+          if (!refreshedOrder) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable pour cette boutique." });
+          resolvedOrder = refreshedOrder;
         }
-        return { status: session.payment_status, total: session.amount_total, email: session.customer_email };
+        return {
+          status: session.payment_status,
+          order: {
+            id: resolvedOrder.id,
+            status: resolvedOrder.status,
+            paymentStatus: resolvedOrder.paymentStatus,
+            totalAmount: resolvedOrder.totalAmount,
+            currencyCode: resolvedOrder.currencyCode,
+          },
+        };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         console.error("Stripe test session retrieval error", error);

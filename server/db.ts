@@ -10525,7 +10525,13 @@ export async function getOrderForStripeSessionForStore(sessionId: string, userId
   const db = await getDb();
   if (!db) return null;
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const rows = await db.select({ id: orders.id }).from(orders)
+  const rows = await db.select({
+    id: orders.id,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    totalAmount: orders.totalAmount,
+    currencyCode: orders.currencyCode,
+  }).from(orders)
     .where(and(eq(orders.storeId, effectiveStoreId), eq(orders.userId, userId), eq(orders.stripeSessionId, sessionId)))
     .limit(1);
   return rows[0] ?? null;
