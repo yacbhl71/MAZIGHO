@@ -11,6 +11,7 @@ export type NavigationLabels = {
 
 export type ButtonRadius = "flat" | "rounded" | "full";
 export type HeaderLayout = "inline" | "split" | "searchFirst";
+export type ClosingVisualFont = "inherit" | "editorial" | "modern" | "classic";
 
 export type StoreNavigationItem = {
   id: string;
@@ -99,6 +100,8 @@ export type DesignProfile = {
   closingContactCtaLabel: string;
   closingContactCtaUrl: string;
   closingVisualValue: string;
+  closingVisualFont: ClosingVisualFont;
+  closingVisualColor: string;
   closingVisualText: string;
   closingImageUrl: string;
   cataloguePageCopyCustomized: boolean;
@@ -231,6 +234,8 @@ export const defaultDesignProfile: DesignProfile = {
   closingContactCtaLabel: "Nous contacter",
   closingContactCtaUrl: "/contact",
   closingVisualValue: "",
+  closingVisualFont: "inherit",
+  closingVisualColor: "#ffffff",
   closingVisualText: "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.",
   closingImageUrl: "",
   cataloguePageCopyCustomized: false,

@@ -15,6 +15,32 @@ const storefrontLink = z.string().trim().max(300).refine(value => value === "" |
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 const ownerSupportTicket = z.object({ topic: z.enum(storeSupportTicketTopics), subject: z.string().trim().min(3).max(120), message: z.string().trim().min(10).max(2000) });
+const ownerPromotionInput = z.object({
+  code: z.string().trim().min(2).max(64).regex(/^[A-Za-z0-9_-]+$/, "Utilisez seulement des lettres, chiffres, tirets ou traits de soulignement."),
+  type: z.enum(["percent", "fixed"]),
+  value: z.number().int().positive(),
+  minOrderAmount: z.number().int().min(0).optional(),
+  maxUses: z.number().int().positive().optional(),
+  active: z.union([z.literal(0), z.literal(1)]),
+  scope: z.enum(["all", "first_order", "category"]),
+  categoryId: z.number().int().positive().nullable(),
+  perUserLimit: z.number().int().positive().nullable(),
+  startsAt: z.date().optional(),
+  expiresAt: z.date().optional(),
+}).superRefine((input, context) => {
+  if (input.type === "percent" && input.value > 100) context.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Le pourcentage doit être compris entre 1 et 100." });
+  if (input.scope === "category" && !input.categoryId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Choisissez une catégorie pour cette promotion." });
+  if (input.scope !== "category" && input.categoryId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Une catégorie ne peut être ciblée que pour une promotion de catégorie." });
+  if (input.startsAt && input.expiresAt && input.expiresAt <= input.startsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["expiresAt"], message: "La date de fin doit être postérieure à la date de début." });
+});
+
+function promotionErrorToTrpc(error: unknown): never {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "PROMOTION_CATEGORY_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez une catégorie pour cette promotion." });
+  if (message === "PROMOTION_CATEGORY_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Cette catégorie ne fait pas partie de votre boutique." });
+  if (/duplicate entry|unique constraint|promotions_store_code_unique/i.test(message)) throw new TRPCError({ code: "CONFLICT", message: "Ce code promotionnel existe déjà dans votre boutique." });
+  throw error;
+}
 
 export const ownerHomepageSections = z.object({
   showReassurance: z.boolean(),
@@ -49,6 +75,8 @@ export const ownerHomepageSections = z.object({
   closingContactCtaLabel: z.string().trim().max(60),
   closingContactCtaUrl: storefrontLink,
   closingVisualValue: z.string().trim().max(40),
+  closingVisualFont: z.enum(["inherit", "editorial", "modern", "classic"]),
+  closingVisualColor: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, "Choisissez une couleur hexadécimale valide."),
   closingVisualText: z.string().trim().max(280),
   closingImageUrl: z.union([z.literal(""), visualUrl]),
 }).superRefine((input, ctx) => {
@@ -474,6 +502,62 @@ export const ownerRouter = router({
   }),
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
+  }),
+  getPromotions: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getAllPromotions(ctx.store!.id);
+  }),
+  createPromotion: storeOwnerProcedure.input(ownerPromotionInput).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.createPromotion(input, ctx.store!.id);
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner_promotion_created",
+        entityType: "promotion",
+        entityId: result.id,
+        summary: `Code promotionnel ${input.code.toUpperCase()} créé depuis le panneau propriétaire.`,
+        metadata: { scope: input.scope, type: input.type, active: input.active === 1 },
+      });
+      return result;
+    } catch (error) {
+      return promotionErrorToTrpc(error);
+    }
+  }),
+  updatePromotion: storeOwnerProcedure.input(z.object({ id: z.number().int().positive() }).and(ownerPromotionInput)).mutation(async ({ ctx, input }) => {
+    try {
+      const { id, ...data } = input;
+      const result = await db.updatePromotion(id, data, ctx.store!.id);
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner_promotion_updated",
+        entityType: "promotion",
+        entityId: id,
+        summary: `Code promotionnel ${data.code.toUpperCase()} modifié depuis le panneau propriétaire.`,
+        metadata: { scope: data.scope, type: data.type, active: data.active === 1 },
+      });
+      return result;
+    } catch (error) {
+      return promotionErrorToTrpc(error);
+    }
+  }),
+  deletePromotion: storeOwnerProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const result = await db.deletePromotion(input.id, ctx.store!.id);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: "owner_promotion_deleted",
+      entityType: "promotion",
+      entityId: input.id,
+      summary: "Code promotionnel supprimé depuis le panneau propriétaire.",
+    });
+    return result;
   }),
   getIntegrationRequests: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerIntegrationRequests(ctx.store!.id);

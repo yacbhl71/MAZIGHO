@@ -8657,6 +8657,8 @@ export type DesignProfile = {
   closingContactCtaLabel: string;
   closingContactCtaUrl: string;
   closingVisualValue: string;
+  closingVisualFont: "inherit" | "editorial" | "modern" | "classic";
+  closingVisualColor: string;
   closingVisualText: string;
   closingImageUrl: string;
   cataloguePageCopyCustomized: boolean;
@@ -8779,6 +8781,8 @@ export const defaultDesignProfile: DesignProfile = {
   closingContactCtaLabel: "Nous contacter",
   closingContactCtaUrl: "/contact",
   closingVisualValue: "",
+  closingVisualFont: "inherit",
+  closingVisualColor: "#ffffff",
   closingVisualText: "Une boutique locale dans sa façon de parler, ouverte sur les meilleures trouvailles.",
   closingImageUrl: "",
   cataloguePageCopyCustomized: false,
@@ -8894,6 +8898,12 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
       continue;
     }
     if (value) normalized[field] = field.endsWith("ImageUrl") ? optimizedBuiltInImageUrls[value] || value : value;
+  }
+  if (["inherit", "editorial", "modern", "classic"].includes(String(source.closingVisualFont))) {
+    normalized.closingVisualFont = source.closingVisualFont as DesignProfile["closingVisualFont"];
+  }
+  if (typeof source.closingVisualColor === "string" && /^#[0-9a-f]{6}$/i.test(source.closingVisualColor.trim())) {
+    normalized.closingVisualColor = source.closingVisualColor.trim().toLowerCase();
   }
   const navigationTranslations = source.navigationTranslations;
   if (navigationTranslations && typeof navigationTranslations === "object") {

@@ -19,6 +19,10 @@ vi.mock("./db", () => ({
   acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
   getOwnerIntegrationRequests: vi.fn(async () => ({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] })),
   saveOwnerIntegrationRequests: vi.fn(async (_storeId, ids) => ({ requests: ids.map((id: string) => ({ id, requestedAt: "2026-09-26T00:00:00.000Z" })) })),
+  getAllPromotions: vi.fn(async () => [{ id: 91, code: "ATELIER10", type: "percent", value: 10, minOrderAmount: null, maxUses: 20, active: 1, scope: "all", categoryId: null, perUserLimit: null, startsAt: null, expiresAt: null, redemptionCount: 0 }]),
+  createPromotion: vi.fn(async () => ({ success: true, id: 92 })),
+  updatePromotion: vi.fn(async () => ({ success: true })),
+  deletePromotion: vi.fn(async () => ({ success: true })),
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
   getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
   createOwnerSupportTicket: vi.fn(async ({ storeId, ...input }) => ({ tickets: [{ id: "support123", ...input, storeId, status: "open", createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", operatorReply: "" }] })),
@@ -145,6 +149,24 @@ describe("owner product variant routes", () => {
       ],
     });
     expect(db.saveOwnerIntegrationRequests).toHaveBeenCalledWith(77, ["stripe", "transactional_email"]);
+  });
+
+  it("keeps promotion codes scoped to the current store and owner-managed", async () => {
+    await expect(callerFor().owner.getPromotions()).resolves.toMatchObject([{ id: 91, code: "ATELIER10" }]);
+    expect(db.getAllPromotions).toHaveBeenCalledWith(77);
+
+    const promotion = { code: "CREATIVE10", type: "percent" as const, value: 10, active: 1 as const, scope: "all" as const, categoryId: null, perUserLimit: null };
+    await expect(callerFor().owner.createPromotion(promotion)).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.createPromotion(promotion)).resolves.toEqual({ success: true, id: 92 });
+    expect(db.createPromotion).toHaveBeenCalledWith(expect.objectContaining({ code: "CREATIVE10", value: 10 }), 77);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, action: "owner_promotion_created", entityId: 92 }));
+
+    await expect(callerFor().owner.updatePromotion({ id: 91, ...promotion, active: 0 })).resolves.toEqual({ success: true });
+    expect(db.updatePromotion).toHaveBeenCalledWith(91, expect.objectContaining({ code: "CREATIVE10", active: 0 }), 77);
+    await expect(callerFor().owner.deletePromotion({ id: 91 })).resolves.toEqual({ success: true });
+    expect(db.deletePromotion).toHaveBeenCalledWith(91, 77);
   });
 
   it("shows the descriptive SaaS plan only to the current store owner", async () => {
@@ -500,12 +522,14 @@ describe("owner product variant routes", () => {
       closingContactCtaLabel: "Nous contacter",
       closingContactCtaUrl: "/contact",
       closingVisualValue: "",
+      closingVisualFont: "editorial" as const,
+      closingVisualColor: "#C80AFF",
       closingVisualText: "Une boutique créative, à votre image.",
       closingImageUrl: "",
     };
     await expect(callerFor().owner.saveHomepageSections(input)).resolves.toMatchObject({ showClosing: true, discoveryTitle: "Nos catégories créatives" });
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
-    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, closingTitle: "Préparez votre prochain projet." }), 77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, closingTitle: "Préparez votre prochain projet.", closingVisualValue: "", closingVisualFont: "editorial", closingVisualColor: "#C80AFF" }), 77);
     expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("design", 1, 77);
   });
 

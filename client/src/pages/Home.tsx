@@ -54,7 +54,7 @@ const discoveryTileMeta = [
 
 export default function Home() {
   const { locale } = useLocale();
-  const { formatStorePrice: formatPrice, currencyCode } = useStorePrice();
+  const { formatStorePrice: formatPrice } = useStorePrice();
   const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const generatedCopy = getPublicCopy(locale);
   const useManagedPublicTranslation = locale === "fr" || profile.contentTranslationReady === true;
@@ -79,6 +79,13 @@ export default function Home() {
   const highlightImageUrl = getOptimizedHomeImageUrl(profile.highlightImageUrl);
   const storyImageUrl = getOptimizedHomeImageUrl(profile.storyImageUrl);
   const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
+  const closingVisualValue = profile.closingVisualValue.trim();
+  const closingVisualFontFamilies = {
+    inherit: undefined,
+    editorial: "var(--mazigho-heading-font)",
+    modern: "Arial, Helvetica, sans-serif",
+    classic: "Georgia, 'Times New Roman', serif",
+  } as const;
 
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
@@ -320,8 +327,8 @@ export default function Home() {
                 <div className="absolute -bottom-20 -left-10 h-64 w-64 rounded-full border-[36px] border-orange-200/20" />
                 <div className="absolute inset-0 flex items-center justify-center p-8 text-center">
                   <div>
-                    <p className="text-6xl font-semibold tracking-tight text-white/95">{useManagedPublicTranslation ? (profile.closingVisualValue || currencyCode) : currencyCode}</p>
-                    <p className="mt-3 text-sm text-white/75">{copy.closing.chfText}</p>
+                    {closingVisualValue ? <p className="text-6xl font-semibold tracking-tight" style={{ color: profile.closingVisualColor, fontFamily: closingVisualFontFamilies[profile.closingVisualFont] }}>{closingVisualValue}</p> : null}
+                    {copy.closing.chfText ? <p className={closingVisualValue ? "mt-3 text-sm text-white/75" : "text-sm text-white/75"}>{copy.closing.chfText}</p> : null}
                   </div>
                 </div>
               </div>
