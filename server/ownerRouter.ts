@@ -7,11 +7,13 @@ import { getAccountInvitationLink } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
+import { storeSupportTicketTopics } from "../shared/storeSupportTickets";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
+const ownerSupportTicket = z.object({ topic: z.enum(storeSupportTicketTopics), subject: z.string().trim().min(3).max(120), message: z.string().trim().min(10).max(2000) });
 
 export const ownerHomepageSections = z.object({
   showReassurance: z.boolean(),
@@ -416,6 +418,12 @@ export const ownerRouter = router({
   }),
   saveIntegrationRequests: storeOwnerProcedure.input(ownerIntegrationRequests).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerIntegrationRequests(ctx.store!.id, input.integrationIds);
+  }),
+  getSupportTickets: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerSupportTickets(ctx.store!.id);
+  }),
+  createSupportTicket: storeManagementProcedure.input(ownerSupportTicket).mutation(async ({ ctx, input }) => {
+    return await db.createOwnerSupportTicket({ storeId: ctx.store!.id, ...input });
   }),
   getCustomDomainRequest: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomDomainRequest(ctx.store!.id);

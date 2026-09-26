@@ -848,6 +848,38 @@ export const adminRouter = router({
       });
       return catalog;
     }),
+    getStoreSupportTickets: platformProcedure.input(z.object({
+      query: z.string().trim().max(100).optional(),
+      status: z.enum(["open", "reviewing", "resolved"]).optional(),
+      page: z.number().int().positive().max(10_000).optional(),
+      pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
+    }).optional()).query(async ({ input }) => {
+      return await db.getStudioSupportTickets(input ?? {});
+    }),
+    updateStoreSupportTicket: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      ticketId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
+      status: z.enum(["open", "reviewing", "resolved"]),
+      operatorReply: z.string().trim().max(1600),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateStudioSupportTicket(input);
+        logAudit(ctx, {
+          action: "studio.store.support_ticket.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: "Ticket d’assistance boutique mis à jour sans accès au compte.",
+          metadata: { ticketId: input.ticketId, status: input.status, impersonationUsed: false, accountAccessChanged: false, emailSent: false },
+        });
+        return updated;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND" || code === "SUPPORT_TICKET_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Ticket ou boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "Les tickets de MAZIGHO principal ne sont pas gérés dans le portefeuille client." });
+        if (code === "SUPPORT_TICKET_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Vérifiez le statut et la réponse du ticket." });
+        throw error;
+      }
+    }),
     saveStoreSaasBillingPlan: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

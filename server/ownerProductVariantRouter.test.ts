@@ -19,6 +19,8 @@ vi.mock("./db", () => ({
   acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
   getOwnerIntegrationRequests: vi.fn(async () => ({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] })),
   saveOwnerIntegrationRequests: vi.fn(async (_storeId, ids) => ({ requests: ids.map((id: string) => ({ id, requestedAt: "2026-09-26T00:00:00.000Z" })) })),
+  getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
+  createOwnerSupportTicket: vi.fn(async ({ storeId, ...input }) => ({ tickets: [{ id: "support123", ...input, storeId, status: "open", createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", operatorReply: "" }] })),
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
   saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
   getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
@@ -133,6 +135,16 @@ describe("owner product variant routes", () => {
       ],
     });
     expect(db.saveOwnerIntegrationRequests).toHaveBeenCalledWith(77, ["stripe", "transactional_email"]);
+  });
+
+  it("creates support tickets only for the resolved boutique without account access", async () => {
+    await expect(callerFor().owner.getSupportTickets()).resolves.toEqual({ tickets: [] });
+    expect(db.getOwnerSupportTickets).toHaveBeenCalledWith(77);
+
+    await expect(callerFor().owner.createSupportTicket({ topic: "technical", subject: "Aide sur le menu", message: "Le menu de ma boutique nécessite une vérification." })).resolves.toMatchObject({
+      tickets: [expect.objectContaining({ topic: "technical", subject: "Aide sur le menu", storeId: 77, status: "open" })],
+    });
+    expect(db.createOwnerSupportTicket).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, topic: "technical" }));
   });
 
   it("creates a bounded variant matrix only through the current resolved store", async () => {

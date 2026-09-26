@@ -44,6 +44,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getSaasBillingDashboard()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getSaasPlanCatalog()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveSaasPlanCatalog({ catalog: { plans: [] } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getStoreSupportTickets()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.updateStoreSupportTicket({ storeId: 1, ticketId: "supportticket123", status: "reviewing", operatorReply: "Nous regardons." })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveStoreSaasBillingPlan({ storeId: 1, confirmationName: "Boutique cliente", plan: { kind: "rental", label: "SaaS Pro", amountCents: 4900, currency: "CHF", interval: "monthly" }, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.createStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", reference: "BROUILLON-001", issueDate: "2026-10-01", dueDate: "2026-10-15", amountCents: 4900, currency: "CHF", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateStoreSaasInvoiceDraft({ storeId: 1, confirmationName: "Boutique cliente", invoiceId: "draftinvoice0001", reference: "BROUILLON-001", issueDate: "2026-10-01", dueDate: "2026-10-15", amountCents: 4900, currency: "CHF", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -137,6 +139,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.owner.getPrivateCartSimulation({ countryCode: "CH", lines: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getVariantStockOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getCustomDomainRequest()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.getSupportTickets()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.owner.createSupportTicket({ topic: "technical", subject: "Aide technique", message: "Une aide est nécessaire pour la boutique." })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.saveCustomDomainRequest({ domain: "boutique-client.ch" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getOrderItemSummaries({ orderId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });

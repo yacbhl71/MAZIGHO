@@ -45,6 +45,7 @@ import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from
 import { makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
+import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
@@ -6252,6 +6253,102 @@ export async function saveOwnerIntegrationRequests(storeId: number, ids: readonl
     "Demandes d’intégrations externes à examiner dans MAZIGHO Studio ; sans clé, OAuth, paiement, pixel, cookie, e-mail, campagne ni connexion active.",
   );
   return profile;
+}
+
+/** Reads support tickets from the current boutique only, without customer, credential or account data. */
+export async function getOwnerSupportTickets(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "owner_support_tickets"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  return parseStoreSupportTicketProfile(row[0]?.value);
+}
+
+/** Creates a bounded in-product support ticket for the resolved boutique; it sends no email and grants no account access. */
+export async function createOwnerSupportTicket(input: { storeId: number; topic: StoreSupportTicketTopic; subject: string; message: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, input.storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, input.storeId), eq(storeSettings.key, "owner_support_tickets"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  const profile = createStoreSupportTicket(parseStoreSupportTicketProfile(row[0]?.value), {
+    id: randomUUID().replace(/-/g, ""),
+    topic: input.topic,
+    subject: input.subject,
+    message: input.message,
+    now: new Date().toISOString(),
+  });
+  await setStoreSettingValue(store[0].id, "owner_support_tickets", JSON.stringify(profile), "Tickets d’assistance isolés par boutique ; aucun e-mail, compte, secret, paiement ou accès opérateur n’est modifié.");
+  return profile;
+}
+
+/** Lists compact Studio support tickets across client boutiques, with bounded pages and no account secrets. */
+export async function getStudioSupportTickets(input: { query?: string; status?: StoreSupportTicketStatus; page?: number; pageSize?: 20 | 50 | 100 } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({
+    storeId: storeSettings.storeId,
+    displayName: stores.displayName,
+    primaryDomain: stores.primaryDomain,
+    value: storeSettings.value,
+  }).from(storeSettings).innerJoin(stores, eq(stores.id, storeSettings.storeId))
+    .where(and(eq(storeSettings.key, "owner_support_tickets"), eq(stores.isPlatformStore, 0)));
+  const allTickets = rows.flatMap(row => parseStoreSupportTicketProfile(row.value).tickets.map(ticket => ({
+    ...ticket,
+    store: { id: row.storeId, displayName: row.displayName, primaryDomain: row.primaryDomain },
+  }))).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  const query = input.query?.trim().toLocaleLowerCase("fr-CH") || "";
+  const filtered = allTickets.filter(ticket => {
+    if (input.status && ticket.status !== input.status) return false;
+    if (!query) return true;
+    return [ticket.store.displayName, ticket.store.primaryDomain, ticket.subject, ticket.message, ticket.topic].join(" ").toLocaleLowerCase("fr-CH").includes(query);
+  });
+  const pageSize = input.pageSize === 50 || input.pageSize === 100 ? input.pageSize : 20;
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, input.page ?? 1), totalPages);
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  return {
+    tickets: filtered.slice((page - 1) * pageSize, page * pageSize),
+    summary: {
+      total: allTickets.length,
+      open: allTickets.filter(ticket => ticket.status === "open").length,
+      reviewing: allTickets.filter(ticket => ticket.status === "reviewing").length,
+      resolved: allTickets.filter(ticket => ticket.status === "resolved").length,
+    },
+    pagination: { page, pageSize, total, totalPages, from, to },
+  };
+}
+
+/** Updates only the chosen client-store ticket after an operator reply; store and user access stay untouched. */
+export async function updateStudioSupportTicket(input: { storeId: number; ticketId: string; status: StoreSupportTicketStatus; operatorReply: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [storeRows, row] = await Promise.all([
+    db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, input.storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, input.storeId), eq(storeSettings.key, "owner_support_tickets"))).limit(1),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  const profile = updateStoreSupportTicket(parseStoreSupportTicketProfile(row[0]?.value), {
+    ticketId: input.ticketId,
+    status: input.status,
+    operatorReply: input.operatorReply,
+    now: new Date().toISOString(),
+  });
+  await setStoreSettingValue(store.id, "owner_support_tickets", JSON.stringify(profile), "Réponse Studio à un ticket d’assistance isolé par boutique ; sans impersonation, changement d’accès, e-mail ni automatisation.");
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, profile };
 }
 
 /**
