@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
+import { confirmStripeConnectSessionOwner, finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
 import { sendOrderConfirmationForStripeSession } from "./emails";
 
@@ -75,11 +75,12 @@ export async function completePaidStripeOrder(session: Stripe.Checkout.Session, 
   // subsequent preparation is allowed to surface a visible exception instead
   // of guessing a delivery address.
   await storeStripeShippingAddress(session.id, extractStripeShippingAddress(session), snapshot.order.storeId);
-  const tasks = [
-    finalizePaidOrderRedemption(session.id),
-    syncPaidOrderToOdoo(session.id),
-    queueCjSandboxPreparationForPaidOrder(session.id),
-  ];
+  // Direct Charges belong to independent client boutiques. Their paid order
+  // must never enter MAZIGHO's Odoo or supplier preparation integrations.
+  const isClientDirectCharge = snapshot.order.paymentMethod === "stripe_connect_test";
+  const tasks = isClientDirectCharge
+    ? [finalizePaidOrderRedemption(session.id)]
+    : [finalizePaidOrderRedemption(session.id), syncPaidOrderToOdoo(session.id), queueCjSandboxPreparationForPaidOrder(session.id)];
   const results = await Promise.allSettled(tasks);
   results.forEach((result, index) => {
     if (result.status === "rejected") console.error(`[Stripe] downstream task ${index + 1} failed`, result.reason);
@@ -87,7 +88,7 @@ export async function completePaidStripeOrder(session: Stripe.Checkout.Session, 
   // Reconciliation may be retried by the webhook, the checkout return route,
   // or an authorised test operator. The customer confirmation is sent only
   // on the first durable payment transition.
-  if (options.sendCustomerEmail) {
+  if (options.sendCustomerEmail && process.env.MAZIGHO_ENABLE_STRIPE_TEST_ORDER_EMAILS?.trim() === "true") {
     sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
   }
 }
@@ -115,6 +116,15 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       if (isVerifiedPaidStripeTestSession(session)) {
+        const connectedAccountId = typeof event.account === "string" ? event.account : null;
+        if (connectedAccountId) {
+          const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
+          const ownership = await confirmStripeConnectSessionOwner({ sessionId: session.id, stripeAccountId: connectedAccountId, paymentIntentId });
+          if (!ownership.accepted) {
+            console.warn("[Stripe Connect] Ignored webhook for an unbound or cross-store session", { eventId: event.id, connectedAccountId });
+            return res.json({ received: true, ignored: true });
+          }
+        }
         const paid = await markOrderPaidByStripeSession(session.id);
         // Re-run the idempotent downstream handoff even after a Stripe retry:
         // an earlier Odoo or CJ queue failure must not leave a paid test order

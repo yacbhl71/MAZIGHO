@@ -41,9 +41,9 @@ export type SaasPlanCatalog = { plans: SaasPlanCatalogItem[] };
 
 const defaultPlanCatalog: SaasPlanCatalog = {
   plans: [
-    { id: "free", name: "Free", description: "Découverte et préparation de boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "catalog_csv_import", "variant_stock", "checkout_rehearsal", "media_quota"], status: "draft" },
-    { id: "basic", name: "Basic", description: "Base SaaS pour une boutique autonome.", monthlyAmountCents: 2900, yearlyAmountCents: 29000, currency: "CHF", features: ["brand_customization", "catalog_csv_import", "variant_stock", "team_access", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
-    { id: "premium", name: "Premium", description: "Préparation SaaS élargie avec priorité interne.", monthlyAmountCents: 4900, yearlyAmountCents: 49000, currency: "CHF", features: [...saasPlanFeatureIds], status: "draft" },
+    { id: "basic", name: "BASIC", description: "0 CHF/mois + 2,5 % de commission sur chaque encaissement.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "catalog_csv_import", "variant_stock", "team_access", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
+    { id: "pro", name: "PRO", description: "7,90 CHF/mois + 1,0 % de commission sur chaque encaissement.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...saasPlanFeatureIds], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "149 CHF unique pour les 100 premières boutiques, puis 300 CHF ; 0 % de commission.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...saasPlanFeatureIds], status: "draft" },
   ],
 };
 
@@ -78,6 +78,19 @@ function normalizeId(value: unknown, fallback: string) {
 function normalizePlan(value: unknown, fallback: SaasPlanCatalogItem): SaasPlanCatalogItem {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const selectedFeatures = Array.isArray(source.features) ? Array.from(new Set(source.features.filter(isFeature))).sort() : [...fallback.features];
+  const official = getMazighoSaasPlan(fallback.id);
+  if (official) {
+    return {
+      id: official.id,
+      name: official.name,
+      description: official.description,
+      monthlyAmountCents: official.monthlyAmountCents,
+      yearlyAmountCents: 0,
+      currency: "CHF",
+      features: selectedFeatures,
+      status: "draft",
+    };
+  }
   return {
     id: normalizeId(source.id, fallback.id),
     name: text(source.name, fallback.name, 60),
@@ -113,9 +126,13 @@ export function normalizeSaasPlanCatalog(value: unknown): SaasPlanCatalog {
     if (candidateId && !byId.has(candidateId)) byId.set(candidateId, candidate);
   }
   const required = defaults.map(plan => normalizePlan(byId.get(plan.id), plan));
+  // Legacy placeholders were never billable. Retire them quietly rather than
+  // presenting stale Free/Premium offers after the official grid takes over.
+  const retiredStarterIds = new Set(["free", "premium"]);
   const custom = Array.from(byId.entries())
-    .filter(([id]) => !defaults.some(plan => plan.id === id))
+    .filter(([id]) => !retiredStarterIds.has(id) && !defaults.some(plan => plan.id === id))
     .slice(0, 9)
     .map(([id, plan]) => normalizePlan(plan, { id, name: "Nouvelle offre", description: "Offre interne à préparer.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [], status: "draft" }));
   return { plans: [...required, ...custom].slice(0, 12) };
 }
+import { getMazighoSaasPlan } from "./mazighoSaasPlans";

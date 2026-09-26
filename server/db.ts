@@ -50,6 +50,8 @@ import { getStoreSaasBillingDraftReadiness, makeDraftInvoice, normalizeSaasBilli
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
+import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
+import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
@@ -58,7 +60,7 @@ import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCs
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns, stripeConnectedAccounts } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -2913,6 +2915,15 @@ async function getStudioClientStoreForBilling(storeId: number) {
   return store;
 }
 
+async function countStudioLifetimePlanAssignments() {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .innerJoin(stores, eq(stores.id, storeSettings.storeId))
+    .where(and(eq(stores.isPlatformStore, 0), eq(storeSettings.key, "saas_plan_assignment")));
+  return rows.reduce((count, row) => count + (parseStoreSaasPlanAssignment(row.value)?.planId === "lifetime" ? 1 : 0), 0);
+}
+
 /**
  * Reads the global catalogue of draft SaaS templates. It is a Studio-only
  * planning aid: it neither assigns a plan to a store nor enforces a feature.
@@ -2946,12 +2957,15 @@ export async function assignStudioStoreSaasPlanTemplate(input: { storeId: number
   const catalog = await getStudioSaasPlanCatalog();
   const template = catalog.plans.find(plan => plan.id === input.planId);
   if (!template) throw new Error("SAAS_PLAN_TEMPLATE_NOT_FOUND");
-  const assignment = assignStoreSaasPlanTemplate(template);
+  const lifetimePurchasePriceCents = template.id === "lifetime"
+    ? getLifetimePriceCents(await countStudioLifetimePlanAssignments())
+    : null;
+  const assignment = assignStoreSaasPlanTemplate(template, new Date().toISOString(), lifetimePurchasePriceCents);
   await setStoreSettingValue(
     store.id,
     "saas_plan_assignment",
     JSON.stringify(assignment),
-    "Attribution explicite d’un plan SaaS comme brouillon descriptif ; fonctionnalités non appliquées, sans changement d’accès, abonnement, paiement, facture, e-mail ou automatisation.",
+    "Attribution explicite d’un plan SaaS avec snapshot commercial ; fonctionnalités non appliquées, sans changement d’accès, abonnement, paiement, facture, e-mail ou automatisation.",
   );
   return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, assignment, featureFlagsApplied: false as const };
 }
@@ -6343,6 +6357,106 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
   ]);
   if (!store[0]) throw new Error("STORE_NOT_FOUND");
   return parseStoreSaasPlanAssignment(row[0]?.value);
+}
+
+export type StoreStripeConnectSetup = {
+  account: {
+    accountId: string;
+    status: "created" | "onboarding" | "active" | "restricted";
+    onboardingComplete: boolean;
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    lastCheckedAt: Date | null;
+  } | null;
+  plan: { id: MazighoSaasPlanId; name: string; commissionRateBps: number } | null;
+  schemaReady: boolean;
+  paymentReadiness: ReturnType<typeof getStripeConnectPaymentReadiness>;
+};
+
+function asStripeConnectAccountState(row: typeof stripeConnectedAccounts.$inferSelect | undefined): StripeConnectAccountState | null {
+  if (!row) return null;
+  return {
+    accountId: row.stripeAccountId,
+    onboardingComplete: Boolean(row.onboardingComplete),
+    chargesEnabled: Boolean(row.chargesEnabled),
+    detailsSubmitted: Boolean(row.detailsSubmitted),
+  };
+}
+
+/**
+ * Reads payment configuration strictly for one tenant. A missing migration is
+ * treated as a closed payment state so a public checkout can never open early.
+ */
+export async function getStoreStripeConnectSetup(storeId: number): Promise<StoreStripeConnectSetup> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const planAssignment = await getOwnerSaasPlanAssignment(storeId);
+  const plan = getMazighoSaasPlan(planAssignment?.planId);
+  try {
+    const [row] = await db.select().from(stripeConnectedAccounts)
+      .where(eq(stripeConnectedAccounts.storeId, storeId)).limit(1);
+    const accountState = asStripeConnectAccountState(row);
+    return {
+      account: row ? {
+        accountId: row.stripeAccountId,
+        status: row.status,
+        onboardingComplete: Boolean(row.onboardingComplete),
+        chargesEnabled: Boolean(row.chargesEnabled),
+        payoutsEnabled: Boolean(row.payoutsEnabled),
+        detailsSubmitted: Boolean(row.detailsSubmitted),
+        lastCheckedAt: row.lastCheckedAt,
+      } : null,
+      plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
+      schemaReady: true,
+      paymentReadiness: getStripeConnectPaymentReadiness({ planId: planAssignment?.planId, account: accountState }),
+    };
+  } catch (error) {
+    const message = String(error).toLowerCase();
+    if (!message.includes("stripeconnectedaccounts") && !message.includes("doesn't exist") && !message.includes("does not exist")) throw error;
+    return {
+      account: null,
+      plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
+      schemaReady: false,
+      paymentReadiness: getStripeConnectPaymentReadiness({ planId: planAssignment?.planId, account: null }),
+    };
+  }
+}
+
+/** Records only Stripe's opaque connected-account identifier after its creation. */
+export async function saveStoreStripeConnectAccount(input: { storeId: number; stripeAccountId: string; status: "created" | "onboarding" | "active" | "restricted"; onboardingComplete: boolean; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  if (!/^acct_[A-Za-z0-9]+$/.test(input.stripeAccountId)) throw new Error("STRIPE_CONNECT_ACCOUNT_INVALID");
+  await db.insert(stripeConnectedAccounts).values({
+    storeId: input.storeId,
+    stripeAccountId: input.stripeAccountId,
+    status: input.status,
+    onboardingComplete: input.onboardingComplete ? 1 : 0,
+    chargesEnabled: input.chargesEnabled ? 1 : 0,
+    payoutsEnabled: input.payoutsEnabled ? 1 : 0,
+    detailsSubmitted: input.detailsSubmitted ? 1 : 0,
+    lastCheckedAt: new Date(),
+  }).onDuplicateKeyUpdate({ set: {
+    stripeAccountId: input.stripeAccountId,
+    status: input.status,
+    onboardingComplete: input.onboardingComplete ? 1 : 0,
+    chargesEnabled: input.chargesEnabled ? 1 : 0,
+    payoutsEnabled: input.payoutsEnabled ? 1 : 0,
+    detailsSubmitted: input.detailsSubmitted ? 1 : 0,
+    lastCheckedAt: new Date(),
+  } });
+  return await getStoreStripeConnectSetup(input.storeId);
+}
+
+/** Resolves the payment authority for a checkout without exposing it to a client. */
+export async function getStoreStripeConnectCheckoutContext(storeId: number) {
+  const setup = await getStoreStripeConnectSetup(storeId);
+  if (!setup.paymentReadiness.enabled) return { setup, ready: false as const };
+  return { setup, ready: true as const, accountId: setup.paymentReadiness.accountId, commissionRateBps: setup.paymentReadiness.commissionRateBps, planId: setup.paymentReadiness.planId };
 }
 
 /**
@@ -9944,7 +10058,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
 
 export async function createStripePendingOrder(input: {
   userId: number;
-  sessionId: string;
+  sessionId?: string | null;
   countryCode: string;
   totalAmount: number;
   cart: { items: StripeCheckoutVerifiedItem[]; totalAmount: number; totalAmountChf: number; customerShippingAmount: number; customerShippingAmountChf: number; currency: StoreCurrencyConfig };
@@ -9960,8 +10074,10 @@ export async function createStripePendingOrder(input: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
-  const existing = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.stripeSessionId, input.sessionId))).limit(1);
-  if (existing[0]) return existing[0];
+  if (input.sessionId) {
+    const existing = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.stripeSessionId, input.sessionId))).limit(1);
+    if (existing[0]) return existing[0];
+  }
   if (input.cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
   const discountAmount = Math.max(0, Math.min(input.cart.totalAmount, input.discountAmount ?? 0));
   const result = await db.insert(orders).values({
@@ -9976,8 +10092,8 @@ export async function createStripePendingOrder(input: {
     shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
     billingAddress: null,
     paymentStatus: "unpaid",
-    paymentMethod: "stripe_test",
-    stripeSessionId: input.sessionId,
+    paymentMethod: "stripe_connect_test",
+    stripeSessionId: input.sessionId ?? null,
     promotionId: input.promotionId ?? null,
     discountAmount,
     discountAmountChf: input.discountAmountChf ?? 0,
@@ -9999,6 +10115,51 @@ export async function createStripePendingOrder(input: {
   return { id: orderId };
 }
 
+/** Binds an already-created pending order to exactly one tenant Stripe session. */
+export async function bindStripeConnectSessionToPendingOrder(input: {
+  storeId: number;
+  userId: number;
+  orderId: number;
+  sessionId: string;
+  stripeAccountId: string;
+  applicationFeeAmount: number;
+  commissionRateBps: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.update(orders).set({
+    stripeSessionId: input.sessionId,
+    stripeConnectedAccountId: input.stripeAccountId,
+    stripeApplicationFeeAmount: input.applicationFeeAmount,
+    stripeCommissionRateBps: input.commissionRateBps,
+    paymentMethod: "stripe_connect_test",
+  }).where(and(
+    eq(orders.id, input.orderId),
+    eq(orders.storeId, input.storeId),
+    eq(orders.userId, input.userId),
+    isNull(orders.stripeSessionId),
+    eq(orders.paymentStatus, "unpaid"),
+    eq(orders.status, "pending"),
+  ));
+  const affected = Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
+  if (affected !== 1) throw new Error("STRIPE_CONNECT_ORDER_BIND_FAILED");
+  return { id: input.orderId };
+}
+
+/** Cancels an unbound order when Stripe could not create its corresponding session. */
+export async function cancelUnboundStripePendingOrder(input: { storeId: number; userId: number; orderId: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(orders).set({ status: "cancelled" }).where(and(
+    eq(orders.id, input.orderId),
+    eq(orders.storeId, input.storeId),
+    eq(orders.userId, input.userId),
+    isNull(orders.stripeSessionId),
+    eq(orders.paymentStatus, "unpaid"),
+    eq(orders.status, "pending"),
+  ));
+}
+
 export async function getStripeSessionIdForOrder(orderId: number, storeId?: number): Promise<string | null> {
   await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
@@ -10009,7 +10170,7 @@ export async function getStripeSessionIdForOrder(orderId: number, storeId?: numb
   const order = rows[0];
   // The manual reconciliation route is deliberately limited to locally-created
   // Stripe Test sessions. A payment method label alone never proves payment.
-  if (!order || order.paymentMethod !== "stripe_test" || !order.stripeSessionId) return null;
+  if (!order || !["stripe_test", "stripe_connect_test"].includes(order.paymentMethod || "") || !order.stripeSessionId) return null;
   return order.stripeSessionId;
 }
 
@@ -10019,7 +10180,7 @@ export async function markOrderPaidByStripeSession(sessionId: string) {
   // A verified Stripe Test checkout may advance only a locally pending order.
   // This prevents a late webhook from resurrecting a rejected or cancelled one.
   const result = await db.update(orders)
-    .set({ paymentStatus: "paid", paymentMethod: "stripe_test", status: "processing" })
+    .set({ paymentStatus: "paid", status: "processing" })
     .where(and(
       eq(orders.stripeSessionId, sessionId),
       eq(orders.paymentStatus, "unpaid"),
@@ -10065,6 +10226,28 @@ export async function getOrderForStripeSessionForStore(sessionId: string, userId
   return rows[0] ?? null;
 }
 
+/**
+ * Ensures that a Connect webhook belongs to the same store and connected
+ * account that created the checkout. This blocks cross-tenant event handling
+ * even when a platform webhook endpoint receives multiple accounts.
+ */
+export async function confirmStripeConnectSessionOwner(input: { sessionId: string; stripeAccountId: string; paymentIntentId?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [order] = await db.select({
+    id: orders.id,
+    paymentMethod: orders.paymentMethod,
+    stripeConnectedAccountId: orders.stripeConnectedAccountId,
+  }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
+  if (!order || order.paymentMethod !== "stripe_connect_test" || order.stripeConnectedAccountId !== input.stripeAccountId) {
+    return { accepted: false as const };
+  }
+  if (input.paymentIntentId && /^pi_[A-Za-z0-9]+$/.test(input.paymentIntentId)) {
+    await db.update(orders).set({ stripePaymentIntentId: input.paymentIntentId }).where(eq(orders.id, order.id));
+  }
+  return { accepted: true as const, orderId: order.id };
+}
+
 // Order snapshot used to synchronise a paid order + its customer towards Odoo.
 export async function getOrderForStripeSession(sessionId: string) {
   await ensureStoreOperationsScopeSchema();
@@ -10085,6 +10268,7 @@ export async function getOrderForStripeSession(sessionId: string) {
       customerShippingAmountChf: orders.customerShippingAmountChf,
       status: orders.status,
       paymentStatus: orders.paymentStatus,
+      paymentMethod: orders.paymentMethod,
       shippingAddress: orders.shippingAddress,
       fulfillmentState: orders.fulfillmentState,
       odooSaleOrderId: orders.odooSaleOrderId,

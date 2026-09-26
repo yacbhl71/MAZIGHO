@@ -4,7 +4,7 @@ import { defaultSaasPlanCatalog, normalizeSaasPlanCatalog, parseSaasPlanCatalog 
 describe("SaaS plan catalog", () => {
   it("keeps the three editable starter offers as draft templates", () => {
     const catalog = defaultSaasPlanCatalog();
-    expect(catalog.plans.map(plan => plan.id)).toEqual(["free", "basic", "premium"]);
+    expect(catalog.plans.map(plan => plan.id)).toEqual(["basic", "pro", "lifetime"]);
     expect(catalog.plans.every(plan => plan.status === "draft")).toBe(true);
   });
 
@@ -15,11 +15,11 @@ describe("SaaS plan catalog", () => {
         { id: "studio", name: "Studio", description: "Offre en préparation", monthlyAmountCents: 7900, yearlyAmountCents: 79000, currency: "CHF", features: ["team_access"] },
       ],
     });
-    expect(catalog.plans.map(plan => plan.id)).toEqual(["free", "basic", "premium", "studio"]);
-    expect(catalog.plans[1]).toMatchObject({ name: "Essentiel", currency: "EUR", features: ["storefront_seo"], status: "draft" });
+    expect(catalog.plans.map(plan => plan.id)).toEqual(["basic", "pro", "lifetime", "studio"]);
+    expect(catalog.plans[0]).toMatchObject({ name: "BASIC", currency: "CHF", monthlyAmountCents: 0, features: ["storefront_seo"], status: "draft" });
   });
 
   it("falls back safely when persisted data is malformed", () => {
-    expect(parseSaasPlanCatalog("{not-json}").plans.map(plan => plan.id)).toEqual(["free", "basic", "premium"]);
+    expect(parseSaasPlanCatalog("{not-json}").plans.map(plan => plan.id)).toEqual(["basic", "pro", "lifetime"]);
   });
 });

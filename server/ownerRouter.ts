@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import Stripe from "stripe";
 import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
@@ -33,6 +34,24 @@ const ownerPromotionInput = z.object({
   if (input.scope !== "category" && input.categoryId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Une catégorie ne peut être ciblée que pour une promotion de catégorie." });
   if (input.startsAt && input.expiresAt && input.expiresAt <= input.startsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["expiresAt"], message: "La date de fin doit être postérieure à la date de début." });
 });
+
+function getStripeConnectTestClient() {
+  const key = process.env.STRIPE_SECRET_KEY?.trim() || "";
+  if (!key.startsWith("sk_test_") || process.env.MAZIGHO_ENABLE_STRIPE_TEST_CONNECT?.trim() !== "true") return null;
+  return new Stripe(key);
+}
+
+function stripeConnectAccountStatus(account: Stripe.Account): "created" | "onboarding" | "active" | "restricted" {
+  if (account.charges_enabled && account.details_submitted) return "active";
+  if (account.requirements?.currently_due?.length || account.requirements?.past_due?.length) return "restricted";
+  return account.details_submitted ? "onboarding" : "created";
+}
+
+function storePanelOrigin(domain: string) {
+  const normalized = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (!normalized || !/^[a-z0-9.-]+$/i.test(normalized)) throw new Error("STORE_DOMAIN_INVALID");
+  return `https://${normalized}`;
+}
 
 function promotionErrorToTrpc(error: unknown): never {
   const message = error instanceof Error ? error.message : "";
@@ -579,6 +598,69 @@ export const ownerRouter = router({
   }),
   acknowledgeCustomDomainGuide: storeOwnerProcedure.mutation(async ({ ctx }) => {
     return await db.acknowledgeOwnerCustomDomainGuide(ctx.store!.id);
+  }),
+  getStripeConnectSetup: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreStripeConnectSetup(ctx.store!.id);
+  }),
+  createStripeConnectOnboarding: storeOwnerProcedure.input(z.object({ countryCode: z.enum(storefrontCountryCodes) })).mutation(async ({ ctx, input }) => {
+    const stripe = getStripeConnectTestClient();
+    if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe Connect Test n’est pas configuré par MAZIGHO Studio." });
+    try {
+      const existing = await db.getStoreStripeConnectSetup(ctx.store!.id);
+      if (!existing.plan) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "MAZIGHO Studio doit d’abord attribuer l’offre BASIC, PRO ou LIFETIME à cette boutique." });
+      if (!existing.schemaReady) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La migration Stripe Connect doit être appliquée avant de créer un compte connecté." });
+      const account = existing.account
+        ? await stripe.accounts.retrieve(existing.account.accountId)
+        : await stripe.accounts.create({
+          type: "express",
+          country: input.countryCode,
+          email: ctx.user.email || undefined,
+          capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+          metadata: { mazigho_store_id: String(ctx.store!.id), mazigho_mode: "test" },
+        });
+      await db.saveStoreStripeConnectAccount({
+        storeId: ctx.store!.id,
+        stripeAccountId: account.id,
+        status: stripeConnectAccountStatus(account),
+        onboardingComplete: Boolean(account.details_submitted),
+        chargesEnabled: Boolean(account.charges_enabled),
+        payoutsEnabled: Boolean(account.payouts_enabled),
+        detailsSubmitted: Boolean(account.details_submitted),
+      });
+      const origin = storePanelOrigin(ctx.store!.primaryDomain);
+      const link = await stripe.accountLinks.create({
+        account: account.id,
+        refresh_url: `${origin}/gestion-boutique?stripe_connect=refresh`,
+        return_url: `${origin}/gestion-boutique?stripe_connect=return`,
+        type: "account_onboarding",
+      });
+      return { onboardingUrl: link.url, accountId: account.id, mode: "test" as const };
+    } catch (error) {
+      if (error instanceof TRPCError) throw error;
+      console.error("Stripe Connect onboarding error", error);
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le lien Stripe Connect n’a pas pu être créé. Aucun paiement n’a été activé." });
+    }
+  }),
+  refreshStripeConnectSetup: storeOwnerProcedure.mutation(async ({ ctx }) => {
+    const stripe = getStripeConnectTestClient();
+    if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe Connect Test n’est pas configuré par MAZIGHO Studio." });
+    const existing = await db.getStoreStripeConnectSetup(ctx.store!.id);
+    if (!existing.account) return existing;
+    try {
+      const account = await stripe.accounts.retrieve(existing.account.accountId);
+      return await db.saveStoreStripeConnectAccount({
+        storeId: ctx.store!.id,
+        stripeAccountId: account.id,
+        status: stripeConnectAccountStatus(account),
+        onboardingComplete: Boolean(account.details_submitted),
+        chargesEnabled: Boolean(account.charges_enabled),
+        payoutsEnabled: Boolean(account.payouts_enabled),
+        detailsSubmitted: Boolean(account.details_submitted),
+      });
+    } catch (error) {
+      console.error("Stripe Connect account refresh error", error);
+      throw new TRPCError({ code: "BAD_GATEWAY", message: "Le statut Stripe Connect n’a pas pu être actualisé. Aucun paiement n’a été modifié." });
+    }
   }),
   getCommercialReadiness: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCommercialReadiness(ctx.store!.id);

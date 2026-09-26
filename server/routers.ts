@@ -82,6 +82,14 @@ export const appRouter = router({
       // hors des storefronts clients sans exposer de donnée commerciale ou personnelle.
       isPlatformStore: Boolean(ctx.store?.isPlatformStore),
     })),
+    getPaymentAvailability: storefrontProcedure.query(async ({ ctx }) => {
+      const { getStoreStripeConnectCheckoutContext } = await import("./db");
+      const payment = await getStoreStripeConnectCheckoutContext(ctx.store!.id);
+      const readiness = payment.setup.paymentReadiness;
+      return payment.ready
+        ? { enabled: true as const, mode: "stripe_connect_test" as const }
+        : { enabled: false as const, mode: "stripe_connect_test" as const, reason: readiness.enabled ? "connect_onboarding_incomplete" : readiness.reason };
+    }),
     getMarketSettings: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreMarketSettings } = await import("./db");
       return await getStoreMarketSettings(ctx.store!.id);

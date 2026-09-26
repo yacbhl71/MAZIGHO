@@ -294,6 +294,12 @@ export const orders = mysqlTable("orders", {
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),
   paymentMethod: varchar("paymentMethod", { length: 50 }),
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
+  // Direct Charges remain isolated to the connected account that owns this
+  // boutique. These snapshots make webhook reconciliation tenant-safe.
+  stripeConnectedAccountId: varchar("stripeConnectedAccountId", { length: 255 }),
+  stripePaymentIntentId: varchar("stripePaymentIntentId", { length: 255 }),
+  stripeApplicationFeeAmount: int("stripeApplicationFeeAmount").default(0).notNull(),
+  stripeCommissionRateBps: int("stripeCommissionRateBps").default(0).notNull(),
   trackingNumber: varchar("trackingNumber", { length: 100 }),
   // Internal fulfillment state. It is intentionally separate from the customer-facing order status.
   fulfillmentState: mysqlEnum("fulfillmentState", ["not_eligible", "awaiting_supplier_preparation", "supplier_order_draft", "supplier_payment_review", "supplier_payment_pending", "supplier_paid", "supplier_exception", "shipped", "delivered", "cancelled", "refunded"]).default("not_eligible").notNull(),
@@ -313,6 +319,30 @@ export const orders = mysqlTable("orders", {
 
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
+
+// One Stripe Connect account per store. No bank data, API key, token or
+// onboarding URL is stored here; Stripe remains the system of record for it.
+export const stripeConnectedAccounts = mysqlTable("stripeConnectedAccounts", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  stripeAccountId: varchar("stripeAccountId", { length: 255 }).notNull(),
+  mode: mysqlEnum("mode", ["test"]).default("test").notNull(),
+  accountType: mysqlEnum("accountType", ["express"]).default("express").notNull(),
+  status: mysqlEnum("status", ["created", "onboarding", "active", "restricted"]).default("created").notNull(),
+  onboardingComplete: int("onboardingComplete").default(0).notNull(),
+  chargesEnabled: int("chargesEnabled").default(0).notNull(),
+  payoutsEnabled: int("payoutsEnabled").default(0).notNull(),
+  detailsSubmitted: int("detailsSubmitted").default(0).notNull(),
+  lastCheckedAt: timestamp("lastCheckedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeUnique: uniqueIndex("stripe_connected_accounts_store_unique").on(table.storeId),
+  accountUnique: uniqueIndex("stripe_connected_accounts_account_unique").on(table.stripeAccountId),
+}));
+
+export type StripeConnectedAccount = typeof stripeConnectedAccounts.$inferSelect;
+export type InsertStripeConnectedAccount = typeof stripeConnectedAccounts.$inferInsert;
 
 // Administrative decision trail. These decisions never trigger a supplier order or a payment refund by themselves.
 export const orderDecisions = mysqlTable("orderDecisions", {

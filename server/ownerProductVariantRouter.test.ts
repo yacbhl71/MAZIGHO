@@ -24,6 +24,8 @@ vi.mock("./db", () => ({
   updatePromotion: vi.fn(async () => ({ success: true })),
   deletePromotion: vi.fn(async () => ({ success: true })),
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
+  getStoreStripeConnectSetup: vi.fn(async (storeId) => ({ schemaReady: true, account: null, plan: { id: "basic", name: "BASIC", commissionRateBps: 250 }, paymentReadiness: { enabled: false, reason: "connect_account_missing" }, storeId })),
+  upsertStoreStripeConnectAccount: vi.fn(async input => input),
   getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
   createOwnerSupportTicket: vi.fn(async ({ storeId, ...input }) => ({ tickets: [{ id: "support123", ...input, storeId, status: "open", createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", operatorReply: "" }] })),
   getOwnerCustomerRelations: vi.fn(async () => ({ reviews: [{ id: 9, rating: 5, comment: "Très bien", status: "pending", createdAt: new Date("2026-09-26T08:00:00.000Z"), productName: "Kit créatif", authorName: "Client" }], messages: [{ id: 12, name: "Client", email: "client@example.test", subject: "Question", message: "Pouvez-vous aider ?", status: "unread", createdAt: new Date("2026-09-26T08:00:00.000Z") }] })),
@@ -176,6 +178,17 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.getSaasPlanAssignment()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps Stripe Connect readiness scoped to the resolved boutique", async () => {
+    await expect(callerFor().owner.getStripeConnectSetup()).resolves.toMatchObject({
+      storeId: 77,
+      paymentReadiness: { enabled: false, reason: "connect_account_missing" },
+    });
+    expect(db.getStoreStripeConnectSetup).toHaveBeenCalledWith(77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getStripeConnectSetup()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates support tickets only for the resolved boutique without account access", async () => {

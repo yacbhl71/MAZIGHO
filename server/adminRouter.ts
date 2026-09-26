@@ -928,8 +928,8 @@ export const adminRouter = router({
           action: "studio.store.saas_plan.assignment.save",
           entityType: "store",
           entityId: assigned.store.id,
-          summary: `Plan SaaS descriptif attribué : ${assigned.assignment.planName}.`,
-          metadata: { planId: assigned.assignment.planId, featureCount: assigned.assignment.features.length, featureFlagsApplied: false, subscriptionActivated: false, paymentCreated: false, emailSent: false },
+          summary: `Plan SaaS attribué : ${assigned.assignment.planName}.`,
+          metadata: { planId: assigned.assignment.planId, featureCount: assigned.assignment.features.length, lifetimePurchasePriceCents: assigned.assignment.lifetimePurchasePriceCents, featureFlagsApplied: false, subscriptionActivated: false, paymentCreated: false, emailSent: false },
         });
         return assigned;
       } catch (error) {

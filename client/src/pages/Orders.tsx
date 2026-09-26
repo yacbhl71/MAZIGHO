@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
 const STATUS: Record<string, { label: string; className: string }> = {
@@ -37,8 +38,12 @@ function formatDate(value: Date | string) {
 
 export default function Orders() {
   const { user, loading: authLoading } = useAuth();
+  const [location] = useLocation();
+  const { clearCart } = useCart();
+  const stripeSessionId = new URLSearchParams(location.split("?")[1] || "").get("stripe_session_id");
   const ordersQuery = trpc.shop.orders.getMyOrders.useQuery(undefined, { enabled: Boolean(user) });
   const returnsQuery = trpc.shop.orders.getMyReturns.useQuery(undefined, { enabled: Boolean(user) });
+  const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && stripeSessionId && /^cs_[A-Za-z0-9_]+$/.test(stripeSessionId)) });
   const [returnOrderId, setReturnOrderId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
 
@@ -48,8 +53,16 @@ export default function Orders() {
   });
 
   const orders = ordersQuery.data ?? [];
+  const { refetch: refetchOrders } = ordersQuery;
   const returns = returnsQuery.data ?? [];
   const returnByOrder = new Map(returns.map(r => [r.orderId, r]));
+
+  useEffect(() => {
+    if (stripeCheckoutStatus.data?.status === "paid") {
+      clearCart();
+      void refetchOrders();
+    }
+  }, [clearCart, refetchOrders, stripeCheckoutStatus.data?.status]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -65,6 +78,7 @@ export default function Orders() {
 
         <section className="py-12 md:py-16">
           <div className="container mx-auto px-4">
+            {stripeSessionId && <div className={stripeCheckoutStatus.data?.status === "paid" ? "mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950" : "mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950"} data-testid="stripe-checkout-return"><div className="flex items-start gap-3">{stripeCheckoutStatus.isLoading ? <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" /> : stripeCheckoutStatus.data?.status === "paid" ? <ShoppingBag className="mt-0.5 h-5 w-5 shrink-0" /> : <Package className="mt-0.5 h-5 w-5 shrink-0" />}<div><p className="font-semibold">{stripeCheckoutStatus.isLoading ? "Vérification du paiement Test…" : stripeCheckoutStatus.data?.status === "paid" ? "Paiement Test confirmé" : "Paiement en attente de confirmation"}</p><p className="mt-1 text-sm leading-6">{stripeCheckoutStatus.data?.status === "paid" ? "Votre commande est enregistrée et son suivi apparaît ci-dessous. Aucun paiement Live n’a été encaissé." : "Stripe n’a pas encore confirmé ce paiement. Actualisez dans quelques instants ou consultez le statut de votre session Stripe Test."}</p></div></div></div>}
             {authLoading || (user && ordersQuery.isLoading) ? (
               <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>
             ) : !user ? (
