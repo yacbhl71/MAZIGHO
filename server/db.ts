@@ -840,7 +840,7 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
     .limit(1);
   if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
 
-  const [design, categoryRows, productRows] = await Promise.all([
+  const [design, categoryRows, productRows, bannerRows] = await Promise.all([
     getDesignProfile(store.id),
     db.select({
       id: categories.id,
@@ -862,7 +862,28 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
       .where(and(eq(products.storeId, store.id), eq(products.status, "active")))
       .orderBy(desc(products.featured), asc(products.name))
       .limit(24),
+    db.select({
+      id: banners.id,
+      title: banners.title,
+      subtitle: banners.subtitle,
+      imageUrl: banners.imageUrl,
+      linkUrl: banners.linkUrl,
+      displayOrder: banners.displayOrder,
+    }).from(banners)
+      .where(and(eq(banners.storeId, store.id), eq(banners.active, 1)))
+      .orderBy(asc(banners.displayOrder), asc(banners.id)),
   ]);
+  const productIds = productRows.map(product => product.id);
+  const imageRows = productIds.length
+    ? await db.select({ productId: productImages.productId, imageUrl: productImages.imageUrl, displayOrder: productImages.displayOrder })
+      .from(productImages)
+      .where(and(eq(productImages.storeId, store.id), inArray(productImages.productId, productIds)))
+      .orderBy(asc(productImages.displayOrder), asc(productImages.id))
+    : [];
+  const firstImageByProductId = new Map<number, string>();
+  for (const image of imageRows) {
+    if (!firstImageByProductId.has(image.productId)) firstImageByProductId.set(image.productId, image.imageUrl);
+  }
 
   return {
     privatePreview: true as const,
@@ -885,6 +906,28 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
       customAccent: design.customAccent,
       customSoft: design.customSoft,
     },
+    navigation: design.navigationItems.filter(item => item.visible).map(item => ({
+      id: item.id,
+      label: item.label,
+      href: item.href,
+      kind: item.kind,
+    })),
+    banners: bannerRows.map(banner => ({
+      id: banner.id,
+      title: banner.title,
+      subtitle: banner.subtitle,
+      imageUrl: banner.imageUrl,
+      linkUrl: banner.linkUrl,
+    })),
+    homepageSections: {
+      reassurance: design.showReassurance,
+      discovery: design.showDiscovery,
+      story: design.showStory,
+      testimonials: design.showTestimonials,
+      editorial: design.showEditorial,
+      featured: design.showFeatured,
+      closing: design.showClosing,
+    },
     categories: categoryRows.map(category => ({
       id: category.id,
       name: category.name,
@@ -901,6 +944,7 @@ export async function getStudioPrivateStorefrontPreview(storeId: number) {
       slug: product.slug,
       description: product.description,
       featured: Boolean(product.featured),
+      imageUrl: firstImageByProductId.get(product.id) ?? null,
       availability: "not_for_sale" as const,
     })),
   };

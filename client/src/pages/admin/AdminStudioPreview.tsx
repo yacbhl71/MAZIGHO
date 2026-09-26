@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { ArrowLeft, CircleAlert, Eye, LockKeyhole, PackageOpen, PawPrint, ShoppingBag, Sparkles, Store } from "lucide-react";
+import { ArrowLeft, CircleAlert, Eye, Image, LayoutPanelTop, LockKeyhole, PackageOpen, PawPrint, ShoppingBag, Sparkles, Store } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 
 function PreviewLoading() {
@@ -32,6 +32,15 @@ export default function AdminStudioPreview() {
   const primary = preview?.identity.customPrimary || "#0F766E";
   const accent = preview?.identity.customAccent || "#F59E0B";
   const soft = preview?.identity.customSoft || "#F0FDFA";
+  const visibleSections: string[] = preview ? [
+    { label: "Réassurance", visible: preview.homepageSections.reassurance },
+    { label: "Catégories", visible: preview.homepageSections.discovery },
+    { label: "Histoire", visible: preview.homepageSections.story },
+    { label: "Témoignage / message", visible: preview.homepageSections.testimonials },
+    { label: "Bannière éditoriale", visible: preview.homepageSections.editorial },
+    { label: "Produits vedettes", visible: preview.homepageSections.featured },
+    { label: "Bloc final", visible: preview.homepageSections.closing },
+  ].filter(section => section.visible).map(section => section.label) : [];
 
   return (
     <DashboardLayout>
@@ -82,6 +91,21 @@ export default function AdminStudioPreview() {
             </section>
 
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: primary }}>En-tête de la vitrine</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Menu actuellement visible</h2></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{preview.navigation.length} onglet{preview.navigation.length > 1 ? "s" : ""}</Badge></div>
+              {preview.navigation.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Aucun onglet n’est actuellement visible. Le propriétaire peut afficher, masquer, renommer ou réordonner le menu depuis son panneau.</div> : <div className="mt-5 flex flex-wrap gap-2">{preview.navigation.map(item => <span key={item.id} className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800"><LayoutPanelTop className="mr-2 h-4 w-4" style={{ color: primary }} />{item.label || item.href}</span>)}</div>}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: primary }}>Carrousel</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Bannières visibles</h2></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{preview.banners.length} active{preview.banners.length > 1 ? "s" : ""}</Badge></div>
+              {preview.banners.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Aucune bannière active pour le moment. Le carrousel est entièrement facultatif et se règle depuis la vitrine propriétaire.</div> : <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{preview.banners.map(banner => <article key={banner.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50"><div className="aspect-[16/8] bg-slate-100">{banner.imageUrl ? <img src={banner.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center" style={{ color: primary, backgroundColor: soft }}><Image className="h-7 w-7" /></div>}</div><div className="p-4"><p className="font-semibold text-slate-950">{banner.title}</p>{banner.subtitle && <p className="mt-1 text-sm leading-6 text-slate-600">{banner.subtitle}</p>}<p className="mt-3 truncate text-xs font-medium text-slate-500">Destination : {banner.linkUrl || "—"}</p></div></article>)}</div>}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
+              <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: primary }}>Composition de l’accueil</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Sections rendues visibles</h2></div><Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{visibleSections.length} bloc{visibleSections.length > 1 ? "s" : ""}</Badge></div>
+              {visibleSections.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Les sections facultatives de l’accueil sont masquées. Cela ne supprime aucun texte, image, produit ou catégorie.</div> : <div className="mt-5 flex flex-wrap gap-2">{visibleSections.map(label => <span key={label} className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800"><span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accent }} />{label}</span>)}</div>}
+            </section>
+
+            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: primary }}>Univers de la boutique</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Catégories préparées</h2></div>
                 <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">{preview.categories.length} catégorie{preview.categories.length > 1 ? "s" : ""}</Badge>
@@ -91,7 +115,7 @@ export default function AdminStudioPreview() {
 
             <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
               <div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: primary }}>Catalogue privé</p><h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950">Fiches actuellement visibles dans l’aperçu</h2></div><Badge className="border-0 bg-slate-900 text-white hover:bg-slate-900">Non commercial</Badge></div>
-              {preview.products.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Aucune fiche active n’est disponible dans le snapshot privé.</div> : <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{preview.products.map(product => <article key={product.id} className="flex min-h-64 flex-col rounded-2xl border border-slate-200 bg-slate-50/60 p-5"><div className="flex items-center justify-between gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-white text-slate-700 shadow-sm"><PackageOpen className="h-5 w-5" /></div>{product.featured && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900"><Sparkles className="mr-1 h-3.5 w-3.5" /> Démonstration</Badge>}</div><h3 className="mt-6 text-lg font-bold tracking-tight text-slate-950">{product.name}</h3><p className="mt-3 flex-1 text-sm leading-6 text-slate-600">{product.description || "Fiche de démonstration à compléter avant toute ouverture."}</p><div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Non vendable</span><Button type="button" size="sm" disabled className="bg-slate-200 text-slate-500"><ShoppingBag className="mr-1.5 h-3.5 w-3.5" /> Vente désactivée</Button></div></article>)}</div>}
+              {preview.products.length === 0 ? <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm leading-6 text-slate-600">Aucune fiche active n’est disponible dans le snapshot privé.</div> : <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-3">{preview.products.map(product => <article key={product.id} className="flex min-h-64 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60"><div className="aspect-[16/9] bg-slate-100">{product.imageUrl ? <img src={product.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-slate-400"><PackageOpen className="h-7 w-7" /></div>}</div><div className="flex flex-1 flex-col p-5"><div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fiche produit</span>{product.featured && <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-900"><Sparkles className="mr-1 h-3.5 w-3.5" /> Vedette</Badge>}</div><h3 className="mt-4 text-lg font-bold tracking-tight text-slate-950">{product.name}</h3><p className="mt-3 flex-1 text-sm leading-6 text-slate-600">{product.description || "Fiche de démonstration à compléter avant toute ouverture."}</p><div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-200 pt-4"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Non vendable</span><Button type="button" size="sm" disabled className="bg-slate-200 text-slate-500"><ShoppingBag className="mr-1.5 h-3.5 w-3.5" /> Vente désactivée</Button></div></div></article>)}</div>}
             </section>
 
             <div className="rounded-2xl border border-teal-200 bg-teal-50 px-5 py-4 text-sm leading-6 text-teal-950"><strong>État préservé :</strong> cet aperçu ne crée ni domaine, ni session client, ni panier, ni promotion, ni paiement Stripe Test, ni commande fournisseur. La boutique demeure en <strong>`{preview.store.status}`</strong> et son storefront reste non public.</div>

@@ -45,7 +45,7 @@ function actionLabel(action: StageAction) {
   if (action === "navigation") return "Organiser le menu";
   if (action === "catalogue") return "Préparer le catalogue";
   if (action === "storefront_preview") return "Voir l’aperçu";
-  if (action === "public_opening") return "Préparer l’ouverture";
+  if (action === "public_opening") return "Ouvrir la revue manuelle";
   if (action === "studio") return "Revenir à Studio";
   return "Aucune action";
 }
@@ -59,7 +59,7 @@ export default function AdminStudioLaunchCenter() {
   const data = launchQuery.data;
   const stages = (data?.stages ?? []) as LaunchStage[];
   const progress = data ? Math.round((data.readyRequiredCount / Math.max(data.requiredStageCount, 1)) * 100) : 0;
-  const nextStage = stages.find(stage => stage.key !== "public_opening" && stage.state !== "ready" && stage.action) ?? stages.find(stage => stage.key === "private_preview");
+  const nextStage = stages.find(stage => stage.key !== "public_opening" && stage.state === "action" && stage.action) ?? stages.find(stage => stage.key === "public_opening");
   const nextDestination = nextStage ? destinationFor(nextStage.action, storeId) : null;
 
   if (!validStoreId) return <DashboardLayout><main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8"><InvalidStore /></main></DashboardLayout>;
@@ -72,9 +72,11 @@ export default function AdminStudioLaunchCenter() {
 
       {nextStage && nextDestination && <section className="flex flex-col gap-4 rounded-3xl border border-sky-200 bg-sky-50 p-5 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-bold text-sky-950">Prochaine étape recommandée : {nextStage.label}</p><p className="mt-1 text-sm leading-6 text-sky-900">{nextStage.detail}</p></div><Link href={nextDestination} className="inline-flex w-fit items-center justify-center rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800">{actionLabel(nextStage.action)} <ArrowRight className="ml-2 h-4 w-4" /></Link></section>}
 
+      {data.readyRequiredCount === data.requiredStageCount && <section className="flex flex-col gap-4 rounded-3xl border border-emerald-200 bg-emerald-50 p-5 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-bold text-emerald-950">Préparation privée terminée</p><p className="mt-1 max-w-3xl text-sm leading-6 text-emerald-900">Les éléments privés requis sont prêts. La suite reste une revue séparée : elle vérifie les informations nécessaires avant toute décision d’ouverture et ne publie rien d’elle-même.</p></div><Link href={`/admin/studio/revue-passage/${storeId}`} className="inline-flex w-fit items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">Ouvrir la revue manuelle <ArrowRight className="ml-2 h-4 w-4" /></Link></section>}
+
       <section className="grid gap-4 lg:grid-cols-2">{stages.map(stage => { const Icon = stageIcons[stage.key] ?? Rocket; const style = stateStyle(stage.state); const destination = destinationFor(stage.action, storeId); return <article key={stage.key} className={`relative overflow-hidden rounded-3xl border bg-white p-5 ${stage.key === "public_opening" ? "border-slate-300 bg-slate-50" : "border-slate-200 shadow-sm"}`}><div className="flex items-start gap-4"><div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${style.icon}`}>{stage.state === "ready" ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><h2 className="text-base font-bold text-slate-950">{stage.label}</h2><Badge variant="outline" className={style.chip}>{style.label}</Badge></div><p className="mt-2 text-sm leading-6 text-slate-600">{stage.detail}</p>{destination ? <Link href={destination} className="mt-4 inline-flex items-center text-sm font-semibold text-slate-900 hover:text-slate-600">{actionLabel(stage.action)} <ArrowRight className="ml-1.5 h-4 w-4" /></Link> : <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-slate-600"><LockKeyhole className="h-4 w-4" /> Décision séparée dans Studio</p>}</div></div></article>; })}</section>
 
-      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">L’ouverture publique est intentionnellement séparée.</p><p className="mt-1">Ce centre ne vérifie pas le DNS ou le certificat, ne modifie pas le domaine, ne crée pas de paiement et ne change jamais l’état de la boutique. Une éventuelle ouverture reste réservée à la revue d’activation explicite de MAZIGHO Studio.</p></div></div></section>
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">L’ouverture publique est intentionnellement séparée.</p><p className="mt-1">Le dernier jalon ouvre uniquement une revue manuelle, jamais la boutique. Ce centre ne vérifie pas le DNS ou le certificat, ne modifie pas le domaine, ne crée pas de paiement et ne change jamais l’état de la boutique. Une éventuelle ouverture reste réservée à la confirmation explicite de MAZIGHO Studio.</p></div></div></section>
     </>}
   </main></DashboardLayout>;
 }
