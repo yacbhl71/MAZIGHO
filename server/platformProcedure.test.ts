@@ -38,6 +38,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCustomDomainRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getIntegrationRequestRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.checkOwnerCustomDomainDns({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.linkOwnerCustomDomain({ storeId: 1, confirmationName: "Boutique cliente", domainVerifiedInVercel: true, linkAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getTenantResourceSummary()).rejects.toMatchObject({ code: "FORBIDDEN" });

@@ -41,6 +41,8 @@ import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
+import { needsStudioSupportAttention } from "./services/studioSupportAttention";
+import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
 import { getStudioCustomDomainConnectionStatus, inspectStoreCustomDomainDns, makeStoreCustomDomainConnection, parseStoreCustomDomainConnection } from "./services/storeCustomDomainConnection";
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
@@ -51,6 +53,7 @@ import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../sh
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
+import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequestRegistryQuery } from "../shared/studioIntegrationRequestRegistry";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
 
@@ -2717,6 +2720,13 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
       variants: stockVariantsByStore.get(store.id) ?? [],
       lowStockThreshold: stockThresholdByStore.get(store.id) ?? 5,
     });
+    const attention = assessStudioStoreAttention({
+      status: store.status,
+      isPlatformStore: store.isPlatformStore,
+      activeOwners: Number(membership?.activeOwners ?? 0),
+      activeProductCount: Number(catalog?.activeProductCount ?? 0),
+      stockSignal,
+    });
     return {
       ...store,
       setupCompleted: setupStoreIds.has(store.id),
@@ -2730,22 +2740,14 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
       paidOrderCount: Number(sales?.paidOrderCount ?? 0),
       latestOrderAt: sales?.latestOrderAt ?? null,
       stockSignal,
+      attentionScore: attention.score,
+      needsAttention: attention.needsAttention,
     };
   });
 
   const statusCount = (status: schema.Store["status"]) => inventory.filter(store => store.status === status).length;
   const page = paginateStudioInventory(inventory, input);
-  const scoreStoreAttention = (store: typeof inventory[number]) => {
-    if (["suspended", "closed"].includes(store.status)) return 100;
-    if (store.status === "limited") return 90;
-    if (store.status === "setup") return 80;
-    if (!store.isPlatformStore && store.activeOwners === 0) return 70;
-    if (store.stockSignal.out > 0) return 60;
-    if (store.stockSignal.low > 0) return 50;
-    if (!store.isPlatformStore && store.activeProductCount === 0) return 40;
-    return store.isPlatformStore ? 10 : 20;
-  };
-  const highlights = [...inventory].sort((left, right) => scoreStoreAttention(right) - scoreStoreAttention(left) || left.displayName.localeCompare(right.displayName, "fr-CH")).slice(0, 6);
+  const highlights = [...inventory].sort((left, right) => right.attentionScore - left.attentionScore || left.displayName.localeCompare(right.displayName, "fr-CH")).slice(0, 6);
   const giftSetupStores = inventory.filter(store => store.status === "setup" && store.giftProvisioned);
   return {
     summary: {
@@ -6316,6 +6318,22 @@ export async function getOwnerIntegrationRequests(storeId: number) {
 }
 
 /**
+ * Returns only the descriptive snapshot explicitly assigned to this boutique.
+ * It does not resolve pricing, invoices, billing status or feature enforcement.
+ */
+export async function getOwnerSaasPlanAssignment(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_plan_assignment"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  return parseStoreSaasPlanAssignment(row[0]?.value);
+}
+
+/**
  * Saves the owner’s reviewed integration wishlist, never an integration.
  * It intentionally cannot persist a key, OAuth token, endpoint or provider ID.
  */
@@ -6332,6 +6350,45 @@ export async function saveOwnerIntegrationRequests(storeId: number, ids: readonl
     "Demandes d’intégrations externes à examiner dans MAZIGHO Studio ; sans clé, OAuth, paiement, pixel, cookie, e-mail, campagne ni connexion active.",
   );
   return profile;
+}
+
+/**
+ * Lists current owner integration intents across client boutiques. The result is
+ * deliberately read-only and excludes credentials, provider accounts and all
+ * connection state; a saved wishlist is not a provider configuration.
+ */
+export async function getStudioIntegrationRequestRegistry(input: StudioIntegrationRequestRegistryQuery = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select({
+    storeId: storeSettings.storeId,
+    displayName: stores.displayName,
+    slug: stores.slug,
+    primaryDomain: stores.primaryDomain,
+    status: stores.status,
+    value: storeSettings.value,
+  }).from(storeSettings).innerJoin(stores, eq(stores.id, storeSettings.storeId))
+    .where(and(eq(storeSettings.key, "owner_integration_requests"), eq(stores.isPlatformStore, 0)));
+  const requests = rows.flatMap(row => parseStoreIntegrationRequestProfile(row.value).requests.map(request => ({
+    storeId: row.storeId,
+    integrationId: request.id,
+    requestedAt: request.requestedAt,
+    store: { displayName: row.displayName, slug: row.slug, primaryDomain: row.primaryDomain, status: row.status as "setup" | "active" | "limited" | "suspended" | "closed" },
+  }))).sort((left, right) => right.requestedAt.localeCompare(left.requestedAt)
+    || left.store.displayName.localeCompare(right.store.displayName, "fr-CH")
+    || left.integrationId.localeCompare(right.integrationId));
+  const page = paginateStudioIntegrationRequestRegistry(requests, input);
+  return {
+    ...page,
+    summary: {
+      total: requests.length,
+      stores: new Set(requests.map(request => request.storeId)).size,
+      stripe: requests.filter(request => request.integrationId === "stripe").length,
+      paypal: requests.filter(request => request.integrationId === "paypal").length,
+      analytics: requests.filter(request => request.integrationId === "google_analytics").length,
+      email: requests.filter(request => request.integrationId === "transactional_email").length,
+    },
+  };
 }
 
 /** Reads support tickets from the current boutique only, without customer, credential or account data. */
@@ -6369,7 +6426,7 @@ export async function createOwnerSupportTicket(input: { storeId: number; topic: 
 }
 
 /** Lists compact Studio support tickets across client boutiques, with bounded pages and no account secrets. */
-export async function getStudioSupportTickets(input: { query?: string; status?: StoreSupportTicketStatus; page?: number; pageSize?: 20 | 50 | 100 } = {}) {
+export async function getStudioSupportTickets(input: { query?: string; status?: StoreSupportTicketStatus; needsAttention?: boolean; page?: number; pageSize?: 20 | 50 | 100 } = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const rows = await db.select({
@@ -6379,16 +6436,19 @@ export async function getStudioSupportTickets(input: { query?: string; status?: 
     value: storeSettings.value,
   }).from(storeSettings).innerJoin(stores, eq(stores.id, storeSettings.storeId))
     .where(and(eq(storeSettings.key, "owner_support_tickets"), eq(stores.isPlatformStore, 0)));
+  const now = new Date();
   const allTickets = rows.flatMap(row => parseStoreSupportTicketProfile(row.value).tickets.map(ticket => ({
     ...ticket,
+    needsAttention: needsStudioSupportAttention(ticket, now),
     store: { id: row.storeId, displayName: row.displayName, primaryDomain: row.primaryDomain },
   }))).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const query = input.query?.trim().toLocaleLowerCase("fr-CH") || "";
   const filtered = allTickets.filter(ticket => {
     if (input.status && ticket.status !== input.status) return false;
+    if (input.needsAttention && !ticket.needsAttention) return false;
     if (!query) return true;
     return [ticket.store.displayName, ticket.store.primaryDomain, ticket.subject, ticket.message, ticket.topic].join(" ").toLocaleLowerCase("fr-CH").includes(query);
-  });
+  }).sort((left, right) => input.needsAttention ? left.updatedAt.localeCompare(right.updatedAt) : 0);
   const pageSize = input.pageSize === 50 || input.pageSize === 100 ? input.pageSize : 20;
   const total = filtered.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -6402,6 +6462,7 @@ export async function getStudioSupportTickets(input: { query?: string; status?: 
       open: allTickets.filter(ticket => ticket.status === "open").length,
       reviewing: allTickets.filter(ticket => ticket.status === "reviewing").length,
       resolved: allTickets.filter(ticket => ticket.status === "resolved").length,
+      needsAttention: allTickets.filter(ticket => ticket.needsAttention).length,
     },
     pagination: { page, pageSize, total, totalPages, from, to },
   };

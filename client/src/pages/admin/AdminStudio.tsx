@@ -69,6 +69,7 @@ type ProvisioningDraftForm = {
 type ManagedStoreStatus = "setup" | "active" | "limited" | "suspended" | "closed";
 type RegistryStatusFilter = "all" | ManagedStoreStatus;
 type RegistryOfferFilter = "all" | StoreCommercialOfferMode;
+type RegistryAttentionFilter = "all" | "attention";
 
 type LifecycleTarget = {
   id: number;
@@ -271,6 +272,7 @@ export default function AdminStudio() {
   const [registrySearch, setRegistrySearch] = useState("");
   const [registryStatus, setRegistryStatus] = useState<RegistryStatusFilter>("all");
   const [registryOffer, setRegistryOffer] = useState<RegistryOfferFilter>("all");
+  const [registryAttention, setRegistryAttention] = useState<RegistryAttentionFilter>("all");
   const [registryPage, setRegistryPage] = useState(1);
   const [registryPageSize, setRegistryPageSize] = useState<20 | 50 | 100>(20);
   const [selectedSetupReadinessStoreId, setSelectedSetupReadinessStoreId] = useState<number | null>(null);
@@ -324,6 +326,7 @@ export default function AdminStudio() {
     query: registrySearch.trim() || undefined,
     status: registryStatus === "all" ? undefined : registryStatus,
     offerMode: registryOffer === "all" ? undefined : registryOffer,
+    needsAttention: registryAttention === "attention" ? true : undefined,
     page: registryPage,
     pageSize: registryPageSize,
   }, { refetchOnWindowFocus: false });
@@ -619,11 +622,12 @@ export default function AdminStudio() {
     };
   }), [inventoryHighlights]);
   const registryPagination = inventory?.pagination;
-  const registryFiltersActive = Boolean(registrySearch.trim() || registryStatus !== "all" || registryOffer !== "all");
+  const registryFiltersActive = Boolean(registrySearch.trim() || registryStatus !== "all" || registryOffer !== "all" || registryAttention !== "all");
   const resetRegistryFilters = () => {
     setRegistrySearch("");
     setRegistryStatus("all");
     setRegistryOffer("all");
+    setRegistryAttention("all");
     setRegistryPage(1);
   };
 
@@ -717,7 +721,7 @@ export default function AdminStudio() {
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parc réel de la plateforme</p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Les boutiques enregistrées, sans ouvrir leurs données internes.</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque ligne regroupe uniquement l’état opérationnel, les membres actifs, le catalogue et les commandes. Les identités client, secrets et contenus détaillés restent isolés.</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Chaque ligne regroupe uniquement l’état opérationnel, les membres actifs, le catalogue et les commandes. Le filtre « À traiter » permet de retrouver les signaux déjà connus dans un grand parc, sans modifier aucune boutique. Les identités client, secrets et contenus détaillés restent isolés.</p>
             </div>
             <div className="flex flex-wrap gap-2"><Link href="/admin/studio/facturation"><Button variant="outline" className="border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100"><ReceiptText className="mr-2 h-4 w-4" /> Abonnements & factures</Button></Link><Link href="/admin/studio/themes"><Button variant="outline" className="border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100"><Palette className="mr-2 h-4 w-4" /> Thèmes</Button></Link><Button variant="outline" onClick={() => inventoryQuery.refetch()} disabled={inventoryQuery.isFetching} className="w-fit border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
               <RefreshCw className={`mr-2 h-4 w-4 ${inventoryQuery.isFetching ? "animate-spin" : ""}`} /> Actualiser
@@ -738,14 +742,15 @@ export default function AdminStudio() {
               </div>
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:p-4" data-testid="studio-inventory-filters">
-                <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_125px_auto]">
+                <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_180px_170px_125px_auto]">
                   <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={registrySearch} onChange={event => { setRegistrySearch(event.target.value); setRegistryPage(1); }} className="min-h-11 bg-white pl-9" placeholder="Nom, sous-domaine ou domaine…" aria-label="Rechercher une boutique" /></div>
                   <Select value={registryStatus} onValueChange={value => { setRegistryStatus(value as RegistryStatusFilter); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue placeholder="État" /></SelectTrigger><SelectContent><SelectItem value="all">Tous les états</SelectItem><SelectItem value="setup">À préparer</SelectItem><SelectItem value="active">Actives</SelectItem><SelectItem value="limited">Accès limité</SelectItem><SelectItem value="suspended">Suspendues</SelectItem><SelectItem value="closed">Clôturées</SelectItem></SelectContent></Select>
                   <Select value={registryOffer} onValueChange={value => { setRegistryOffer(value as RegistryOfferFilter); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue placeholder="Offre" /></SelectTrigger><SelectContent><SelectItem value="all">Toutes les offres</SelectItem><SelectItem value="rental">Location SaaS</SelectItem><SelectItem value="perpetual_sale">Vente définitive</SelectItem><SelectItem value="undecided">À définir</SelectItem></SelectContent></Select>
+                  <Select value={registryAttention} onValueChange={value => { setRegistryAttention(value as RegistryAttentionFilter); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue placeholder="Suivi" /></SelectTrigger><SelectContent><SelectItem value="all">Tout le parc</SelectItem><SelectItem value="attention">À traiter</SelectItem></SelectContent></Select>
                   <Select value={String(registryPageSize)} onValueChange={value => { setRegistryPageSize(Number(value) as 20 | 50 | 100); setRegistryPage(1); }}><SelectTrigger className="min-h-11 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="20">20 / page</SelectItem><SelectItem value="50">50 / page</SelectItem><SelectItem value="100">100 / page</SelectItem></SelectContent></Select>
                   <Button type="button" variant="outline" className="min-h-11 border-slate-300 bg-white" disabled={!registryFiltersActive} onClick={resetRegistryFilters}><RotateCcw className="mr-2 h-4 w-4" /> Réinitialiser</Button>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs leading-5 text-slate-600"><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{registryPagination?.total ?? 0} résultat(s)</Badge><span>La recherche porte uniquement sur le nom, le slug et le domaine enregistrés ; elle ne lit aucune donnée client.</span></div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs leading-5 text-slate-600"><Badge variant="outline" className="border-slate-200 bg-white text-slate-700">{registryPagination?.total ?? 0} résultat(s)</Badge>{registryAttention === "attention" && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">File de suivi</Badge>}<span>« À traiter » regroupe seulement préparation, accès, propriétaire, stock ou catalogue déjà visibles dans Studio : ni alerte, ni suspension, ni droit ne sont automatisés.</span></div>
               </div>
 
               <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">

@@ -28,6 +28,12 @@ describe("Studio registry pagination", () => {
     expect(result.stores.every(store => !store.isPlatformStore && store.commercialOfferMode === "rental")).toBe(true);
   });
 
+  it("filters the large registry using an already-derived attention signal", () => {
+    const result = paginateStudioInventory(stores.map((store, index) => ({ ...store, needsAttention: index % 2 === 0 })), { needsAttention: true, pageSize: 100 });
+    expect(result.stores).not.toHaveLength(0);
+    expect(result.stores.every(store => store.needsAttention)).toBe(true);
+  });
+
   it("clamps an obsolete page after filters reduce the result set", () => {
     const result = paginateStudioInventory(stores, { status: "limited", page: 99, pageSize: 20 });
     expect(result.pagination.page).toBe(1);

@@ -339,6 +339,9 @@ export const ownerRouter = router({
   getTeam: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreTeamMembers(ctx.store!.id);
   }),
+  getSaasPlanAssignment: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerSaasPlanAssignment(ctx.store!.id);
+  }),
   prepareTeamInvitation: storeOwnerProcedure.input(z.object({
     name: z.string().trim().min(2).max(160),
     email: z.string().trim().email().max(320),

@@ -19,6 +19,7 @@ vi.mock("./db", () => ({
   acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
   getOwnerIntegrationRequests: vi.fn(async () => ({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] })),
   saveOwnerIntegrationRequests: vi.fn(async (_storeId, ids) => ({ requests: ids.map((id: string) => ({ id, requestedAt: "2026-09-26T00:00:00.000Z" })) })),
+  getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
   getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
   createOwnerSupportTicket: vi.fn(async ({ storeId, ...input }) => ({ tickets: [{ id: "support123", ...input, storeId, status: "open", createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", operatorReply: "" }] })),
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
@@ -135,6 +136,15 @@ describe("owner product variant routes", () => {
       ],
     });
     expect(db.saveOwnerIntegrationRequests).toHaveBeenCalledWith(77, ["stripe", "transactional_email"]);
+  });
+
+  it("shows the descriptive SaaS plan only to the current store owner", async () => {
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.getSaasPlanAssignment()).resolves.toMatchObject({ planId: "basic", status: "draft" });
+    expect(db.getOwnerSaasPlanAssignment).toHaveBeenCalledWith(77);
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.getSaasPlanAssignment()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("creates support tickets only for the resolved boutique without account access", async () => {

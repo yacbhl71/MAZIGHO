@@ -35,6 +35,7 @@ const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminStudioSaasBilling = lazy(() => import("./pages/admin/AdminStudioSaasBilling"));
 const AdminStudioSupportTickets = lazy(() => import("./pages/admin/AdminStudioSupportTickets"));
 const AdminStudioCustomDomains = lazy(() => import("./pages/admin/AdminStudioCustomDomains"));
+const AdminStudioIntegrationRequests = lazy(() => import("./pages/admin/AdminStudioIntegrationRequests"));
 const AdminStudioThemes = lazy(() => import("./pages/admin/AdminStudioThemes"));
 const AdminStudioPreview = lazy(() => import("./pages/admin/AdminStudioPreview"));
 const AdminStudioOwnerWorkspacePreview = lazy(() => import("./pages/admin/AdminStudioOwnerWorkspacePreview"));
@@ -410,6 +411,7 @@ function Router() {
         <Route path={"/admin/studio/facturation"} component={AdminStudioSaasBilling} />
         <Route path={"/admin/studio/assistance"} component={AdminStudioSupportTickets} />
         <Route path={"/admin/studio/domaines"} component={AdminStudioCustomDomains} />
+        <Route path={"/admin/studio/integrations"} component={AdminStudioIntegrationRequests} />
         <Route path={"/admin/studio/themes"} component={AdminStudioThemes} />
         <Route path={"/admin/studio"} component={AdminStudio} />
         <Route path={"/admin/produits"} component={AdminProducts} />

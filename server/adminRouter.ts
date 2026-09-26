@@ -764,6 +764,7 @@ export const adminRouter = router({
       query: z.string().trim().max(80).optional(),
       status: z.enum(["setup", "active", "limited", "suspended", "closed"]).optional(),
       offerMode: z.enum(["undecided", "rental", "perpetual_sale"]).optional(),
+      needsAttention: z.boolean().optional(),
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
@@ -773,6 +774,13 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioCustomDomainRegistry(input ?? {})),
+    getIntegrationRequestRegistry: platformProcedure.input(z.object({
+      query: z.string().trim().max(80).optional(),
+      integrationId: z.enum(["stripe", "paypal", "google_analytics", "transactional_email"]).optional(),
+      status: z.enum(["setup", "active", "limited", "suspended", "closed"]).optional(),
+      page: z.number().int().positive().max(10_000).optional(),
+      pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
+    }).optional()).query(async ({ input }) => db.getStudioIntegrationRequestRegistry(input ?? {})),
     checkOwnerCustomDomainDns: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       try {
         const result = await db.checkStudioOwnerCustomDomainDns(input.storeId);
@@ -958,6 +966,7 @@ export const adminRouter = router({
     getStoreSupportTickets: platformProcedure.input(z.object({
       query: z.string().trim().max(100).optional(),
       status: z.enum(["open", "reviewing", "resolved"]).optional(),
+      needsAttention: z.boolean().optional(),
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => {

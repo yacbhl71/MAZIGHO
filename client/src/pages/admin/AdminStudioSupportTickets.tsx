@@ -12,7 +12,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Headphones, Loader2, LockKey
 import type { StoreSupportTicketStatus } from "@shared/storeSupportTickets";
 import { toast } from "sonner";
 
-type TicketFilter = "all" | StoreSupportTicketStatus;
+type TicketFilter = "all" | "attention" | StoreSupportTicketStatus;
 
 const statusPresentation = {
   open: { label: "Ouvert", className: "border-amber-200 bg-amber-50 text-amber-900" },
@@ -36,7 +36,8 @@ export default function AdminStudioSupportTickets() {
   const [pageSize, setPageSize] = useState<20 | 50 | 100>(20);
   const ticketsQuery = trpc.admin.studio.getStoreSupportTickets.useQuery({
     query: query.trim() || undefined,
-    status: status === "all" ? undefined : status,
+    status: status === "all" || status === "attention" ? undefined : status,
+    needsAttention: status === "attention" ? true : undefined,
     page,
     pageSize,
   }, { refetchOnWindowFocus: false });
@@ -121,16 +122,17 @@ export default function AdminStudioSupportTickets() {
             <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950">Les tickets sont temporairement indisponibles. Aucun ticket, accès ou compte n’a été modifié.</CardContent></Card>
           ) : (
             <>
-              <section className="grid gap-4 md:grid-cols-3">
+              <section className="grid gap-4 md:grid-cols-4">
                 <Metric label="Tickets ouverts" value={ticketsQuery.data?.summary.open ?? 0} tone="amber" />
                 <Metric label="En cours" value={ticketsQuery.data?.summary.reviewing ?? 0} tone="sky" />
+                <Metric label="À traiter" value={ticketsQuery.data?.summary.needsAttention ?? 0} tone="rose" />
                 <Metric label="Résolus" value={ticketsQuery.data?.summary.resolved ?? 0} tone="emerald" />
               </section>
 
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Headphones className="h-5 w-5 text-violet-700" /> File d’assistance</CardTitle>
-                  <CardDescription>Recherche, filtres et pagination permettent de suivre un grand nombre de boutiques sans charger une page interminable.</CardDescription>
+                  <CardDescription>Recherche, filtres et pagination permettent de suivre un grand nombre de boutiques sans charger une page interminable. « À traiter » regroupe les tickets actifs sans réponse Studio ou restés actifs plus de 72 heures ; c’est un repère interne, pas un SLA ni une notification automatique.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_120px]">
@@ -139,7 +141,7 @@ export default function AdminStudioSupportTickets() {
                       <Input className="min-h-11 bg-white pl-9" value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="Boutique, domaine ou sujet…" />
                     </div>
                     <select value={status} onChange={event => { setStatus(event.target.value as TicketFilter); setPage(1); }} className="min-h-11 rounded-md border border-slate-200 bg-white px-3 text-sm">
-                      <option value="all">Tous les états</option><option value="open">Ouverts</option><option value="reviewing">En cours</option><option value="resolved">Résolus</option>
+                      <option value="all">Tous les états</option><option value="attention">À traiter</option><option value="open">Ouverts</option><option value="reviewing">En cours</option><option value="resolved">Résolus</option>
                     </select>
                     <select value={String(pageSize)} onChange={event => { setPageSize(Number(event.target.value) as 20 | 50 | 100); setPage(1); }} className="min-h-11 rounded-md border border-slate-200 bg-white px-3 text-sm">
                       <option value="20">20 / page</option><option value="50">50 / page</option><option value="100">100 / page</option>
@@ -155,7 +157,7 @@ export default function AdminStudioSupportTickets() {
                             <button key={ticket.id} type="button" onClick={() => setSelectedId(ticket.id)} className={`w-full rounded-xl border p-4 text-left transition ${selectedId === ticket.id ? "border-violet-400 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white hover:border-violet-200"}`}>
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-950">{ticket.subject}</p><Badge variant="outline" className={ticketStatus.className}>{ticketStatus.label}</Badge></div>
+                                  <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-950">{ticket.subject}</p><Badge variant="outline" className={ticketStatus.className}>{ticketStatus.label}</Badge>{ticket.needsAttention && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-800">À traiter</Badge>}</div>
                                   <p className="mt-1 text-xs font-medium text-violet-800">{ticket.store.displayName} · {ticket.store.primaryDomain}</p>
                                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-700">{ticket.message}</p>
                                 </div>
@@ -210,7 +212,7 @@ export default function AdminStudioSupportTickets() {
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: number; tone: "amber" | "sky" | "emerald" }) {
-  const classes = tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-950" : tone === "sky" ? "border-sky-200 bg-sky-50 text-sky-950" : "border-emerald-200 bg-emerald-50 text-emerald-950";
+function Metric({ label, value, tone }: { label: string; value: number; tone: "amber" | "sky" | "emerald" | "rose" }) {
+  const classes = tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-950" : tone === "sky" ? "border-sky-200 bg-sky-50 text-sky-950" : tone === "rose" ? "border-rose-200 bg-rose-50 text-rose-950" : "border-emerald-200 bg-emerald-50 text-emerald-950";
   return <Card className={classes}><CardContent className="p-5"><p className="text-xs font-bold uppercase tracking-wide opacity-75">{label}</p><p className="mt-2 text-3xl font-bold">{value}</p><p className="mt-1 text-xs leading-5 opacity-80">Tickets isolés par boutique.</p></CardContent></Card>;
 }
