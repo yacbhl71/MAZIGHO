@@ -3090,15 +3090,6 @@ async function getStudioClientStoreForBilling(storeId: number) {
   return store;
 }
 
-async function countStudioLifetimePlanAssignments() {
-  const db = await getDb();
-  if (!db) throw new Error("Database unavailable");
-  const rows = await db.select({ value: storeSettings.value }).from(storeSettings)
-    .innerJoin(stores, eq(stores.id, storeSettings.storeId))
-    .where(and(eq(stores.isPlatformStore, 0), eq(storeSettings.key, "saas_plan_assignment")));
-  return rows.reduce((count, row) => count + (parseStoreSaasPlanAssignment(row.value)?.planId === "lifetime" ? 1 : 0), 0);
-}
-
 /**
  * Reads the global catalogue of draft SaaS templates. It is a Studio-only
  * planning aid: it neither assigns a plan to a store nor enforces a feature.
@@ -3133,7 +3124,7 @@ export async function assignStudioStoreSaasPlanTemplate(input: { storeId: number
   const template = catalog.plans.find(plan => plan.id === input.planId);
   if (!template) throw new Error("SAAS_PLAN_TEMPLATE_NOT_FOUND");
   const lifetimePurchasePriceCents = template.id === "lifetime"
-    ? getLifetimePriceCents(await countStudioLifetimePlanAssignments())
+    ? getLifetimePriceCents()
     : null;
   const assignment = assignStoreSaasPlanTemplate(template, new Date().toISOString(), lifetimePurchasePriceCents);
   await setStoreSettingValue(

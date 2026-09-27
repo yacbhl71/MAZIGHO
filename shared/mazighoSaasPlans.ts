@@ -11,8 +11,6 @@ export type MazighoSaasPlan = {
   monthlyAmountCents: number;
   oneTimeAmountCents: number | null;
   commissionRateBps: number;
-  launchLimitedToStores?: number;
-  launchAmountCents?: number;
 };
 
 /**
@@ -20,8 +18,8 @@ export type MazighoSaasPlan = {
  * values, not display-only labels. Stripe application fees use basis points
  * (250 = 2.50%) to keep all calculations in integer minor units.
  *
- * The founder Lifetime offer remains a manually attributed, limited offer; it
- * is not part of the normal Free / Basic / Pro progression.
+ * The Lifetime offer remains a manually attributed Studio option; it is not
+ * part of the normal Free / Basic / Pro progression or public landing page.
  */
 export const mazighoSaasPlans: readonly MazighoSaasPlan[] = [
   {
@@ -57,13 +55,11 @@ export const mazighoSaasPlans: readonly MazighoSaasPlan[] = [
   {
     id: "lifetime",
     name: "LIFETIME",
-    description: "149 CHF une fois pour les 100 premières boutiques, puis 300 CHF ; 0 % de commission. Attribution fondatrice manuelle.",
+    description: "300 CHF une fois ; 0 % de commission. Attribution manuelle depuis MAZIGHO Studio.",
     currency: "CHF",
     billingKind: "one_time",
     monthlyAmountCents: 0,
     oneTimeAmountCents: 30000,
-    launchLimitedToStores: 100,
-    launchAmountCents: 14900,
     commissionRateBps: 0,
   },
 ] as const;
@@ -76,10 +72,8 @@ export function getMazighoSaasPlan(value: unknown): MazighoSaasPlan | null {
   return isMazighoSaasPlanId(value) ? mazighoSaasPlans.find(plan => plan.id === value) ?? null : null;
 }
 
-/** Returns the price captured for a manually confirmed Lifetime founder slot. */
-export function getLifetimePriceCents(assignedLifetimeStores: number): number {
+/** Returns the one-time price captured for a manually confirmed Studio Lifetime sale. */
+export function getLifetimePriceCents(): number {
   const lifetime = getMazighoSaasPlan("lifetime")!;
-  return assignedLifetimeStores >= (lifetime.launchLimitedToStores ?? 0)
-    ? lifetime.oneTimeAmountCents ?? 0
-    : lifetime.launchAmountCents ?? lifetime.oneTimeAmountCents ?? 0;
+  return lifetime.oneTimeAmountCents ?? 0;
 }

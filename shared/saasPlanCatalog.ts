@@ -60,7 +60,7 @@ const defaultPlanCatalog: SaasPlanCatalog = {
     { id: "free", name: "FREE", description: "0 CHF/mois + 2,5 % de commission. Les essentiels pour préparer et lancer une boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "variant_stock", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
     { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
     { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import"], status: "draft" },
-    { id: "lifetime", name: "LIFETIME", description: "149 CHF unique pour les 100 premières boutiques, puis 300 CHF ; 0 % de commission. Attribution fondatrice manuelle.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
   ],
 };
 

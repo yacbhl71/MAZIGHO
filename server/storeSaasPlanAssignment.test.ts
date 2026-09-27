@@ -10,7 +10,7 @@ describe("store SaaS plan assignment", () => {
   it("requires and preserves the manually selected Lifetime purchase price", () => {
     const lifetime = { id: "lifetime", name: "Lifetime", description: "", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF" as const, features: [], status: "draft" as const };
     expect(() => assignStoreSaasPlanTemplate(lifetime, "2026-09-26T00:00:00.000Z")).toThrow("SAAS_LIFETIME_PRICE_SNAPSHOT_REQUIRED");
-    expect(assignStoreSaasPlanTemplate(lifetime, "2026-09-26T00:00:00.000Z", 14900).lifetimePurchasePriceCents).toBe(14900);
+    expect(assignStoreSaasPlanTemplate(lifetime, "2026-09-26T00:00:00.000Z", 30000).lifetimePurchasePriceCents).toBe(30000);
   });
 
   it("discards malformed assignment data", () => {

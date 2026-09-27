@@ -10,9 +10,7 @@ describe("official MAZIGHO CHF plans", () => {
     expect(getMazighoSaasPlan("lifetime")).toMatchObject({ currency: "CHF", oneTimeAmountCents: 30000, commissionRateBps: 0 });
   });
 
-  it("uses the founder price only for the first one hundred Lifetime snapshots", () => {
-    expect(getLifetimePriceCents(0)).toBe(14900);
-    expect(getLifetimePriceCents(99)).toBe(14900);
-    expect(getLifetimePriceCents(100)).toBe(30000);
+  it("keeps the Lifetime Studio sale at a single CHF 300 price", () => {
+    expect(getLifetimePriceCents()).toBe(30000);
   });
 });
