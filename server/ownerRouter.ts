@@ -11,6 +11,7 @@ import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
 import { storeSupportTicketTopics } from "../shared/storeSupportTickets";
 import { ownerCsvExportKinds } from "./services/ownerCsvExport";
 import { createOwnerLemonSqueezyBillingCheckout } from "./lemonSqueezyCheckout";
+import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
@@ -383,7 +384,14 @@ export const ownerRouter = router({
     rows: z.array(ownerCatalogueImportRow).min(1).max(100),
     acknowledged: z.literal(true),
   })).mutation(async ({ ctx, input }) => {
-    return await db.importOwnerCatalogueProducts({ storeId: ctx.store!.id, rows: input.rows });
+    try {
+      return await db.importOwnerCatalogueProducts({ storeId: ctx.store!.id, rows: input.rows });
+    } catch (error) {
+      if (error instanceof Error && error.message === "SAAS_ACTIVE_PRODUCT_LIMIT_REACHED") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La limite de produits actifs de votre plan est atteinte. Archivez un produit ou passez à une offre adaptée." });
+      }
+      throw error;
+    }
   }),
   getTeam: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getStoreTeamMembers(ctx.store!.id);
@@ -397,12 +405,19 @@ export const ownerRouter = router({
     role: z.enum(["manager", "catalog_editor", "support_agent", "order_operator"]),
     confirmationEmail: z.string().trim().email().max(320),
   })).mutation(async ({ ctx, input }) => {
-    const prepared = await db.prepareStoreTeamInvitation({ ...input, storeId: ctx.store!.id });
-    return {
-      ...prepared,
-      activationLink: prepared.activation ? getAccountInvitationLink(prepared.activation.token) : null,
-      emailSent: false,
-    };
+    try {
+      const prepared = await db.prepareStoreTeamInvitation({ ...input, storeId: ctx.store!.id });
+      return {
+        ...prepared,
+        activationLink: prepared.activation ? getAccountInvitationLink(prepared.activation.token) : null,
+        emailSent: false,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === "SAAS_TEAM_MEMBER_LIMIT_REACHED") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La limite d’accès délégués de votre plan est atteinte. Désactivez un accès ou passez à une offre adaptée." });
+      }
+      throw error;
+    }
   }),
   setTeamMemberStatus: storeOwnerProcedure.input(z.object({
     membershipId: z.number().int().positive(),
@@ -700,7 +715,8 @@ export const ownerRouter = router({
     });
   }),
   getMediaUsage: storeManagementProcedure.query(async ({ ctx }) => {
-    return await getStoreMediaUsage(ctx.store!.id);
+    const entitlements = await db.getStoreSaasEntitlements(ctx.store!.id);
+    return await getStoreMediaUsage(ctx.store!.id, entitlements.mediaQuotaBytes);
   }),
   getShippingReturnsSettings: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerShippingReturnsSettings(ctx.store!.id);
@@ -807,11 +823,25 @@ export const ownerRouter = router({
     }),
   }),
   createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {
-    return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
+    try {
+      return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
+    } catch (error) {
+      if (error instanceof Error && error.message === "SAAS_ACTIVE_PRODUCT_LIMIT_REACHED") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La limite de produits actifs de votre plan est atteinte. Archivez un produit ou passez à une offre adaptée." });
+      }
+      throw error;
+    }
   }),
   updateProduct: storeManagementProcedure.input(productFields.extend({ id: z.number().int().positive() }).partial({ categoryId: true, name: true, slug: true, price: true, stock: true, featured: true, status: true, images: true })).mutation(async ({ ctx, input }) => {
     const { id, ...changes } = input;
-    return await db.updateProduct(id, changes, ctx.store!.id);
+    try {
+      return await db.updateProduct(id, changes, ctx.store!.id);
+    } catch (error) {
+      if (error instanceof Error && error.message === "SAAS_ACTIVE_PRODUCT_LIMIT_REACHED") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "La limite de produits actifs de votre plan est atteinte. Archivez un produit ou passez à une offre adaptée." });
+      }
+      throw error;
+    }
   }),
   getProductVariants: storeManagementProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     return await db.getOwnerProductVariants(input.productId, ctx.store!.id);
@@ -871,11 +901,13 @@ export const ownerRouter = router({
     if (!buffer.length || buffer.length > 5 * 1024 * 1024) throw new Error("IMAGE_SIZE_INVALID");
     const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "visuel";
     try {
-      const { url } = await storagePut(`owner-storefront/${ctx.store!.id}/${Date.now()}-${safeName}.${extension}`, buffer, contentType, { storeId: ctx.store!.id });
+      const entitlements = await db.getStoreSaasEntitlements(ctx.store!.id);
+      const { url } = await storagePut(`owner-storefront/${ctx.store!.id}/${Date.now()}-${safeName}.${extension}`, buffer, contentType, { storeId: ctx.store!.id, quotaBytes: entitlements.mediaQuotaBytes });
       return { url };
     } catch (error) {
       if (error instanceof Error && error.message === "STORE_MEDIA_QUOTA_EXCEEDED") {
-        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: "Le quota de 500 Mo de cette boutique est atteint. Supprimez ou remplacez un visuel avant de téléverser un nouveau fichier." });
+        const entitlements = await db.getStoreSaasEntitlements(ctx.store!.id);
+        throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: `Le quota de ${formatSaasMediaQuota(entitlements.mediaQuotaBytes)} de cette boutique est atteint. Supprimez ou remplacez un visuel avant de téléverser un nouveau fichier.` });
       }
       throw error;
     }

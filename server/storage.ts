@@ -69,19 +69,19 @@ async function getBlobPrefixUsage(prefix: string): Promise<number> {
  * Media is scoped by storeId in the pathname so one tenant never affects
  * another tenant's counter.
  */
-export async function getStoreMediaUsage(storeId: number): Promise<StoreMediaUsage> {
+export async function getStoreMediaUsage(storeId: number, quotaBytes = DEFAULT_STORE_MEDIA_QUOTA_BYTES): Promise<StoreMediaUsage> {
   if (!Number.isInteger(storeId) || storeId <= 0) throw new Error("STORE_MEDIA_SCOPE_INVALID");
+  if (!Number.isInteger(quotaBytes) || quotaBytes <= 0) throw new Error("STORE_MEDIA_QUOTA_INVALID");
   if (!usesVercelBlob()) {
-    return { usedBytes: 0, quotaBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES, remainingBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES, managedBy: "legacy_storage" };
+    return { usedBytes: 0, quotaBytes, remainingBytes: quotaBytes, managedBy: "legacy_storage" };
   }
   const usedBytes = (await Promise.all(getStoreMediaPrefixes(storeId).map(getBlobPrefixUsage))).reduce((sum, value) => sum + value, 0);
-  const quotaBytes = DEFAULT_STORE_MEDIA_QUOTA_BYTES;
   return { usedBytes, quotaBytes, remainingBytes: Math.max(0, quotaBytes - usedBytes), managedBy: "vercel_blob" };
 }
 
-export async function assertStoreMediaQuota(storeId: number, uploadBytes: number): Promise<StoreMediaUsage> {
+export async function assertStoreMediaQuota(storeId: number, uploadBytes: number, quotaBytes = DEFAULT_STORE_MEDIA_QUOTA_BYTES): Promise<StoreMediaUsage> {
   if (!Number.isInteger(uploadBytes) || uploadBytes <= 0) throw new Error("STORE_MEDIA_SIZE_INVALID");
-  const usage = await getStoreMediaUsage(storeId);
+  const usage = await getStoreMediaUsage(storeId, quotaBytes);
   if (usage.managedBy === "vercel_blob" && usage.usedBytes + uploadBytes > usage.quotaBytes) {
     throw new Error("STORE_MEDIA_QUOTA_EXCEEDED");
   }
@@ -133,12 +133,12 @@ export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
-  options?: { storeId?: number }
+  options?: { storeId?: number; quotaBytes?: number }
 ): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
   if (options?.storeId) {
     const byteLength = typeof data === "string" ? Buffer.byteLength(data) : data.byteLength;
-    await assertStoreMediaQuota(options.storeId, byteLength);
+    await assertStoreMediaQuota(options.storeId, byteLength, options.quotaBytes);
   }
   const blobToken = getBlobToken();
   if (blobToken || hasConnectedBlobStore()) {

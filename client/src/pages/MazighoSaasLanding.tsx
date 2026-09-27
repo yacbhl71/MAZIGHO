@@ -23,7 +23,7 @@ import { APP_LOGO } from "@/const";
 
 const navigation = [
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
-  { label: "Le Studio", href: "#studio" },
+  { label: "Votre espace", href: "#espace" },
   { label: "Tarifs", href: "#tarifs" },
 ];
 
@@ -61,7 +61,7 @@ const plans = [
     suffix: "CHF / mois",
     commission: "2,5 % de commission",
     description: "Le point de départ pour construire sereinement votre boutique.",
-    features: ["Vitrine personnalisable", "Catalogue, variantes & stock", "Gestion propriétaire"],
+    features: ["200 produits actifs", "2 accès délégués", "500 Mo de médias", "Vitrine, variantes & stock"],
     featured: false,
   },
   {
@@ -70,7 +70,7 @@ const plans = [
     suffix: "CHF / mois",
     commission: "1,0 % de commission",
     description: "Pour piloter plus loin avec la même base claire et isolée.",
-    features: ["Tout BASIC", "Outils de pilotage avancés", "Support et suivi renforcés"],
+    features: ["Produits actifs illimités", "5 accès délégués", "1 Go de médias", "Support et suivi renforcés"],
     featured: true,
   },
   {
@@ -79,7 +79,7 @@ const plans = [
     suffix: "CHF · une fois",
     commission: "0 % de commission",
     description: "Offre de lancement pour les 100 premières boutiques attribuées.",
-    features: ["Conditions figées à l’attribution", "Accès durable à la plateforme", "Puis 300 CHF"],
+    features: ["Produits actifs illimités", "10 accès délégués · 2 Go de médias", "Conditions figées à l’attribution", "Puis 300 CHF"],
     featured: false,
   },
 ];
@@ -105,7 +105,7 @@ function ProductStudioPreview() {
         <div className="overflow-hidden rounded-[1.55rem] border border-[#e8e5d8] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#eeeade] px-4 py-3 sm:px-5">
             <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#f3ba52]" /><span className="h-2.5 w-2.5 rounded-full bg-[#92a254]" /><span className="h-2.5 w-2.5 rounded-full bg-[#dfded5]" /></div>
-            <p className="rounded-full bg-[#f5f3e9] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#647136]">Studio MAZIGHO</p>
+            <p className="rounded-full bg-[#f5f3e9] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#647136]">Votre espace MAZIGHO</p>
           </div>
           <div className="grid min-h-[350px] grid-cols-[68px_1fr] sm:min-h-[390px] sm:grid-cols-[112px_1fr]">
             <aside className="border-r border-[#eeeade] bg-[#f8f7f1] px-2 py-4 sm:px-3">
@@ -113,7 +113,7 @@ function ProductStudioPreview() {
               <div className="mt-6 space-y-3">
                 {[Layers3, PackageCheck, Palette, UsersRound].map((Icon, index) => <div key={index} className={`mx-auto grid h-8 w-8 place-items-center rounded-lg ${index === 0 ? "bg-[#e2e9bd] text-[#53602f]" : "text-slate-400"}`}><Icon className="h-4 w-4" /></div>)}
               </div>
-              <div className="mt-8 hidden border-t border-[#e8e5d8] pt-4 sm:block"><p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">Pilotage</p><p className="mt-2 text-[10px] font-semibold text-slate-700">Ma boutique</p></div>
+              <div className="mt-8 hidden border-t border-[#e8e5d8] pt-4 sm:block"><p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-400">Mon espace</p><p className="mt-2 text-[10px] font-semibold text-slate-700">Ma boutique</p></div>
             </aside>
             <div className="min-w-0 bg-[#fffefb] p-4 sm:p-6">
               <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#728044]">Vue d’ensemble</p><h3 className="mt-1 text-lg font-bold tracking-tight text-slate-950 sm:text-2xl">Atelier Ardoise</h3></div><span className="rounded-full border border-[#dce5ba] bg-[#f4f8e5] px-2.5 py-1 text-[9px] font-bold text-[#657436]">En préparation</span></div>
@@ -164,7 +164,7 @@ export default function MazighoSaasLanding() {
               <div className="inline-flex items-center gap-2 rounded-full border border-[#dbe3b3] bg-[#f4f7e6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#617037]"><Sparkles className="h-3.5 w-3.5" /> E-commerce indépendant, bien accompagné</div>
               <h1 className="mt-6 font-serif text-[2.8rem] font-bold leading-[.98] tracking-[-0.04em] text-[#243019] sm:text-6xl lg:text-[4.15rem]">Votre boutique mérite <span className="text-[#7f9142]">un vrai espace</span> à elle.</h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">MAZIGHO réunit la vitrine, le catalogue, le stock et le pilotage de votre boutique dans un espace clair, personnalisable et pensé pour durer.</p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row"><a href={platformHref("/register")} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#5a6834] px-5 text-sm font-bold text-white shadow-[0_16px_30px_-16px_rgba(71,83,39,.85)] transition hover:-translate-y-0.5 hover:bg-[#4b582d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a><a href="#studio" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#dcd8c7] bg-white px-5 text-sm font-bold text-slate-800 transition hover:border-[#92a052] hover:bg-[#fcfdf7]">Découvrir le Studio <ChevronRight className="ml-1 h-4 w-4" /></a></div>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row"><a href={platformHref("/register")} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#5a6834] px-5 text-sm font-bold text-white shadow-[0_16px_30px_-16px_rgba(71,83,39,.85)] transition hover:-translate-y-0.5 hover:bg-[#4b582d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a><a href="#espace" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#dcd8c7] bg-white px-5 text-sm font-bold text-slate-800 transition hover:border-[#92a052] hover:bg-[#fcfdf7]">Découvrir votre espace <ChevronRight className="ml-1 h-4 w-4" /></a></div>
               <div className="mt-8 grid max-w-lg grid-cols-3 gap-3 border-t border-[#e9e5d8] pt-6"><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">100 %</p><p className="mt-1 text-xs leading-4 text-slate-500">univers de vitrine modifiable</p></div><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">CHF</p><p className="mt-1 text-xs leading-4 text-slate-500">tarifs simples et lisibles</p></div><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">1</p><p className="mt-1 text-xs leading-4 text-slate-500">espace isolé par boutique</p></div></div>
             </div>
             <ProductStudioPreview />
@@ -175,8 +175,8 @@ export default function MazighoSaasLanding() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b8b40]">Ce qui change vraiment</p><h2 className="mt-3 font-serif text-4xl font-bold tracking-[-0.035em] text-[#26301b] sm:text-5xl">Une boutique qui vous ressemble, et qui sait travailler.</h2></div><div className="mt-10 grid gap-4 md:grid-cols-3">{outcomes.map((outcome) => { const Icon = outcome.icon; return <article key={outcome.label} className="rounded-2xl border border-[#ece9df] bg-white p-6 shadow-[0_18px_40px_-32px_rgba(29,37,17,.35)]"><div className={`grid h-11 w-11 place-items-center rounded-xl ${outcome.tone}`}><Icon className="h-5 w-5" /></div><h3 className="mt-5 text-lg font-bold text-slate-900">{outcome.label}</h3><p className="mt-3 text-sm leading-6 text-slate-600">{outcome.text}</p></article>; })}</div></div>
         </section>
 
-        <section id="studio" className="bg-[#26301b] py-16 text-white sm:py-24">
-          <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:px-8"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d5e08e]">MAZIGHO Studio</p><h2 className="mt-4 font-serif text-4xl font-bold leading-[1.02] tracking-[-0.035em] sm:text-5xl">Le pilotage, sans vous perdre dans les réglages.</h2><p className="mt-6 max-w-xl text-base leading-7 text-white/72">Le Studio vous aide à préparer et suivre les boutiques. Chaque propriétaire garde son propre panneau, son contenu et ses données — dans une séparation pensée dès le départ.</p><div className="mt-8 space-y-3">{["Thèmes et vitrine entièrement personnalisables", "Produits, variantes, stock et import CSV", "Équipe, accès, pages, SEO et marchés", "Domaine personnalisé quand vous êtes prêt"].map((item) => <div key={item} className="flex items-start gap-3 text-sm leading-6 text-white/85"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dbe6a6] text-[#35421f]"><Check className="h-3.5 w-3.5" /></span>{item}</div>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><Layers3 className="h-5 w-5 text-[#d5e08e]" /><p className="mt-6 text-sm font-bold">Une base multi-boutique</p><p className="mt-2 text-xs leading-5 text-white/60">Chaque boutique est isolée ; la plateforme garde une fondation commune et maintenable.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><FileSpreadsheet className="h-5 w-5 text-[#f6c76e]" /><p className="mt-6 text-sm font-bold">Importer sans repartir de zéro</p><p className="mt-2 text-xs leading-5 text-white/60">Préparez les produits et les variantes par fichier, puis reprenez la main dans l’éditeur.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5 sm:col-span-2"><div className="flex items-start gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#718348] text-white"><Clock3 className="h-5 w-5" /></div><div><p className="text-sm font-bold">Une ouverture à votre rythme</p><p className="mt-1 text-xs leading-5 text-white/60">Votre boutique peut être préparée avant le domaine ou l’ouverture publique. Rien ne vous force à aller trop vite.</p></div></div></div></div></div>
+        <section id="espace" className="bg-[#26301b] py-16 text-white sm:py-24">
+          <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:px-8"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d5e08e]">Votre espace MAZIGHO</p><h2 className="mt-4 font-serif text-4xl font-bold leading-[1.02] tracking-[-0.035em] sm:text-5xl">Votre boutique, sans vous perdre dans les réglages.</h2><p className="mt-6 max-w-xl text-base leading-7 text-white/72">Retrouvez votre vitrine, votre catalogue, vos commandes et vos réglages dans un seul panneau clair. Vous gardez la main sur votre contenu, vos images et la présentation de votre boutique.</p><div className="mt-8 space-y-3">{["Thèmes et vitrine entièrement personnalisables", "Produits, variantes, stock et import CSV", "Équipe, accès, pages, SEO et marchés", "Domaine personnalisé quand vous êtes prêt"].map((item) => <div key={item} className="flex items-start gap-3 text-sm leading-6 text-white/85"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dbe6a6] text-[#35421f]"><Check className="h-3.5 w-3.5" /></span>{item}</div>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><Layers3 className="h-5 w-5 text-[#d5e08e]" /><p className="mt-6 text-sm font-bold">Un espace à votre image</p><p className="mt-2 text-xs leading-5 text-white/60">Votre boutique, vos produits, vos contenus et vos réglages restent séparés et vous appartiennent.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><FileSpreadsheet className="h-5 w-5 text-[#f6c76e]" /><p className="mt-6 text-sm font-bold">Importer sans repartir de zéro</p><p className="mt-2 text-xs leading-5 text-white/60">Préparez les produits et les variantes par fichier, puis reprenez la main dans l’éditeur.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5 sm:col-span-2"><div className="flex items-start gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#718348] text-white"><Clock3 className="h-5 w-5" /></div><div><p className="text-sm font-bold">Une ouverture à votre rythme</p><p className="mt-1 text-xs leading-5 text-white/60">Votre boutique peut être préparée avant le domaine ou l’ouverture publique. Rien ne vous force à aller trop vite.</p></div></div></div></div></div>
         </section>
 
         <section className="py-16 sm:py-24">

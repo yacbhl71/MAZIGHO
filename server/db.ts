@@ -51,6 +51,7 @@ import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
+import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
 import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
@@ -1835,6 +1836,7 @@ export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: 
 export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
+  await assertStoreActiveProductCapacity(input.storeId);
   const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit");
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1858,6 +1860,10 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
   const usedCategorySlugs = new Set(snapshot.categories.map(category => category.slug));
   const usedProductSlugs = new Set(snapshot.products.map(product => product.slug));
   const productByNormalizedName = new Map(snapshot.products.map(product => [product.name.trim().toLocaleLowerCase("fr"), product]));
+  const newlyActiveProductKeys = new Set(input.rows
+    .filter(row => productByNormalizedName.get(row.name.trim().toLocaleLowerCase("fr"))?.status !== "active")
+    .map(row => row.name.trim().toLocaleLowerCase("fr")));
+  await assertStoreActiveProductCapacity(input.storeId, newlyActiveProductKeys.size);
   let nextCategoryOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
   let imported = 0;
   let updated = 0;
@@ -1942,6 +1948,10 @@ export async function importOwnerCatalogueProducts(input: { storeId: number; row
   const usedCategorySlugs = new Set(existingCategories.map(category => category.slug));
   const usedProductSlugs = new Set(existingProducts.map(product => product.slug));
   const productByNormalizedName = new Map(existingProducts.map(product => [product.name.trim().toLocaleLowerCase("fr"), product]));
+  const newlyActiveProductKeys = new Set(input.rows
+    .filter(row => productByNormalizedName.get(row.name.trim().toLocaleLowerCase("fr"))?.status !== "active")
+    .map(row => row.name.trim().toLocaleLowerCase("fr")));
+  await assertStoreActiveProductCapacity(input.storeId, newlyActiveProductKeys.size);
   let nextCategoryOrder = existingCategories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
   let imported = 0;
   let updated = 0;
@@ -3250,7 +3260,8 @@ export async function getStudioStoreMediaUsage(storeId: number) {
   if (!store) throw new Error("STORE_NOT_FOUND");
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
 
-  const usage = await getStoreMediaUsage(store.id);
+  const entitlements = await getStoreSaasEntitlements(store.id);
+  const usage = await getStoreMediaUsage(store.id, entitlements.mediaQuotaBytes);
   return {
     store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain },
     usage,
@@ -3267,6 +3278,7 @@ export async function getStudioStoreMediaUsage(storeId: number) {
 export async function getStudioStoreCommercialSupervision(storeId: number) {
   const { store } = await getStudioActiveStoreManagementContext(storeId);
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  const entitlements = await getStoreSaasEntitlements(store.id);
 
   const [readiness, rawOffer, rawDomainRequest, rawBilling, rawPlanAssignment, rawIntegrationRequests, mediaResult] = await Promise.all([
     getOwnerCommercialReadiness(store.id),
@@ -3275,7 +3287,7 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
     getStoreSettingValue(store.id, "saas_billing_profile"),
     getStoreSettingValue(store.id, "saas_plan_assignment"),
     getStoreSettingValue(store.id, "owner_integration_requests"),
-    getStoreMediaUsage(store.id)
+    getStoreMediaUsage(store.id, entitlements.mediaQuotaBytes)
       .then(usage => ({ usage, unavailable: false as const }))
       .catch(error => {
         console.warn("[Studio] Store media usage unavailable", { storeId: store.id, reason: error instanceof Error ? error.message : "UNKNOWN" });
@@ -4327,10 +4339,17 @@ export async function prepareStoreTeamInvitation(input: {
   const email = normaliseEmail(input.email);
   if (!storeTeamInvitationRoles.includes(input.role)) throw new Error("TEAM_ROLE_NOT_ALLOWED");
   if (!email || normaliseEmail(input.confirmationEmail) !== email) throw new Error("TEAM_INVITATION_CONFIRMATION_MISMATCH");
+  const entitlements = await getStoreSaasEntitlements(input.storeId);
 
   return await db.transaction(async tx => {
     const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
     if (!store || store.isPlatformStore) throw new Error("STORE_NOT_ELIGIBLE_FOR_TEAM_INVITATION");
+
+    if (entitlements.maxTeamMembers !== null) {
+      const [teamCount] = await tx.select({ value: count() }).from(storeMemberships)
+        .where(and(eq(storeMemberships.storeId, input.storeId), ne(storeMemberships.role, "owner"), eq(storeMemberships.status, "active")));
+      if (Number(teamCount?.value ?? 0) >= entitlements.maxTeamMembers) throw new Error("SAAS_TEAM_MEMBER_LIMIT_REACHED");
+    }
 
     const [existingUser] = await tx.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
     let userId: number;
@@ -6191,6 +6210,7 @@ export async function createProduct(data: any, storeId?: number) {
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { images, deliveryProfiles, categoryIds, storeId: _ignoredStoreId, ...productData } = data;
+  if ((productData.status ?? "active") === "active") await assertStoreActiveProductCapacity(effectiveStoreId);
   const category = await db.select({ id: categories.id }).from(categories)
     .where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, productData.categoryId))).limit(1);
   if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
@@ -6350,8 +6370,9 @@ export async function updateProduct(id: number, data: any, storeId?: number) {
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const { images, deliveryProfiles, categoryIds, id: _ignoredId, storeId: _ignoredStoreId, ...productData } = data;
-  const product = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
+  const product = await db.select({ id: products.id, status: products.status }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, id))).limit(1);
   if (!product[0]) throw new Error("PRODUCT_NOT_FOUND");
+  if (productData.status === "active" && product[0].status !== "active") await assertStoreActiveProductCapacity(effectiveStoreId);
   if (productData.categoryId != null) {
     const category = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, productData.categoryId))).limit(1);
     if (!category[0]) throw new Error("CATEGORY_NOT_FOUND");
@@ -6508,6 +6529,39 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
   ]);
   if (!store[0]) throw new Error("STORE_NOT_FOUND");
   return parseStoreSaasPlanAssignment(row[0]?.value);
+}
+
+/**
+ * Resolves the server-side allowance for one store. A client shop that has not
+ * yet been manually assigned a plan receives the BASIC allowance by default;
+ * no existing record is altered by this fallback.
+ */
+export async function getStoreSaasEntitlements(storeId: number): Promise<SaasPlanEntitlements> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, assignment] = await Promise.all([
+    db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_plan_assignment"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  if (store[0].isPlatformStore) {
+    return { ...getSaasPlanEntitlements("lifetime"), maxActiveProducts: null, maxTeamMembers: null };
+  }
+  return getSaasPlanEntitlements(parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId);
+}
+
+async function assertStoreActiveProductCapacity(storeId: number, additionalActiveProducts = 1) {
+  if (additionalActiveProducts <= 0) return;
+  const entitlements = await getStoreSaasEntitlements(storeId);
+  if (entitlements.maxActiveProducts === null) return;
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [activeProductCount] = await db.select({ value: count() }).from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.status, "active")));
+  if (Number(activeProductCount?.value ?? 0) + additionalActiveProducts > entitlements.maxActiveProducts) {
+    throw new Error("SAAS_ACTIVE_PRODUCT_LIMIT_REACHED");
+  }
 }
 
 export type StoreStripeConnectSetup = {

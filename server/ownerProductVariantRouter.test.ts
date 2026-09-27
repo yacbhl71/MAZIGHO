@@ -43,6 +43,8 @@ vi.mock("./db", () => ({
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
+  createProduct: vi.fn(async () => ({ id: 108 })),
+  updateProduct: vi.fn(async () => ({ success: true })),
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
@@ -263,6 +265,16 @@ describe("owner product variant routes", () => {
     }];
     await expect(callerFor().owner.importCatalogueProducts({ rows, acknowledged: true })).resolves.toEqual({ imported: 2, updated: 1 });
     expect(db.importOwnerCatalogueProducts).toHaveBeenCalledWith({ storeId: 77, rows });
+  });
+
+  it("returns clear scoped messages when a plan capacity is reached", async () => {
+    const product = { categoryId: 41, name: "Kit créatif", slug: "kit-creatif", description: "Kit de test", longDescription: "Description de test pour le catalogue.", price: 2490, stock: 3, featured: 0, status: "active" as const, images: [], options: "" };
+    vi.mocked(db.createProduct).mockRejectedValueOnce(new Error("SAAS_ACTIVE_PRODUCT_LIMIT_REACHED"));
+    await expect(callerFor().owner.createProduct(product)).rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringContaining("produits actifs") });
+
+    state.membership = { role: "owner", status: "active" };
+    vi.mocked(db.prepareStoreTeamInvitation).mockRejectedValueOnce(new Error("SAAS_TEAM_MEMBER_LIMIT_REACHED"));
+    await expect(callerFor().owner.prepareTeamInvitation({ name: "Éditeur test", email: "editeur@example.test", role: "catalog_editor", confirmationEmail: "editeur@example.test" })).rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringContaining("accès délégués") });
   });
 
   it("refuses a catalog-only membership from the variant management procedures", async () => {

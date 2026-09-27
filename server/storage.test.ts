@@ -93,4 +93,18 @@ describe("storefront storage", () => {
     await expect(storagePut("owner-storefront/22/logo.webp", Buffer.from("image"), "image/webp", { storeId: 22 })).rejects.toThrow("STORE_MEDIA_QUOTA_EXCEEDED");
     expect(blob.put).not.toHaveBeenCalled();
   });
+
+  it("uses the explicit plan quota when a paid shop is allowed more media", async () => {
+    process.env.BLOB_STORE_ID = "store_example";
+    process.env.VERCEL_OIDC_TOKEN = "oidc_test";
+    const proQuota = 1024 * 1024 * 1024;
+    blob.list
+      .mockResolvedValueOnce({ blobs: [{ size: DEFAULT_STORE_MEDIA_QUOTA_BYTES + 1 }], hasMore: false, cursor: undefined })
+      .mockResolvedValueOnce({ blobs: [], hasMore: false, cursor: undefined })
+      .mockResolvedValueOnce({ blobs: [], hasMore: false, cursor: undefined });
+    blob.put.mockResolvedValue({ url: "https://example.public.blob.vercel-storage.com/owner-storefront/22/pro.webp" });
+
+    await expect(storagePut("owner-storefront/22/pro.webp", Buffer.from("image"), "image/webp", { storeId: 22, quotaBytes: proQuota })).resolves.toMatchObject({ key: "owner-storefront/22/pro.webp" });
+    expect(blob.put).toHaveBeenCalledOnce();
+  });
 });
