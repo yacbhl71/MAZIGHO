@@ -18,8 +18,8 @@ type Template = { subject: string; heading: string; body: string; buttonLabel: s
 type MarketingList = { id: number; name: string; totalBlacklisted: number; totalSubscribers: number };
 
 const TEMPLATE_META: Record<TemplateType, { label: string; description: string; variables: string[] }> = {
-  order_confirmation: { label: "Confirmation de commande", description: "Envoyé automatiquement dès qu'une commande est payée.", variables: ["prenom", "commande", "total", "lignes"] },
-  order_shipped: { label: "Expédition", description: "Envoyé lorsqu'une commande passe au statut expédié.", variables: ["prenom", "commande", "suivi"] },
+  order_confirmation: { label: "Confirmation de commande", description: "Envoyé automatiquement dès qu'une commande est payée.", variables: ["prenom", "boutique", "commande", "total", "lignes"] },
+  order_shipped: { label: "Expédition", description: "Envoyé lorsqu'une commande passe au statut expédié.", variables: ["prenom", "boutique", "commande", "suivi"] },
   abandoned_cart: { label: "Panier abandonné", description: "Envoyé manuellement depuis la page Paniers abandonnés.", variables: ["prenom", "total", "panier"] },
 };
 

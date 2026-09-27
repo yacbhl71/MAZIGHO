@@ -5,8 +5,10 @@ const state = vi.hoisted(() => ({
   variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
   team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
   markets: { primaryLanguage: "fr", activeLanguages: ["fr", "en"], showLanguageSelector: true, primaryCountry: "CH", activeCountries: ["CH", "FR"], showCountrySelector: true },
-  commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 9, total: 9, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0, productsWithVariants: 1 }, items: [] },
+  commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 9, total: 9, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0 }, items: [] },
   profile: { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" } as Record<string, unknown>,
+  trackingResult: { success: true, statusChanged: false },
+  orderContact: null as null | { paymentMethod: string; userName: string; userEmail: string; trackingNumber: string | null },
 }));
 
 vi.mock("./db", () => ({
@@ -51,7 +53,8 @@ vi.mock("./db", () => ({
   getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
   getOwnerOrderDeliveryDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: null, addressIncomplete: false })),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
-  updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
+  updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, ...state.trackingResult })),
+  getOrderContactById: vi.fn(async () => state.orderContact),
   prepareStoreTeamInvitation: vi.fn(async () => ({
     userId: 15,
     name: "Éditeur test",
@@ -91,9 +94,13 @@ vi.mock("./transactionalEmail", () => ({
   getAccountInvitationLink: vi.fn((token: string) => `https://mazigho.test/activer-compte?token=${token}`),
   sendStudioSupportTicketAlert: vi.fn(async () => ({ delivered: true, id: "support-alert-1" })),
 }));
+vi.mock("./emails", () => ({
+  sendOrderShippedEmail: vi.fn(async () => ({ delivered: true, id: "shipment-email-1" })),
+}));
 
 import * as db from "./db";
 import { sendStudioSupportTicketAlert } from "./transactionalEmail";
+import { sendOrderShippedEmail } from "./emails";
 import { appRouter } from "./routers";
 
 function callerFor(role: string = "user") {
@@ -107,6 +114,9 @@ describe("owner product variant routes", () => {
   beforeEach(() => {
     state.membership = { role: "manager", status: "active" };
     state.profile = { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" };
+    state.trackingResult = { success: true, statusChanged: false };
+    state.orderContact = null;
+    delete process.env.MAZIGHO_ENABLE_STRIPE_LIVE_ORDER_EMAILS;
     vi.clearAllMocks();
   });
 
@@ -526,6 +536,37 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "delivered" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("sends one transactional shipment notice only after a Production transition", async () => {
+    process.env.MAZIGHO_ENABLE_STRIPE_LIVE_ORDER_EMAILS = "true";
+    state.trackingResult = { success: true, statusChanged: true };
+    state.orderContact = {
+      paymentMethod: "stripe_connect_live",
+      userName: "Cliente test",
+      userEmail: "cliente@example.test",
+      trackingNumber: "CH123456",
+    };
+
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped", trackingNumber: "CH123456" })).resolves.toMatchObject({
+      success: true,
+      customerNotification: "sent",
+    });
+    expect(db.getOrderContactById).toHaveBeenCalledWith(481, 77);
+    expect(sendOrderShippedEmail).toHaveBeenCalledWith({
+      email: "cliente@example.test",
+      name: "Cliente test",
+      orderId: 481,
+      trackingNumber: "CH123456",
+      storeName: "Boutique test",
+    });
+
+    vi.clearAllMocks();
+    state.orderContact = { ...state.orderContact, paymentMethod: "stripe_connect_test" };
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped" })).resolves.toMatchObject({
+      customerNotification: "not_applicable",
+    });
+    expect(sendOrderShippedEmail).not.toHaveBeenCalled();
   });
 
   it("applies a storefront palette only to the current resolved store", async () => {

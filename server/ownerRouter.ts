@@ -5,6 +5,7 @@ import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/t
 import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
 import { getAccountInvitationLink, sendStudioSupportTicketAlert } from "./transactionalEmail";
+import { sendOrderShippedEmail } from "./emails";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
@@ -578,12 +579,40 @@ export const ownerRouter = router({
     trackingNumber: z.string().trim().max(100).optional(),
   })).mutation(async ({ ctx, input }) => {
     try {
-      return await db.updateOperationalOrderTracking({
+      const result = await db.updateOperationalOrderTracking({
         id: input.orderId,
         status: input.status,
         trackingNumber: input.trackingNumber?.trim() || undefined,
         storeId: ctx.store!.id,
       });
+      let customerNotification: "not_applicable" | "sent" | "unavailable" = "not_applicable";
+
+      // A shipment message is transactional, never a campaign. It is limited
+      // to the first actual Production shipment transition for this tenant.
+      if (result.statusChanged && input.status === "shipped") {
+        try {
+          const contact = await db.getOrderContactById(input.orderId, ctx.store!.id);
+          const productionNotificationEnabled = process.env.MAZIGHO_ENABLE_STRIPE_LIVE_ORDER_EMAILS?.trim() === "true";
+          if (productionNotificationEnabled && contact?.paymentMethod === "stripe_connect_live") {
+            if (!contact.userEmail) {
+              customerNotification = "unavailable";
+            } else {
+              const delivery = await sendOrderShippedEmail({
+                email: contact.userEmail,
+                name: contact.userName,
+                orderId: input.orderId,
+                trackingNumber: contact.trackingNumber,
+                storeName: ctx.store!.displayName,
+              });
+              customerNotification = delivery.delivered ? "sent" : "unavailable";
+            }
+          }
+        } catch (error) {
+          customerNotification = "unavailable";
+          console.error("[email:order-shipped]", error instanceof Error ? error.message : "DELIVERY_FAILED");
+        }
+      }
+      return { ...result, customerNotification };
     } catch (error) {
       const code = String(error);
       if (code.includes("ORDER_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable dans cette boutique." });

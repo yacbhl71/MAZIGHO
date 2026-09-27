@@ -8272,10 +8272,16 @@ export async function updateOperationalOrderTracking(input: { id: number; status
   if (!current[0]) throw new Error("ORDER_NOT_FOUND");
   if (current[0].status !== "processing" && current[0].status !== "shipped") throw new Error("ORDER_NOT_OPERATIONAL");
   if (current[0].status === "processing" && input.status !== "shipped") throw new Error("ORDER_REQUIRES_SHIPMENT");
+  if (current[0].status === "shipped" && input.status !== "delivered") throw new Error("ORDER_REQUIRES_DELIVERY");
   const updateData: { status: "shipped" | "delivered"; trackingNumber?: string } = { status: input.status };
   if (input.trackingNumber?.trim()) updateData.trackingNumber = input.trackingNumber.trim();
-  await db.update(orders).set(updateData).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.id)));
-  return { success: true };
+  const result = await db.update(orders).set(updateData).where(and(
+    eq(orders.storeId, effectiveStoreId),
+    eq(orders.id, input.id),
+    eq(orders.status, current[0].status),
+  ));
+  const affectedRows = Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
+  return { success: true, statusChanged: affectedRows === 1 };
 }
 
 export async function updateOrderStatus(id: number, status: any, trackingNumber?: string, storeId?: number) {
@@ -8902,16 +8908,16 @@ export type EmailTemplate = { subject: string; heading: string; body: string; bu
 
 export const EMAIL_TEMPLATE_DEFAULTS: Record<EmailTemplateType, EmailTemplate> = {
   order_confirmation: {
-    subject: "Merci pour votre commande MAZIGHO #{{commande}}",
+    subject: "Merci pour votre commande {{boutique}} #{{commande}}",
     heading: "Commande confirmée 🎉",
-    body: "Bonjour {{prenom}},\n\nNous avons bien reçu votre commande #{{commande}} d'un montant de {{total}}. Notre équipe la prépare avec soin.\n\nVoici le récapitulatif :\n{{lignes}}\n\nMerci de votre confiance,\nL'équipe MAZIGHO",
+    body: "Bonjour {{prenom}},\n\nNous avons bien reçu votre commande #{{commande}} d'un montant de {{total}}. Notre équipe la prépare avec soin.\n\nVoici le récapitulatif :\n{{lignes}}\n\nMerci de votre confiance,\nL'équipe {{boutique}}",
     buttonLabel: "Suivre ma commande",
     enabled: true,
   },
   order_shipped: {
-    subject: "Votre commande MAZIGHO #{{commande}} est en route 🚚",
+    subject: "Votre commande {{boutique}} #{{commande}} est en route 🚚",
     heading: "Votre colis est expédié",
-    body: "Bonjour {{prenom}},\n\nBonne nouvelle : votre commande #{{commande}} vient d'être expédiée.\n\nNuméro de suivi : {{suivi}}\n\nVous pouvez suivre son acheminement à tout moment.\n\nÀ très vite,\nL'équipe MAZIGHO",
+    body: "Bonjour {{prenom}},\n\nBonne nouvelle : votre commande #{{commande}} vient d'être expédiée.\n\nNuméro de suivi : {{suivi}}\n\nVous pouvez suivre son acheminement à tout moment.\n\nÀ très vite,\nL'équipe {{boutique}}",
     buttonLabel: "Suivre mon colis",
     enabled: true,
   },
@@ -10322,7 +10328,7 @@ export async function getOrderContactById(orderId: number, storeId?: number) {
   const db = await getDb();
   if (!db) return null;
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const rows = await db.select({ id: orders.id, trackingNumber: orders.trackingNumber, userName: users.name, userEmail: users.email }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId))).limit(1);
+  const rows = await db.select({ id: orders.id, paymentMethod: orders.paymentMethod, trackingNumber: orders.trackingNumber, userName: users.name, userEmail: users.email }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId))).limit(1);
   return rows[0] ?? null;
 }
 
@@ -10884,9 +10890,11 @@ export async function getOrderForStripeSession(sessionId: string) {
       userId: orders.userId,
       userName: users.name,
       userEmail: users.email,
+      storeDisplayName: stores.displayName,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
+    .leftJoin(stores, eq(orders.storeId, stores.id))
     .where(eq(orders.stripeSessionId, sessionId))
     .limit(1);
 

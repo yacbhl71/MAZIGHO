@@ -35,10 +35,10 @@ function renderBody(body: string, vars: Record<string, string>): { html: string;
   return { html: htmlEscaped, text: text.replace(/<LIST>|<\/LIST>/g, "") };
 }
 
-function layout(heading: string, innerHtml: string, buttonLabel: string, buttonUrl: string): string {
+function layout(brandName: string, heading: string, innerHtml: string, buttonLabel: string, buttonUrl: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
     <div style="background:#f97316;color:#ffffff;padding:20px 24px;border-radius:12px 12px 0 0">
-      <h1 style="margin:0;font-size:20px">MAZIGHO</h1>
+      <h1 style="margin:0;font-size:20px">${escapeHtml(brandName)}</h1>
     </div>
     <div style="border:1px solid #eadfd2;border-top:none;border-radius:0 0 12px 12px;padding:24px">
       <h2 style="margin-top:0;font-size:18px">${escapeHtml(heading)}</h2>
@@ -56,9 +56,23 @@ function itemsBlock(items: Array<{ name?: string | null; quantity: number; price
   return rows.join("\n");
 }
 
-async function deliver(type: EmailTemplateType, to: string, vars: Record<string, string>, buttonUrl: string, idempotencyKey: string): Promise<DeliveryOutcome> {
+function withTransactionalShopBrand(template: EmailTemplate, type: EmailTemplateType, brandName: string): EmailTemplate {
+  if (brandName === "MAZIGHO" || (type !== "order_confirmation" && type !== "order_shipped")) return template;
+  // Existing templates created before storefront branding used the platform
+  // name literally. Preserve a tenant's wording while replacing only that
+  // legacy identifier for customer-facing order messages.
+  return {
+    ...template,
+    subject: template.subject.replaceAll("MAZIGHO", brandName),
+    heading: template.heading.replaceAll("MAZIGHO", brandName),
+    body: template.body.replaceAll("MAZIGHO", brandName),
+    buttonLabel: template.buttonLabel.replaceAll("MAZIGHO", brandName),
+  };
+}
+
+async function deliver(type: EmailTemplateType, to: string, vars: Record<string, string>, buttonUrl: string, idempotencyKey: string, brandName = "MAZIGHO"): Promise<DeliveryOutcome> {
   if (!isTransactionalEmailConfigured()) return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
-  const template: EmailTemplate = await getEmailTemplate(type);
+  const template = withTransactionalShopBrand(await getEmailTemplate(type), type, brandName);
   if (!template.enabled) return { delivered: false, reason: "TEMPLATE_DISABLED" };
   const subject = Object.entries(vars).reduce((acc, [key, value]) => acc.split(`{{${key}}}`).join(value), template.subject);
   const { html, text } = renderBody(template.body, vars);
@@ -66,7 +80,7 @@ async function deliver(type: EmailTemplateType, to: string, vars: Record<string,
     const result = await sendTransactionalEmail({
       to,
       subject,
-      html: layout(template.heading, html, template.buttonLabel, buttonUrl),
+      html: layout(brandName, template.heading, html, template.buttonLabel, buttonUrl),
       text,
       idempotencyKey,
     });
@@ -84,19 +98,21 @@ export async function sendOrderConfirmationForStripeSession(sessionId: string): 
   const url = `${getPublicUrl()}/commandes`;
   return deliver("order_confirmation", recipient, {
     prenom: firstName(order.userName),
+    boutique: order.storeDisplayName || "MAZIGHO",
     commande: String(order.id),
     total: money(order.totalAmount, order.currencyCode || "CHF"),
     lignes: itemsBlock(items, order.currencyCode || "CHF"),
-  }, url, `order-confirmation/${order.id}`);
+  }, url, `order-confirmation/${order.id}`, order.storeDisplayName || "MAZIGHO");
 }
 
-export async function sendOrderShippedEmail(input: { email: string; name?: string | null; orderId: number; trackingNumber?: string | null }): Promise<DeliveryOutcome> {
+export async function sendOrderShippedEmail(input: { email: string; name?: string | null; orderId: number; trackingNumber?: string | null; storeName?: string | null }): Promise<DeliveryOutcome> {
   const url = `${getPublicUrl()}/commandes`;
   return deliver("order_shipped", input.email, {
     prenom: firstName(input.name),
+    boutique: input.storeName?.trim() || "MAZIGHO",
     commande: String(input.orderId),
     suivi: input.trackingNumber || "communiqué prochainement",
-  }, url, `order-shipped/${input.orderId}`);
+  }, url, `order-shipped/${input.orderId}`, input.storeName?.trim() || "MAZIGHO");
 }
 
 export async function sendAbandonedCartEmail(input: {
