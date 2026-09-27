@@ -3383,7 +3383,9 @@ async function ensureAuditLogSchema() {
     await run("ALTER TABLE `auditLogs` ADD COLUMN IF NOT EXISTS `storeId` int NULL");
     await db.execute(sql.raw(`UPDATE \`auditLogs\` SET \`storeId\` = ${primaryStoreId} WHERE \`storeId\` IS NULL`));
     await run("ALTER TABLE `auditLogs` MODIFY COLUMN `storeId` int NOT NULL");
-    await run("CREATE INDEX `audit_logs_store_idx` ON `auditLogs` (`storeId`)");
+    // TiDB supports this idempotent form. Audit reads must not fail merely
+    // because an earlier deployment already created the store scope index.
+    await run("CREATE INDEX IF NOT EXISTS `audit_logs_store_idx` ON `auditLogs` (`storeId`)");
   })();
 
   return _auditLogSchemaReady;
