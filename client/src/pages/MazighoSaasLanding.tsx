@@ -127,7 +127,7 @@ function ProductStudioPreview() {
               </div>
               <div className="mt-5 grid grid-cols-[1.15fr_.85fr] gap-3">
                 <div className="rounded-2xl bg-[#5b6836] p-3.5 text-white"><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/65">Vitrine</p><p className="mt-1 text-xs font-semibold">Personnalisez chaque détail.</p><div className="mt-3 flex h-9 items-end gap-1"><span className="h-4 w-3 rounded-t bg-[#dce5aa]" /><span className="h-7 w-3 rounded-t bg-[#f5bc61]" /><span className="h-5 w-3 rounded-t bg-white/65" /><span className="h-8 w-3 rounded-t bg-[#dce5aa]" /><span className="h-6 w-3 rounded-t bg-white/65" /></div></div>
-                <div className="rounded-2xl border border-[#e7e4d9] p-3.5"><Palette className="h-4 w-4 text-[#d68a25]" /><p className="mt-2 text-[10px] font-bold text-slate-900">6 thèmes</p><p className="mt-1 text-[9px] leading-4 text-slate-500">Une base, jamais une contrainte.</p></div>
+                <div className="rounded-2xl border border-[#e7e4d9] p-3.5"><Palette className="h-4 w-4 text-[#d68a25]" /><p className="mt-2 text-[10px] font-bold text-slate-900">10 thèmes</p><p className="mt-1 text-[9px] leading-4 text-slate-500">Une base, jamais une contrainte.</p></div>
               </div>
             </div>
           </div>

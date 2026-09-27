@@ -42,6 +42,7 @@ vi.mock("./db", () => ({
   getOwnerPrivateCartSimulation: vi.fn(async (input) => ({ ...input, privateCartSimulation: true, persistedCart: false, paymentAvailable: false, orderCreated: false })),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
+  applyStorefrontThemeCategoryImages: vi.fn(async () => ({ updatedCategoryIds: [31, 32, 33] })),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
   createProduct: vi.fn(async () => ({ id: 108 })),
   updateProduct: vi.fn(async () => ({ success: true })),
@@ -137,6 +138,35 @@ describe("owner product variant routes", () => {
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.saveCustomDomainRequest({ domain: "other-client.ch" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(callerFor().owner.acknowledgeCustomDomainGuide()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("applies a storefront theme only for the resolved store owner", async () => {
+    await expect(callerFor().owner.applyStorefrontTheme({ themeId: "coffee" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.applyStorefrontTheme({ themeId: "coffee" })).resolves.toMatchObject({
+      themeId: "coffee",
+      heroApplied: true,
+      categoryImageCount: 3,
+    });
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({
+      brandName: "Maison Café",
+      customPrimary: "#5A321E",
+      headerLayout: "inline",
+    }), 77);
+    expect(db.updateBanner).toHaveBeenCalledWith(12, expect.objectContaining({
+      title: "Faites de chaque tasse un vrai moment.",
+      active: 1,
+    }), 77);
+    expect(db.applyStorefrontThemeCategoryImages).toHaveBeenCalledWith(77, [
+      "/assets/themes/coffee-hero.webp",
+      "/assets/themes/coffee-hero.webp",
+      "/assets/themes/coffee-hero.webp",
+    ]);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      action: "owner.storefront.template.coffee.apply",
+    }));
   });
 
   it("keeps integration requests visible to managers but writable only by the current store owner", async () => {

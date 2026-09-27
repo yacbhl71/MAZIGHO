@@ -30,6 +30,7 @@ import { getVisitsCount, getVisitsDaily, isVercelAnalyticsConfigured } from "./s
 import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPixels";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
+import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
@@ -394,6 +395,234 @@ const beautyThemeTemplate = {
   ],
 };
 
+const homeThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "sage" as const,
+  typographyId: "editorial" as const,
+  brandName: "Maison Douce",
+  brandMessage: "Des objets qui rendent les jours plus beaux.",
+  highlightEyebrow: "Maison & art de vivre",
+  highlightTitle: "Une maison qui vous ressemble, dans chaque détail.",
+  highlightText: "Matières naturelles, objets choisis et petits essentiels pour composer un intérieur serein et vivant.",
+  highlightImageUrl: "/assets/category-maison.webp",
+  storyTitle: "Le beau se vit au quotidien.",
+  storyText: "Maison Douce rassemble décoration, table, textiles et rangements dans une vitrine lumineuse que vous pourrez réécrire entièrement selon votre maison.",
+  storyImageUrl: "/assets/category-maison-hero.webp",
+  editorialEyebrow: "Inspiration de saison",
+  editorialTitle: "Des gestes simples pour habiter chaque pièce.",
+  editorialImageUrl: "/assets/home-editorial-divider.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Matières à aimer", text: "Des univers chaleureux pour imaginer une maison qui vous ressemble." },
+    { icon: "check" as const, title: "Choisir sereinement", text: "Des familles claires pour parcourir décoration, table et textile." },
+    { icon: "arrow" as const, title: "À composer", text: "Une sélection qui s’enrichit au fil de vos espaces et de vos envies." },
+  ],
+  discoveryEyebrow: "Explorer la maison",
+  discoveryTitle: "Des objets pour chaque pièce",
+  discoveryText: "Parcourez les collections et trouvez les détails qui changent l’atmosphère de votre intérieur.",
+  discoveryAllShopLabel: "Voir toute la maison",
+  discoveryBrowseShopLabel: "Découvrir les collections",
+  testimonialsEyebrow: "La communauté Maison Douce",
+  testimonialsTitle: "Vos intérieurs racontent une histoire.",
+  testimonialsText: "Les retours vérifiés pourront être publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer la maison",
+  closingEyebrow: "Créer votre atmosphère",
+  closingTitle: "Les détails font toute la maison.",
+  closingText: "Composez un intérieur doux, personnel et vivant, un objet choisi après l’autre.",
+  closingShopCtaLabel: "Voir les collections",
+  closingVisualText: "Une vitrine maison chaleureuse, éditoriale et entièrement à votre image.",
+  closingImageUrl: "/assets/category-maison-hero.webp",
+  customColorsEnabled: true,
+  customPrimary: "#5E6F52",
+  customAccent: "#A8693A",
+  customSoft: "#F7F4EC",
+  buttonRadius: "full" as const,
+  headerLayout: "split" as const,
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "La maison", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "Nouveautés", href: "/nouveautes", visible: true, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Journal", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-decoration", label: "Décoration", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-table", label: "Table & cuisine", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-textile", label: "Textiles", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
+const sportThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "midnight" as const,
+  typographyId: "modern" as const,
+  brandName: "Mouvement",
+  brandMessage: "S’entraîner, sortir, progresser.",
+  highlightEyebrow: "Sport & outdoor",
+  highlightTitle: "Bougez à votre rythme. Allez plus loin.",
+  highlightText: "Équipement, récupération et essentiels outdoor choisis pour accompagner chaque objectif, du premier pas à la prochaine aventure.",
+  highlightImageUrl: "/assets/category-sport.webp",
+  storyTitle: "Le mouvement commence par l’envie.",
+  storyText: "Mouvement organise les essentiels d’entraînement et de plein air dans un parcours direct, énergique et facile à faire évoluer avec votre catalogue.",
+  storyImageUrl: "/assets/category-sport-hero.webp",
+  editorialEyebrow: "Objectif du moment",
+  editorialTitle: "Préparez-vous pour votre prochaine sortie.",
+  editorialImageUrl: "/assets/category-sport-sm.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Pour avancer", text: "Des univers qui donnent envie d’entraîner le corps et de sortir dehors." },
+    { icon: "check" as const, title: "Trouver vite", text: "Une recherche et des familles produit pensées pour un choix direct." },
+    { icon: "arrow" as const, title: "Garder le rythme", text: "Des essentiels pour l’entraînement, l’outdoor et la récupération." },
+  ],
+  discoveryEyebrow: "Choisir son terrain",
+  discoveryTitle: "Entraînement, outdoor, récupération",
+  discoveryText: "Explorez les catégories et préparez votre prochaine séance, sortie ou aventure.",
+  discoveryAllShopLabel: "Voir tout l’équipement",
+  discoveryBrowseShopLabel: "Trouver mon équipement",
+  testimonialsEyebrow: "La communauté Mouvement",
+  testimonialsTitle: "Chaque progression compte.",
+  testimonialsText: "Les retours vérifiés pourront être publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer l’équipement",
+  closingEyebrow: "Le prochain départ",
+  closingTitle: "Votre énergie mérite le bon équipement.",
+  closingText: "Parcourez les essentiels qui accompagnent votre rythme, vos objectifs et vos sorties.",
+  closingShopCtaLabel: "Voir l’équipement",
+  closingVisualText: "Une vitrine sport intense, nette et entièrement à votre image.",
+  closingImageUrl: "/assets/category-sport-hero.webp",
+  customColorsEnabled: true,
+  customPrimary: "#14532D",
+  customAccent: "#F97316",
+  customSoft: "#F0FDF4",
+  buttonRadius: "flat" as const,
+  headerLayout: "searchFirst" as const,
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Équipement", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "Nouveautés", href: "/nouveautes", visible: true, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Guides", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-training", label: "Entraînement", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-outdoor", label: "Outdoor", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-recovery", label: "Récupération", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
+const jewelryThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "rose" as const,
+  typographyId: "editorial" as const,
+  brandName: "Éclat Atelier",
+  brandMessage: "Des détails précieux pour les moments qui comptent.",
+  highlightEyebrow: "Bijoux & cadeaux",
+  highlightTitle: "Une lumière à porter, une attention à offrir.",
+  highlightText: "Pièces délicates, matières lumineuses et idées cadeaux choisies pour accompagner les souvenirs et les célébrations.",
+  highlightImageUrl: "/assets/themes/jewelry-hero.webp",
+  storyTitle: "Les détails deviennent des souvenirs.",
+  storyText: "Éclat Atelier transforme la découverte de bijoux en une expérience douce, précieuse et personnelle. Chaque mot, image et collection reste librement personnalisable.",
+  storyImageUrl: "/assets/themes/jewelry-hero.webp",
+  editorialEyebrow: "Édition cadeau",
+  editorialTitle: "Un éclat choisi pour chaque occasion.",
+  editorialImageUrl: "/assets/themes/jewelry-hero.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "À offrir ou à garder", text: "Des collections imaginées pour les gestes qui ont du sens." },
+    { icon: "check" as const, title: "Choisir avec soin", text: "Une présentation claire pour explorer matières, collections et attentions." },
+    { icon: "arrow" as const, title: "Pour marquer l’instant", text: "Des idées lumineuses à découvrir selon chaque occasion." },
+  ],
+  discoveryEyebrow: "Explorer les collections",
+  discoveryTitle: "Des pièces pour chaque attention",
+  discoveryText: "Découvrez les collections, les idées cadeaux et les détails qui font briller un moment.",
+  discoveryAllShopLabel: "Voir toutes les pièces",
+  discoveryBrowseShopLabel: "Trouver une attention",
+  testimonialsEyebrow: "La communauté Éclat Atelier",
+  testimonialsTitle: "Vos histoires font briller la maison.",
+  testimonialsText: "Les retours vérifiés pourront être publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer les collections",
+  closingEyebrow: "Le détail juste",
+  closingTitle: "Offrez un éclat qui reste.",
+  closingText: "Parcourez les collections et trouvez la pièce qui accompagnera le prochain souvenir.",
+  closingShopCtaLabel: "Voir les bijoux",
+  closingVisualText: "Une vitrine bijoux précieuse, raffinée et entièrement à votre image.",
+  closingImageUrl: "/assets/themes/jewelry-hero.webp",
+  customColorsEnabled: true,
+  customPrimary: "#6B4F13",
+  customAccent: "#B45309",
+  customSoft: "#FFFBEA",
+  buttonRadius: "full" as const,
+  headerLayout: "split" as const,
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Collections", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "Nouveautés", href: "/nouveautes", visible: true, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "La maison", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-bagues", label: "Bagues", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-colliers", label: "Colliers & bracelets", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-cadeaux", label: "Idées cadeaux", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
+const coffeeThemeTemplate = {
+  ...violetCraftThemeTemplate,
+  paletteId: "terracotta" as const,
+  typographyId: "classic" as const,
+  brandName: "Maison Café",
+  brandMessage: "Des saveurs choisies pour ralentir et partager.",
+  highlightEyebrow: "Café, thé & épicerie fine",
+  highlightTitle: "Faites de chaque tasse un vrai moment.",
+  highlightText: "Cafés de caractère, thés réconfortants, douceurs et accessoires pour découvrir, offrir et savourer.",
+  highlightImageUrl: "/assets/themes/coffee-hero.webp",
+  storyTitle: "Les belles journées commencent parfois par un café.",
+  storyText: "Maison Café organise les saveurs, les origines et les accessoires dans un univers chaleureux, artisanal et entièrement adaptable à votre sélection.",
+  storyImageUrl: "/assets/themes/coffee-hero.webp",
+  editorialEyebrow: "Le choix de la maison",
+  editorialTitle: "Des origines, des rituels, des découvertes.",
+  editorialImageUrl: "/assets/themes/coffee-hero.webp",
+  reassuranceItems: [
+    { icon: "sparkles" as const, title: "Des saveurs à explorer", text: "Une boutique gourmande pour parcourir cafés, thés et attentions." },
+    { icon: "check" as const, title: "Choisir son rituel", text: "Des familles claires pour retrouver une origine, une douceur ou un accessoire." },
+    { icon: "arrow" as const, title: "À partager", text: "Des idées à découvrir pour le matin, l’après-midi et les cadeaux." },
+  ],
+  discoveryEyebrow: "Explorer les saveurs",
+  discoveryTitle: "Cafés, thés et découvertes gourmandes",
+  discoveryText: "Parcourez les collections et composez votre prochain rituel de dégustation.",
+  discoveryAllShopLabel: "Voir toutes les saveurs",
+  discoveryBrowseShopLabel: "Découvrir le café",
+  testimonialsEyebrow: "La communauté Maison Café",
+  testimonialsTitle: "Les plus belles pauses se partagent.",
+  testimonialsText: "Les retours vérifiés pourront être publiés ici lorsqu’ils existeront.",
+  testimonialsCtaLabel: "Explorer les saveurs",
+  closingEyebrow: "Une tasse, un moment",
+  closingTitle: "Votre prochain rituel est prêt.",
+  closingText: "Choisissez les saveurs qui accompagneront vos matins, vos pauses et vos attentions à offrir.",
+  closingShopCtaLabel: "Voir les collections",
+  closingVisualText: "Une vitrine café artisanale, chaleureuse et entièrement à votre image.",
+  closingImageUrl: "/assets/themes/coffee-hero.webp",
+  customColorsEnabled: true,
+  customPrimary: "#5A321E",
+  customAccent: "#C46B2C",
+  customSoft: "#FFF7ED",
+  buttonRadius: "full" as const,
+  headerLayout: "inline" as const,
+  navigationItems: [
+    { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+    { id: "shop", label: "Les saveurs", href: "/boutique", visible: true, kind: "system" as const },
+    { id: "categories", label: "", href: "/boutique", visible: false, kind: "system" as const },
+    { id: "creations", label: "", href: "/creations", visible: false, kind: "system" as const },
+    { id: "new", label: "Nouveautés", href: "/nouveautes", visible: true, kind: "system" as const },
+    { id: "best-sellers", label: "", href: "/best-sellers", visible: false, kind: "system" as const },
+    { id: "promos", label: "", href: "/promos", visible: false, kind: "system" as const },
+    { id: "contact", label: "Le journal", href: "/contact", visible: true, kind: "system" as const },
+    { id: "custom-cafes", label: "Cafés", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-thes", label: "Thés & infusions", href: "/boutique", visible: true, kind: "custom" as const },
+    { id: "custom-cadeaux-gourmands", label: "Cadeaux gourmands", href: "/boutique", visible: true, kind: "custom" as const },
+  ],
+};
+
 const storefrontThemePresets = {
   violetCraft: {
     profile: violetCraftThemeTemplate,
@@ -425,10 +654,29 @@ const storefrontThemePresets = {
     hero: { title: "Votre beauté, votre rituel.", subtitle: "Des gestes experts, des produits choisis et une parenthèse rien qu’à vous, au salon comme à la maison.", imageUrl: "/assets/themes/beauty/hero.webp", linkUrl: "/boutique" },
     categoryImages: ["/assets/themes/beauty/category-hair.webp", "/assets/themes/beauty/category-face-body.webp", "/assets/themes/beauty/category-wellbeing.webp"],
   },
+  home: {
+    profile: homeThemeTemplate,
+    hero: { title: "Des objets pour une maison qui vous ressemble.", subtitle: "Décoration, table, textiles et essentiels choisis pour composer un intérieur doux et personnel.", imageUrl: "/assets/category-maison-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/category-maison.webp", "/assets/category-maison-sm.webp", "/assets/category-maison-hero.webp"],
+  },
+  sport: {
+    profile: sportThemeTemplate,
+    hero: { title: "Bougez à votre rythme. Allez plus loin.", subtitle: "Entraînement, outdoor et récupération : les essentiels pour accompagner chaque objectif.", imageUrl: "/assets/category-sport-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/category-sport.webp", "/assets/category-sport-sm.webp", "/assets/category-sport-hero.webp"],
+  },
+  jewelry: {
+    profile: jewelryThemeTemplate,
+    hero: { title: "Une lumière à porter, une attention à offrir.", subtitle: "Des pièces délicates et des idées cadeaux choisies pour accompagner les souvenirs et les célébrations.", imageUrl: "/assets/themes/jewelry-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/themes/jewelry-hero.webp", "/assets/themes/jewelry-hero.webp", "/assets/themes/jewelry-hero.webp"],
+  },
+  coffee: {
+    profile: coffeeThemeTemplate,
+    hero: { title: "Faites de chaque tasse un vrai moment.", subtitle: "Cafés, thés, douceurs et accessoires pour découvrir, offrir et savourer.", imageUrl: "/assets/themes/coffee-hero.webp", linkUrl: "/boutique" },
+    categoryImages: ["/assets/themes/coffee-hero.webp", "/assets/themes/coffee-hero.webp", "/assets/themes/coffee-hero.webp"],
+  },
 } as const;
 
-const storefrontThemeIdSchema = z.enum(["violetCraft", "telephony", "pet", "fashion", "automotive", "beauty"]);
-type StorefrontThemeId = z.infer<typeof storefrontThemeIdSchema>;
+const storefrontThemeIdSchema = z.enum(storefrontThemeIds);
 function detectDeliveryCountry(address: string | null | undefined): string {
   if (!address) return "—";
   const lower = address.toLowerCase();
@@ -608,38 +856,50 @@ function logAudit(ctx: any, entry: {
   }).catch(err => console.error("[audit]", entry.action, err instanceof Error ? err.message : err));
 }
 
-const storefrontThemeLabels: Record<StorefrontThemeId, string> = {
-  violetCraft: "Atelier créatif violet",
-  telephony: "Téléphonie & gadgets",
-  pet: "Animalerie complice",
-  fashion: "Atelier Urbain — mode",
-  automotive: "Atelier Route — automobile",
-  beauty: "Atelier Beauté — salon & coiffure",
+type StorefrontThemeBanner = {
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  linkUrl: string;
+  active: number;
+  displayOrder: number;
 };
 
-async function applyStorefrontTheme(ctx: any, storeId: number, themeId: StorefrontThemeId) {
+export async function applyStorefrontTheme(ctx: any, storeId: number, themeId: StorefrontThemeId, source: "studio" | "owner" = "studio") {
   const preset = storefrontThemePresets[themeId];
   const current = await db.getDesignProfile(storeId);
-  const sections = ownerHomepageSections.parse(preset.profile);
-  const navigationItems = z.array(navigationItem).min(1).max(16).parse(preset.profile.navigationItems);
-  const profile = await db.saveStudioOwnerPublicStorefrontProfile({
-    storeId,
-    profile: { ...current, ...preset.profile, ...sections, navigationItems },
+  const presetProfile = preset.profile as Record<string, unknown>;
+  const currentProfile = current as Record<string, unknown>;
+  const sections = ownerHomepageSections.parse({
+    ...current,
+    ...preset.profile,
+    closingVisualFont: presetProfile.closingVisualFont ?? currentProfile.closingVisualFont ?? "inherit",
+    closingVisualColor: presetProfile.closingVisualColor ?? currentProfile.closingVisualColor ?? "#1F2937",
   });
+  const navigationItems = z.array(navigationItem).min(1).max(16).parse(preset.profile.navigationItems);
+  const nextProfile = { ...current, ...preset.profile, ...sections, navigationItems };
+  const profile = source === "owner"
+    ? await db.updateDesignProfile(nextProfile, storeId)
+    : await db.saveStudioOwnerPublicStorefrontProfile({ storeId, profile: nextProfile });
   const existingBanners = await db.getAllBanners(storeId);
-  const hero = { ...preset.hero, active: 1, displayOrder: 0 };
+  const hero: StorefrontThemeBanner = { ...preset.hero, active: 1, displayOrder: 0 };
+  const saveBanner = async (bannerId: number | undefined, banner: StorefrontThemeBanner) => {
+    if (source === "owner") {
+      if (bannerId) return await db.updateBanner(bannerId, banner, storeId);
+      return await db.createBanner(banner, storeId);
+    }
+    return await db.saveStudioOwnerPublicStorefrontBanner({ storeId, bannerId, ...banner });
+  };
   const firstBanner = existingBanners[0];
   if (firstBanner) {
-    await db.saveStudioOwnerPublicStorefrontBanner({ storeId, bannerId: firstBanner.id, ...hero });
+    await saveBanner(firstBanner.id, hero);
     await db.markPublicContentTranslationsStale("banner", firstBanner.id, storeId);
   } else {
-    await db.saveStudioOwnerPublicStorefrontBanner({ storeId, ...hero });
+    await saveBanner(undefined, hero);
   }
   await Promise.all(existingBanners.slice(1).map(async banner => {
     if (!banner.active) return;
-    await db.saveStudioOwnerPublicStorefrontBanner({
-      storeId,
-      bannerId: banner.id,
+    await saveBanner(banner.id, {
       title: banner.title,
       subtitle: banner.subtitle || "",
       imageUrl: banner.imageUrl,
@@ -653,11 +913,11 @@ async function applyStorefrontTheme(ctx: any, storeId: number, themeId: Storefro
   await Promise.all(categoryImages.updatedCategoryIds.map(categoryId => db.markPublicContentTranslationsStale("category", categoryId, storeId)));
   await db.markPublicContentTranslationsStale("design", 1, storeId);
   logAudit(ctx, {
-    action: `studio.storefront.template.${themeId}.apply`,
+    action: `${source}.storefront.template.${themeId}.apply`,
     entityType: "store",
     entityId: storeId,
     summary: `Modèle ${storefrontThemeLabels[themeId]} appliqué à la boutique`,
-    metadata: { storeId, themeId, publicStorefront: true, replacedHero: true, categoryImageCount: categoryImages.updatedCategoryIds.length },
+    metadata: { storeId, themeId, source, publicStorefront: true, replacedHero: true, categoryImageCount: categoryImages.updatedCategoryIds.length },
   });
   return { profile, heroApplied: true, categoryImageCount: categoryImages.updatedCategoryIds.length, themeId };
 }

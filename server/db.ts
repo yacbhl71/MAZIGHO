@@ -60,6 +60,7 @@ import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuer
 import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequestRegistryQuery } from "../shared/studioIntegrationRequestRegistry";
 import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCsvExport, type OwnerCsvExportKind } from "./services/ownerCsvExport";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
+import type { StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
 
@@ -2535,7 +2536,7 @@ export type StudioProvisioningDraftInput = {
   ownerEmail: string;
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
   customBusinessTheme?: string | null;
-  themePreset?: "violetCraft" | "telephony" | "pet" | "fashion" | "automotive" | "beauty" | null;
+  themePreset?: StorefrontThemeId | null;
   preferredCurrency: string;
   notes?: string | null;
 };

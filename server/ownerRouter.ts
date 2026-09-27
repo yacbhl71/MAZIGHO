@@ -12,6 +12,7 @@ import { storeSupportTicketTopics } from "../shared/storeSupportTickets";
 import { ownerCsvExportKinds } from "./services/ownerCsvExport";
 import { createOwnerLemonSqueezyBillingCheckout } from "./lemonSqueezyCheckout";
 import { formatSaasMediaQuota } from "../shared/saasEntitlements";
+import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
@@ -963,6 +964,12 @@ export const ownerRouter = router({
     const publicCopyFields = ["brandMessage", "highlightEyebrow", "highlightTitle", "highlightText", "storyTitle", "storyText", "editorialEyebrow", "editorialTitle"] as const;
     if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;
+  }),
+  applyStorefrontTheme: storeOwnerProcedure.input(z.object({
+    themeId: z.enum(storefrontThemeIds),
+  })).mutation(async ({ ctx, input }) => {
+    const { applyStorefrontTheme } = await import("./adminRouter");
+    return await applyStorefrontTheme(ctx, ctx.store!.id, input.themeId, "owner");
   }),
   saveHomepageSections: storeManagementProcedure.input(ownerHomepageSections).mutation(async ({ ctx, input }) => {
     const current = await db.getDesignProfile(ctx.store!.id);
