@@ -3024,29 +3024,11 @@ export const adminRouter = router({
     getTimeline: orderOperatorProcedure.input(z.object({ orderId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       return await db.getOrderTimeline(input.orderId, ctx.store?.id);
     }),
-    refund: adminProcedure.input(z.object({ orderId: z.number().int().positive(), confirmation: z.string().trim().max(80).optional() })).mutation(async ({ ctx, input }) => {
-      const context = await db.getOrderRefundContext(input.orderId, ctx.store?.id);
-      if (!context) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
-      if (context.paymentStatus === "refunded") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande est déjà remboursée." });
-      if (context.paymentStatus !== "paid") throw new TRPCError({ code: "BAD_REQUEST", message: "Seule une commande payée peut être remboursée." });
-      if (input.confirmation !== `REMBOURSER #${input.orderId}`) throw new TRPCError({ code: "BAD_REQUEST", message: `Pour confirmer, saisissez exactement : REMBOURSER #${input.orderId}` });
-      const key = process.env.STRIPE_SECRET_KEY?.trim();
-      if (!key || !(key.startsWith("sk_test_") || key.startsWith("sk_live_"))) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe n'est pas configuré : impossible de rembourser automatiquement." });
-      if (!context.stripeSessionId) throw new TRPCError({ code: "BAD_REQUEST", message: "Aucune session de paiement Stripe associée à cette commande." });
-      try {
-        const Stripe = (await import("stripe")).default;
-        const stripe = new Stripe(key);
-        const session = await stripe.checkout.sessions.retrieve(context.stripeSessionId);
-        const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
-        if (!paymentIntentId) throw new Error("NO_PAYMENT_INTENT");
-        await stripe.refunds.create({ payment_intent: paymentIntentId });
-      } catch (error) {
-        console.error("[stripe:refund]", error);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le remboursement Stripe a échoué. Vérifiez le tableau de bord Stripe." });
-      }
-      await db.markOrderRefunded(input.orderId, ctx.store?.id);
-      logAudit(ctx, { action: "order.refund", entityType: "order", entityId: input.orderId, summary: `Commande #${input.orderId} remboursée via Stripe (${(context.totalAmount / 100).toFixed(2)} CHF)` });
-      return { success: true };
+    refund: adminProcedure.input(z.object({ orderId: z.number().int().positive() })).mutation(async () => {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Les remboursements Stripe sont désactivés pendant la phase Test. Utilisez uniquement le suivi manuel des retours.",
+      });
     }),
   }),
 
@@ -3057,12 +3039,20 @@ export const adminRouter = router({
     }),
     updateStatus: orderOperatorProcedure.input(z.object({
       id: z.number().int().positive(),
-      status: z.enum(["approved", "rejected", "refunded"]),
-      resolutionNote: z.string().trim().max(1000).optional(),
+      action: z.enum(["approve", "reject", "mark_received", "close"]),
+      note: z.string().trim().max(1000).optional(),
     })).mutation(async ({ ctx, input }) => {
-      const result = await db.updateReturnRequestStatus({ id: input.id, status: input.status, resolutionNote: input.resolutionNote, actorUserId: ctx.user.id, storeId: ctx.store?.id });
-      logAudit(ctx, { action: "return.status", entityType: "return", entityId: input.id, summary: `Retour #${input.id} → ${input.status === "approved" ? "approuvé" : input.status === "rejected" ? "refusé" : "remboursé"} (commande #${result.orderId})`, metadata: { status: input.status } });
-      return result;
+      try {
+        const result = await db.updateOwnerReturnRequest({ id: input.id, action: input.action, note: input.note, actorUserId: ctx.user.id, storeId: ctx.store?.id });
+        logAudit(ctx, { action: "return.status", entityType: "return", entityId: input.id, summary: `Retour #${input.id} : ${result.label} (commande #${result.orderId})`, metadata: { action: input.action, status: result.status } });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "RETURN_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Demande de retour introuvable dans cette boutique." });
+        if (code === "RETURN_NOTE_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Ajoutez une note ou des instructions claires pour cette décision." });
+        if (code === "RETURN_TRANSITION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette transition de retour n’est pas autorisée." });
+        throw error;
+      }
     }),
   }),
 

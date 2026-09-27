@@ -78,14 +78,19 @@ export const shopRouter = router({
     requestReturn: storefrontProtectedProcedure.input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().trim().min(5).max(1000),
+      items: z.array(z.object({
+        orderItemId: z.number().int().positive(),
+        quantity: z.number().int().positive().max(100_000),
+      })).min(1).max(50),
     })).mutation(async ({ ctx, input }) => {
       try {
-        return await db.createReturnRequest({ userId: ctx.user.id, orderId: input.orderId, reason: input.reason, storeId: ctx.store?.id });
+        return await db.createReturnRequest({ userId: ctx.user.id, orderId: input.orderId, reason: input.reason, items: input.items, storeId: ctx.store?.id });
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
-        if (code === "ORDER_NOT_PAID") throw new TRPCError({ code: "BAD_REQUEST", message: "Seule une commande payée peut faire l'objet d'un retour." });
+        if (code === "ORDER_NOT_RETURNABLE") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande ne peut pas faire l'objet d'un retour." });
         if (code === "RETURN_ALREADY_OPEN") throw new TRPCError({ code: "CONFLICT", message: "Une demande de retour est déjà en cours pour cette commande." });
+        if (code === "RETURN_ITEMS_INVALID" || code === "RETURN_ITEM_NOT_FOUND" || code === "RETURN_QUANTITY_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La sélection d’articles à retourner est invalide." });
         throw error;
       }
     }),

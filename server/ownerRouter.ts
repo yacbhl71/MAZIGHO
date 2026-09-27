@@ -443,6 +443,36 @@ export const ownerRouter = router({
   })).query(async ({ ctx, input }) => {
     return await db.getOwnerOrderItemSummaries(input.orderId, ctx.store!.id);
   }),
+  getReturnRequests: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerReturnRequests(ctx.store!.id);
+  }),
+  updateReturnRequest: storeManagementProcedure.input(z.object({
+    id: z.number().int().positive(),
+    action: z.enum(["approve", "reject", "mark_received", "close"]),
+    note: z.string().trim().max(1000).optional(),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.updateOwnerReturnRequest({ ...input, actorUserId: ctx.user!.id, storeId: ctx.store!.id });
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name,
+        actorRole: ctx.user!.role,
+        action: "owner.return.update",
+        entityType: "return_request",
+        entityId: input.id,
+        summary: `Retour #${input.id} : ${result.label}.`,
+        metadata: { action: input.action, status: result.status, orderId: result.orderId },
+      });
+      return result;
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "RETURN_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Demande de retour introuvable dans cette boutique." });
+      if (code === "RETURN_NOTE_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Ajoutez une note ou des instructions claires pour cette décision." });
+      if (code === "RETURN_TRANSITION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette transition de retour n’est pas autorisée." });
+      throw error;
+    }
+  }),
   recordOrderDecision: storeManagementProcedure.input(z.object({
     orderId: z.number().int().positive(),
     action: z.enum(["accepted", "rejected"]),

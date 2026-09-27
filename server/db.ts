@@ -61,8 +61,9 @@ import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequest
 import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCsvExport, type OwnerCsvExportKind } from "./services/ownerCsvExport";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import { hashPassword } from "./localAuth";
+import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, campaigns, stripeConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -3684,7 +3685,6 @@ async function ensureStoreRelationshipScopeSchema() {
     await ensurePromotionAdvancedSchema();
     await ensureReviewsSchema();
     await ensureOrderDecisionSchema();
-    await ensureReturnsSchema();
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
     const primaryStoreId = await getPrimaryStoreId();
@@ -10021,30 +10021,112 @@ export async function markCartReminderSent(cartId: number, storeId?: number) {
   await db.update(carts).set({ reminderSentAt: new Date() }).where(and(eq(carts.storeId, effectiveStoreId), eq(carts.id, cartId)));
 }
 
-// --- Returns / RMA + refunds + order timeline (Lot C) ---
-let _returnsSchemaReady: Promise<void> | null = null;
-async function ensureReturnsSchema() {
-  if (_returnsSchemaReady) return _returnsSchemaReady;
-  _returnsSchemaReady = (async () => {
-    const db = await getDb();
-    if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `returnRequests` (`id` int AUTO_INCREMENT PRIMARY KEY, `orderId` int NOT NULL, `userId` int NOT NULL, `reason` varchar(1000) NOT NULL, `status` enum('requested','approved','rejected','refunded') NOT NULL DEFAULT 'requested', `resolutionNote` varchar(1000), `refundAmount` int, `actorUserId` int, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `return_requests_order_idx` (`orderId`), INDEX `return_requests_user_idx` (`userId`), INDEX `return_requests_status_idx` (`status`))"));
-  })();
-  return _returnsSchemaReady;
+// --- Controlled returns / RMA ---
+// These functions record a customer request and the owner’s manual treatment.
+// They intentionally never create Stripe refunds, mail, carrier work or a
+// lifecycle change on the order itself.
+type ReturnSelection = { orderItemId: number; quantity: number };
+
+function normalizeReturnSelections(items: ReturnSelection[]) {
+  const quantities = new Map<number, number>();
+  for (const item of items) {
+    const orderItemId = Number(item.orderItemId);
+    const quantity = Number(item.quantity);
+    if (!Number.isInteger(orderItemId) || orderItemId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("RETURN_ITEMS_INVALID");
+    }
+    quantities.set(orderItemId, (quantities.get(orderItemId) ?? 0) + quantity);
+  }
+  if (!quantities.size || quantities.size > 50) throw new Error("RETURN_ITEMS_INVALID");
+  return quantities;
 }
 
-export async function createReturnRequest(input: { userId: number; orderId: number; reason: string; storeId?: number }) {
+export async function createReturnRequest(input: { userId: number; orderId: number; reason: string; items: ReturnSelection[]; storeId?: number }) {
   await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
-  const order = await db.select({ id: orders.id, userId: orders.userId, paymentStatus: orders.paymentStatus, status: orders.status }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.orderId))).limit(1);
-  if (!order[0] || order[0].userId !== input.userId) throw new Error("ORDER_NOT_FOUND");
-  if (order[0].paymentStatus !== "paid") throw new Error("ORDER_NOT_PAID");
-  const existing = await db.select({ id: returnRequests.id }).from(returnRequests).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.orderId, input.orderId), inArray(returnRequests.status, ["requested", "approved"]))).limit(1);
+  const selections = normalizeReturnSelections(input.items);
+  const [order] = await db.select({ id: orders.id, userId: orders.userId, paymentStatus: orders.paymentStatus, status: orders.status })
+    .from(orders)
+    .where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.orderId)))
+    .limit(1);
+  if (!order || order.userId !== input.userId) throw new Error("ORDER_NOT_FOUND");
+  if (order.paymentStatus !== "paid" || order.status === "cancelled") throw new Error("ORDER_NOT_RETURNABLE");
+
+  const existing = await db.select({ id: returnRequests.id })
+    .from(returnRequests)
+    .where(and(
+      eq(returnRequests.storeId, effectiveStoreId),
+      eq(returnRequests.orderId, input.orderId),
+      inArray(returnRequests.status, ["requested", "approved", "return_received", "closed", "refunded"]),
+    ))
+    .limit(1);
   if (existing[0]) throw new Error("RETURN_ALREADY_OPEN");
-  const result = await db.insert(returnRequests).values({ storeId: effectiveStoreId, orderId: input.orderId, userId: input.userId, reason: input.reason.trim() });
-  return { id: Number((result as any)[0].insertId) };
+
+  const orderRows = await db.select({
+    id: orderItems.id,
+    productId: orderItems.productId,
+    quantity: orderItems.quantity,
+    productNameSnapshot: orderItems.productNameSnapshot,
+    selectedOptions: orderItems.selectedOptions,
+  }).from(orderItems).where(and(eq(orderItems.storeId, effectiveStoreId), eq(orderItems.orderId, input.orderId)));
+  const selectedItems = orderRows.flatMap(row => {
+    const requestedQuantity = selections.get(row.id);
+    if (!requestedQuantity) return [];
+    if (requestedQuantity > row.quantity) throw new Error("RETURN_QUANTITY_INVALID");
+    return [{
+      orderItemId: row.id,
+      productId: row.productId,
+      productNameSnapshot: row.productNameSnapshot?.trim() || `Article #${row.productId}`,
+      selectedOptionsSnapshot: row.selectedOptions,
+      quantity: requestedQuantity,
+    }];
+  });
+  if (selectedItems.length !== selections.size) throw new Error("RETURN_ITEM_NOT_FOUND");
+
+  return await db.transaction(async tx => {
+    const result = await tx.insert(returnRequests).values({
+      storeId: effectiveStoreId,
+      orderId: input.orderId,
+      userId: input.userId,
+      reason: input.reason.trim(),
+      status: "requested",
+    });
+    const returnRequestId = Number((result as any)[0].insertId);
+    await tx.insert(returnRequestItems).values(selectedItems.map(item => ({
+      storeId: effectiveStoreId,
+      returnRequestId,
+      ...item,
+    })));
+    await tx.insert(returnRequestEvents).values({
+      storeId: effectiveStoreId,
+      returnRequestId,
+      action: "requested",
+      toStatus: "requested",
+      note: input.reason.trim(),
+      actorUserId: input.userId,
+    });
+    return { id: returnRequestId };
+  });
+}
+
+async function getReturnRequestDetails(storeId: number, rows: Array<typeof returnRequests.$inferSelect>) {
+  if (!rows.length) return [];
+  const ids = rows.map(row => row.id);
+  const [items, events] = await Promise.all([
+    (await getDb())!.select().from(returnRequestItems).where(and(eq(returnRequestItems.storeId, storeId), inArray(returnRequestItems.returnRequestId, ids))).orderBy(asc(returnRequestItems.id)),
+    (await getDb())!.select().from(returnRequestEvents).where(and(eq(returnRequestEvents.storeId, storeId), inArray(returnRequestEvents.returnRequestId, ids))).orderBy(asc(returnRequestEvents.createdAt)),
+  ]);
+  const itemsByRequest = new Map<number, typeof items>();
+  const eventsByRequest = new Map<number, typeof events>();
+  for (const item of items) itemsByRequest.set(item.returnRequestId, [...(itemsByRequest.get(item.returnRequestId) ?? []), item]);
+  for (const event of events) eventsByRequest.set(event.returnRequestId, [...(eventsByRequest.get(event.returnRequestId) ?? []), event]);
+  return rows.map(row => ({
+    ...row,
+    items: itemsByRequest.get(row.id) ?? [],
+    events: eventsByRequest.get(row.id) ?? [],
+  }));
 }
 
 export async function getUserReturnRequests(userId: number, storeId?: number) {
@@ -10052,49 +10134,86 @@ export async function getUserReturnRequests(userId: number, storeId?: number) {
   const db = await getDb();
   if (!db) return [];
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  return await db.select().from(returnRequests).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.userId, userId))).orderBy(desc(returnRequests.createdAt));
+  const rows = await db.select().from(returnRequests)
+    .where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.userId, userId)))
+    .orderBy(desc(returnRequests.createdAt));
+  return await getReturnRequestDetails(effectiveStoreId, rows);
 }
 
-export async function getAllReturnRequestsAdmin(storeId?: number) {
+export async function getOwnerReturnRequests(storeId?: number) {
   await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) return [];
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  return await db.select({
-    id: returnRequests.id,
-    orderId: returnRequests.orderId,
-    userId: returnRequests.userId,
-    reason: returnRequests.reason,
-    status: returnRequests.status,
-    resolutionNote: returnRequests.resolutionNote,
-    refundAmount: returnRequests.refundAmount,
-    createdAt: returnRequests.createdAt,
-    updatedAt: returnRequests.updatedAt,
-    userName: users.name,
-    userEmail: users.email,
-    orderTotal: orders.totalAmount,
-    orderPaymentStatus: orders.paymentStatus,
-  }).from(returnRequests)
-    .leftJoin(users, eq(returnRequests.userId, users.id))
-    .leftJoin(orders, and(eq(returnRequests.orderId, orders.id), eq(returnRequests.storeId, orders.storeId)))
+  const rows = await db.select().from(returnRequests)
     .where(eq(returnRequests.storeId, effectiveStoreId))
     .orderBy(desc(returnRequests.createdAt));
+  const details = await getReturnRequestDetails(effectiveStoreId, rows);
+  const orderTotals = await db.select({ id: orders.id, totalAmount: orders.totalAmount, currencyCode: orders.currencyCode })
+    .from(orders)
+    .where(and(eq(orders.storeId, effectiveStoreId), inArray(orders.id, rows.map(row => row.orderId).length ? rows.map(row => row.orderId) : [-1])));
+  const orderById = new Map(orderTotals.map(order => [order.id, order]));
+  return details.map(row => ({
+    ...row,
+    order: orderById.get(row.orderId) ?? null,
+  }));
 }
 
-export async function updateReturnRequestStatus(input: { id: number; status: "approved" | "rejected" | "refunded"; resolutionNote?: string; refundAmount?: number; actorUserId: number; storeId?: number }) {
+// Compatibility for the historical administration screen. New owner and Studio
+// surfaces consume the same tenant-scoped, non-PII model.
+export async function getAllReturnRequestsAdmin(storeId?: number) {
+  return await getOwnerReturnRequests(storeId);
+}
+
+export async function updateOwnerReturnRequest(input: { id: number; action: ReturnRequestAction; note?: string; actorUserId: number; storeId?: number }) {
   await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
-  const current = await db.select().from(returnRequests).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id))).limit(1);
-  if (!current[0]) throw new Error("RETURN_NOT_FOUND");
-  await db.update(returnRequests).set({
-    status: input.status,
-    resolutionNote: input.resolutionNote?.trim() || current[0].resolutionNote,
-    refundAmount: input.refundAmount ?? current[0].refundAmount,
-    actorUserId: input.actorUserId,
-  }).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id)));
-  return { success: true, orderId: current[0].orderId };
+  const [current] = await db.select().from(returnRequests)
+    .where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id)))
+    .limit(1);
+  if (!current) throw new Error("RETURN_NOT_FOUND");
+  const currentStatus = current.status as ReturnRequestStatus;
+  const nextStatus = getReturnRequestNextStatus(currentStatus, input.action);
+  if (!nextStatus) throw new Error("RETURN_TRANSITION_INVALID");
+  const note = input.note?.trim() || "";
+  if ((input.action === "approve" || input.action === "reject") && note.length < 2) throw new Error("RETURN_NOTE_REQUIRED");
+
+  const now = new Date();
+  await db.transaction(async tx => {
+    const patch: Partial<typeof returnRequests.$inferInsert> = {
+      status: nextStatus,
+      actorUserId: input.actorUserId,
+    };
+    if (input.action === "approve") patch.instructions = note;
+    if (input.action === "reject") patch.resolutionNote = note;
+    if (input.action === "mark_received") {
+      patch.returnReceivedAt = now;
+      if (note) patch.resolutionNote = note;
+    }
+    if (input.action === "close") {
+      patch.closedAt = now;
+      if (note) patch.resolutionNote = note;
+    }
+    await tx.update(returnRequests).set(patch).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id)));
+    await tx.insert(returnRequestEvents).values({
+      storeId: effectiveStoreId,
+      returnRequestId: input.id,
+      action: input.action,
+      fromStatus: currentStatus,
+      toStatus: nextStatus,
+      note: note || null,
+      actorUserId: input.actorUserId,
+    });
+  });
+  return { success: true, orderId: current.orderId, status: nextStatus, label: getReturnRequestActionLabel(input.action) };
+}
+
+// Compatibility for older callers: payment mutation is deliberately removed.
+export async function updateReturnRequestStatus(input: { id: number; status: "approved" | "rejected" | "return_received" | "closed"; resolutionNote?: string; actorUserId: number; storeId?: number }) {
+  const action = input.status === "approved" ? "approve" : input.status === "rejected" ? "reject" : input.status === "return_received" ? "mark_received" : "close";
+  return await updateOwnerReturnRequest({ id: input.id, action, note: input.resolutionNote, actorUserId: input.actorUserId, storeId: input.storeId });
 }
 
 export async function getReturnRequestById(id: number, storeId?: number) {
@@ -10115,25 +10234,6 @@ export async function getOrderContactById(orderId: number, storeId?: number) {
   return rows[0] ?? null;
 }
 
-// Returns the Stripe session id + order snapshot needed to issue a refund.
-export async function getOrderRefundContext(orderId: number, storeId?: number) {
-  await ensureStoreRelationshipScopeSchema();
-  const db = await getDb();
-  if (!db) return null;
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  const rows = await db.select({ id: orders.id, stripeSessionId: orders.stripeSessionId, paymentStatus: orders.paymentStatus, totalAmount: orders.totalAmount }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId))).limit(1);
-  return rows[0] ?? null;
-}
-
-export async function markOrderRefunded(orderId: number, storeId?: number) {
-  await ensureStoreRelationshipScopeSchema();
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
-  await db.update(orders).set({ paymentStatus: "refunded", status: "cancelled" }).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, orderId)));
-  return { success: true };
-}
-
 // Builds a chronological timeline for an order from real recorded data.
 export async function getOrderTimeline(orderId: number, storeId?: number) {
   await ensureStoreRelationshipScopeSchema();
@@ -10147,6 +10247,9 @@ export async function getOrderTimeline(orderId: number, storeId?: number) {
     db.select().from(orderDecisions).where(and(eq(orderDecisions.storeId, effectiveStoreId), eq(orderDecisions.orderId, orderId))).orderBy(asc(orderDecisions.createdAt)),
     db.select().from(returnRequests).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.orderId, orderId))).orderBy(asc(returnRequests.createdAt)),
   ]);
+  const returnEvents = returns.length
+    ? await db.select().from(returnRequestEvents).where(and(eq(returnRequestEvents.storeId, effectiveStoreId), inArray(returnRequestEvents.returnRequestId, returns.map(ret => ret.id)))).orderBy(asc(returnRequestEvents.createdAt))
+    : [];
   const events: Array<{ type: string; label: string; detail?: string; at: Date | string }> = [];
   events.push({ type: "created", label: "Commande créée", at: order.createdAt });
   if (order.paymentStatus === "paid" || order.paymentStatus === "refunded") {
@@ -10158,9 +10261,18 @@ export async function getOrderTimeline(orderId: number, storeId?: number) {
   }
   if (order.trackingNumber) events.push({ type: "shipped", label: "Expédiée", detail: `Suivi : ${order.trackingNumber}`, at: order.updatedAt });
   if (order.status === "delivered") events.push({ type: "delivered", label: "Livrée", at: order.updatedAt });
+  const eventsByReturnRequest = new Map<number, typeof returnEvents>();
+  for (const event of returnEvents) eventsByReturnRequest.set(event.returnRequestId, [...(eventsByReturnRequest.get(event.returnRequestId) ?? []), event]);
   for (const ret of returns) {
-    const label = ret.status === "requested" ? "Retour demandé" : ret.status === "approved" ? "Retour approuvé" : ret.status === "rejected" ? "Retour refusé" : "Remboursée";
-    events.push({ type: `return_${ret.status}`, label, detail: ret.status === "requested" ? ret.reason : ret.resolutionNote ?? undefined, at: ret.updatedAt });
+    const history = eventsByReturnRequest.get(ret.id) ?? [];
+    if (!history.length) {
+      events.push({ type: `return_${ret.status}`, label: getReturnRequestStatusLabel(ret.status as ReturnRequestStatus), detail: ret.status === "requested" ? ret.reason : ret.resolutionNote ?? undefined, at: ret.updatedAt });
+      continue;
+    }
+    for (const event of history) {
+      const label = event.action === "requested" ? "Retour demandé" : getReturnRequestActionLabel(event.action as ReturnRequestAction);
+      events.push({ type: `return_${event.action}`, label, detail: event.note ?? undefined, at: event.createdAt });
+    }
   }
   if (order.paymentStatus === "refunded" && !returns.some(r => r.status === "refunded")) {
     events.push({ type: "refunded", label: "Paiement remboursé", at: order.updatedAt });

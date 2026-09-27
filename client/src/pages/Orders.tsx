@@ -23,9 +23,11 @@ const STATUS: Record<string, { label: string; className: string }> = {
 
 const RETURN_STATUS: Record<string, { label: string; className: string }> = {
   requested: { label: "Retour demandé", className: "bg-amber-100 text-amber-800" },
-  approved: { label: "Retour approuvé", className: "bg-blue-100 text-blue-800" },
+  approved: { label: "Instructions reçues", className: "bg-blue-100 text-blue-800" },
+  return_received: { label: "Retour réceptionné", className: "bg-violet-100 text-violet-800" },
+  closed: { label: "Dossier clôturé", className: "bg-emerald-100 text-emerald-800" },
   rejected: { label: "Retour refusé", className: "bg-rose-100 text-rose-800" },
-  refunded: { label: "Remboursée", className: "bg-emerald-100 text-emerald-800" },
+  refunded: { label: "Ancien remboursement déclaré", className: "bg-slate-100 text-slate-700" },
 };
 
 function money(cents: number, currencyCode = "CHF") {
@@ -47,6 +49,8 @@ export default function Orders() {
   const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && hasValidStripeSessionId) });
   const [returnOrderId, setReturnOrderId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
+  const [returnQuantities, setReturnQuantities] = useState<Record<number, number>>({});
+  const returnDetail = trpc.shop.orders.getDetail.useQuery(returnOrderId || 0, { enabled: Boolean(user && returnOrderId) });
 
   const requestReturn = trpc.shop.orders.requestReturn.useMutation({
     onSuccess: async () => { toast.success("Demande de retour envoyée"); setReturnOrderId(null); setReason(""); await returnsQuery.refetch(); },
@@ -56,7 +60,10 @@ export default function Orders() {
   const orders = ordersQuery.data ?? [];
   const { refetch: refetchOrders } = ordersQuery;
   const returns = returnsQuery.data ?? [];
-  const returnByOrder = new Map(returns.map(r => [r.orderId, r]));
+  const returnByOrder = new Map<number, (typeof returns)[number]>();
+  for (const returnRequest of returns) {
+    if (!returnByOrder.has(returnRequest.orderId)) returnByOrder.set(returnRequest.orderId, returnRequest);
+  }
   const returnedOrder = stripeCheckoutStatus.data?.order;
   const confirmedOrder = stripeCheckoutStatus.data?.status === "paid" && returnedOrder?.paymentStatus === "paid" ? returnedOrder : null;
   const checkoutConfirmed = Boolean(confirmedOrder);
@@ -67,6 +74,11 @@ export default function Orders() {
       void refetchOrders();
     }
   }, [checkoutConfirmed, clearCart, refetchOrders]);
+
+  useEffect(() => {
+    if (!returnOrderId || !returnDetail.data?.items) return;
+    setReturnQuantities(Object.fromEntries(returnDetail.data.items.map(item => [item.id, 0])));
+  }, [returnOrderId, returnDetail.data?.items]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -104,7 +116,7 @@ export default function Orders() {
                 {orders.map(order => {
                   const status = STATUS[order.status] || { label: order.status, className: "bg-slate-100 text-slate-700" };
                   const existingReturn = returnByOrder.get(order.id);
-                  const canReturn = order.paymentStatus === "paid" && (!existingReturn || existingReturn.status === "rejected");
+                  const canReturn = order.paymentStatus === "paid" && order.status !== "cancelled" && (!existingReturn || existingReturn.status === "rejected");
                   return (
                     <Card key={order.id} className="border-slate-200" data-testid={`order-card-${order.id}`}>
                       <CardContent className="p-5">
@@ -132,12 +144,14 @@ export default function Orders() {
                               <Badge className={`border-0 ${RETURN_STATUS[existingReturn.status].className}`}>{RETURN_STATUS[existingReturn.status].label}</Badge>
                             ) : <span className="text-xs text-muted-foreground">Un souci avec cette commande ?</span>}
                             {canReturn && (
-                              <Button size="sm" variant="outline" onClick={() => { setReturnOrderId(order.id); setReason(""); }} data-testid={`request-return-${order.id}`}>
+                              <Button size="sm" variant="outline" onClick={() => { setReturnOrderId(order.id); setReason(""); setReturnQuantities({}); }} data-testid={`request-return-${order.id}`}>
                                 <RotateCcw className="mr-2 h-4 w-4" /> Demander un retour
                               </Button>
                             )}
                           </div>
                         )}
+                        {existingReturn?.instructions && <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm leading-6 text-sky-950"><p className="font-semibold">Instructions de retour</p><p className="mt-1">{existingReturn.instructions}</p></div>}
+                        {existingReturn?.resolutionNote && existingReturn.status !== "approved" && <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><p className="font-semibold">Information de traitement</p><p className="mt-1">{existingReturn.resolutionNote}</p></div>}
                       </CardContent>
                     </Card>
                   );
@@ -153,12 +167,16 @@ export default function Orders() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Demander un retour — commande #{returnOrderId}</DialogTitle>
-            <DialogDescription>Expliquez la raison du retour. Notre équipe traitera votre demande et vous informera par e-mail.</DialogDescription>
+            <DialogDescription>Sélectionnez les articles et quantités concernés, puis expliquez le motif. Les instructions ou la décision apparaîtront directement dans cet espace.</DialogDescription>
           </DialogHeader>
+          {returnDetail.isLoading ? <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-4 text-sm text-slate-600"><Loader2 className="h-4 w-4 animate-spin" /> Chargement des articles…</div> : returnDetail.data?.items?.length ? <div className="space-y-2 rounded-xl border border-slate-200 p-3">{returnDetail.data.items.map(item => {
+            const selectedQuantity = returnQuantities[item.id] || 0;
+            return <div key={item.id} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3"><input type="checkbox" checked={selectedQuantity > 0} onChange={event => setReturnQuantities(current => ({ ...current, [item.id]: event.target.checked ? Math.max(1, current[item.id] || item.quantity) : 0 }))} className="h-4 w-4" aria-label={`Retourner ${item.name}`} /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-900">{item.name}</p><p className="text-xs text-slate-500">Acheté : {item.quantity} · {(item.priceAtPurchase / 100).toFixed(2)} CHF</p></div>{selectedQuantity > 0 && <input type="number" min="1" max={item.quantity} value={selectedQuantity} onChange={event => { const quantity = Math.max(1, Math.min(item.quantity, Number(event.target.value) || 1)); setReturnQuantities(current => ({ ...current, [item.id]: quantity })); }} className="h-9 w-16 rounded-md border border-slate-300 bg-white px-2 text-sm" aria-label={`Quantité retournée pour ${item.name}`} />}</div>;
+          })}</div> : <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">Les articles de cette commande ne sont pas disponibles pour une demande de retour.</div>}
           <Textarea rows={4} value={reason} onChange={e => setReason(e.target.value)} placeholder="Ex : article endommagé, taille incorrecte…" data-testid="return-reason-input" />
           <DialogFooter>
             <Button variant="outline" onClick={() => setReturnOrderId(null)}>Annuler</Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" disabled={reason.trim().length < 5 || requestReturn.isPending} onClick={() => returnOrderId && requestReturn.mutate({ orderId: returnOrderId, reason: reason.trim() })} data-testid="submit-return-request">
+            <Button className="bg-orange-500 hover:bg-orange-600" disabled={reason.trim().length < 5 || !Object.values(returnQuantities).some(quantity => quantity > 0) || requestReturn.isPending || returnDetail.isLoading} onClick={() => returnOrderId && requestReturn.mutate({ orderId: returnOrderId, reason: reason.trim(), items: Object.entries(returnQuantities).flatMap(([orderItemId, quantity]) => quantity > 0 ? [{ orderItemId: Number(orderItemId), quantity }] : []) })} data-testid="submit-return-request">
               {requestReturn.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Envoyer la demande
             </Button>
           </DialogFooter>

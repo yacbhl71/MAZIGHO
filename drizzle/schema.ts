@@ -738,17 +738,22 @@ export const auditLogs = mysqlTable("auditLogs", {
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
-// Customer return requests (RMA). Refunds are issued through Stripe when a return is approved.
+// Customer return requests (RMA). This workflow records the request, owner
+// instructions and receipt of a return only. It never calls Stripe or changes
+// a storefront payment status.
 export const returnRequests = mysqlTable("returnRequests", {
   id: int("id").autoincrement().primaryKey(),
   storeId: int("storeId").notNull(),
   orderId: int("orderId").notNull(),
   userId: int("userId").notNull(),
   reason: varchar("reason", { length: 1000 }).notNull(),
-  status: mysqlEnum("status", ["requested", "approved", "rejected", "refunded"]).default("requested").notNull(),
+  status: mysqlEnum("status", ["requested", "approved", "return_received", "closed", "rejected", "refunded"]).default("requested").notNull(),
+  instructions: varchar("instructions", { length: 1000 }),
   resolutionNote: varchar("resolutionNote", { length: 1000 }),
   refundAmount: int("refundAmount"),
   actorUserId: int("actorUserId"),
+  returnReceivedAt: timestamp("returnReceivedAt"),
+  closedAt: timestamp("closedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
@@ -758,3 +763,42 @@ export const returnRequests = mysqlTable("returnRequests", {
 
 export type ReturnRequest = typeof returnRequests.$inferSelect;
 export type InsertReturnRequest = typeof returnRequests.$inferInsert;
+
+// Immutable item selection captured at the time of the customer's request.
+// Product data can later be edited or archived without rewriting the RMA.
+export const returnRequestItems = mysqlTable("returnRequestItems", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  returnRequestId: int("returnRequestId").notNull(),
+  orderItemId: int("orderItemId").notNull(),
+  productId: int("productId").notNull(),
+  productNameSnapshot: varchar("productNameSnapshot", { length: 255 }).notNull(),
+  selectedOptionsSnapshot: text("selectedOptionsSnapshot"),
+  quantity: int("quantity").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  storeRequestIndex: index("return_request_items_store_request_idx").on(table.storeId, table.returnRequestId),
+  storeOrderItemIndex: index("return_request_items_store_order_item_idx").on(table.storeId, table.orderItemId),
+}));
+
+export type ReturnRequestItem = typeof returnRequestItems.$inferSelect;
+export type InsertReturnRequestItem = typeof returnRequestItems.$inferInsert;
+
+// Append-only operational history. Events explain the manual decision to the
+// customer and owner without mutating the original request.
+export const returnRequestEvents = mysqlTable("returnRequestEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  returnRequestId: int("returnRequestId").notNull(),
+  action: varchar("action", { length: 40 }).notNull(),
+  fromStatus: varchar("fromStatus", { length: 40 }),
+  toStatus: varchar("toStatus", { length: 40 }).notNull(),
+  note: varchar("note", { length: 1000 }),
+  actorUserId: int("actorUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  storeRequestCreatedIndex: index("return_request_events_store_request_created_idx").on(table.storeId, table.returnRequestId, table.createdAt),
+}));
+
+export type ReturnRequestEvent = typeof returnRequestEvents.$inferSelect;
+export type InsertReturnRequestEvent = typeof returnRequestEvents.$inferInsert;
