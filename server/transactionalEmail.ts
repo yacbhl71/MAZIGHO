@@ -4,6 +4,7 @@ type TransactionalEmailInput = {
   html: string;
   text: string;
   idempotencyKey: string;
+  tags?: string[];
 };
 
 type DeliveryResult =
@@ -17,6 +18,7 @@ type TransactionalSender = {
 
 const defaultPublicUrl = "https://www.mazigho.ch";
 const defaultSenderName = "MAZIGHO";
+const studioSupportUrl = "https://studio.mazigho.ch/admin/studio/assistance";
 export const BREVO_REQUEST_TIMEOUT_MS = 10_000;
 
 function escapeHtml(value: string): string {
@@ -91,9 +93,9 @@ export async function sendTransactionalEmail(input: TransactionalEmailInput): Pr
         subject: input.subject,
         htmlContent: input.html,
         textContent: input.text,
-        // This tag keeps account-security emails easy to identify in Brevo without
-        // turning them into a marketing campaign or storing application secrets.
-        tags: ["mazigho-account-security"],
+        // Tags keep transactional categories distinguishable in Brevo. They do
+        // not create a campaign, mailing list, marketing automation or profile.
+        tags: input.tags?.length ? input.tags : ["mazigho-account-security"],
       }),
     });
   } catch (error) {
@@ -149,5 +151,37 @@ export async function sendPasswordResetEmail(input: {
     idempotencyKey: `password-reset/${input.tokenId}`,
     text: `Bonjour ${input.name || ""},\n\nUne demande de réinitialisation de mot de passe a été reçue. Choisissez un nouveau mot de passe ici : ${link}\n\nCe lien est personnel et expire prochainement. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.`,
     html: `<p>Bonjour ${displayName},</p><p>Une demande de réinitialisation de votre mot de passe <strong>MAZIGHO</strong> a été reçue.</p><p><a href="${link}" style="display:inline-block;background:#f97316;color:#ffffff;padding:12px 18px;border-radius:6px;text-decoration:none;font-weight:600">Choisir un nouveau mot de passe</a></p><p>Ou copiez cette adresse dans votre navigateur :</p><p><a href="${link}">${link}</a></p><p>Ce lien est personnel et expire prochainement. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.</p>`,
+  });
+}
+
+/**
+ * Alerts MAZIGHO operators about a new owner support ticket. The alert contains
+ * only the ticket reference and boutique metadata: never a password, API key,
+ * payment record, customer data, or the owner's free-text support message.
+ */
+export async function sendStudioSupportTicketAlert(input: {
+  ticketId: string;
+  storeName: string;
+  primaryDomain: string;
+  topic: string;
+  subject: string;
+}): Promise<DeliveryResult> {
+  const { sender } = getMailConfiguration();
+  const recipient = process.env.MAZIGHO_SUPPORT_ALERT_EMAIL?.trim() || sender?.email;
+  if (!recipient) return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
+
+  const storeName = escapeHtml(input.storeName.trim().slice(0, 160));
+  const primaryDomain = escapeHtml(input.primaryDomain.trim().slice(0, 253));
+  const subject = escapeHtml(input.subject.trim().slice(0, 120));
+  const topic = escapeHtml(input.topic.trim().slice(0, 60));
+  const ticketId = escapeHtml(input.ticketId.trim().slice(0, 80));
+
+  return sendTransactionalEmail({
+    to: recipient,
+    subject: `Nouveau ticket MAZIGHO — ${input.storeName.trim().slice(0, 120)}`,
+    idempotencyKey: `store-support-ticket/${input.ticketId}`,
+    tags: ["mazigho-support-ticket"],
+    text: `Un nouveau ticket d’assistance est disponible dans MAZIGHO Studio.\n\nBoutique : ${input.storeName}\nDomaine : ${input.primaryDomain}\nSujet : ${input.subject}\nCatégorie : ${input.topic}\nRéférence : ${input.ticketId}\n\nOuvrir le Studio : ${studioSupportUrl}\n\nCe message ne contient volontairement ni le texte libre du ticket, ni donnée client, mot de passe, clé API ou information de paiement.`,
+    html: `<p>Un nouveau ticket d’assistance est disponible dans <strong>MAZIGHO Studio</strong>.</p><ul><li><strong>Boutique :</strong> ${storeName}</li><li><strong>Domaine :</strong> ${primaryDomain}</li><li><strong>Sujet :</strong> ${subject}</li><li><strong>Catégorie :</strong> ${topic}</li><li><strong>Référence :</strong> ${ticketId}</li></ul><p><a href="${studioSupportUrl}" style="display:inline-block;background:#5a6834;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600">Ouvrir l’assistance Studio</a></p><p style="color:#64748b;font-size:12px">Cet e-mail ne contient volontairement ni le texte libre du ticket, ni donnée client, mot de passe, clé API ou information de paiement.</p>`,
   });
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BREVO_REQUEST_TIMEOUT_MS, isTransactionalEmailConfigured, sendTransactionalEmail } from "./transactionalEmail";
+import { BREVO_REQUEST_TIMEOUT_MS, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail } from "./transactionalEmail";
 
 describe("transactionalEmail", () => {
   afterEach(() => {
@@ -44,6 +44,32 @@ describe("transactionalEmail", () => {
       textContent: "Bonjour",
       tags: ["mazigho-account-security"],
     });
+  });
+
+  it("sends a bounded internal alert for a Studio support ticket", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    vi.stubEnv("MAZIGHO_SUPPORT_ALERT_EMAIL", "operations@mazigho.ch");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ messageId: "<support-message-id>" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendStudioSupportTicketAlert({
+      ticketId: "support123",
+      storeName: "Atelier Sylvie",
+      primaryDomain: "dyama.mazigho.ch",
+      topic: "technical",
+      subject: "Aide catalogue",
+    })).resolves.toEqual({ delivered: true, id: "<support-message-id>" });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(request.body));
+    expect(body).toMatchObject({
+      to: [{ email: "operations@mazigho.ch" }],
+      subject: "Nouveau ticket MAZIGHO — Atelier Sylvie",
+      tags: ["mazigho-support-ticket"],
+    });
+    expect(body.textContent).toContain("https://studio.mazigho.ch/admin/studio/assistance");
+    expect(body.textContent).toContain("ni le texte libre du ticket");
   });
 
   it("does not claim delivery when Brevo rejects a message", async () => {

@@ -4,7 +4,7 @@ import Stripe from "stripe";
 import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
-import { getAccountInvitationLink } from "./transactionalEmail";
+import { getAccountInvitationLink, sendStudioSupportTicketAlert } from "./transactionalEmail";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
 import { storeTaxDisplayModes } from "../shared/storeTaxPolicy";
 import { storeIntegrationIds } from "../shared/storeIntegrationRequests";
@@ -635,7 +635,25 @@ export const ownerRouter = router({
     return await db.getOwnerSupportTickets(ctx.store!.id);
   }),
   createSupportTicket: storeManagementProcedure.input(ownerSupportTicket).mutation(async ({ ctx, input }) => {
-    return await db.createOwnerSupportTicket({ storeId: ctx.store!.id, ...input });
+    const profile = await db.createOwnerSupportTicket({ storeId: ctx.store!.id, ...input });
+    const ticket = profile.tickets[0];
+    if (!ticket) return { profile, notification: "unavailable" as const };
+
+    try {
+      const delivery = await sendStudioSupportTicketAlert({
+        ticketId: ticket.id,
+        storeName: ctx.store!.displayName,
+        primaryDomain: ctx.store!.primaryDomain,
+        topic: ticket.topic,
+        subject: ticket.subject,
+      });
+      return { profile, notification: delivery.delivered ? "sent" as const : "unavailable" as const };
+    } catch {
+      // The ticket is already persisted and stays visible in Studio. A transient
+      // email-provider failure must never invite duplicate owner submissions.
+      console.error("[Support] Studio ticket alert delivery failed", { ticketId: ticket.id, storeId: ctx.store!.id });
+      return { profile, notification: "failed" as const };
+    }
   }),
   getCustomDomainRequest: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomDomainRequest(ctx.store!.id);

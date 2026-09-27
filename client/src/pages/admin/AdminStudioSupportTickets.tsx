@@ -132,7 +132,7 @@ export default function AdminStudioSupportTickets() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Headphones className="h-5 w-5 text-violet-700" /> File d’assistance</CardTitle>
-                  <CardDescription>Recherche, filtres et pagination permettent de suivre un grand nombre de boutiques sans charger une page interminable. « À traiter » regroupe les tickets actifs sans réponse Studio ou restés actifs plus de 72 heures ; c’est un repère interne, pas un SLA ni une notification automatique.</CardDescription>
+                  <CardDescription>Recherche, filtres et pagination permettent de suivre un grand nombre de boutiques sans charger une page interminable. Un nouveau ticket peut déclencher une alerte e-mail interne ; « À traiter » reste un repère de priorisation, pas un SLA ni une relance automatique.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_120px]">

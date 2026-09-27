@@ -84,7 +84,13 @@ vi.mock("./db", () => ({
   savePublicContentTranslation: vi.fn(async input => ({ ...input, status: "ready", payload: input.payload })),
 }));
 
+vi.mock("./transactionalEmail", () => ({
+  getAccountInvitationLink: vi.fn((token: string) => `https://mazigho.test/activer-compte?token=${token}`),
+  sendStudioSupportTicketAlert: vi.fn(async () => ({ delivered: true, id: "support-alert-1" })),
+}));
+
 import * as db from "./db";
+import { sendStudioSupportTicketAlert } from "./transactionalEmail";
 import { appRouter } from "./routers";
 
 function callerFor(role: string = "user") {
@@ -228,9 +234,26 @@ describe("owner product variant routes", () => {
     expect(db.getOwnerSupportTickets).toHaveBeenCalledWith(77);
 
     await expect(callerFor().owner.createSupportTicket({ topic: "technical", subject: "Aide sur le menu", message: "Le menu de ma boutique nécessite une vérification." })).resolves.toMatchObject({
-      tickets: [expect.objectContaining({ topic: "technical", subject: "Aide sur le menu", storeId: 77, status: "open" })],
+      profile: { tickets: [expect.objectContaining({ topic: "technical", subject: "Aide sur le menu", storeId: 77, status: "open" })] },
+      notification: "sent",
     });
     expect(db.createOwnerSupportTicket).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, topic: "technical" }));
+    expect(sendStudioSupportTicketAlert).toHaveBeenCalledWith(expect.objectContaining({
+      storeName: "Boutique test",
+      primaryDomain: "boutique.test",
+      topic: "technical",
+      subject: "Aide sur le menu",
+    }));
+  });
+
+  it("keeps a persisted support ticket when the internal alert cannot be delivered", async () => {
+    vi.mocked(sendStudioSupportTicketAlert).mockRejectedValueOnce(new Error("provider unavailable"));
+
+    await expect(callerFor().owner.createSupportTicket({ topic: "domain", subject: "Aide domaine", message: "La configuration du domaine nécessite une vérification manuelle." })).resolves.toMatchObject({
+      profile: { tickets: [expect.objectContaining({ topic: "domain", storeId: 77, status: "open" })] },
+      notification: "failed",
+    });
+    expect(db.createOwnerSupportTicket).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, topic: "domain" }));
   });
 
   it("keeps customer relations and manual exports inside the resolved boutique", async () => {
