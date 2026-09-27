@@ -177,7 +177,7 @@ export default function Home() {
             </div>
             {localizedDiscoveryTiles.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
-                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#eadfd2] bg-[#fbf7f2] transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl">
+                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#e5e1d4] bg-[var(--mazigho-soft)] transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl">
                   <div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div>
                   <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-[var(--mazigho-primary)]">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div>
                 </Link>
@@ -190,25 +190,25 @@ export default function Home() {
 
         {profile.showStory && (
         <section className="relative overflow-hidden py-16 md:py-24" style={{ backgroundColor: palette.soft, order: orderIndex("story") }}>
-          <div aria-hidden="true" className="absolute -left-24 top-12 h-64 w-64 rounded-full bg-orange-200/45 blur-3xl" />
-          <div aria-hidden="true" className="absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-amber-100/80 blur-3xl" />
+          <div aria-hidden="true" className="absolute -left-24 top-12 h-64 w-64 rounded-full blur-3xl" style={{ backgroundColor: "color-mix(in srgb, var(--mazigho-primary) 24%, transparent)" }} />
+          <div aria-hidden="true" className="absolute -right-24 bottom-0 h-72 w-72 rounded-full blur-3xl" style={{ backgroundColor: "color-mix(in srgb, var(--mazigho-accent) 18%, transparent)" }} />
           <div className="container relative grid items-center gap-12 lg:grid-cols-[1.04fr_0.96fr] lg:gap-20">
             <div className="order-2 lg:order-1">
-              <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-white/75 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-orange-700"><Sparkles className="h-3.5 w-3.5" /> {copy.story.eyebrow}</div>
+              <div className="inline-flex items-center gap-2 rounded-full border bg-white/75 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em]" style={{ borderColor: "color-mix(in srgb, var(--mazigho-primary) 24%, white)", color: palette.primary }}><Sparkles className="h-3.5 w-3.5" /> {copy.story.eyebrow}</div>
               <h2 className="mt-5 max-w-xl text-4xl font-semibold leading-[1.04] tracking-tight text-slate-950 md:text-6xl">{copy.story.title}</h2>
               <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 md:text-lg">{copy.story.text}</p>
               <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{copy.story.followup}</p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">01</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[0]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold text-orange-700">03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>01</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[0]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
+                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
               </div>
               <Button asChild className="text-white shadow-lg shadow-fuchsia-700/20 hover:brightness-95"><Link href="/boutique" className="mt-8 inline-block" style={{ backgroundColor: palette.accent }}>{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5 text-orange-300" /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em] text-orange-200">{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
-              <div className="absolute -bottom-5 -left-3 rounded-2xl border border-orange-100 bg-white px-5 py-4 shadow-xl md:-left-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-700">{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
-              <div className="absolute -right-3 top-12 hidden rounded-2xl bg-orange-500 p-3 text-white shadow-lg md:flex"><ArrowUpRight className="h-5 w-5" /></div>
+              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5" style={{ color: "#F2C36B" }} /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: "#F2C36B" }}>{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
+              <div className="absolute -bottom-5 -left-3 rounded-2xl border bg-white px-5 py-4 shadow-xl md:-left-9" style={{ borderColor: "color-mix(in srgb, var(--mazigho-primary) 18%, white)" }}><p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: palette.primary }}>{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
+              <div className="absolute -right-3 top-12 hidden rounded-2xl p-3 text-white shadow-lg md:flex" style={{ backgroundColor: palette.accent }}><ArrowUpRight className="h-5 w-5" /></div>
             </div>
           </div>
         </section>
@@ -217,8 +217,8 @@ export default function Home() {
         {profile.showTestimonials && (
         <section style={{ order: orderIndex("testimonials") }} className="bg-slate-950 py-16 text-white md:py-24">
           <div className="container">
-            <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
-            <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7 text-orange-300" aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
+            <div className="mx-auto mb-10 max-w-2xl text-center"><p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: "#F2C36B" }}>{copy.testimonials.eyebrow}</p><h2 className="text-3xl font-semibold tracking-tight md:text-4xl">{copy.testimonials.title}</h2></div>
+            <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/5 px-6 py-8 text-center"><Quote className="mx-auto h-7 w-7" style={{ color: "#F2C36B" }} aria-hidden="true" /><p className="mt-4 text-sm leading-6 text-slate-300 md:text-base">{copy.testimonials.text}</p></div>
             {copy.testimonials.cta && profile.testimonialsCtaUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"><a href={useManagedPublicTranslation ? profile.testimonialsCtaUrl : "/boutique"}>{copy.testimonials.cta} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
           </div>
         </section>
@@ -244,7 +244,7 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em] text-orange-700">{copy.featured.eyebrow}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.featured.eyebrow}</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.featured.title}</h2>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>
               </div>
@@ -268,16 +268,16 @@ export default function Home() {
                             ) : (
                               <div className="flex h-full items-center justify-center text-5xl text-slate-300" aria-label={t(locale, "imageUnavailable")}>✦</div>
                             )}
-                            {hasDiscount && <span className="absolute left-3 top-3 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">{copy.featured.new}</span>}
+                            {hasDiscount && <span className="absolute left-3 top-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white" style={{ backgroundColor: palette.accent }}>{copy.featured.new}</span>}
                           </div>
                           <div className="space-y-3 p-5">
                             <div className="flex items-center gap-1 text-xs text-slate-500">
-                              <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+                              <Star className="h-3.5 w-3.5" style={{ fill: palette.accent, color: palette.accent }} />
                               <span>{(product as any).averageRating || copy.featured.new}</span>
                             </div>
-                            <h3 className="line-clamp-2 min-h-[3.5rem] text-base font-semibold leading-6 text-slate-900 group-hover:text-orange-600">{product.name}</h3>
+                            <h3 className="line-clamp-2 min-h-[3.5rem] text-base font-semibold leading-6 text-slate-900 transition-colors group-hover:text-[var(--mazigho-primary)]">{product.name}</h3>
                             <div className="flex items-baseline gap-2">
-                              <span className="text-lg font-bold text-orange-600">{formatPrice(product.price, locale)}</span>
+                              <span className="text-lg font-bold" style={{ color: palette.primary }}>{formatPrice(product.price, locale)}</span>
                               {hasDiscount && <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!, locale)}</span>}
                             </div>
                           </div>
@@ -313,7 +313,7 @@ export default function Home() {
           <div className="container">
             <div className="grid gap-8 overflow-hidden rounded-[2rem] bg-slate-950 px-7 py-10 text-white md:grid-cols-[1.15fr_0.85fr] md:px-12 md:py-14">
               <div className="flex flex-col justify-center">
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-orange-300">{copy.closing.eyebrow}</p>
+                <p className="mb-4 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: "#F2C36B" }}>{copy.closing.eyebrow}</p>
                 <h2 className="max-w-xl text-3xl font-semibold leading-tight md:text-5xl">{copy.closing.title}</h2>
                 <p className="mt-5 max-w-lg text-sm leading-7 text-slate-300 md:text-base">{copy.closing.text}</p>
                 <div className="mt-8 flex flex-wrap gap-3">

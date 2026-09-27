@@ -248,6 +248,39 @@ async function ensureMultiStoreSchema() {
     await db.execute(sql.raw("INSERT IGNORE INTO `storeMemberships` (`storeId`,`userId`,`role`,`status`) SELECT s.id, u.id, 'owner', 'active' FROM `stores` s INNER JOIN `users` u ON u.role = 'admin' WHERE s.slug = 'primary-store'"));
     // Copy only public storefront records. Technical settings, payment secrets and integrations remain global.
     await db.execute(sql.raw("INSERT IGNORE INTO `storeSettings` (`storeId`,`key`,`value`,`description`) SELECT st.id, se.`key`, se.`value`, se.`description` FROM `stores` st INNER JOIN `settings` se ON se.`key` IN ('design_profile','legal_profile','site_name','contact_email','currency','store_currency_code','store_currency_rate_bps','shipping_policy','free_shipping_threshold','flat_shipping_rate','meta_pixel_id','tiktok_pixel_id','setup_wizard_status','seo_default_title','seo_default_description') WHERE st.slug = 'primary-store'"));
+
+    // One-time visual migration for MAZIGHO's own legacy storefront only. Client
+    // stores are never selected here and any later owner-selected palette remains
+    // authoritative because this condition accepts only the original terracotta,
+    // non-customized profile.
+    const [platformStore] = await db.select({ id: stores.id }).from(stores)
+      .where(and(eq(stores.slug, "primary-store"), eq(stores.isPlatformStore, 1)))
+      .limit(1);
+    if (platformStore) {
+      const [designSetting] = await db.select({ id: storeSettings.id, value: storeSettings.value }).from(storeSettings)
+        .where(and(eq(storeSettings.storeId, platformStore.id), eq(storeSettings.key, "design_profile")))
+        .limit(1);
+      let currentProfile: DesignProfile | null = null;
+      try {
+        currentProfile = designSetting?.value ? normalizeDesignProfile(JSON.parse(designSetting.value)) : null;
+      } catch {
+        // A malformed legacy setting must not block storefront resolution.
+      }
+      if (currentProfile && currentProfile.paletteId === "terracotta" && !currentProfile.customColorsEnabled) {
+        const oliveProfile = normalizeDesignProfile({
+          ...currentProfile,
+          paletteId: "sage",
+          customColorsEnabled: true,
+          customPrimary: "#556531",
+          customAccent: "#8A5A11",
+          customSoft: "#FBFAF5",
+        });
+        await db.update(storeSettings).set({
+          value: JSON.stringify(oliveProfile),
+          description: "Palette officielle MAZIGHO : olive, ocre et ivoire ; propre à la boutique plateforme",
+        }).where(eq(storeSettings.id, designSetting.id));
+      }
+    }
   })();
 
   return _multiStoreSchemaReady;
