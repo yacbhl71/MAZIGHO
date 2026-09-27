@@ -20,10 +20,12 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { APP_LOGO } from "@/const";
+import { storefrontThemeCatalog, type StorefrontThemeId } from "@shared/storefrontThemeCatalog";
 
 const navigation = [
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
   { label: "Votre espace", href: "#espace" },
+  { label: "10 thèmes", href: "#themes" },
   { label: "Tarifs", href: "#tarifs" },
 ];
 
@@ -138,6 +140,55 @@ function ProductStudioPreview() {
   );
 }
 
+function ThemeLivePreview({ onCreateSpace }: { onCreateSpace: () => void }) {
+  const [selectedThemeId, setSelectedThemeId] = useState<StorefrontThemeId>("violetCraft");
+  const selectedTheme = storefrontThemeCatalog.find(theme => theme.id === selectedThemeId) ?? storefrontThemeCatalog[0]!;
+
+  return (
+    <section id="themes" className="scroll-mt-20 border-y border-[#e9e6d9] bg-[#fffefb] py-16 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b8b40]">10 univers de départ</p>
+          <h2 className="mt-3 font-serif text-4xl font-bold tracking-[-0.035em] text-[#26301b] sm:text-5xl">Projetez votre boutique avant même de commencer.</h2>
+          <p className="mt-4 text-sm leading-6 text-slate-600 sm:text-base">Choisissez un univers : l’aperçu change immédiatement. Les images, textes, couleurs, sections et menu restent ensuite entièrement entre vos mains.</p>
+        </div>
+
+        <div className="mt-11 grid gap-7 lg:grid-cols-[minmax(0,1.05fr)_minmax(420px,.95fr)] lg:items-stretch">
+          <div className="relative overflow-hidden rounded-[2rem] border border-[#e5e2d7] bg-[#26301b] p-3 shadow-[0_30px_70px_-42px_rgba(37,46,21,.75)] sm:p-4">
+            <div className="relative min-h-[440px] overflow-hidden rounded-[1.45rem] bg-[#111] sm:min-h-[500px]">
+              <img src={selectedTheme.visual} alt={selectedTheme.visualAlt} className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/5" />
+              <div className="absolute inset-x-0 top-0 flex items-center justify-between border-b border-white/15 bg-black/20 px-4 py-3 text-white backdrop-blur-sm sm:px-5">
+                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#f1bf64]" /><span className="h-2.5 w-2.5 rounded-full bg-[#dbe6a6]" /><span className="h-2.5 w-2.5 rounded-full bg-white/50" /></div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/85">Aperçu de vitrine</p>
+              </div>
+              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-8">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/70">{selectedTheme.eyebrow}</p>
+                <h3 className="mt-3 max-w-xl font-serif text-3xl font-bold leading-[.98] tracking-[-0.035em] sm:text-5xl">{selectedTheme.label}</h3>
+                <p className="mt-4 max-w-xl text-sm leading-6 text-white/82 sm:text-base">{selectedTheme.description}</p>
+                <div className="mt-6 flex flex-wrap gap-2">{selectedTheme.benefits.map(benefit => <span key={benefit} className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">{benefit}</span>)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col rounded-[2rem] border border-[#e7e4d9] bg-[#fbfaf5] p-4 shadow-[0_18px_45px_-36px_rgba(34,43,22,.45)] sm:p-5">
+            <div className="flex items-start justify-between gap-4 px-1 pb-4"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#7a8942]">Prévisualisation en direct</p><p className="mt-1 text-sm leading-5 text-slate-600">10 bases, sans vous enfermer dans un modèle.</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9eed0] text-[#5d6a31]"><Palette className="h-5 w-5" /></span></div>
+            <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Choisir un univers de boutique à prévisualiser">{storefrontThemeCatalog.map(theme => {
+              const active = theme.id === selectedThemeId;
+              return <button key={theme.id} type="button" aria-pressed={active} onClick={() => setSelectedThemeId(theme.id)} className={`group relative flex min-h-[78px] items-center gap-3 overflow-hidden rounded-2xl border p-2.5 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-[#69783c] focus:ring-offset-2 ${active ? "border-[#647336] bg-white shadow-[0_10px_20px_-16px_rgba(64,77,31,.7)]" : "border-[#e6e2d6] bg-white/70 hover:border-[#a9b773] hover:bg-white"}`}>
+                <img src={theme.visual} alt="" className="h-14 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                <span className="min-w-0"><span className={`block text-[10px] font-bold uppercase tracking-[0.12em] ${active ? "text-[#6c7b3d]" : "text-slate-400"}`}>{theme.eyebrow}</span><span className="mt-1 block text-sm font-bold leading-4 text-slate-900">{theme.label}</span></span>
+                {active && <span className="absolute right-2 top-2 grid h-5 w-5 place-items-center rounded-full bg-[#5a6834] text-white"><Check className="h-3 w-3" /></span>}
+              </button>;
+            })}</div>
+            <div className="mt-5 rounded-2xl border border-[#e0e4c8] bg-[#f4f7e7] p-4"><p className="text-sm font-bold text-[#35401e]">Une base, jamais une contrainte.</p><p className="mt-1 text-xs leading-5 text-[#596432]">Cet aperçu illustre la direction visuelle. Après création, vous pourrez appliquer, remplacer ou modifier un thème à tout moment depuis votre panneau.</p><button type="button" onClick={onCreateSpace} className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[#5a6834] px-4 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#4b582d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function MazighoSaasLanding() {
   const [menuOpen, setMenuOpen] = useState(false);
   const isSaasSubdomain = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "pro.mazigho.ch";
@@ -178,6 +229,8 @@ export default function MazighoSaasLanding() {
         <section id="espace" className="bg-[#26301b] py-16 text-white sm:py-24">
           <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:px-8"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d5e08e]">Votre espace MAZIGHO</p><h2 className="mt-4 font-serif text-4xl font-bold leading-[1.02] tracking-[-0.035em] sm:text-5xl">Votre boutique, sans vous perdre dans les réglages.</h2><p className="mt-6 max-w-xl text-base leading-7 text-white/72">Retrouvez votre vitrine, votre catalogue, vos commandes et vos réglages dans un seul panneau clair. Vous gardez la main sur votre contenu, vos images et la présentation de votre boutique.</p><div className="mt-8 space-y-3">{["Thèmes et vitrine entièrement personnalisables", "Produits, variantes, stock et import CSV", "Équipe, accès, pages, SEO et marchés", "Domaine personnalisé quand vous êtes prêt"].map((item) => <div key={item} className="flex items-start gap-3 text-sm leading-6 text-white/85"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dbe6a6] text-[#35421f]"><Check className="h-3.5 w-3.5" /></span>{item}</div>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><Layers3 className="h-5 w-5 text-[#d5e08e]" /><p className="mt-6 text-sm font-bold">Un espace à votre image</p><p className="mt-2 text-xs leading-5 text-white/60">Votre boutique, vos produits, vos contenus et vos réglages restent séparés et vous appartiennent.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><FileSpreadsheet className="h-5 w-5 text-[#f6c76e]" /><p className="mt-6 text-sm font-bold">Importer sans repartir de zéro</p><p className="mt-2 text-xs leading-5 text-white/60">Préparez les produits et les variantes par fichier, puis reprenez la main dans l’éditeur.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5 sm:col-span-2"><div className="flex items-start gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#718348] text-white"><Clock3 className="h-5 w-5" /></div><div><p className="text-sm font-bold">Une ouverture à votre rythme</p><p className="mt-1 text-xs leading-5 text-white/60">Votre boutique peut être préparée avant le domaine ou l’ouverture publique. Rien ne vous force à aller trop vite.</p></div></div></div></div></div>
         </section>
+
+        <ThemeLivePreview onCreateSpace={() => { window.location.href = platformHref("/register"); }} />
 
         <section className="py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b8b40]">Une méthode claire</p><h2 className="mt-3 font-serif text-4xl font-bold tracking-[-0.035em] text-[#26301b] sm:text-5xl">De l’idée à la vitrine, sans vous enfermer.</h2></div><p className="max-w-sm text-sm leading-6 text-slate-500">Vous partez d’une base soignée. Après, la boutique reste librement ajustable.</p></div><div className="mt-10 grid gap-5 md:grid-cols-3">{steps.map((step) => <article key={step.number} className="relative rounded-2xl border border-[#e7e4d9] bg-[#fffefb] p-6"><p className="text-sm font-bold text-[#a56a1b]">{step.number}</p><h3 className="mt-9 text-xl font-bold text-slate-900">{step.title}</h3><p className="mt-3 text-sm leading-6 text-slate-600">{step.text}</p><span className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full bg-[#f1f2e7] text-[#66743c]"><ArrowUpRight className="h-4 w-4" /></span></article>)}</div></div>
