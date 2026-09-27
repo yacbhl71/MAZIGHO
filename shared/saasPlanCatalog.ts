@@ -11,6 +11,7 @@ export const saasPlanFeatureIds = [
   "checkout_rehearsal",
   "media_quota",
   "priority_support",
+  "dropshipping_import",
 ] as const;
 
 export type SaasPlanFeatureId = (typeof saasPlanFeatureIds)[number];
@@ -26,6 +27,7 @@ export const saasPlanFeatureCatalog: ReadonlyArray<{ id: SaasPlanFeatureId; titl
   { id: "checkout_rehearsal", title: "Simulation panier", description: "Vérification privée de prix, stock et livraison." },
   { id: "media_quota", title: "Quota média", description: "Stockage isolé et lecture du quota." },
   { id: "priority_support", title: "Support prioritaire", description: "Repère interne de priorité, sans ticket ni SLA actif." },
+  { id: "dropshipping_import", title: "Dropshipping contrôlé", description: "Import fournisseur en brouillon, avec validation manuelle avant publication." },
 ] as const;
 
 export type SaasPlanCatalogItem = {
@@ -41,11 +43,24 @@ export type SaasPlanCatalogItem = {
 
 export type SaasPlanCatalog = { plans: SaasPlanCatalogItem[] };
 
+const commonFeatures: SaasPlanFeatureId[] = [
+  "brand_customization",
+  "catalog_csv_import",
+  "variant_stock",
+  "team_access",
+  "markets_languages",
+  "storefront_seo",
+  "custom_domain_request",
+  "checkout_rehearsal",
+  "media_quota",
+];
+
 const defaultPlanCatalog: SaasPlanCatalog = {
   plans: [
-    { id: "basic", name: "BASIC", description: "0 CHF/mois + 2,5 % de commission sur chaque encaissement.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "catalog_csv_import", "variant_stock", "team_access", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
-    { id: "pro", name: "PRO", description: "7,90 CHF/mois + 1,0 % de commission sur chaque encaissement.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...saasPlanFeatureIds], status: "draft" },
-    { id: "lifetime", name: "LIFETIME", description: "149 CHF unique pour les 100 premières boutiques, puis 300 CHF ; 0 % de commission.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...saasPlanFeatureIds], status: "draft" },
+    { id: "free", name: "FREE", description: "0 CHF/mois + 2,5 % de commission. Les essentiels pour préparer et lancer une boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "variant_stock", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
+    { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
+    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import"], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "149 CHF unique pour les 100 premières boutiques, puis 300 CHF ; 0 % de commission. Attribution fondatrice manuelle.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
   ],
 };
 
@@ -117,7 +132,7 @@ export function parseSaasPlanCatalog(value: unknown): SaasPlanCatalog {
   }
 }
 
-/** Normalizes a small editable catalogue and restores the three starter offers if legacy data is incomplete. */
+/** Normalizes a small editable catalogue and upgrades the former three-tier grid. */
 export function normalizeSaasPlanCatalog(value: unknown): SaasPlanCatalog {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const candidates = Array.isArray(source.plans) ? source.plans : [];
@@ -125,15 +140,19 @@ export function normalizeSaasPlanCatalog(value: unknown): SaasPlanCatalog {
   const byId = new Map<string, unknown>();
   for (const candidate of candidates) {
     const candidateId = candidate && typeof candidate === "object" ? normalizeId((candidate as Record<string, unknown>).id, "") : "";
-    if (candidateId && !byId.has(candidateId)) byId.set(candidateId, candidate);
+    const monthlyAmount = candidate && typeof candidate === "object" ? money((candidate as Record<string, unknown>).monthlyAmountCents) : null;
+    // Previous official grid: BASIC was free and PRO cost CHF 7.90. Preserve
+    // its feature snapshots when the new Free / Basic / Pro grid is loaded.
+    const upgradedId = candidateId === "basic" && monthlyAmount === 0 ? "free"
+      : candidateId === "pro" && monthlyAmount === 790 ? "basic"
+        : candidateId;
+    if (upgradedId && !byId.has(upgradedId)) byId.set(upgradedId, candidate);
   }
   const required = defaults.map(plan => normalizePlan(byId.get(plan.id), plan));
-  // Legacy placeholders were never billable. Retire them quietly rather than
-  // presenting stale Free/Premium offers after the official grid takes over.
-  const retiredStarterIds = new Set(["free", "premium"]);
+  const retiredStarterIds = new Set(["premium"]);
   const custom = Array.from(byId.entries())
     .filter(([id]) => !retiredStarterIds.has(id) && !defaults.some(plan => plan.id === id))
-    .slice(0, 9)
+    .slice(0, 8)
     .map(([id, plan]) => normalizePlan(plan, { id, name: "Nouvelle offre", description: "Offre interne à préparer.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [], status: "draft" }));
   return { plans: [...required, ...custom].slice(0, 12) };
 }

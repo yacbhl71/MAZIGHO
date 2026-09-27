@@ -49,9 +49,9 @@ export async function createOwnerLemonSqueezyBillingCheckout(input: {
       expiresAt: expiresAt.toISOString(),
       productOptions: {
         name: `MAZIGHO ${plan.name}`,
-        description: billablePlan === "pro"
-          ? "Abonnement mensuel MAZIGHO PRO — test uniquement."
-          : "Achat unique MAZIGHO LIFETIME — test uniquement.",
+        description: billablePlan === "lifetime"
+          ? "Achat unique MAZIGHO LIFETIME — test uniquement."
+          : `Abonnement mensuel MAZIGHO ${plan.name} — test uniquement.`,
         enabledVariants: [config.variants[billablePlan]],
         redirectUrl: `${origin}/gestion-boutique?lemonsqueezy=return`,
       },

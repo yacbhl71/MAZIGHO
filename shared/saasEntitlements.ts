@@ -10,35 +10,47 @@ export type SaasPlanEntitlements = {
   maxTeamMembers: number | null;
   /** Shared MAZIGHO Blob allowance for storefront and catalogue media. */
   mediaQuotaBytes: number;
+  /** Supplier import space. A Studio grant can extend this to one chosen store. */
+  dropshippingEnabled: boolean;
 };
 
 /**
  * Server-enforced commercial allowances. A shop without an explicit Studio
- * assignment is safely treated as BASIC; this never removes existing data.
+ * assignment is safely treated as FREE; this never removes existing data.
  */
 export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEntitlements>> = {
+  free: {
+    planId: "free",
+    maxActiveProducts: 50,
+    maxTeamMembers: 1,
+    mediaQuotaBytes: 500 * MEBIBYTE,
+    dropshippingEnabled: false,
+  },
   basic: {
     planId: "basic",
-    maxActiveProducts: 200,
-    maxTeamMembers: 2,
-    mediaQuotaBytes: 500 * MEBIBYTE,
+    maxActiveProducts: null,
+    maxTeamMembers: 5,
+    mediaQuotaBytes: 1024 * MEBIBYTE,
+    dropshippingEnabled: false,
   },
   pro: {
     planId: "pro",
     maxActiveProducts: null,
-    maxTeamMembers: 5,
-    mediaQuotaBytes: 1024 * MEBIBYTE,
+    maxTeamMembers: 8,
+    mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
+    dropshippingEnabled: true,
   },
   lifetime: {
     planId: "lifetime",
     maxActiveProducts: null,
     maxTeamMembers: 10,
     mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
+    dropshippingEnabled: false,
   },
 };
 
 export function getSaasPlanEntitlements(planId: unknown): SaasPlanEntitlements {
-  const resolvedPlanId = isMazighoSaasPlanId(planId) ? planId : "basic";
+  const resolvedPlanId = isMazighoSaasPlanId(planId) ? planId : "free";
   return saasPlanEntitlements[resolvedPlanId];
 }
 

@@ -59,7 +59,7 @@ import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type Ma
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
 import type { StripeConnectMode } from "./services/stripeConnectMode";
-import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
+import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezyBillablePlanId, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
@@ -3003,7 +3003,7 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
   };
   const [settingRows, checkoutResult, subscriptionResult] = await Promise.all([
     db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment"]))),
+      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment", "saas_dropshipping_exception"]))),
     readLemonCheckouts(),
     readLemonSubscriptions(),
   ]);
@@ -3029,12 +3029,17 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
     const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
     const commercialOfferMode = normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode"));
     const officialPlan = getMazighoSaasPlan(planAssignment?.planId);
+    const dropshippingAccess = officialPlan?.id === "pro"
+      ? { enabled: true as const, source: "pro_plan" as const }
+      : values?.get("saas_dropshipping_exception")?.trim() === "true"
+        ? { enabled: true as const, source: "studio_grant" as const }
+        : { enabled: false as const, source: "not_included" as const };
     const checkout = latestCheckoutByStore.get(store.id) ?? null;
     const subscription = subscriptionByStore.get(store.id) ?? null;
     const billingAccess = !officialPlan
       ? "not_assigned"
-      : officialPlan.id === "basic"
-        ? "basic_included"
+      : officialPlan.id === "free"
+        ? "free_included"
         : officialPlan.id === "lifetime"
           ? checkout?.status === "paid" ? "active" : "awaiting_checkout"
           : subscription && hasLemonSqueezySubscriptionAccess(subscription.status, subscription.endsAt)
@@ -3047,6 +3052,7 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
       commercialOfferMode,
       billing,
       planAssignment,
+      dropshippingAccess,
       operatorReadiness: getStoreSaasBillingDraftReadiness({ commercialOfferMode, billing }),
       lemonSqueezy: {
         schemaReady: lemonSchemaReady,
@@ -6542,22 +6548,66 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
 
 /**
  * Resolves the server-side allowance for one store. A client shop that has not
- * yet been manually assigned a plan receives the BASIC allowance by default;
+ * yet been manually assigned a plan receives the FREE allowance by default;
  * no existing record is altered by this fallback.
  */
 export async function getStoreSaasEntitlements(storeId: number): Promise<SaasPlanEntitlements> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const [store, assignment] = await Promise.all([
+  const [store, assignment, dropshippingGrant] = await Promise.all([
     db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
     db.select({ value: storeSettings.value }).from(storeSettings)
       .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_plan_assignment"))).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_dropshipping_exception"))).limit(1),
   ]);
   if (!store[0]) throw new Error("STORE_NOT_FOUND");
   if (store[0].isPlatformStore) {
     return { ...getSaasPlanEntitlements("lifetime"), maxActiveProducts: null, maxTeamMembers: null };
   }
-  return getSaasPlanEntitlements(parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId);
+  const entitlements = getSaasPlanEntitlements(parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId);
+  const studioGrantEnabled = dropshippingGrant[0]?.value.trim() === "true";
+  return studioGrantEnabled && !entitlements.dropshippingEnabled
+    ? { ...entitlements, dropshippingEnabled: true }
+    : entitlements;
+}
+
+export type StoreDropshippingAccess = {
+  enabled: boolean;
+  source: "pro_plan" | "studio_grant" | "not_included";
+};
+
+/** Returns the tenant-scoped dropshipping gate without exposing any supplier credential. */
+export async function getStoreDropshippingAccess(storeId: number): Promise<StoreDropshippingAccess> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [assignment, grant] = await Promise.all([
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_plan_assignment"))).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_dropshipping_exception"))).limit(1),
+  ]);
+  const planId = parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId;
+  if (getSaasPlanEntitlements(planId).dropshippingEnabled) return { enabled: true, source: "pro_plan" };
+  if (grant[0]?.value.trim() === "true") return { enabled: true, source: "studio_grant" };
+  return { enabled: false, source: "not_included" };
+}
+
+/**
+ * An explicit Studio exception makes the supplier-import workspace available
+ * to one named client store. It neither assigns a plan nor starts a supplier,
+ * order, billing or fulfillment integration.
+ */
+export async function setStudioStoreDropshippingAccess(input: { storeId: number; confirmationName: string; enabled: boolean }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("DROPSHIPPING_ACCESS_CONFIRMATION_MISMATCH");
+  await setStoreSettingValue(
+    store.id,
+    "saas_dropshipping_exception",
+    input.enabled ? "true" : "false",
+    "Dérogation Studio explicite pour l’espace dropshipping ; sans attribution de plan, fournisseur, commande, paiement, fulfillment ni automatisation.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, enabled: input.enabled };
 }
 
 async function assertStoreActiveProductCapacity(storeId: number, additionalActiveProducts = 1) {
@@ -6695,7 +6745,7 @@ export type StoreLemonSqueezyBillingStatus = {
   plan: { id: MazighoSaasPlanId; name: string; billable: boolean } | null;
   checkout: { status: "created" | "paid" | "void"; createdAt: Date; paidAt: Date | null } | null;
   subscription: { status: LemonSqueezySubscriptionStatus; renewsAt: Date | null; endsAt: Date | null; activeAccess: boolean; updatedAt: Date } | null;
-  billingAccess: "basic_included" | "awaiting_checkout" | "active" | "past_due" | "inactive" | "not_assigned";
+  billingAccess: "free_included" | "awaiting_checkout" | "active" | "past_due" | "inactive" | "not_assigned";
 };
 
 function lemonSchemaMissing(error: unknown) {
@@ -6721,7 +6771,7 @@ export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promis
     plan: plan ? { id: plan.id, name: plan.name, billable: Boolean(billablePlan) } : null,
     checkout: null,
     subscription: null,
-    billingAccess: !plan ? "not_assigned" : plan.id === "basic" ? "basic_included" : "awaiting_checkout",
+    billingAccess: !plan ? "not_assigned" : plan.id === "free" ? "free_included" : "awaiting_checkout",
   });
   try {
     const [checkoutRows, subscriptionRows] = await Promise.all([
@@ -6743,8 +6793,8 @@ export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promis
     const checkout = checkoutRows[0] ?? null;
     const billingAccess: StoreLemonSqueezyBillingStatus["billingAccess"] = !plan
       ? "not_assigned"
-      : plan.id === "basic"
-        ? "basic_included"
+      : plan.id === "free"
+        ? "free_included"
         : plan.id === "lifetime"
           ? checkout?.status === "paid" ? "active" : "awaiting_checkout"
           : subscription?.activeAccess ? "active"
@@ -6765,7 +6815,7 @@ export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promis
 }
 
 /** Reserves an opaque, single-use local checkout binding before calling Lemon Squeezy. */
-export async function createStoreLemonSqueezyBillingCheckout(input: { storeId: number; planId: "pro" | "lifetime"; checkoutNonce: string; expiresAt: Date }) {
+export async function createStoreLemonSqueezyBillingCheckout(input: { storeId: number; planId: LemonSqueezyBillablePlanId; checkoutNonce: string; expiresAt: Date }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
@@ -6840,7 +6890,7 @@ export async function applyLemonSqueezyBillingWebhook(event: ParsedLemonSqueezyW
     .from(lemonSqueezyBillingCheckouts)
     .where(and(eq(lemonSqueezyBillingCheckouts.checkoutNonce, event.checkoutNonce), eq(lemonSqueezyBillingCheckouts.storeId, event.storeId), eq(lemonSqueezyBillingCheckouts.planId, event.planId)))
     .limit(1);
-  const expectedVariantId = configuration.variants[event.planId === "lifetime" ? "lifetime" : "pro"];
+  const expectedVariantId = configuration.variants[event.planId as LemonSqueezyBillablePlanId];
   const decision = decideLemonSqueezyWebhookApplication({
     event,
     checkout: checkout ?? null,

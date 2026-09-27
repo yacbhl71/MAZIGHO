@@ -71,7 +71,7 @@ export function buildStorePaymentActivationReadiness(input: {
       state: input.stripe.plan ? "ready" : "attention",
       detail: input.stripe.plan
         ? `${input.stripe.plan.name} est attribué ; sa commission MAZIGHO est calculée côté serveur.`
-        : "MAZIGHO Studio doit attribuer BASIC, PRO ou LIFETIME avant la connexion du vendeur.",
+        : "MAZIGHO Studio doit attribuer FREE, BASIC, PRO ou LIFETIME avant la connexion du vendeur.",
     },
     {
       id: "stripe_schema",
@@ -125,7 +125,7 @@ export function buildStorePaymentActivationReadiness(input: {
     return result("storefront_setup_required", "Préparation boutique à compléter", "Finalisez d’abord les prérequis de la boutique ; ils servent aussi de base à une future revue commerciale.");
   }
   if (!input.stripe.plan) {
-    return result("plan_required", "Offre commerciale à attribuer", "MAZIGHO Studio doit attribuer BASIC, PRO ou LIFETIME afin de définir la commission applicable.");
+    return result("plan_required", "Offre commerciale à attribuer", "MAZIGHO Studio doit attribuer FREE, BASIC, PRO ou LIFETIME afin de définir la commission applicable.");
   }
   if (!input.stripe.schemaReady) {
     return result("stripe_schema_required", "Déploiement Stripe Connect requis", "La structure sécurisée Stripe Connect doit être disponible avant toute création de compte vendeur.");

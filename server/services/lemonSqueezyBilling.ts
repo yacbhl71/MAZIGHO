@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { MazighoSaasPlanId } from "../../shared/mazighoSaasPlans";
 
-export const lemonSqueezyBillablePlanIds = ["pro", "lifetime"] as const;
+export const lemonSqueezyBillablePlanIds = ["basic", "pro", "lifetime"] as const;
 export type LemonSqueezyBillablePlanId = (typeof lemonSqueezyBillablePlanIds)[number];
 export type LemonSqueezyBillingMode = "test";
 
@@ -22,8 +22,6 @@ function isBillablePlan(value: unknown): value is LemonSqueezyBillablePlanId {
 }
 
 export function getLemonSqueezyBillingConfiguration(environment: NodeJS.ProcessEnv = process.env): LemonSqueezyBillingConfiguration {
-  // All MAZIGHO Lemon Squeezy work starts in provider Test Mode. Live charging
-  // is intentionally absent from this policy and needs a separate approval.
   if (environment.MAZIGHO_ENABLE_LEMONSQUEEZY_TEST?.trim() !== "true") {
     return { enabled: false, mode: "test", reason: "test_mode_disabled" };
   }
@@ -31,16 +29,17 @@ export function getLemonSqueezyBillingConfiguration(environment: NodeJS.ProcessE
   if (!apiKey) return { enabled: false, mode: "test", reason: "api_key_missing" };
   const storeId = positiveInteger(environment.LEMONSQUEEZY_STORE_ID);
   if (!storeId) return { enabled: false, mode: "test", reason: "store_id_missing" };
+  const basicVariant = positiveInteger(environment.LEMONSQUEEZY_BASIC_VARIANT_ID);
   const proVariant = positiveInteger(environment.LEMONSQUEEZY_PRO_VARIANT_ID);
   const lifetimeVariant = positiveInteger(environment.LEMONSQUEEZY_LIFETIME_VARIANT_ID);
-  if (!proVariant || !lifetimeVariant) return { enabled: false, mode: "test", reason: "variant_missing" };
+  if (!basicVariant || !proVariant || !lifetimeVariant) return { enabled: false, mode: "test", reason: "variant_missing" };
   if (!environment.LEMONSQUEEZY_WEBHOOK_SECRET?.trim()) return { enabled: false, mode: "test", reason: "webhook_secret_missing" };
   return {
     enabled: true,
     mode: "test",
     apiKey,
     storeId,
-    variants: { pro: proVariant, lifetime: lifetimeVariant },
+    variants: { basic: basicVariant, pro: proVariant, lifetime: lifetimeVariant },
   };
 }
 
@@ -127,7 +126,7 @@ export function parseLemonSqueezyBillingWebhook(payload: unknown): ParsedLemonSq
   const variantId = positiveInteger(attributes?.variant_id ?? firstOrderItem?.variant_id);
   const planId = typeof custom?.mazigho_plan_id === "string" ? custom.mazigho_plan_id.trim() : "";
   const testMode = attributes?.test_mode === true;
-  if (!eventName || !resourceType || !resourceId || !/^[A-Za-z0-9_-]{24,160}$/.test(checkoutNonce) || !storeId || !providerStoreId || !variantId || !["pro", "lifetime"].includes(planId) || !testMode) return null;
+  if (!eventName || !resourceType || !resourceId || !/^[A-Za-z0-9_-]{24,160}$/.test(checkoutNonce) || !storeId || !providerStoreId || !variantId || !["basic", "pro", "lifetime"].includes(planId) || !testMode) return null;
 
   if (resourceType === "orders") {
     if (eventName !== "order_created" || attributes?.status !== "paid") return null;
@@ -161,7 +160,7 @@ export type LemonSqueezyWebhookCheckoutBinding = {
 };
 
 export type LemonSqueezyWebhookDecision =
-  | { accepted: true; action: "mark_lifetime_paid" | "upsert_pro_subscription" | "already_recorded" }
+  | { accepted: true; action: "mark_lifetime_paid" | "upsert_subscription" | "already_recorded" }
   | { accepted: false; reason: "provider_store_mismatch" | "provider_variant_mismatch" | "checkout_mismatch" | "checkout_void" | "checkout_already_paid" | "unexpected_order_plan" | "unexpected_subscription_plan" };
 
 /**
@@ -185,8 +184,8 @@ export function decideLemonSqueezyWebhookApplication(input: {
     if (checkout.status === "paid") return checkout.lemonOrderId === event.orderId ? { accepted: true, action: "already_recorded" } : { accepted: false, reason: "checkout_already_paid" };
     return { accepted: true, action: "mark_lifetime_paid" };
   }
-  if (event.planId !== "pro" || !event.subscription) return { accepted: false, reason: "unexpected_subscription_plan" };
-  return { accepted: true, action: "upsert_pro_subscription" };
+  if (!(["basic", "pro"] as const).includes(event.planId as "basic" | "pro") || !event.subscription) return { accepted: false, reason: "unexpected_subscription_plan" };
+  return { accepted: true, action: "upsert_subscription" };
 }
 
 export function shouldProcessLemonSqueezyWebhookEvent(existingStatus: "processing" | "processed" | "failed" | null | undefined) {

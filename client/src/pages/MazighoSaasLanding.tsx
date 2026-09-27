@@ -58,31 +58,31 @@ const steps = [
 
 const plans = [
   {
-    name: "BASIC",
+    name: "FREE",
     price: "0",
     suffix: "CHF / mois",
     commission: "2,5 % de commission",
     description: "Le point de départ pour construire sereinement votre boutique.",
-    features: ["200 produits actifs", "2 accès délégués", "500 Mo de médias", "Vitrine, variantes & stock"],
+    features: ["50 produits actifs", "1 accès délégué", "500 Mo de médias", "Vitrine, variantes & stock"],
     featured: false,
   },
   {
-    name: "PRO",
+    name: "BASIC",
     price: "7,90",
     suffix: "CHF / mois",
     commission: "1,0 % de commission",
-    description: "Pour piloter plus loin avec la même base claire et isolée.",
+    description: "Pour développer sans plafond de catalogue, avec la même base claire et isolée.",
     features: ["Produits actifs illimités", "5 accès délégués", "1 Go de médias", "Support et suivi renforcés"],
     featured: true,
   },
   {
-    name: "LIFETIME",
-    price: "149",
-    suffix: "CHF · une fois",
-    commission: "0 % de commission",
-    description: "Offre de lancement pour les 100 premières boutiques attribuées.",
-    features: ["Produits actifs illimités", "10 accès délégués · 2 Go de médias", "Conditions figées à l’attribution", "Puis 300 CHF"],
-    featured: false,
+    name: "PRO",
+    price: "12,90",
+    suffix: "CHF / mois",
+    commission: "1,0 % de commission",
+    description: "Pour développer avec le dropshipping contrôlé, sans automatisation imposée.",
+    features: ["Produits actifs illimités", "8 accès délégués", "2 Go de médias", "Dropshipping en brouillon validé"],
+    featured: true,
   },
 ];
 

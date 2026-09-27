@@ -43,7 +43,7 @@ function billingDraftReadinessPresentation(readiness: "offer_missing" | "plan_mi
 
 function lemonBillingPresentation(access: string) {
   if (access === "active") return { label: "Test actif", className: "border-emerald-200 bg-emerald-50 text-emerald-900" };
-  if (access === "basic_included") return { label: "BASIC inclus", className: "border-sky-200 bg-sky-50 text-sky-900" };
+  if (access === "free_included") return { label: "FREE inclus", className: "border-sky-200 bg-sky-50 text-sky-900" };
   if (access === "past_due") return { label: "À régulariser", className: "border-amber-200 bg-amber-50 text-amber-900" };
   if (access === "inactive") return { label: "Inactif", className: "border-slate-200 bg-slate-50 text-slate-700" };
   if (access === "awaiting_checkout") return { label: "Checkout Test", className: "border-violet-200 bg-violet-50 text-violet-900" };

@@ -833,7 +833,7 @@ export const ownerRouter = router({
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "";
-      if (code === "LEMONSQUEEZY_PLAN_NOT_BILLABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Votre offre BASIC ne nécessite pas de paiement d’abonnement. MAZIGHO Studio doit attribuer PRO ou LIFETIME pour ouvrir ce checkout." });
+      if (code === "LEMONSQUEEZY_PLAN_NOT_BILLABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Votre offre FREE ne nécessite pas de paiement d’abonnement. MAZIGHO Studio doit attribuer BASIC, PRO ou LIFETIME pour ouvrir ce checkout." });
       if (code === "LEMONSQUEEZY_PLAN_AMOUNT_INVALID") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le prix LIFETIME n’est pas verrouillé dans votre attribution. Demandez à MAZIGHO Studio de vérifier l’offre." });
       const normalizedCode = code.toUpperCase();
       if (normalizedCode.includes("TEST_MODE_DISABLED")) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La facturation Lemon Squeezy Test n’est pas encore activée par MAZIGHO Studio." });

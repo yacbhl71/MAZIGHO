@@ -32,6 +32,18 @@ import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 
+/** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
+async function assertDropshippingAccess(storeId: number | undefined) {
+  if (!storeId) throw new TRPCError({ code: "FORBIDDEN", message: "L’espace dropshipping nécessite une boutique client active." });
+  const access = await db.getStoreDropshippingAccess(storeId);
+  if (!access.enabled) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Le dropshipping est réservé à l’offre PRO ou à une autorisation explicite de MAZIGHO Studio pour cette boutique.",
+    });
+  }
+}
+
 // Best-effort detection of the delivery country from a free-form shipping address.
 const DELIVERY_COUNTRY_LABELS: Record<string, string[]> = {
   CH: ["suisse", "schweiz", "svizzera", "switzerland"],
@@ -1189,7 +1201,7 @@ export const adminRouter = router({
           entityType: "store",
           entityId: assigned.store.id,
           summary: `Plan SaaS attribué : ${assigned.assignment.planName}.`,
-          metadata: { planId: assigned.assignment.planId, featureCount: assigned.assignment.features.length, lifetimePurchasePriceCents: assigned.assignment.lifetimePurchasePriceCents, featureFlagsApplied: false, subscriptionActivated: false, paymentCreated: false, emailSent: false },
+          metadata: { planId: assigned.assignment.planId, featureCount: assigned.assignment.features.length, lifetimePurchasePriceCents: assigned.assignment.lifetimePurchasePriceCents, quotasRecalculated: true, stripeCommissionRecalculated: true, dropshippingAccessRecalculated: true, subscriptionActivated: false, paymentCreated: false, emailSent: false },
         });
         return assigned;
       } catch (error) {
@@ -1197,6 +1209,30 @@ export const adminRouter = router({
         if (code === "STORE_NOT_FOUND" || code === "SAAS_PLAN_TEMPLATE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique ou modèle de plan introuvable." });
         if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
         if (code === "SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant d’attribuer le plan." });
+        throw error;
+      }
+    }),
+    setStoreDropshippingAccess: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      enabled: z.boolean(),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.setStudioStoreDropshippingAccess(input);
+        logAudit(ctx, {
+          action: input.enabled ? "studio.store.dropshipping.grant" : "studio.store.dropshipping.revoke",
+          entityType: "store",
+          entityId: result.store.id,
+          summary: input.enabled ? "Accès dropshipping accordé explicitement par Studio." : "Accès dropshipping Studio retiré.",
+          metadata: { planChanged: false, supplierConnected: false, productImported: false, orderAutomationChanged: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "DROPSHIPPING_ACCESS_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier l’accès dropshipping." });
         throw error;
       }
     }),
@@ -1211,8 +1247,8 @@ export const adminRouter = router({
           action: "studio.store.saas_plan.assignment.clear",
           entityType: "store",
           entityId: cleared.store.id,
-          summary: "Attribution de plan SaaS brouillon retirée.",
-          metadata: { featureFlagsApplied: false, subscriptionChanged: false, paymentChanged: false, emailSent: false },
+          summary: "Attribution de plan SaaS retirée ; limites FREE restaurées.",
+          metadata: { quotasRecalculated: true, stripeCommissionRecalculated: true, dropshippingAccessRecalculated: true, subscriptionChanged: false, paymentChanged: false, emailSent: false },
         });
         return cleared;
       } catch (error) {
@@ -2888,7 +2924,8 @@ export const adminRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Impossible de supprimer cette sélection. Vérifiez que les produits existent encore." });
       }
     }),
-    previewImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ input }) => {
+    previewImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ ctx, input }) => {
+      await assertDropshippingAccess(ctx.store?.id);
       if (input.rawHtml && input.rawHtml.trim().length > 0) {
         return await previewSupplierProductFromHtml(input.rawHtml, input.url);
       }
@@ -2898,6 +2935,7 @@ export const adminRouter = router({
       return await previewSupplierProduct(input.url);
     }),
     importFromUrl: catalogEditorProcedure.input(importedProductInputSchema()).mutation(async ({ ctx, input }) => {
+      await assertDropshippingAccess(ctx.store?.id);
       return await db.createProduct(normalizeImportedProduct(input), ctx.store?.id);
     }),
     importCjDraft: catalogEditorProcedure.input(z.object({
@@ -2932,6 +2970,7 @@ export const adminRouter = router({
         });
       }),
     })).mutation(async ({ ctx, input }) => {
+      await assertDropshippingAccess(ctx.store?.id);
       const existing = await db.getProductBySupplierReference("CJdropshipping", input.productId, ctx.store?.id);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: `Ce produit CJ est déjà enregistré dans MAZIGHO sous « ${existing.name} » (${existing.status === "draft" ? "brouillon" : existing.status}).` });
