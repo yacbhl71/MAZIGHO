@@ -46,7 +46,9 @@ vi.mock("./db", () => ({
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
   createProduct: vi.fn(async () => ({ id: 108 })),
   updateProduct: vi.fn(async () => ({ success: true })),
+  getOwnerSalesSettlementOverview: vi.fn(async () => ({ buckets: [], recentSales: [] })),
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
+  getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
@@ -454,6 +456,19 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.getOrderItemSummaries({ orderId: 481 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("reads settlement and order history only through the current resolved store", async () => {
+    await expect(callerFor().owner.getSalesSettlementOverview()).resolves.toEqual({ buckets: [], recentSales: [] });
+    expect(db.getOwnerSalesSettlementOverview).toHaveBeenCalledWith(77);
+
+    await expect(callerFor().owner.getOrderTimeline({ orderId: 481 })).resolves.toEqual([
+      { type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" },
+    ]);
+    expect(db.getOrderTimeline).toHaveBeenCalledWith(481, 77);
+
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getSalesSettlementOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("records a manual order decision only for the current resolved store", async () => {

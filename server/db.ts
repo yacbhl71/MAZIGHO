@@ -43,6 +43,7 @@ import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
+import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettlement";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
@@ -7985,6 +7986,34 @@ export async function getOwnerOrderSummaries(storeId: number) {
     .where(eq(orders.storeId, storeId))
     .orderBy(desc(orders.createdAt))
     .limit(100);
+}
+
+/**
+ * Read-only Direct Charges settlement overview for the resolved boutique.
+ * No bank, card, customer, address, payout or external Stripe data is read.
+ */
+export async function getOwnerSalesSettlementOverview(storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  await ensureOrderCurrencySchema();
+  const db = await getDb();
+  if (!db) return buildOwnerSalesSettlementOverview([]);
+
+  const rows = await db.select({
+    id: orders.id,
+    totalAmount: orders.totalAmount,
+    currencyCode: orders.currencyCode,
+    paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
+    stripeApplicationFeeAmount: orders.stripeApplicationFeeAmount,
+    stripeCommissionRateBps: orders.stripeCommissionRateBps,
+    status: orders.status,
+    createdAt: orders.createdAt,
+  }).from(orders)
+    .where(eq(orders.storeId, storeId))
+    .orderBy(desc(orders.createdAt))
+    .limit(200);
+
+  return buildOwnerSalesSettlementOverview(rows);
 }
 
 /**

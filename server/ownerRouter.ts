@@ -499,10 +499,18 @@ export const ownerRouter = router({
   getOrdersOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerOrderSummaries(ctx.store!.id);
   }),
+  getSalesSettlementOverview: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerSalesSettlementOverview(ctx.store!.id);
+  }),
   getOrderItemSummaries: storeManagementProcedure.input(z.object({
     orderId: z.number().int().positive(),
   })).query(async ({ ctx, input }) => {
     return await db.getOwnerOrderItemSummaries(input.orderId, ctx.store!.id);
+  }),
+  getOrderTimeline: storeManagementProcedure.input(z.object({
+    orderId: z.number().int().positive(),
+  })).query(async ({ ctx, input }) => {
+    return await db.getOrderTimeline(input.orderId, ctx.store!.id);
   }),
   getReturnRequests: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerReturnRequests(ctx.store!.id);
