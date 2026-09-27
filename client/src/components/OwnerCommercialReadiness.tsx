@@ -17,12 +17,22 @@ type OpeningReadiness = {
   publicActivationExecuted: boolean;
   paymentActivationExecuted: false;
 };
+type PaymentReadiness = {
+  stage: "storefront_setup_required" | "plan_required" | "stripe_schema_required" | "seller_account_required" | "seller_capabilities_required" | "test_environment_required" | "test_checkout_ready";
+  label: string;
+  detail: string;
+  testCheckoutReady: boolean;
+  liveReviewReady: false;
+  liveActivationExecuted: false;
+  checks: Array<{ id: string; label: string; state: "ready" | "attention" | "pending"; detail: string }>;
+};
 type CommercialReadiness = {
   store: { displayName: string; status: string; primaryDomain: string };
   summary: { completed: number; total: number; baseCommerciallyPrepared: boolean; paymentStatus: "not_activated" };
   inventory: { totalProducts: number; activeProducts: number; sellableProducts: number; productsWithoutImages: number; productsWithoutStock: number; activeVariants: number; outOfStockVariants: number; productsWithVariants: number };
   items: readonly ReadinessItem[];
   opening: OpeningReadiness;
+  payment: PaymentReadiness;
 };
 
 const actionLabels: Record<OwnerModuleTarget, string> = {
@@ -56,7 +66,7 @@ export default function OwnerCommercialReadiness({ readiness, loading, onNavigat
   if (loading && !readiness) return <Card className="border-teal-100"><CardContent className="grid min-h-56 place-items-center"><Loader2 className="h-7 w-7 animate-spin text-teal-700" /></CardContent></Card>;
   if (!readiness) return <Card className="border-rose-200"><CardContent className="p-5 text-sm leading-6 text-rose-900">Le contrôle de préparation est momentanément indisponible. Actualisez la page avant de modifier votre boutique.</CardContent></Card>;
 
-  const { inventory, items, summary, opening } = readiness;
+  const { inventory, items, summary, opening, payment } = readiness;
   const tone = openingTone[opening.state];
   const OpeningIcon = tone.icon;
 
@@ -67,8 +77,39 @@ export default function OwnerCommercialReadiness({ readiness, loading, onNavigat
 
     <div className="grid gap-3">{items.map(item => <div key={`${item.id}-${item.label}`} className={`flex flex-col gap-4 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.ready ? "border-emerald-200 bg-emerald-50/60" : "border-amber-200 bg-amber-50/60"}`}><div className="flex items-start gap-3"><div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${item.ready ? "bg-emerald-600 text-white" : "bg-amber-400 text-amber-950"}`}>{item.ready ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-4 w-4" />}</div><div><p className="font-semibold text-slate-950">{item.label}</p><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{item.detail}</p></div></div><Button type="button" variant={item.ready ? "outline" : "default"} className={item.ready ? "min-h-11 border-emerald-300 text-emerald-800 hover:bg-emerald-100" : "min-h-11 bg-teal-700 hover:bg-teal-800"} onClick={() => onNavigate(item.id)}>{item.ready ? "Consulter" : actionLabels[item.id]}{item.id === "public_view" && <ExternalLink className="ml-2 h-4 w-4" />}</Button></div>)}</div>
 
-    <Card className="border-amber-200 bg-amber-50"><CardHeader><CardTitle className="flex items-center gap-2 text-amber-950"><CircleDollarSign className="h-5 w-5" /> Paiement client : Test préparé, Live fermé</CardTitle><CardDescription className="mt-1 max-w-3xl text-amber-900">Stripe Connect peut être préparé en environnement Test depuis les intégrations lorsque MAZIGHO Studio a activé cette configuration. Aucun encaissement Live, prélèvement d’abonnement ou versement réel n’est ouvert à cette étape.</CardDescription></CardHeader><CardContent className="space-y-3 text-sm leading-6 text-amber-950"><div className="rounded-xl border border-amber-200 bg-white/65 p-4"><p className="font-semibold">Essai sécurisé par boutique</p><p className="mt-1">Stripe Connect Test associe le compte de la boutique à ses essais de checkout. Les cartes Test ne débitent personne ; les confirmations sont contrôlées côté serveur avant toute commande.</p><Button type="button" variant="outline" className="mt-3 min-h-10 border-amber-300 bg-white text-amber-950 hover:bg-amber-100" onClick={() => onNavigate("integrations")}>Voir Stripe Connect Test</Button></div><div className="rounded-xl border border-amber-200 bg-white/65 p-4"><p className="font-semibold">Avant une éventuelle ouverture Live</p><p className="mt-1">Il faudra une décision explicite, des essais complets, les informations légales et bancaires de l’exploitant, ainsi que les procédures de remboursement et de litige. Cette activation ne sera jamais automatique.</p></div><div className="rounded-xl border border-amber-200 bg-white/65 p-4"><p className="font-semibold">Facturation de la plateforme séparée</p><p className="mt-1">L’abonnement MAZIGHO est suivi séparément via Lemon Squeezy Test. Il ne touche jamais les clients ni les commandes de cette boutique.</p></div><div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-white/65 p-4"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" /><p><strong>Protection conservée :</strong> aucune carte bancaire, donnée bancaire, clé Stripe, fournisseur, commande fournisseur ou campagne e-mail n’est collecté ou déclenché par ce contrôle.</p></div></CardContent></Card>
+    <PaymentActivationCard payment={payment} onNavigate={onNavigate} />
   </div>;
+}
+
+function PaymentActivationCard({ payment, onNavigate }: { payment: PaymentReadiness; onNavigate: (module: OwnerModuleTarget) => void }) {
+  const tone = payment.testCheckoutReady
+    ? { card: "border-emerald-200 bg-emerald-50", badge: "border-emerald-300 bg-white text-emerald-800", check: "bg-emerald-600 text-white" }
+    : { card: "border-violet-200 bg-violet-50", badge: "border-violet-300 bg-white text-violet-950", check: "bg-violet-700 text-white" };
+
+  return <Card className={tone.card}>
+    <CardHeader>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-slate-950"><CircleDollarSign className="h-5 w-5 text-violet-700" /> Parcours d’encaissement Stripe Connect</CardTitle>
+          <CardDescription className="mt-1 max-w-3xl text-slate-700">Préparez le compte vendeur de cette boutique, validez le checkout en environnement de préparation, puis présentez le dossier à MAZIGHO Studio pour une revue finale distincte.</CardDescription>
+        </div>
+        <Badge variant="outline" className={tone.badge}>{payment.label}</Badge>
+      </div>
+    </CardHeader>
+    <CardContent className="space-y-4">
+      <div className="rounded-xl border border-current/15 bg-white/70 p-4 text-sm leading-6 text-slate-700"><p className="font-semibold text-slate-950">Étape suivante</p><p className="mt-1">{payment.detail}</p></div>
+      <div className="grid gap-2">
+        {payment.checks.map(check => <div key={check.id} className={`flex items-start gap-3 rounded-xl border p-3 ${check.state === "ready" ? "border-emerald-200 bg-white/70" : check.state === "attention" ? "border-violet-200 bg-white/70" : "border-slate-200 bg-white/50"}`}>
+          <div className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${check.state === "ready" ? "bg-emerald-600 text-white" : check.state === "attention" ? tone.check : "bg-slate-200 text-slate-600"}`}>{check.state === "ready" ? <CheckCircle2 className="h-4 w-4" /> : check.state === "attention" ? "•" : "–"}</div>
+          <div><p className="text-sm font-semibold text-slate-950">{check.label}</p><p className="mt-0.5 text-xs leading-5 text-slate-600">{check.detail}</p></div>
+        </div>)}
+      </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-violet-200 bg-white/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-slate-950">Compte vendeur et essai de checkout</p><p className="mt-1 text-xs leading-5 text-slate-600">Ouvrez les intégrations pour créer ou reprendre le compte Stripe Connect de cette boutique et actualiser son statut.</p></div><Button type="button" className="min-h-11 bg-violet-700 hover:bg-violet-800" onClick={() => onNavigate("integrations")}>Ouvrir Stripe Connect <ArrowRight className="ml-2 h-4 w-4" /></Button></div>
+      {payment.testCheckoutReady && <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-white/75 p-4 text-sm leading-6 text-emerald-950"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><p><strong>Essai prêt :</strong> réalisez un checkout de préparation, vérifiez la commande et le webhook, puis conservez le résultat pour la revue finale. Cette étape ne déclenche pas de paiement réel.</p></div>}
+      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700"><p><strong>Passage aux paiements réels :</strong> il reste une décision explicite, les clés et événements de production, une revue des remboursements/litiges et une validation opérationnelle. Le changement ne peut pas être effectué depuis ce panneau.</p><p className="mt-2"><strong>Facturation MAZIGHO séparée :</strong> Lemon Squeezy concerne uniquement l’abonnement de la boutique, jamais ses clients ni ses commandes.</p></div>
+      <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/65 p-4 text-xs leading-5 text-slate-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p>Aucune carte bancaire, coordonnée bancaire, clé Stripe ou donnée de client n’est affichée dans ce contrôle.</p></div>
+    </CardContent>
+  </Card>;
 }
 
 function ReadinessMetric({ label, value, detail, warn = false, text = false }: { label: string; value: string | number; detail: string; warn?: boolean; text?: boolean }) {

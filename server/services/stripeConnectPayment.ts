@@ -3,12 +3,13 @@ import { getMazighoSaasPlan } from "../../shared/mazighoSaasPlans";
 
 export type StripeConnectPaymentReadiness =
   | { enabled: true; accountId: string; commissionRateBps: number; planId: MazighoSaasPlanId }
-  | { enabled: false; reason: "platform_test_mode_disabled" | "platform_test_key_missing" | "store_plan_missing" | "store_plan_unsupported" | "connect_account_missing" | "connect_onboarding_incomplete" };
+  | { enabled: false; reason: "platform_test_mode_disabled" | "platform_test_key_missing" | "store_plan_missing" | "store_plan_unsupported" | "connect_account_missing" | "connect_onboarding_incomplete" | "connect_payouts_incomplete" };
 
 export type StripeConnectAccountState = {
   accountId: string | null;
   onboardingComplete: boolean;
   chargesEnabled: boolean;
+  payoutsEnabled: boolean;
   detailsSubmitted: boolean;
 };
 
@@ -34,6 +35,7 @@ export function getStripeConnectPaymentReadiness(input: {
   if (!input.account.onboardingComplete || !input.account.chargesEnabled || !input.account.detailsSubmitted) {
     return { enabled: false, reason: "connect_onboarding_incomplete" };
   }
+  if (!input.account.payoutsEnabled) return { enabled: false, reason: "connect_payouts_incomplete" };
 
   return {
     enabled: true,
@@ -60,5 +62,6 @@ export function describeStripeConnectPaymentBlock(reason: Exclude<StripeConnectP
     case "store_plan_unsupported": return "Le plan attribué ne permet pas encore l’encaissement Stripe Connect.";
     case "connect_account_missing": return "Le compte Stripe Connect de cette boutique n’est pas encore créé.";
     case "connect_onboarding_incomplete": return "Le compte Stripe Connect de cette boutique doit terminer sa configuration avant d’encaisser.";
+    case "connect_payouts_incomplete": return "Le compte Stripe Connect doit aussi être autorisé à recevoir ses versements avant d’encaisser.";
   }
 }

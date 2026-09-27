@@ -37,6 +37,7 @@ import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationRe
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
 import { buildStoreOpeningReadiness } from "./services/storeOpeningReadiness";
+import { buildStorePaymentActivationReadiness } from "./services/storePaymentActivationReadiness";
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
@@ -6589,6 +6590,7 @@ function asStripeConnectAccountState(row: typeof stripeConnectedAccounts.$inferS
     accountId: row.stripeAccountId,
     onboardingComplete: Boolean(row.onboardingComplete),
     chargesEnabled: Boolean(row.chargesEnabled),
+    payoutsEnabled: Boolean(row.payoutsEnabled),
     detailsSubmitted: Boolean(row.detailsSubmitted),
   };
 }
@@ -7678,6 +7680,20 @@ export async function getOwnerCommercialReadiness(storeId: number) {
   ] as const;
   const completed = items.filter(item => item.ready).length;
   const opening = buildStoreOpeningReadiness({ status: store.status, items });
+  const stripe = await getStoreStripeConnectSetup(storeId)
+    .catch(error => {
+      console.warn("[OwnerCommercialReadiness] Stripe Connect status unavailable", { storeId, reason: error instanceof Error ? error.message : "UNKNOWN" });
+      return {
+        schemaReady: false,
+        plan: null,
+        account: null,
+        paymentReadiness: { enabled: false as const, reason: "payment_setup_unavailable" },
+      };
+    });
+  const payment = buildStorePaymentActivationReadiness({
+    storefrontPrepared: opening.localRequirementsComplete,
+    stripe,
+  });
 
   return {
     store: { displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
@@ -7699,6 +7715,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
     },
     items,
     opening,
+    payment,
   };
 }
 
