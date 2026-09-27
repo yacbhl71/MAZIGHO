@@ -70,9 +70,9 @@ function withTransactionalShopBrand(template: EmailTemplate, type: EmailTemplate
   };
 }
 
-async function deliver(type: EmailTemplateType, to: string, vars: Record<string, string>, buttonUrl: string, idempotencyKey: string, brandName = "MAZIGHO"): Promise<DeliveryOutcome> {
+async function deliver(type: EmailTemplateType, to: string, vars: Record<string, string>, buttonUrl: string, idempotencyKey: string, brandName = "MAZIGHO", storeId?: number): Promise<DeliveryOutcome> {
   if (!isTransactionalEmailConfigured()) return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
-  const template = withTransactionalShopBrand(await getEmailTemplate(type), type, brandName);
+  const template = withTransactionalShopBrand(await getEmailTemplate(type, storeId), type, brandName);
   if (!template.enabled) return { delivered: false, reason: "TEMPLATE_DISABLED" };
   const subject = Object.entries(vars).reduce((acc, [key, value]) => acc.split(`{{${key}}}`).join(value), template.subject);
   const { html, text } = renderBody(template.body, vars);
@@ -102,17 +102,17 @@ export async function sendOrderConfirmationForStripeSession(sessionId: string): 
     commande: String(order.id),
     total: money(order.totalAmount, order.currencyCode || "CHF"),
     lignes: itemsBlock(items, order.currencyCode || "CHF"),
-  }, url, `order-confirmation/${order.id}`, order.storeDisplayName || "MAZIGHO");
+  }, url, `order-confirmation/${order.id}`, order.storeDisplayName || "MAZIGHO", order.storeIsPlatform ? undefined : order.storeId);
 }
 
-export async function sendOrderShippedEmail(input: { email: string; name?: string | null; orderId: number; trackingNumber?: string | null; storeName?: string | null }): Promise<DeliveryOutcome> {
+export async function sendOrderShippedEmail(input: { email: string; name?: string | null; orderId: number; trackingNumber?: string | null; storeName?: string | null; storeId?: number }): Promise<DeliveryOutcome> {
   const url = `${getPublicUrl()}/commandes`;
   return deliver("order_shipped", input.email, {
     prenom: firstName(input.name),
     boutique: input.storeName?.trim() || "MAZIGHO",
     commande: String(input.orderId),
     suivi: input.trackingNumber || "communiqué prochainement",
-  }, url, `order-shipped/${input.orderId}`, input.storeName?.trim() || "MAZIGHO");
+  }, url, `order-shipped/${input.orderId}`, input.storeName?.trim() || "MAZIGHO", input.storeId);
 }
 
 export async function sendAbandonedCartEmail(input: {

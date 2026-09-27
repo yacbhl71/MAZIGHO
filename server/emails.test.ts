@@ -11,7 +11,7 @@ const emailTemplate = {
 const dbMocks = vi.hoisted(() => ({
   getEmailTemplate: vi.fn(async () => emailTemplate),
   getOrderForStripeSession: vi.fn(async () => ({
-    order: { id: 44, userName: "Sylvie Bahloul", userEmail: "sylvie@example.test", totalAmount: 7900, currencyCode: "CHF", storeDisplayName: "Atelier Sylvie" },
+    order: { id: 44, storeId: 77, userName: "Sylvie Bahloul", userEmail: "sylvie@example.test", totalAmount: 7900, currencyCode: "CHF", storeDisplayName: "Atelier Sylvie" },
     items: [{ productName: "Kit créatif", quantity: 1, priceAtPurchase: 7900 }],
   })),
 }));
@@ -39,6 +39,7 @@ describe("shop-branded transactional order emails", () => {
       subject: "Atelier Sylvie · commande #44",
       idempotencyKey: "order-confirmation/44",
     }));
+    expect(dbMocks.getEmailTemplate).toHaveBeenCalledWith("order_confirmation", 77);
     const payload = mailMocks.sendTransactionalEmail.mock.calls[0][0];
     expect(payload.html).toContain("Atelier Sylvie");
     expect(payload.text).toContain("Atelier Sylvie");
@@ -56,14 +57,26 @@ describe("shop-branded transactional order emails", () => {
       orderId: 81,
       trackingNumber: "CH-TRACK-81",
       storeName: "Pattes & Compagnie",
+      storeId: 81,
     })).resolves.toEqual({ delivered: true, id: "brevo-test-1" });
     expect(mailMocks.sendTransactionalEmail).toHaveBeenCalledWith(expect.objectContaining({
       to: "client@example.test",
       subject: "Pattes & Compagnie · commande #81",
       idempotencyKey: "order-shipped/81",
     }));
+    expect(dbMocks.getEmailTemplate).toHaveBeenCalledWith("order_shipped", 81);
     const payload = mailMocks.sendTransactionalEmail.mock.calls[0][0];
     expect(payload.html).toContain("Pattes &amp; Compagnie");
     expect(payload.html).not.toContain("Rue");
+  });
+
+  it("keeps the main MAZIGHO store on its existing platform template", async () => {
+    dbMocks.getOrderForStripeSession.mockResolvedValueOnce({
+      order: { id: 92, storeId: 1, storeIsPlatform: true, userName: "Client", userEmail: "client@example.test", totalAmount: 2500, currencyCode: "CHF", storeDisplayName: "MAZIGHO" },
+      items: [{ productName: "Article", quantity: 1, priceAtPurchase: 2500 }],
+    });
+
+    await expect(sendOrderConfirmationForStripeSession("cs_live_platform")).resolves.toEqual({ delivered: true, id: "brevo-test-1" });
+    expect(dbMocks.getEmailTemplate).toHaveBeenCalledWith("order_confirmation", undefined);
   });
 });

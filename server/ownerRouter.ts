@@ -16,6 +16,14 @@ import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
 
+const ownerTransactionalEmailTemplate = z.object({
+  subject: z.string().trim().min(2).max(200),
+  heading: z.string().trim().min(2).max(200),
+  body: z.string().trim().min(2).max(6000),
+  buttonLabel: z.string().trim().max(60),
+  enabled: z.boolean(),
+});
+
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
@@ -603,6 +611,7 @@ export const ownerRouter = router({
                 orderId: input.orderId,
                 trackingNumber: contact.trackingNumber,
                 storeName: ctx.store!.displayName,
+                storeId: ctx.store!.id,
               });
               customerNotification = delivery.delivered ? "sent" : "unavailable";
             }
@@ -618,8 +627,30 @@ export const ownerRouter = router({
       if (code.includes("ORDER_NOT_FOUND")) throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable dans cette boutique." });
       if (code.includes("ORDER_NOT_OPERATIONAL")) throw new TRPCError({ code: "FORBIDDEN", message: "Cette commande doit d’abord être acceptée pour préparation manuelle." });
       if (code.includes("ORDER_REQUIRES_SHIPMENT")) throw new TRPCError({ code: "BAD_REQUEST", message: "Marquez d’abord la commande comme expédiée." });
+      if (code.includes("ORDER_REQUIRES_DELIVERY")) throw new TRPCError({ code: "BAD_REQUEST", message: "Une commande déjà expédiée peut uniquement être marquée comme livrée." });
       throw error;
     }
+  }),
+  getTransactionalEmailTemplates: storeOwnerProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerTransactionalEmailTemplates(ctx.store!.id);
+  }),
+  saveTransactionalEmailTemplate: storeOwnerProcedure.input(z.object({
+    type: z.enum(["order_confirmation", "order_shipped"]),
+    template: ownerTransactionalEmailTemplate,
+  })).mutation(async ({ ctx, input }) => {
+    const result = await db.saveOwnerTransactionalEmailTemplate(ctx.store!.id, input.type, input.template);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name,
+      actorRole: ctx.user!.role,
+      action: "owner.transactional_email_template.update",
+      entityType: "email_template",
+      entityId: null,
+      summary: `Modèle transactionnel « ${input.type} » ${input.template.enabled ? "activé" : "désactivé"}.`,
+      metadata: { type: input.type, enabled: input.template.enabled },
+    });
+    return result;
   }),
   getCustomerOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerCustomerSummaries(ctx.store!.id);

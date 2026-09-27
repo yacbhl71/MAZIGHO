@@ -49,6 +49,8 @@ vi.mock("./db", () => ({
   createProduct: vi.fn(async () => ({ id: 108 })),
   updateProduct: vi.fn(async () => ({ success: true })),
   getOwnerSalesSettlementOverview: vi.fn(async () => ({ buckets: [], recentSales: [] })),
+  getOwnerTransactionalEmailTemplates: vi.fn(async () => [{ type: "order_confirmation", template: { subject: "Merci {{boutique}}", heading: "Confirmation", body: "Bonjour {{prenom}}", buttonLabel: "Suivre", enabled: true }, default: { subject: "Merci {{boutique}}", heading: "Confirmation", body: "Bonjour {{prenom}}", buttonLabel: "Suivre", enabled: true } }]),
+  saveOwnerTransactionalEmailTemplate: vi.fn(async () => ({ success: true })),
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
   getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
   getOwnerOrderDeliveryDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: null, addressIncomplete: false })),
@@ -559,6 +561,7 @@ describe("owner product variant routes", () => {
       orderId: 481,
       trackingNumber: "CH123456",
       storeName: "Boutique test",
+      storeId: 77,
     });
 
     vi.clearAllMocks();
@@ -567,6 +570,25 @@ describe("owner product variant routes", () => {
       customerNotification: "not_applicable",
     });
     expect(sendOrderShippedEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps transactional templates scoped to the owner’s current shop", async () => {
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.getTransactionalEmailTemplates()).resolves.toHaveLength(1);
+    expect(db.getOwnerTransactionalEmailTemplates).toHaveBeenCalledWith(77);
+
+    await expect(callerFor().owner.saveTransactionalEmailTemplate({
+      type: "order_shipped",
+      template: { subject: "{{boutique}} · expédition #{{commande}}", heading: "Votre colis part", body: "Bonjour {{prenom}}, suivi : {{suivi}}", buttonLabel: "Suivre", enabled: true },
+    })).resolves.toEqual({ success: true });
+    expect(db.saveOwnerTransactionalEmailTemplate).toHaveBeenCalledWith(77, "order_shipped", expect.objectContaining({ enabled: true }));
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, action: "owner.transactional_email_template.update" }));
+
+    state.membership = { role: "manager", status: "active" };
+    await expect(callerFor().owner.saveTransactionalEmailTemplate({
+      type: "order_confirmation",
+      template: { subject: "Merci", heading: "Confirmation", body: "Bonjour", buttonLabel: "Voir", enabled: true },
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("applies a storefront palette only to the current resolved store", async () => {

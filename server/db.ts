@@ -8936,14 +8936,20 @@ function emailTemplateSettingKey(type: EmailTemplateType) {
   return `email_template_${type}`;
 }
 
-export async function getEmailTemplate(type: EmailTemplateType): Promise<EmailTemplate> {
-  const db = await getDb();
+export async function getEmailTemplate(type: EmailTemplateType, storeId?: number): Promise<EmailTemplate> {
   const fallback = EMAIL_TEMPLATE_DEFAULTS[type];
-  if (!db) return fallback;
-  const rows = await db.select().from(settings).where(eq(settings.key, emailTemplateSettingKey(type))).limit(1);
-  if (!rows[0]) return fallback;
+  let storedValue: string | null;
+  if (storeId !== undefined) {
+    storedValue = await getStoreSettingValue(storeId, emailTemplateSettingKey(type));
+  } else {
+    const db = await getDb();
+    if (!db) return fallback;
+    const rows = await db.select({ value: settings.value }).from(settings).where(eq(settings.key, emailTemplateSettingKey(type))).limit(1);
+    storedValue = rows[0]?.value ?? null;
+  }
+  if (!storedValue) return fallback;
   try {
-    const parsed = JSON.parse(rows[0].value);
+    const parsed = JSON.parse(storedValue);
     return {
       subject: typeof parsed.subject === "string" ? parsed.subject : fallback.subject,
       heading: typeof parsed.heading === "string" ? parsed.heading : fallback.heading,
@@ -8962,6 +8968,23 @@ export async function getAllEmailTemplates() {
 
 export async function saveEmailTemplate(type: EmailTemplateType, template: EmailTemplate) {
   return await upsertSetting({ key: emailTemplateSettingKey(type), value: JSON.stringify(template), description: `Modèle d'e-mail : ${type}` });
+}
+
+export const ownerTransactionalEmailTemplateTypes = ["order_confirmation", "order_shipped"] as const;
+export type OwnerTransactionalEmailTemplateType = (typeof ownerTransactionalEmailTemplateTypes)[number];
+
+/** Returns only the transactional templates that a shop owner may edit for their own storefront. */
+export async function getOwnerTransactionalEmailTemplates(storeId: number) {
+  return await Promise.all(ownerTransactionalEmailTemplateTypes.map(async type => ({
+    type,
+    template: await getEmailTemplate(type, storeId),
+    default: EMAIL_TEMPLATE_DEFAULTS[type],
+  })));
+}
+
+/** Stores a shop-owned transactional template. Never stores campaign data, recipients or provider secrets. */
+export async function saveOwnerTransactionalEmailTemplate(storeId: number, type: OwnerTransactionalEmailTemplateType, template: EmailTemplate) {
+  return await setStoreSettingValue(storeId, emailTemplateSettingKey(type), JSON.stringify(template), `Modèle transactionnel propriétaire : ${type}`);
 }
 
 export type SupplierAccountReference = {
@@ -10891,6 +10914,7 @@ export async function getOrderForStripeSession(sessionId: string) {
       userName: users.name,
       userEmail: users.email,
       storeDisplayName: stores.displayName,
+      storeIsPlatform: stores.isPlatformStore,
     })
     .from(orders)
     .leftJoin(users, eq(orders.userId, users.id))
