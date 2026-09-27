@@ -49,6 +49,7 @@ vi.mock("./db", () => ({
   getOwnerSalesSettlementOverview: vi.fn(async () => ({ buckets: [], recentSales: [] })),
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
   getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
+  getOwnerOrderDeliveryDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: null, addressIncomplete: false })),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, success: true })),
   prepareStoreTeamInvitation: vi.fn(async () => ({
@@ -469,6 +470,25 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.getSalesSettlementOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("reveals delivery details only to the store owner and records the consultation", async () => {
+    await expect(callerFor().owner.revealOrderDeliveryDetails({ orderId: 481 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.revealOrderDeliveryDetails({ orderId: 481 })).resolves.toMatchObject({
+      available: true,
+      orderId: 481,
+      countryCode: "CH",
+    });
+    expect(db.getOwnerOrderDeliveryDetails).toHaveBeenCalledWith(481, 77);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      entityType: "order",
+      entityId: 481,
+      action: "owner.order.delivery_details_revealed",
+      metadata: { purpose: "manual_fulfillment" },
+    }));
   });
 
   it("records a manual order decision only for the current resolved store", async () => {

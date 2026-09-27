@@ -44,6 +44,7 @@ import { buildStoreStockSignal } from "./services/storeStockSignal";
 import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettlement";
+import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
@@ -8038,6 +8039,29 @@ export async function getOwnerOrderItemSummaries(orderId: number, storeId: numbe
     .where(and(eq(orderItems.storeId, storeId), eq(orderItems.orderId, orderId), eq(orders.storeId, storeId)));
 
   return summarizeOwnerOrderItems(rows);
+}
+
+/**
+ * Minimal delivery record for the store owner only. It is intentionally not
+ * part of the generic orders overview and remains bound to the resolved store.
+ * The service policy requires a paid order already in manual fulfillment.
+ */
+export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) return buildOwnerDeliveryDetails(null);
+
+  const rows = await db.select({
+    id: orders.id,
+    paymentStatus: orders.paymentStatus,
+    status: orders.status,
+    shippingAddress: orders.shippingAddress,
+    trackingNumber: orders.trackingNumber,
+  }).from(orders)
+    .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)))
+    .limit(1);
+
+  return buildOwnerDeliveryDetails(rows[0] ?? null);
 }
 
 /**

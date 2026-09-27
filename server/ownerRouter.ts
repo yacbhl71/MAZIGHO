@@ -512,6 +512,25 @@ export const ownerRouter = router({
   })).query(async ({ ctx, input }) => {
     return await db.getOrderTimeline(input.orderId, ctx.store!.id);
   }),
+  revealOrderDeliveryDetails: storeOwnerProcedure.input(z.object({
+    orderId: z.number().int().positive(),
+  })).mutation(async ({ ctx, input }) => {
+    const details = await db.getOwnerOrderDeliveryDetails(input.orderId, ctx.store!.id);
+    if (details.available) {
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.order.delivery_details_revealed",
+        entityType: "order",
+        entityId: input.orderId,
+        summary: `Coordonnées de livraison consultées pour la commande #${input.orderId}.`,
+        metadata: { purpose: "manual_fulfillment" },
+      });
+    }
+    return details;
+  }),
   getReturnRequests: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerReturnRequests(ctx.store!.id);
   }),
