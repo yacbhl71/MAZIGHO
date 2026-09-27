@@ -52,6 +52,7 @@ const cart = {
   totalAmount: 10_000,
   totalAmountChf: 10_000,
 };
+const legalAcceptanceVersion = "2026-09-28" as const;
 
 describe("Stripe Connect Test checkout route", () => {
   beforeEach(() => {
@@ -72,9 +73,10 @@ describe("Stripe Connect Test checkout route", () => {
   });
 
   it("creates a tenant-bound Direct Charge with the official BASIC fee", async () => {
-    const result = await callerFor().createSession({ countryCode: "CH", items: [{ productId: 41, quantity: 1 }] });
+    const result = await callerFor().createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] });
 
     expect(dbMocks.getStripeCheckoutCart).toHaveBeenCalledWith(7, "CH", [{ productId: 41, quantity: 1 }], 72);
+    expect(dbMocks.createStripePendingOrder).toHaveBeenCalledWith(expect.objectContaining({ legalAcceptanceVersion }));
     expect(stripeMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
       mode: "payment",
       payment_intent_data: { application_fee_amount: 250 },
@@ -102,7 +104,7 @@ describe("Stripe Connect Test checkout route", () => {
     process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT = "true";
     stripeMocks.createSession.mockResolvedValue({ id: "cs_live_123", url: "https://checkout.stripe.live/session" });
 
-    await callerFor().createSession({ countryCode: "CH", items: [{ productId: 41, quantity: 1 }] });
+    await callerFor().createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] });
 
     expect(dbMocks.getStoreStripeConnectCheckoutContext).toHaveBeenCalledWith(72, "live");
     expect(dbMocks.createStripePendingOrder).toHaveBeenCalledWith(expect.objectContaining({ mode: "live", storeId: 72 }));
@@ -113,10 +115,16 @@ describe("Stripe Connect Test checkout route", () => {
   it("cancels the local pending order if Stripe does not return a checkout URL", async () => {
     stripeMocks.createSession.mockResolvedValue({ id: "cs_test_missing_url", url: null });
 
-    await expect(callerFor().createSession({ countryCode: "CH", items: [{ productId: 41, quantity: 1 }] })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+    await expect(callerFor().createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] })).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 
     expect(dbMocks.cancelUnboundStripePendingOrder).toHaveBeenCalledWith({ storeId: 72, userId: 7, orderId: 91 });
     expect(dbMocks.bindStripeConnectSessionToPendingOrder).not.toHaveBeenCalled();
+  });
+
+  it("requires the current legal acceptance version before opening Stripe", async () => {
+    await expect(callerFor().createSession({ countryCode: "CH", items: [{ productId: 41, quantity: 1 }] } as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.getStripeCheckoutCart).not.toHaveBeenCalled();
+    expect(stripeMocks.createSession).not.toHaveBeenCalled();
   });
 
   it("reconciles the browser return only through the same tenant account and user", async () => {

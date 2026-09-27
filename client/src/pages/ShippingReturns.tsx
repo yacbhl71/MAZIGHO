@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { storefrontCountryChoices } from "@shared/storeMarketSettings";
 import { getShippingTermsPresentation } from "@/lib/shippingReturnsPolicy";
 
-const updatedAt = "25 septembre 2026";
+const updatedAt = "28 septembre 2026";
 
 export default function ShippingReturns() {
   const { profile } = useLegalProfile();
@@ -17,6 +17,7 @@ export default function ShippingReturns() {
   const { locale } = useLocale();
   const { formatStorePrice } = useStorePrice();
   const shippingPolicy = trpc.content.getCheckoutShippingPolicy.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const paymentAvailability = trpc.storefront.getPaymentAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const storeReturns = pages?.returns ?? null;
   const brandName = designProfile.brandName?.trim() || "La boutique";
   const shippingTerms = getShippingTermsPresentation({
@@ -27,6 +28,7 @@ export default function ShippingReturns() {
     fallbackReturns: profile.returnsPolicy,
     formatPrice: amountCents => formatStorePrice(amountCents, locale),
   });
+  const paymentEnabled = paymentAvailability.data?.enabled === true;
 
   // A boutique that wrote its own shipping/returns page replaces the default
   // legal-profile-driven sections entirely.
@@ -49,13 +51,15 @@ export default function ShippingReturns() {
     <LegalLayout
       eyebrow="Informations pratiques"
       title="Livraison et retours"
-      description={`Cette page présente l’état actuel des modalités de livraison et de retours de ${brandName} avant l’ouverture des paiements en ligne.`}
+      description={`Cette page présente les modalités de livraison et de retours communiquées par ${brandName}.`}
       updatedAt={updatedAt}
     >
       <section>
-        <h2 className="text-xl font-semibold text-slate-950">1. État actuel</h2>
+        <h2 className="text-xl font-semibold text-slate-950">1. Informations applicables</h2>
         <p className="mt-3">
-          Les conditions ci-dessous correspondent aux réglages actuellement enregistrés pour {brandName}. L’encaissement en ligne reste désactivé : cette page n’active aucun paiement, transporteur, expédition ni remboursement.
+          {paymentEnabled
+            ? <>Les conditions ci-dessous correspondent aux réglages affichés par {brandName} avant la validation d’une commande. Cette page informe sur la livraison et les retours ; elle ne déclenche ni expédition, ni transporteur, ni remboursement automatique.</>
+            : <>Les conditions ci-dessous correspondent aux réglages actuellement enregistrés pour {brandName}. Le paiement en ligne n’est pas disponible pour cette boutique à cet instant ; cette page n’active aucun paiement, transporteur, expédition ni remboursement.</>}
         </p>
       </section>
 

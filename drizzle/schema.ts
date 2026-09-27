@@ -309,6 +309,11 @@ export const orders = mysqlTable("orders", {
   promotionId: int("promotionId"),
   discountAmount: int("discountAmount").default(0).notNull(),
   discountAmountChf: int("discountAmountChf").default(0).notNull(),
+  // Server-owned snapshot of the checkout conditions accepted for this exact
+  // order. It contains public merchant, delivery and document data only.
+  legalAcceptanceVersion: varchar("legalAcceptanceVersion", { length: 64 }),
+  legalAcceptedAt: timestamp("legalAcceptedAt"),
+  legalAcceptanceSnapshot: text("legalAcceptanceSnapshot"),
   notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

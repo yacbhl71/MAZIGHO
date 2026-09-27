@@ -4,12 +4,15 @@ import mysql from "mysql2/promise";
 
 // Manual migrations added after the original Drizzle journal are versioned here
 // so Vercel can apply them before the server bundle is deployed. The runner is
-// deliberately part of the build, never a storefront request path.
+// deliberately part of the build, never a storefront request path. Failed
+// migrations abort the deployment rather than leaving a newly deployed checkout
+// to write against an incomplete schema.
 const migrations = [
   ["0028_stripe_connect_direct_charges", "drizzle/0028_stripe_connect_direct_charges.sql"],
   ["0029_lemon_squeezy_saas_billing", "drizzle/0029_lemon_squeezy_saas_billing.sql"],
   ["0030_controlled_return_requests", "drizzle/0030_controlled_return_requests.sql"],
   ["0031_stripe_connect_live_direct_charges", "drizzle/0031_stripe_connect_live_direct_charges.sql"],
+  ["0032_checkout_legal_acceptance", "drizzle/0032_checkout_legal_acceptance.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

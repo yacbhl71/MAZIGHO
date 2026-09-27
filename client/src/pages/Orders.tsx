@@ -5,13 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, ArrowLeft, CheckCircle2, CircleAlert, Package, Truck, RotateCcw, Loader2 } from "lucide-react";
+import { ShoppingBag, ArrowLeft, CheckCircle2, CircleAlert, Package, Truck, RotateCcw, Loader2, FileText } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
+import CustomerOrderReceiptDialog from "@/components/CustomerOrderReceiptDialog";
 
 const STATUS: Record<string, { label: string; className: string }> = {
   pending: { label: "En attente", className: "bg-amber-100 text-amber-800" },
@@ -48,6 +49,7 @@ export default function Orders() {
   const returnsQuery = trpc.shop.orders.getMyReturns.useQuery(undefined, { enabled: Boolean(user) });
   const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && hasValidStripeSessionId) });
   const [returnOrderId, setReturnOrderId] = useState<number | null>(null);
+  const [receiptOrderId, setReceiptOrderId] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [returnQuantities, setReturnQuantities] = useState<Record<number, number>>({});
   const returnDetail = trpc.shop.orders.getDetail.useQuery(returnOrderId || 0, { enabled: Boolean(user && returnOrderId) });
@@ -140,6 +142,9 @@ export default function Orders() {
                             <span className="text-xs text-muted-foreground">Numéro de suivi communiqué à l'expédition</span>
                           ) : null}
                         </div>
+                        <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
+                          <Button size="sm" variant="outline" onClick={() => setReceiptOrderId(order.id)} data-testid={`order-receipt-${order.id}`}><FileText className="mr-2 h-4 w-4" /> Récapitulatif</Button>
+                        </div>
                         {(existingReturn || canReturn) && (
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                             {existingReturn ? (
@@ -184,6 +189,7 @@ export default function Orders() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <CustomerOrderReceiptDialog orderId={receiptOrderId} onOpenChange={open => { if (!open) setReceiptOrderId(null); }} />
     </div>
   );
 }

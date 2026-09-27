@@ -9,6 +9,7 @@ import { convertChfCents } from "../shared/storeCurrency";
 import { getCheckoutPaymentGate } from "./services/checkoutPaymentGate";
 import { calculateMazighoApplicationFee } from "./services/stripeConnectPayment";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
+import { CHECKOUT_LEGAL_VERSION } from "../shared/checkoutLegalAcceptance";
 
 const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.store) {
@@ -46,6 +47,8 @@ export const stripeCheckoutRouter = router({
     .input(z.object({
       countryCode: z.string().length(2).regex(/^[A-Za-z]{2}$/),
       promoCode: z.string().trim().min(2).max(64).optional(),
+      legalAcceptanceVersion: z.literal(CHECKOUT_LEGAL_VERSION),
+      legalAccepted: z.literal(true),
       items: z.array(z.object({
         productId: z.number().int().positive(),
         quantity: z.number().int().min(1).max(20),
@@ -99,6 +102,8 @@ export const stripeCheckoutRouter = router({
           promotionId,
           discountAmount,
           discountAmountChf,
+          legalAcceptanceVersion: input.legalAcceptanceVersion,
+          legalAccepted: input.legalAccepted,
           storeId,
         });
         const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
@@ -186,6 +191,13 @@ export const stripeCheckoutRouter = router({
       } catch (error) {
         console.error(`Stripe ${mode} Checkout error`, error);
         if (error instanceof TRPCError) throw error;
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CHECKOUT_LEGAL_PROFILE_INCOMPLETE") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cette boutique doit compléter ses informations légales, fiscales et de livraison avant de pouvoir ouvrir un paiement." });
+        }
+        if (code === "CHECKOUT_LEGAL_ACCEPTANCE_REQUIRED") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "L’acceptation des conditions de vente est requise avant le paiement." });
+        }
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: stripeUnavailable(mode, "create") });
       }
     }),

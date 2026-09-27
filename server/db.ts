@@ -46,6 +46,7 @@ import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettlement";
 import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
 import { buildCheckoutStockReservations, buildStoredOrderStockReservations } from "./services/checkoutStockReservation";
+import { buildCheckoutLegalAcceptanceSnapshot, CHECKOUT_LEGAL_VERSION } from "../shared/checkoutLegalAcceptance";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
@@ -69,6 +70,7 @@ import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import type { StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
+import { getStoreSystemPages } from "./storeSystemPagesDb";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -7974,6 +7976,32 @@ export async function getCheckoutTaxDisclosure(storeId: number | undefined, coun
 }
 
 /**
+ * Publicly safe readiness signal for the checkout button. It exposes only
+ * missing configuration categories, never private operator addresses, payment
+ * credentials, order data or the legal-profile values themselves.
+ */
+export async function getCheckoutLegalReadiness(storeId: number | undefined, countryCode?: string | null) {
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const [profile, shipping, tax] = await Promise.all([
+    getLegalProfile(effectiveStoreId),
+    getCheckoutShippingPolicy(effectiveStoreId, countryCode || undefined),
+    getCheckoutTaxDisclosure(effectiveStoreId, countryCode),
+  ]);
+  const missing: string[] = [];
+  if (profile.operatorName === defaultLegalProfile.operatorName || profile.country === defaultLegalProfile.country || profile.contactEmail === defaultLegalProfile.contactEmail || profile.businessStatus === defaultLegalProfile.businessStatus) {
+    missing.push("Informations légales de l’exploitant");
+  }
+  if (profile.returnsPolicy === defaultLegalProfile.returnsPolicy || !shipping.returnsSummary.trim()) {
+    missing.push("Politique de retours");
+  }
+  if (!shipping.servedCountries.length || !shipping.countryServed || !shipping.deliveryLeadTime.trim()) {
+    missing.push("Zones et délai de livraison");
+  }
+  if (!tax.configured) missing.push("Information fiscale affichée au checkout");
+  return { ready: missing.length === 0, missing };
+}
+
+/**
  * Owner-only stock alert setting. It is a visual threshold only: no stock is
  * reserved and no notification, supplier, payment or order action is triggered.
  */
@@ -10783,6 +10811,8 @@ export async function createStripePendingOrder(input: {
   promotionId?: number | null;
   discountAmount?: number;
   discountAmountChf?: number;
+  legalAcceptanceVersion: string;
+  legalAccepted: boolean;
   storeId?: number;
 }) {
   await ensureStoreRelationshipScopeSchema();
@@ -10793,6 +10823,53 @@ export async function createStripePendingOrder(input: {
   if (!db) throw new Error("Database not available");
   const mode = input.mode ?? "test";
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
+  const [storeRows, legalProfile, shippingPolicy, taxDisclosure, systemPages] = await Promise.all([
+    db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain })
+      .from(stores).where(eq(stores.id, effectiveStoreId)).limit(1),
+    getLegalProfile(effectiveStoreId),
+    getCheckoutShippingPolicy(effectiveStoreId, input.countryCode),
+    getCheckoutTaxDisclosure(effectiveStoreId, input.countryCode),
+    getStoreSystemPages(effectiveStoreId),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (input.legalAcceptanceVersion !== CHECKOUT_LEGAL_VERSION) throw new Error("CHECKOUT_LEGAL_ACCEPTANCE_REQUIRED");
+  if (input.legalAccepted !== true) throw new Error("CHECKOUT_LEGAL_ACCEPTANCE_REQUIRED");
+  if (
+    legalProfile.operatorName === defaultLegalProfile.operatorName
+    || legalProfile.country === defaultLegalProfile.country
+    || legalProfile.contactEmail === defaultLegalProfile.contactEmail
+    || legalProfile.businessStatus === defaultLegalProfile.businessStatus
+    || legalProfile.returnsPolicy === defaultLegalProfile.returnsPolicy
+    || shippingPolicy.servedCountries.length === 0
+    || !shippingPolicy.countryServed
+    || !shippingPolicy.deliveryLeadTime.trim()
+    || !shippingPolicy.returnsSummary.trim()
+    || !taxDisclosure.configured
+  ) {
+    throw new Error("CHECKOUT_LEGAL_PROFILE_INCOMPLETE");
+  }
+  const legalAcceptance = buildCheckoutLegalAcceptanceSnapshot({
+    store: { id: store.id, name: store.displayName, domain: store.primaryDomain },
+    paymentMode: mode,
+    merchant: {
+      operatorName: legalProfile.operatorName,
+      country: legalProfile.country,
+      contactEmail: legalProfile.contactEmail,
+      businessStatus: legalProfile.businessStatus,
+      ideVatNumber: legalProfile.ideVatNumber,
+    },
+    delivery: {
+      countryCode: input.countryCode,
+      mode: shippingPolicy.mode,
+      flatShippingRateCents: shippingPolicy.flatShippingRateCents,
+      freeShippingThresholdCents: shippingPolicy.freeShippingThresholdCents,
+      deliveryLeadTime: shippingPolicy.deliveryLeadTime,
+      returnsSummary: shippingPolicy.returnsSummary,
+    },
+    returnsPage: systemPages.returns ? { title: systemPages.returns.title, body: systemPages.returns.body } : null,
+    taxNotice: taxDisclosure.configured ? taxDisclosure.notice : null,
+  });
   if (input.sessionId) {
     const existing = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.stripeSessionId, input.sessionId))).limit(1);
     if (existing[0]) return existing[0];
@@ -10821,6 +10898,9 @@ export async function createStripePendingOrder(input: {
       promotionId: input.promotionId ?? null,
       discountAmount,
       discountAmountChf: input.discountAmountChf ?? 0,
+      legalAcceptanceVersion: legalAcceptance.version,
+      legalAcceptedAt: new Date(legalAcceptance.acceptedAt),
+      legalAcceptanceSnapshot: JSON.stringify(legalAcceptance),
       status: "pending",
       fulfillmentState: "not_eligible",
     });
