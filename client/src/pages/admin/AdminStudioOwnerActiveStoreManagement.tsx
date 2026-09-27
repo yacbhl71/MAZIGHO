@@ -23,7 +23,7 @@ export default function AdminStudioOwnerActiveStoreManagement() {
   const loading = !store && (storefrontQuery.isLoading || catalogueQuery.isLoading);
   const unavailable = !store && !storefrontQuery.isLoading && !catalogueQuery.isLoading;
   const domain = storefront?.store.primaryDomain;
-  const preparationReady = Boolean(supervisionQuery.data?.readiness.items.filter(item => item.id !== "public_view").every(item => item.ready));
+  const preparationReady = Boolean(supervisionQuery.data?.readiness.opening.localRequirementsComplete);
 
   return <DashboardLayout><main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-8 md:py-8">
     <header><div className="flex flex-wrap items-center gap-2"><Badge className="border-0 bg-slate-950 text-white hover:bg-slate-950">MAZIGHO Studio</Badge><Badge className="border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-50">Gestion de boutique</Badge></div><h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Gérer la boutique</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Gérez le contenu et le catalogue de cette boutique depuis Studio. Son statut public reste distinct : aucune ouverture, fermeture ou publication n’est déclenchée ici.</p></header>

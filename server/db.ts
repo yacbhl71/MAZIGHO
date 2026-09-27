@@ -36,6 +36,7 @@ import { buildStoreCommercialPublicationPreflight } from "./services/storeCommer
 import { buildStoreSetupIsolationReview } from "./services/storeSetupIsolationReview";
 import { buildStoreManualCommercialPassageReview } from "./services/storeManualCommercialPassageReview";
 import { buildStoreCataloguePublicationPlan } from "./services/storeCataloguePublicationPlan";
+import { buildStoreOpeningReadiness } from "./services/storeOpeningReadiness";
 import { assessStudioStoreLifecycleTransition } from "./services/storeLifecyclePolicy";
 import { getStoreMediaUsage } from "./storage";
 import { buildStoreStockSignal } from "./services/storeStockSignal";
@@ -7676,13 +7677,14 @@ export async function getOwnerCommercialReadiness(storeId: number) {
     },
   ] as const;
   const completed = items.filter(item => item.ready).length;
+  const opening = buildStoreOpeningReadiness({ status: store.status, items });
 
   return {
     store: { displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
     summary: {
       completed,
       total: items.length,
-      baseCommerciallyPrepared: completed === items.length,
+      baseCommerciallyPrepared: opening.localRequirementsComplete,
       paymentStatus: "not_activated" as const,
     },
     inventory: {
@@ -7696,6 +7698,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       productsWithVariants: productsWithVariants.length,
     },
     items,
+    opening,
   };
 }
 
