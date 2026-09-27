@@ -84,11 +84,13 @@ export const appRouter = router({
     })),
     getPaymentAvailability: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreStripeConnectCheckoutContext } = await import("./db");
-      const payment = await getStoreStripeConnectCheckoutContext(ctx.store!.id);
+      const { getCheckoutPaymentGate } = await import("./services/checkoutPaymentGate");
+      const mode = getCheckoutPaymentGate("live").enabled ? "live" as const : "test" as const;
+      const payment = await getStoreStripeConnectCheckoutContext(ctx.store!.id, mode);
       const readiness = payment.setup.paymentReadiness;
       return payment.ready
-        ? { enabled: true as const, mode: "stripe_connect_test" as const }
-        : { enabled: false as const, mode: "stripe_connect_test" as const, reason: readiness.enabled ? "connect_onboarding_incomplete" : readiness.reason };
+        ? { enabled: true as const, mode: `stripe_connect_${mode}` as const }
+        : { enabled: false as const, mode: `stripe_connect_${mode}` as const, reason: readiness.enabled ? "connect_onboarding_incomplete" : readiness.reason };
     }),
     getMarketSettings: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreMarketSettings } = await import("./db");

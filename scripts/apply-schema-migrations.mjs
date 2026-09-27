@@ -9,6 +9,7 @@ const migrations = [
   ["0028_stripe_connect_direct_charges", "drizzle/0028_stripe_connect_direct_charges.sql"],
   ["0029_lemon_squeezy_saas_billing", "drizzle/0029_lemon_squeezy_saas_billing.sql"],
   ["0030_controlled_return_requests", "drizzle/0030_controlled_return_requests.sql"],
+  ["0031_stripe_connect_live_direct_charges", "drizzle/0031_stripe_connect_live_direct_charges.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

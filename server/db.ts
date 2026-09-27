@@ -55,6 +55,7 @@ import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../sh
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
+import type { StripeConnectMode } from "./services/stripeConnectMode";
 import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
@@ -66,7 +67,7 @@ import type { StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -6570,6 +6571,7 @@ async function assertStoreActiveProductCapacity(storeId: number, additionalActiv
 }
 
 export type StoreStripeConnectSetup = {
+  mode: StripeConnectMode;
   account: {
     accountId: string;
     status: "created" | "onboarding" | "active" | "restricted";
@@ -6584,7 +6586,9 @@ export type StoreStripeConnectSetup = {
   paymentReadiness: ReturnType<typeof getStripeConnectPaymentReadiness>;
 };
 
-function asStripeConnectAccountState(row: typeof stripeConnectedAccounts.$inferSelect | undefined): StripeConnectAccountState | null {
+type StripeConnectAccountRow = typeof stripeConnectedAccounts.$inferSelect | typeof stripeLiveConnectedAccounts.$inferSelect;
+
+function asStripeConnectAccountState(row: StripeConnectAccountRow | undefined): StripeConnectAccountState | null {
   if (!row) return null;
   return {
     accountId: row.stripeAccountId,
@@ -6599,16 +6603,19 @@ function asStripeConnectAccountState(row: typeof stripeConnectedAccounts.$inferS
  * Reads payment configuration strictly for one tenant. A missing migration is
  * treated as a closed payment state so a public checkout can never open early.
  */
-export async function getStoreStripeConnectSetup(storeId: number): Promise<StoreStripeConnectSetup> {
+export async function getStoreStripeConnectSetup(storeId: number, mode: StripeConnectMode = "test"): Promise<StoreStripeConnectSetup> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const planAssignment = await getOwnerSaasPlanAssignment(storeId);
   const plan = getMazighoSaasPlan(planAssignment?.planId);
   try {
-    const [row] = await db.select().from(stripeConnectedAccounts)
-      .where(eq(stripeConnectedAccounts.storeId, storeId)).limit(1);
+    const rows = mode === "live"
+      ? await db.select().from(stripeLiveConnectedAccounts).where(eq(stripeLiveConnectedAccounts.storeId, storeId)).limit(1)
+      : await db.select().from(stripeConnectedAccounts).where(eq(stripeConnectedAccounts.storeId, storeId)).limit(1);
+    const row = rows[0];
     const accountState = asStripeConnectAccountState(row);
     return {
+      mode,
       account: row ? {
         accountId: row.stripeAccountId,
         status: row.status,
@@ -6620,29 +6627,32 @@ export async function getStoreStripeConnectSetup(storeId: number): Promise<Store
       } : null,
       plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
       schemaReady: true,
-      paymentReadiness: getStripeConnectPaymentReadiness({ planId: planAssignment?.planId, account: accountState }),
+      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, account: accountState }),
     };
   } catch (error) {
     const message = String(error).toLowerCase();
-    if (!message.includes("stripeconnectedaccounts") && !message.includes("doesn't exist") && !message.includes("does not exist")) throw error;
+    const tableName = mode === "live" ? "stripeliveconnectedaccounts" : "stripeconnectedaccounts";
+    if (!message.includes(tableName) && !message.includes("doesn't exist") && !message.includes("does not exist")) throw error;
     return {
+      mode,
       account: null,
       plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
       schemaReady: false,
-      paymentReadiness: getStripeConnectPaymentReadiness({ planId: planAssignment?.planId, account: null }),
+      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, account: null }),
     };
   }
 }
 
 /** Records only Stripe's opaque connected-account identifier after its creation. */
-export async function saveStoreStripeConnectAccount(input: { storeId: number; stripeAccountId: string; status: "created" | "onboarding" | "active" | "restricted"; onboardingComplete: boolean; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }) {
+export async function saveStoreStripeConnectAccount(input: { storeId: number; mode?: StripeConnectMode; stripeAccountId: string; status: "created" | "onboarding" | "active" | "restricted"; onboardingComplete: boolean; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
+  const mode = input.mode ?? "test";
   const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, input.storeId)).limit(1);
   if (!store) throw new Error("STORE_NOT_FOUND");
   if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
   if (!/^acct_[A-Za-z0-9]+$/.test(input.stripeAccountId)) throw new Error("STRIPE_CONNECT_ACCOUNT_INVALID");
-  await db.insert(stripeConnectedAccounts).values({
+  const values = {
     storeId: input.storeId,
     stripeAccountId: input.stripeAccountId,
     status: input.status,
@@ -6651,7 +6661,8 @@ export async function saveStoreStripeConnectAccount(input: { storeId: number; st
     payoutsEnabled: input.payoutsEnabled ? 1 : 0,
     detailsSubmitted: input.detailsSubmitted ? 1 : 0,
     lastCheckedAt: new Date(),
-  }).onDuplicateKeyUpdate({ set: {
+  } as const;
+  const update = {
     stripeAccountId: input.stripeAccountId,
     status: input.status,
     onboardingComplete: input.onboardingComplete ? 1 : 0,
@@ -6659,13 +6670,18 @@ export async function saveStoreStripeConnectAccount(input: { storeId: number; st
     payoutsEnabled: input.payoutsEnabled ? 1 : 0,
     detailsSubmitted: input.detailsSubmitted ? 1 : 0,
     lastCheckedAt: new Date(),
-  } });
-  return await getStoreStripeConnectSetup(input.storeId);
+  } as const;
+  if (mode === "live") {
+    await db.insert(stripeLiveConnectedAccounts).values(values).onDuplicateKeyUpdate({ set: update });
+  } else {
+    await db.insert(stripeConnectedAccounts).values(values).onDuplicateKeyUpdate({ set: update });
+  }
+  return await getStoreStripeConnectSetup(input.storeId, mode);
 }
 
 /** Resolves the payment authority for a checkout without exposing it to a client. */
-export async function getStoreStripeConnectCheckoutContext(storeId: number) {
-  const setup = await getStoreStripeConnectSetup(storeId);
+export async function getStoreStripeConnectCheckoutContext(storeId: number, mode: StripeConnectMode = "test") {
+  const setup = await getStoreStripeConnectSetup(storeId, mode);
   if (!setup.paymentReadiness.enabled) return { setup, ready: false as const };
   return { setup, ready: true as const, accountId: setup.paymentReadiness.accountId, commissionRateBps: setup.paymentReadiness.commissionRateBps, planId: setup.paymentReadiness.planId };
 }
@@ -10585,6 +10601,7 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
 
 export async function createStripePendingOrder(input: {
   userId: number;
+  mode?: StripeConnectMode;
   sessionId?: string | null;
   countryCode: string;
   totalAmount: number;
@@ -10600,6 +10617,7 @@ export async function createStripePendingOrder(input: {
   await ensureOrderCurrencySchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const mode = input.mode ?? "test";
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
   if (input.sessionId) {
     const existing = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.stripeSessionId, input.sessionId))).limit(1);
@@ -10619,7 +10637,7 @@ export async function createStripePendingOrder(input: {
     shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
     billingAddress: null,
     paymentStatus: "unpaid",
-    paymentMethod: "stripe_connect_test",
+    paymentMethod: `stripe_connect_${mode}`,
     stripeSessionId: input.sessionId ?? null,
     promotionId: input.promotionId ?? null,
     discountAmount,
@@ -10646,6 +10664,7 @@ export async function createStripePendingOrder(input: {
 export async function bindStripeConnectSessionToPendingOrder(input: {
   storeId: number;
   userId: number;
+  mode?: StripeConnectMode;
   orderId: number;
   sessionId: string;
   stripeAccountId: string;
@@ -10654,12 +10673,13 @@ export async function bindStripeConnectSessionToPendingOrder(input: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const mode = input.mode ?? "test";
   const result = await db.update(orders).set({
     stripeSessionId: input.sessionId,
     stripeConnectedAccountId: input.stripeAccountId,
     stripeApplicationFeeAmount: input.applicationFeeAmount,
     stripeCommissionRateBps: input.commissionRateBps,
-    paymentMethod: "stripe_connect_test",
+    paymentMethod: `stripe_connect_${mode}`,
   }).where(and(
     eq(orders.id, input.orderId),
     eq(orders.storeId, input.storeId),
@@ -10751,6 +10771,7 @@ export async function getOrderForStripeSessionForStore(sessionId: string, userId
     id: orders.id,
     status: orders.status,
     paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
     totalAmount: orders.totalAmount,
     currencyCode: orders.currencyCode,
   }).from(orders)
@@ -10764,15 +10785,16 @@ export async function getOrderForStripeSessionForStore(sessionId: string, userId
  * account that created the checkout. This blocks cross-tenant event handling
  * even when a platform webhook endpoint receives multiple accounts.
  */
-export async function confirmStripeConnectSessionOwner(input: { sessionId: string; stripeAccountId: string; paymentIntentId?: string | null }) {
+export async function confirmStripeConnectSessionOwner(input: { sessionId: string; mode?: StripeConnectMode; stripeAccountId: string; paymentIntentId?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  const mode = input.mode ?? "test";
   const [order] = await db.select({
     id: orders.id,
     paymentMethod: orders.paymentMethod,
     stripeConnectedAccountId: orders.stripeConnectedAccountId,
   }).from(orders).where(eq(orders.stripeSessionId, input.sessionId)).limit(1);
-  if (!order || order.paymentMethod !== "stripe_connect_test" || order.stripeConnectedAccountId !== input.stripeAccountId) {
+  if (!order || order.paymentMethod !== `stripe_connect_${mode}` || order.stripeConnectedAccountId !== input.stripeAccountId) {
     return { accepted: false as const };
   }
   if (input.paymentIntentId && /^pi_[A-Za-z0-9]+$/.test(input.paymentIntentId)) {

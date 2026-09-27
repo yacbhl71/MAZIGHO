@@ -1,9 +1,10 @@
 import type { MazighoSaasPlanId } from "../../shared/mazighoSaasPlans";
 import { getMazighoSaasPlan } from "../../shared/mazighoSaasPlans";
+import { getStripeConnectModeAvailability, type StripeConnectMode } from "./stripeConnectMode";
 
 export type StripeConnectPaymentReadiness =
   | { enabled: true; accountId: string; commissionRateBps: number; planId: MazighoSaasPlanId }
-  | { enabled: false; reason: "platform_test_mode_disabled" | "platform_test_key_missing" | "store_plan_missing" | "store_plan_unsupported" | "connect_account_missing" | "connect_onboarding_incomplete" | "connect_payouts_incomplete" };
+  | { enabled: false; reason: "platform_test_mode_disabled" | "platform_test_key_missing" | "platform_live_mode_disabled" | "platform_live_key_missing" | "store_plan_missing" | "store_plan_unsupported" | "connect_account_missing" | "connect_onboarding_incomplete" | "connect_payouts_incomplete" };
 
 export type StripeConnectAccountState = {
   accountId: string | null;
@@ -13,20 +14,21 @@ export type StripeConnectAccountState = {
   detailsSubmitted: boolean;
 };
 
-/**
- * Stripe Connect remains in Test Mode until a dedicated, separately approved
- * live-mode release. A per-store connected account is never accepted from the
- * browser; only a server-side stored account reference can open checkout.
- */
+/** A per-store connected account is only accepted from server-side storage. */
 export function getStripeConnectPaymentReadiness(input: {
   environment?: Record<string, string | undefined>;
+  mode?: StripeConnectMode;
   planId: unknown;
   account: StripeConnectAccountState | null;
 }): StripeConnectPaymentReadiness {
   const environment = input.environment ?? process.env;
-  const platformKey = environment.STRIPE_SECRET_KEY?.trim() || "";
-  if (!platformKey.startsWith("sk_test_")) return { enabled: false, reason: "platform_test_key_missing" };
-  if (environment.MAZIGHO_ENABLE_STRIPE_TEST_CONNECT?.trim() !== "true") return { enabled: false, reason: "platform_test_mode_disabled" };
+  const mode = input.mode ?? "test";
+  const platform = getStripeConnectModeAvailability(mode, environment);
+  if (!platform.available) {
+    return { enabled: false, reason: mode === "live"
+      ? platform.reason === "live_key_missing" ? "platform_live_key_missing" : "platform_live_mode_disabled"
+      : platform.reason === "test_key_missing" ? "platform_test_key_missing" : "platform_test_mode_disabled" };
+  }
 
   const plan = getMazighoSaasPlan(input.planId);
   if (!input.planId) return { enabled: false, reason: "store_plan_missing" };
@@ -58,6 +60,8 @@ export function describeStripeConnectPaymentBlock(reason: Exclude<StripeConnectP
   switch (reason) {
     case "platform_test_mode_disabled": return "Le paiement Stripe Connect de test n’est pas activé par MAZIGHO Studio.";
     case "platform_test_key_missing": return "La configuration Stripe Test de la plateforme est indisponible.";
+    case "platform_live_mode_disabled": return "Le passage Stripe Connect Production n’est pas encore activé par MAZIGHO Studio.";
+    case "platform_live_key_missing": return "Les identifiants Stripe Production dédiés ne sont pas encore configurés.";
     case "store_plan_missing": return "Aucun plan commercial n’est encore attribué à cette boutique.";
     case "store_plan_unsupported": return "Le plan attribué ne permet pas encore l’encaissement Stripe Connect.";
     case "connect_account_missing": return "Le compte Stripe Connect de cette boutique n’est pas encore créé.";

@@ -56,7 +56,11 @@ const cart = {
 describe("Stripe Connect Test checkout route", () => {
   beforeEach(() => {
     process.env.MAZIGHO_ENABLE_STRIPE_TEST_CONNECT = "true";
+    process.env.MAZIGHO_ENABLE_STRIPE_TEST_CHECKOUT = "true";
     process.env.STRIPE_SECRET_KEY = "sk_test_platform";
+    delete process.env.STRIPE_LIVE_SECRET_KEY;
+    delete process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT;
+    delete process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT;
     for (const mock of Object.values(dbMocks)) mock.mockReset();
     for (const mock of Object.values(stripeMocks)) mock.mockReset();
     for (const mock of Object.values(webhookMocks)) mock.mockReset();
@@ -79,6 +83,7 @@ describe("Stripe Connect Test checkout route", () => {
     expect(dbMocks.bindStripeConnectSessionToPendingOrder).toHaveBeenCalledWith({
       storeId: 72,
       userId: 7,
+      mode: "test",
       orderId: 91,
       sessionId: "cs_test_123",
       stripeAccountId: "acct_testBoutique",
@@ -86,6 +91,20 @@ describe("Stripe Connect Test checkout route", () => {
       commissionRateBps: 250,
     });
     expect(result).toEqual({ sessionId: "cs_test_123", orderId: 91, url: "https://checkout.stripe.test/session" });
+  });
+
+  it("uses the isolated Production account context only after both live flags are enabled", async () => {
+    process.env.STRIPE_LIVE_SECRET_KEY = "sk_live_platform";
+    process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT = "true";
+    process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT = "true";
+    stripeMocks.createSession.mockResolvedValue({ id: "cs_live_123", url: "https://checkout.stripe.live/session" });
+
+    await callerFor().createSession({ countryCode: "CH", items: [{ productId: 41, quantity: 1 }] });
+
+    expect(dbMocks.getStoreStripeConnectCheckoutContext).toHaveBeenCalledWith(72, "live");
+    expect(dbMocks.createStripePendingOrder).toHaveBeenCalledWith(expect.objectContaining({ mode: "live", storeId: 72 }));
+    expect(dbMocks.bindStripeConnectSessionToPendingOrder).toHaveBeenCalledWith(expect.objectContaining({ mode: "live", sessionId: "cs_live_123" }));
+    expect(stripeMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ stripe_connect_mode: "live" }) }), { stripeAccount: "acct_testBoutique" });
   });
 
   it("cancels the local pending order if Stripe does not return a checkout URL", async () => {
@@ -108,6 +127,7 @@ describe("Stripe Connect Test checkout route", () => {
 
     await expect(callerFor().getSessionStatus({ sessionId: "cs_test_123" })).resolves.toEqual({
       status: "paid",
+      mode: "test",
       order: { id: 91, status: "processing", paymentStatus: "paid", totalAmount: 10_000, currencyCode: "CHF" },
     });
 
@@ -115,7 +135,7 @@ describe("Stripe Connect Test checkout route", () => {
     expect(dbMocks.getOrderForStripeSessionForStore).toHaveBeenCalledWith("cs_test_123", 7, 72);
     expect(dbMocks.getOrderForStripeSessionForStore).toHaveBeenCalledTimes(2);
     expect(dbMocks.markOrderPaidByStripeSession).toHaveBeenCalledWith("cs_test_123");
-    expect(webhookMocks.completePaidStripeOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "cs_test_123" }), { sendCustomerEmail: true });
+    expect(webhookMocks.completePaidStripeOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "cs_test_123" }), { mode: "test", sendCustomerEmail: true });
   });
 
   it("does not confirm or advance an unpaid return session", async () => {
@@ -126,6 +146,7 @@ describe("Stripe Connect Test checkout route", () => {
 
     await expect(callerFor().getSessionStatus({ sessionId: "cs_test_123" })).resolves.toEqual({
       status: "unpaid",
+      mode: "test",
       order: { id: 91, status: "pending", paymentStatus: "unpaid", totalAmount: 10_000, currencyCode: "CHF" },
     });
 

@@ -1,23 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { getCheckoutPaymentGate } from "./checkoutPaymentGate";
+import { getStripeConnectModeAvailability } from "./stripeConnectMode";
 
 describe("checkout payment gate", () => {
-  it("keeps checkout closed when no explicit test mode is enabled", () => {
-    expect(getCheckoutPaymentGate({})).toEqual({ enabled: false, reason: "test_key_missing" });
-    expect(getCheckoutPaymentGate({ STRIPE_SECRET_KEY: "sk_test_example" })).toEqual({ enabled: false, reason: "not_enabled" });
+  it("keeps both environments closed when their own configuration is absent", () => {
+    expect(getCheckoutPaymentGate("test", {})).toEqual({ enabled: false, reason: "test_mode_disabled" });
+    expect(getCheckoutPaymentGate("live", {})).toEqual({ enabled: false, reason: "live_mode_disabled" });
   });
 
-  it("allows only an explicitly enabled Stripe Test key", () => {
-    expect(getCheckoutPaymentGate({
+  it("allows an explicitly enabled Stripe Test checkout only with a Test key", () => {
+    expect(getCheckoutPaymentGate("test", {
       STRIPE_SECRET_KEY: "sk_test_example",
+      MAZIGHO_ENABLE_STRIPE_TEST_CONNECT: "true",
       MAZIGHO_ENABLE_STRIPE_TEST_CHECKOUT: "true",
     })).toEqual({ enabled: true, reason: null });
   });
 
-  it("always rejects a Stripe Live key, even when the test flag is set", () => {
-    expect(getCheckoutPaymentGate({
+  it("keeps Test checkout closed when its primary key is not Test", () => {
+    expect(getCheckoutPaymentGate("test", {
       STRIPE_SECRET_KEY: "sk_live_example",
+      MAZIGHO_ENABLE_STRIPE_TEST_CONNECT: "true",
       MAZIGHO_ENABLE_STRIPE_TEST_CHECKOUT: "true",
-    })).toEqual({ enabled: false, reason: "live_key_rejected" });
+    })).toEqual({ enabled: false, reason: "test_key_missing" });
+  });
+
+  it("requires a distinct live key and both explicit production flags", () => {
+    const environment = {
+      STRIPE_SECRET_KEY: "sk_test_existing",
+      STRIPE_LIVE_SECRET_KEY: "sk_live_separate",
+      MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT: "true",
+      MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT: "true",
+    };
+    expect(getStripeConnectModeAvailability("live", environment)).toEqual({ available: true, reason: null });
+    expect(getCheckoutPaymentGate("live", environment)).toEqual({ enabled: true, reason: null });
+    expect(getCheckoutPaymentGate("live", { ...environment, MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT: "false" })).toEqual({ enabled: false, reason: "live_mode_disabled" });
   });
 });

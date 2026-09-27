@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic } from "./static";
-import { stripeWebhookHandler } from "../stripeWebhook";
+import { stripeLiveWebhookHandler, stripeWebhookHandler } from "../stripeWebhook";
 import { lemonSqueezyWebhookHandler } from "../lemonSqueezyWebhook";
 import { securityHeaders } from "./securityHeaders";
 import { JSON_BODY_LIMIT, payloadTooLargeHandler, URL_ENCODED_BODY_LIMIT } from "./requestLimits";
@@ -41,6 +41,9 @@ export function configureApi(targetApp: Express = app) {
   targetApp.use(configuredOwnerAccessRepair);
   // Stripe requires the raw request body for signature verification.
   targetApp.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+  // Production uses a dedicated endpoint and webhook secret. It is inactive
+  // until the explicit live Stripe configuration is present server-side.
+  targetApp.post("/api/stripe/live-webhook", express.raw({ type: "application/json" }), stripeLiveWebhookHandler);
   // Lemon Squeezy signs raw webhook bodies. This endpoint is limited to
   // MAZIGHO SaaS Test billing and is isolated from storefront checkout.
   targetApp.post("/api/lemon-squeezy/webhook", express.raw({ type: "application/json" }), lemonSqueezyWebhookHandler);

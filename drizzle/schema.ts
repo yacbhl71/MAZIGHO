@@ -344,6 +344,31 @@ export const stripeConnectedAccounts = mysqlTable("stripeConnectedAccounts", {
 export type StripeConnectedAccount = typeof stripeConnectedAccounts.$inferSelect;
 export type InsertStripeConnectedAccount = typeof stripeConnectedAccounts.$inferInsert;
 
+// Production connected accounts are deliberately stored apart from Test
+// accounts. This makes it impossible for a Test account identifier to be used
+// as a merchant of record for a live checkout.
+export const stripeLiveConnectedAccounts = mysqlTable("stripeLiveConnectedAccounts", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  stripeAccountId: varchar("stripeAccountId", { length: 255 }).notNull(),
+  mode: mysqlEnum("mode", ["live"]).default("live").notNull(),
+  accountType: mysqlEnum("accountType", ["express"]).default("express").notNull(),
+  status: mysqlEnum("status", ["created", "onboarding", "active", "restricted"]).default("created").notNull(),
+  onboardingComplete: int("onboardingComplete").default(0).notNull(),
+  chargesEnabled: int("chargesEnabled").default(0).notNull(),
+  payoutsEnabled: int("payoutsEnabled").default(0).notNull(),
+  detailsSubmitted: int("detailsSubmitted").default(0).notNull(),
+  lastCheckedAt: timestamp("lastCheckedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeUnique: uniqueIndex("stripe_live_connected_accounts_store_unique").on(table.storeId),
+  accountUnique: uniqueIndex("stripe_live_connected_accounts_account_unique").on(table.stripeAccountId),
+}));
+
+export type StripeLiveConnectedAccount = typeof stripeLiveConnectedAccounts.$inferSelect;
+export type InsertStripeLiveConnectedAccount = typeof stripeLiveConnectedAccounts.$inferInsert;
+
 // Lemon Squeezy bills MAZIGHO's own SaaS offers to boutique owners. It never
 // participates in a storefront customer's order or in Stripe Connect Direct
 // Charges. These rows hold opaque provider IDs and billing state only: no API

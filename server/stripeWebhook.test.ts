@@ -29,6 +29,7 @@ import {
   getStripeConnectWebhookAccount,
   isStripeConnectPaidCheckoutEventType,
   isVerifiedPaidStripeTestSession,
+  stripeLiveWebhookHandler,
   stripeWebhookHandler,
 } from "./stripeWebhook";
 
@@ -69,6 +70,9 @@ describe("Stripe Connect Test webhook", () => {
   beforeEach(() => {
     process.env.STRIPE_SECRET_KEY = "sk_test_platform";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_secret";
+    delete process.env.STRIPE_LIVE_SECRET_KEY;
+    delete process.env.STRIPE_LIVE_WEBHOOK_SECRET;
+    delete process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT;
     for (const mock of Object.values(dbMocks)) mock.mockReset();
     stripeMocks.constructEvent.mockReset();
     dbMocks.getOrderForStripeSession.mockResolvedValue({ order: { storeId: 72, paymentMethod: "stripe_connect_test" }, items: [] });
@@ -106,7 +110,7 @@ describe("Stripe Connect Test webhook", () => {
 
     await stripeWebhookHandler(request(), response);
 
-    expect(dbMocks.confirmStripeConnectSessionOwner).toHaveBeenCalledWith({ sessionId: "cs_test_123", stripeAccountId: "acct_otherBoutique", paymentIntentId: "pi_test_123" });
+    expect(dbMocks.confirmStripeConnectSessionOwner).toHaveBeenCalledWith({ mode: "test", sessionId: "cs_test_123", stripeAccountId: "acct_otherBoutique", paymentIntentId: "pi_test_123" });
     expect(dbMocks.markOrderPaidByStripeSession).not.toHaveBeenCalled();
     expect(response.json).toHaveBeenCalledWith({ received: true, ignored: true });
   });
@@ -122,6 +126,35 @@ describe("Stripe Connect Test webhook", () => {
     expect(dbMocks.storeStripeShippingAddress).toHaveBeenCalledWith("cs_test_123", expect.objectContaining({ email: "customer@example.test" }), 72);
     expect(dbMocks.finalizePaidOrderRedemption).toHaveBeenCalledWith("cs_test_123");
     expect(dbMocks.queueCjSandboxPreparationForPaidOrder).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith({ received: true });
+  });
+
+  it("does not accept a Test session on the separately configured Production endpoint", async () => {
+    process.env.STRIPE_LIVE_SECRET_KEY = "sk_live_platform";
+    process.env.STRIPE_LIVE_WEBHOOK_SECRET = "whsec_live_secret";
+    process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT = "true";
+    stripeMocks.constructEvent.mockReturnValue(checkoutEvent());
+    const response = responseSpy();
+
+    await stripeLiveWebhookHandler(request(), response);
+
+    expect(dbMocks.confirmStripeConnectSessionOwner).not.toHaveBeenCalled();
+    expect(dbMocks.markOrderPaidByStripeSession).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith({ received: true });
+  });
+
+  it("binds a real-mode session only to the live tenant payment record", async () => {
+    process.env.STRIPE_LIVE_SECRET_KEY = "sk_live_platform";
+    process.env.STRIPE_LIVE_WEBHOOK_SECRET = "whsec_live_secret";
+    process.env.MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT = "true";
+    stripeMocks.constructEvent.mockReturnValue(checkoutEvent({ data: { object: { ...paidSession(), id: "cs_live_123", livemode: true, payment_intent: "pi_live_123" } } }));
+    dbMocks.confirmStripeConnectSessionOwner.mockResolvedValue({ accepted: true, orderId: 92 });
+    const response = responseSpy();
+
+    await stripeLiveWebhookHandler(request(), response);
+
+    expect(dbMocks.confirmStripeConnectSessionOwner).toHaveBeenCalledWith({ mode: "live", sessionId: "cs_live_123", stripeAccountId: "acct_testBoutique", paymentIntentId: "pi_live_123" });
+    expect(dbMocks.markOrderPaidByStripeSession).toHaveBeenCalledWith("cs_live_123");
     expect(response.json).toHaveBeenCalledWith({ received: true });
   });
 });

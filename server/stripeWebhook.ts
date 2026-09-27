@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { confirmStripeConnectSessionOwner, finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
 import { sendOrderConfirmationForStripeSession } from "./emails";
+import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
 
 // Best-effort synchronisation of a paid order to Odoo. Never throws so the
 // Stripe webhook keeps returning 200 even when Odoo is down or not configured.
@@ -60,10 +61,12 @@ function extractStripeShippingAddress(session: Stripe.Checkout.Session) {
   };
 }
 
+export function isVerifiedPaidStripeSession(session: Stripe.Checkout.Session, mode: StripeConnectMode): boolean {
+  return session.livemode === (mode === "live") && session.mode === "payment" && session.payment_status === "paid";
+}
+
 export function isVerifiedPaidStripeTestSession(session: Stripe.Checkout.Session): boolean {
-  // The MAZIGHO checkout is intentionally limited to Stripe Test Mode. Never
-  // trust a client flag: Stripe itself must confirm a non-live payment session.
-  return session.livemode === false && session.mode === "payment" && session.payment_status === "paid";
+  return isVerifiedPaidStripeSession(session, "test");
 }
 
 const stripeConnectPaidCheckoutEventTypes = new Set([
@@ -86,18 +89,19 @@ export function getStripeConnectWebhookAccount(event: Stripe.Event): string | nu
     : null;
 }
 
-export async function completePaidStripeOrder(session: Stripe.Checkout.Session, options: { sendCustomerEmail?: boolean } = {}) {
+export async function completePaidStripeOrder(
+  session: Stripe.Checkout.Session,
+  options: { mode?: StripeConnectMode; sendCustomerEmail?: boolean } = {},
+) {
+  const mode = options.mode ?? "test";
   // The Stripe event has no storefront host. Resolve its tenant only from the
   // durable local order before persisting any downstream operational metadata.
   const snapshot = await getOrderForStripeSession(session.id);
   if (!snapshot) return;
-  // Address capture is local and precedes Odoo/CJ handoff. If it fails, the
-  // subsequent preparation is allowed to surface a visible exception instead
-  // of guessing a delivery address.
   await storeStripeShippingAddress(session.id, extractStripeShippingAddress(session), snapshot.order.storeId);
   // Direct Charges belong to independent client boutiques. Their paid order
-  // must never enter MAZIGHO's Odoo or supplier preparation integrations.
-  const isClientDirectCharge = snapshot.order.paymentMethod === "stripe_connect_test";
+  // never enters MAZIGHO's Odoo or supplier preparation integrations.
+  const isClientDirectCharge = ["stripe_connect_test", "stripe_connect_live"].includes(snapshot.order.paymentMethod || "");
   const tasks = isClientDirectCharge
     ? [finalizePaidOrderRedemption(session.id)]
     : [finalizePaidOrderRedemption(session.id), syncPaidOrderToOdoo(session.id), queueCjSandboxPreparationForPaidOrder(session.id)];
@@ -105,60 +109,68 @@ export async function completePaidStripeOrder(session: Stripe.Checkout.Session, 
   results.forEach((result, index) => {
     if (result.status === "rejected") console.error(`[Stripe] downstream task ${index + 1} failed`, result.reason);
   });
-  // Reconciliation may be retried by the webhook, the checkout return route,
-  // or an authorised test operator. The customer confirmation is sent only
-  // on the first durable payment transition.
-  if (options.sendCustomerEmail && process.env.MAZIGHO_ENABLE_STRIPE_TEST_ORDER_EMAILS?.trim() === "true") {
+  // Reconciliation may be retried by the webhook or the checkout return path.
+  // The customer confirmation is only sent on the first durable transition.
+  const emailFlag = mode === "live" ? "MAZIGHO_ENABLE_STRIPE_LIVE_ORDER_EMAILS" : "MAZIGHO_ENABLE_STRIPE_TEST_ORDER_EMAILS";
+  if (options.sendCustomerEmail && process.env[emailFlag]?.trim() === "true") {
     sendOrderConfirmationForStripeSession(session.id).catch(err => console.error("[email:order-confirmation]", err));
   }
 }
 
-export async function stripeWebhookHandler(req: Request, res: Response) {
-  const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-  if (!secretKey?.startsWith("sk_test_") || !webhookSecret?.startsWith("whsec_")) {
-    return res.status(503).json({ error: "Stripe Test Mode non configuré" });
+async function handleStripeWebhook(mode: StripeConnectMode, req: Request, res: Response) {
+  const credentials = getStripeConnectCredentials(mode);
+  // Test events stay verifiable with their configured endpoint secret even if
+  // checkout is temporarily paused. Production additionally needs its explicit
+  // server-side activation flag before accepting any live event.
+  if ((mode === "live" && !credentials.enabled) || !credentials.keyValid || !credentials.webhookValid) {
+    return res.status(503).json({ error: `Stripe ${mode === "live" ? "Production" : "Test"} non configuré` });
   }
 
-  const stripe = new Stripe(secretKey);
+  const stripe = new Stripe(credentials.secretKey);
   const signature = req.headers["stripe-signature"];
   if (typeof signature !== "string") return res.status(400).json({ error: "Signature Stripe manquante" });
 
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret);
+    event = stripe.webhooks.constructEvent(req.body, signature, credentials.webhookSecret);
   } catch (error) {
-    console.error("Stripe webhook signature error", error);
+    console.error(`Stripe ${mode} webhook signature error`, error);
     return res.status(400).json({ error: "Signature Stripe invalide" });
   }
 
   try {
     if (isStripeConnectPaidCheckoutEventType(event.type)) {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (isVerifiedPaidStripeTestSession(session)) {
+      if (isVerifiedPaidStripeSession(session, mode)) {
         const connectedAccountId = getStripeConnectWebhookAccount(event);
         if (!connectedAccountId) {
-          console.warn("[Stripe Connect] Ignored Test checkout event without a connected-account scope", { eventId: event.id, eventType: event.type });
+          console.warn("[Stripe Connect] Ignored checkout event without connected-account scope", { mode, eventId: event.id, eventType: event.type });
           return res.json({ received: true, ignored: true });
         }
         const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
-        const ownership = await confirmStripeConnectSessionOwner({ sessionId: session.id, stripeAccountId: connectedAccountId, paymentIntentId });
+        const ownership = await confirmStripeConnectSessionOwner({ mode, sessionId: session.id, stripeAccountId: connectedAccountId, paymentIntentId });
         if (!ownership.accepted) {
-          console.warn("[Stripe Connect] Ignored webhook for an unbound or cross-store session", { eventId: event.id, connectedAccountId });
+          console.warn("[Stripe Connect] Ignored webhook for an unbound or cross-store session", { mode, eventId: event.id, connectedAccountId });
           return res.json({ received: true, ignored: true });
         }
         const paid = await markOrderPaidByStripeSession(session.id);
-        // Re-run the idempotent downstream handoff even after a Stripe retry:
-        // an earlier Odoo or CJ queue failure must not leave a paid test order
-        // stranded. Only the first durable transition sends an e-mail.
-        await completePaidStripeOrder(session, { sendCustomerEmail: paid.justPaid });
+        await completePaidStripeOrder(session, { mode, sendCustomerEmail: paid.justPaid });
       }
     }
     return res.json({ received: true });
   } catch (error) {
     // A failure before the paid transition is durable must remain retriable by
-    // Stripe. Failures in Odoo/CJ are already contained in completePaidStripeOrder.
-    console.error("Stripe webhook processing error", error);
+    // Stripe. Downstream operational tasks are contained above.
+    console.error(`Stripe ${mode} webhook processing error`, error);
     return res.status(500).json({ error: "Webhook non traité" });
   }
+}
+
+export async function stripeWebhookHandler(req: Request, res: Response) {
+  return handleStripeWebhook("test", req, res);
+}
+
+/** Separate endpoint and secret for genuine charges. */
+export async function stripeLiveWebhookHandler(req: Request, res: Response) {
+  return handleStripeWebhook("live", req, res);
 }

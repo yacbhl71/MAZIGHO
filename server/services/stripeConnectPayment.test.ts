@@ -24,4 +24,18 @@ describe("Stripe Connect direct charge policy", () => {
     expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "basic", account: { ...readyAccount, payoutsEnabled: false } })).toEqual({ enabled: false, reason: "connect_payouts_incomplete" });
     expect(getStripeConnectPaymentReadiness({ environment: { STRIPE_SECRET_KEY: "sk_live_never", MAZIGHO_ENABLE_STRIPE_TEST_CONNECT: "true" }, planId: "basic", account: readyAccount })).toEqual({ enabled: false, reason: "platform_test_key_missing" });
   });
+
+  it("requires a separate enabled Production configuration and merchant account", () => {
+    const production = {
+      STRIPE_SECRET_KEY: "sk_test_kept_separate",
+      STRIPE_LIVE_SECRET_KEY: "sk_live_platform",
+      MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT: "true",
+    };
+    expect(getStripeConnectPaymentReadiness({ mode: "live", environment: production, planId: "pro", account: readyAccount }))
+      .toMatchObject({ enabled: true, accountId: "acct_testBoutique", commissionRateBps: 100 });
+    expect(getStripeConnectPaymentReadiness({ mode: "live", environment: { ...production, MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT: "false" }, planId: "pro", account: readyAccount }))
+      .toEqual({ enabled: false, reason: "platform_live_mode_disabled" });
+    expect(getStripeConnectPaymentReadiness({ mode: "live", environment: { STRIPE_SECRET_KEY: "sk_test_kept_separate", MAZIGHO_ENABLE_STRIPE_LIVE_CONNECT: "true" }, planId: "pro", account: readyAccount }))
+      .toEqual({ enabled: false, reason: "platform_live_key_missing" });
+  });
 });

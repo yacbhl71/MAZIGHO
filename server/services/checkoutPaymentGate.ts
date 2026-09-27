@@ -1,4 +1,10 @@
-export type CheckoutPaymentGateReason = "not_enabled" | "test_key_missing" | "live_key_rejected";
+import { getStripeConnectModeAvailability, getStripeConnectCredentials, type StripeConnectMode } from "./stripeConnectMode";
+
+export type CheckoutPaymentGateReason =
+  | "test_mode_disabled"
+  | "test_key_missing"
+  | "live_mode_disabled"
+  | "live_key_missing";
 
 export type CheckoutPaymentGate = {
   enabled: boolean;
@@ -6,16 +12,22 @@ export type CheckoutPaymentGate = {
 };
 
 /**
- * Payment remains closed by default. A test checkout can only be enabled by an
- * explicit server-side flag together with a Stripe Test key; a Live key can
- * never open this path.
+ * Checkout is closed unless its exact Stripe environment is explicitly enabled.
+ * Live credentials use dedicated variables and cannot reuse or replace the Test
+ * credentials that have already been used for rehearsal checkouts.
  */
-export function getCheckoutPaymentGate(environment: Record<string, string | undefined> = process.env): CheckoutPaymentGate {
-  const key = environment.STRIPE_SECRET_KEY?.trim() || "";
-  if (key.startsWith("sk_live_")) return { enabled: false, reason: "live_key_rejected" };
-  if (!key.startsWith("sk_test_")) return { enabled: false, reason: "test_key_missing" };
-  if (environment.MAZIGHO_ENABLE_STRIPE_TEST_CHECKOUT?.trim() !== "true") {
-    return { enabled: false, reason: "not_enabled" };
-  }
+export function getCheckoutPaymentGate(
+  mode: StripeConnectMode = "test",
+  environment: Record<string, string | undefined> = process.env,
+): CheckoutPaymentGate {
+  const availability = getStripeConnectModeAvailability(mode, environment);
+  if (!availability.available) return { enabled: false, reason: availability.reason };
+
+  const credentials = getStripeConnectCredentials(mode, environment);
+  const checkoutEnabled = mode === "live"
+    ? environment.MAZIGHO_ENABLE_STRIPE_LIVE_CHECKOUT?.trim() === "true"
+    : environment.MAZIGHO_ENABLE_STRIPE_TEST_CHECKOUT?.trim() === "true";
+  if (!checkoutEnabled) return { enabled: false, reason: `${mode}_mode_disabled` };
+  if (!credentials.keyValid) return { enabled: false, reason: `${mode}_key_missing` };
   return { enabled: true, reason: null };
 }
