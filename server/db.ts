@@ -45,6 +45,7 @@ import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettlement";
 import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
+import { buildCheckoutStockReservations, buildStoredOrderStockReservations } from "./services/checkoutStockReservation";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
@@ -10567,6 +10568,9 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  await releaseElapsedCheckoutReservations(effectiveStoreId).catch(error => {
+    console.error("[checkout-stock] stale reservation recovery failed", error);
+  });
   const normalizedCountry = countryCode.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(normalizedCountry)) throw new Error("INVALID_COUNTRY");
 
@@ -10681,6 +10685,53 @@ export async function getStripeCheckoutCart(userId: number, countryCode: string,
   };
 }
 
+function affectedRows(result: unknown): number {
+  return Number((result as any)?.[0]?.affectedRows ?? (result as any)?.affectedRows ?? 0);
+}
+
+async function reserveCheckoutStock(tx: any, storeId: number, items: StripeCheckoutVerifiedItem[]) {
+  const reservations = buildCheckoutStockReservations(items);
+  for (const reservation of reservations) {
+    const result = reservation.variantId
+      ? await tx.update(ownerProductVariants).set({ stock: sql`${ownerProductVariants.stock} - ${reservation.quantity}` }).where(and(
+        eq(ownerProductVariants.storeId, storeId),
+        eq(ownerProductVariants.productId, reservation.productId),
+        eq(ownerProductVariants.id, reservation.variantId),
+        eq(ownerProductVariants.status, "active"),
+        gte(ownerProductVariants.stock, reservation.quantity),
+      ))
+      : await tx.update(products).set({ stock: sql`${products.stock} - ${reservation.quantity}` }).where(and(
+        eq(products.storeId, storeId),
+        eq(products.id, reservation.productId),
+        eq(products.status, "active"),
+        gte(products.stock, reservation.quantity),
+      ));
+    if (affectedRows(result) !== 1) throw new Error("OUT_OF_STOCK");
+  }
+}
+
+async function releaseStoredCheckoutStock(tx: any, storeId: number, orderId: number) {
+  const lines = await tx.select({
+    productId: orderItems.productId,
+    quantity: orderItems.quantity,
+    supplierSnapshot: orderItems.supplierSnapshot,
+  }).from(orderItems).where(and(eq(orderItems.storeId, storeId), eq(orderItems.orderId, orderId)));
+  const reservations = buildStoredOrderStockReservations(lines);
+  for (const reservation of reservations) {
+    if (reservation.variantId) {
+      await tx.update(ownerProductVariants).set({ stock: sql`${ownerProductVariants.stock} + ${reservation.quantity}` }).where(and(
+        eq(ownerProductVariants.storeId, storeId),
+        eq(ownerProductVariants.productId, reservation.productId),
+        eq(ownerProductVariants.id, reservation.variantId),
+      ));
+    } else {
+      await tx.update(products).set({ stock: sql`${products.stock} + ${reservation.quantity}` }).where(and(
+        eq(products.storeId, storeId), eq(products.id, reservation.productId)));
+    }
+  }
+  return { releasedLines: reservations.length };
+}
+
 export async function createStripePendingOrder(input: {
   userId: number;
   mode?: StripeConnectMode;
@@ -10707,39 +10758,45 @@ export async function createStripePendingOrder(input: {
   }
   if (input.cart.totalAmount !== input.totalAmount) throw new Error("CHECKOUT_TOTAL_MISMATCH");
   const discountAmount = Math.max(0, Math.min(input.cart.totalAmount, input.discountAmount ?? 0));
-  const result = await db.insert(orders).values({
-    storeId: effectiveStoreId,
-    userId: input.userId,
-    totalAmount: input.cart.totalAmount - discountAmount,
-    totalAmountChf: Math.max(0, input.cart.totalAmountChf - (input.discountAmountChf ?? 0)),
-    currencyCode: input.cart.currency.code,
-    currencyRateBps: input.cart.currency.rateBps,
-    customerShippingAmount: input.cart.customerShippingAmount,
-    customerShippingAmountChf: input.cart.customerShippingAmountChf,
-    shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
-    billingAddress: null,
-    paymentStatus: "unpaid",
-    paymentMethod: `stripe_connect_${mode}`,
-    stripeSessionId: input.sessionId ?? null,
-    promotionId: input.promotionId ?? null,
-    discountAmount,
-    discountAmountChf: input.discountAmountChf ?? 0,
-    status: "pending",
-    fulfillmentState: "not_eligible",
+  return await db.transaction(async tx => {
+    // The final stock check and reduction happen in the same transaction as
+    // the pending order. A competing checkout can therefore not oversell a
+    // product or a selected owner-managed variant.
+    await reserveCheckoutStock(tx, effectiveStoreId, input.cart.items);
+    const result = await tx.insert(orders).values({
+      storeId: effectiveStoreId,
+      userId: input.userId,
+      totalAmount: input.cart.totalAmount - discountAmount,
+      totalAmountChf: Math.max(0, input.cart.totalAmountChf - (input.discountAmountChf ?? 0)),
+      currencyCode: input.cart.currency.code,
+      currencyRateBps: input.cart.currency.rateBps,
+      customerShippingAmount: input.cart.customerShippingAmount,
+      customerShippingAmountChf: input.cart.customerShippingAmountChf,
+      shippingAddress: JSON.stringify({ countryCode: input.countryCode.toUpperCase(), source: "stripe_checkout_pending" }),
+      billingAddress: null,
+      paymentStatus: "unpaid",
+      paymentMethod: `stripe_connect_${mode}`,
+      stripeSessionId: input.sessionId ?? null,
+      promotionId: input.promotionId ?? null,
+      discountAmount,
+      discountAmountChf: input.discountAmountChf ?? 0,
+      status: "pending",
+      fulfillmentState: "not_eligible",
+    });
+    const orderId = Number((result as any)[0].insertId);
+    await tx.insert(orderItems).values(input.cart.items.map(item => ({
+      storeId: effectiveStoreId,
+      orderId,
+      productId: item.productId,
+      quantity: item.quantity,
+      priceAtPurchase: item.unitAmount + item.shippingAmount,
+      priceAtPurchaseChf: item.unitAmountChf + item.shippingAmount,
+      productNameSnapshot: item.name.slice(0, 255),
+      selectedOptions: JSON.stringify(item.selectedOptions),
+      supplierSnapshot: JSON.stringify({ ...item.supplierSnapshot, inventoryReservation: true }),
+    })));
+    return { id: orderId };
   });
-  const orderId = Number((result as any)[0].insertId);
-  await db.insert(orderItems).values(input.cart.items.map(item => ({
-    storeId: effectiveStoreId,
-    orderId,
-    productId: item.productId,
-    quantity: item.quantity,
-    priceAtPurchase: item.unitAmount + item.shippingAmount,
-    priceAtPurchaseChf: item.unitAmountChf + item.shippingAmount,
-    productNameSnapshot: item.name.slice(0, 255),
-    selectedOptions: JSON.stringify(item.selectedOptions),
-    supplierSnapshot: JSON.stringify(item.supplierSnapshot),
-  })));
-  return { id: orderId };
 }
 
 /** Binds an already-created pending order to exactly one tenant Stripe session. */
@@ -10779,14 +10836,75 @@ export async function bindStripeConnectSessionToPendingOrder(input: {
 export async function cancelUnboundStripePendingOrder(input: { storeId: number; userId: number; orderId: number }) {
   const db = await getDb();
   if (!db) return;
-  await db.update(orders).set({ status: "cancelled" }).where(and(
-    eq(orders.id, input.orderId),
-    eq(orders.storeId, input.storeId),
-    eq(orders.userId, input.userId),
-    isNull(orders.stripeSessionId),
-    eq(orders.paymentStatus, "unpaid"),
-    eq(orders.status, "pending"),
-  ));
+  return await db.transaction(async tx => {
+    const result = await tx.update(orders).set({ status: "cancelled" }).where(and(
+      eq(orders.id, input.orderId),
+      eq(orders.storeId, input.storeId),
+      eq(orders.userId, input.userId),
+      isNull(orders.stripeSessionId),
+      eq(orders.paymentStatus, "unpaid"),
+      eq(orders.status, "pending"),
+    ));
+    if (affectedRows(result) !== 1) return { released: false, releasedLines: 0 };
+    const release = await releaseStoredCheckoutStock(tx, input.storeId, input.orderId);
+    return { released: true, ...release };
+  });
+}
+
+/**
+ * Releases an explicitly reserved checkout only when Stripe reports that its
+ * exact Connect session expired without payment. The conditional transition
+ * makes retries and a racing paid webhook safe.
+ */
+export async function releaseExpiredStripePendingOrder(input: { sessionId: string; stripeAccountId: string; mode?: StripeConnectMode }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const mode = input.mode ?? "test";
+  return await db.transaction(async tx => {
+    const [order] = await tx.select({ id: orders.id, storeId: orders.storeId }).from(orders).where(and(
+      eq(orders.stripeSessionId, input.sessionId),
+      eq(orders.stripeConnectedAccountId, input.stripeAccountId),
+      eq(orders.paymentMethod, `stripe_connect_${mode}`),
+      eq(orders.paymentStatus, "unpaid"),
+      eq(orders.status, "pending"),
+    )).limit(1);
+    if (!order) return { released: false, releasedLines: 0 };
+    const result = await tx.update(orders).set({ status: "cancelled" }).where(and(
+      eq(orders.id, order.id),
+      eq(orders.storeId, order.storeId),
+      eq(orders.paymentStatus, "unpaid"),
+      eq(orders.status, "pending"),
+    ));
+    if (affectedRows(result) !== 1) return { released: false, releasedLines: 0 };
+    const release = await releaseStoredCheckoutStock(tx, order.storeId, order.id);
+    return { released: true, ...release };
+  });
+}
+
+/**
+ * Webhooks are the normal release path. This request-bound recovery prevents a
+ * stale reservation from remaining forever if a merchant's Stripe endpoint is
+ * temporarily unavailable. It only considers sessions older than the explicit
+ * 31-minute Checkout expiry plus a small safety margin.
+ */
+async function releaseElapsedCheckoutReservations(storeId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const cutoff = new Date(Date.now() - 33 * 60 * 1000);
+  const candidates = await db.select({ id: orders.id, stripeSessionId: orders.stripeSessionId, stripeConnectedAccountId: orders.stripeConnectedAccountId, paymentMethod: orders.paymentMethod })
+    .from(orders)
+    .where(and(
+      eq(orders.storeId, storeId),
+      eq(orders.status, "pending"),
+      eq(orders.paymentStatus, "unpaid"),
+      lt(orders.createdAt, cutoff),
+    ))
+    .limit(20);
+  for (const candidate of candidates) {
+    if (!candidate.stripeSessionId || !candidate.stripeConnectedAccountId || !["stripe_connect_test", "stripe_connect_live"].includes(candidate.paymentMethod || "")) continue;
+    const mode: StripeConnectMode = candidate.paymentMethod === "stripe_connect_live" ? "live" : "test";
+    await releaseExpiredStripePendingOrder({ mode, sessionId: candidate.stripeSessionId, stripeAccountId: candidate.stripeConnectedAccountId });
+  }
 }
 
 export async function getStripeSessionIdForOrder(orderId: number, storeId?: number): Promise<string | null> {

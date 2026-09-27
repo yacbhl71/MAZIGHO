@@ -11,6 +11,7 @@ const dbMocks = vi.hoisted(() => ({
   getOrderForStripeSession: vi.fn(),
   markOrderPaidByStripeSession: vi.fn(),
   queueCjSandboxPreparationForPaidOrder: vi.fn(),
+  releaseExpiredStripePendingOrder: vi.fn(),
   setSettingValue: vi.fn(),
   storeOdooSaleOrderId: vi.fn(),
   storeStripeShippingAddress: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("./emails", () => ({ sendOrderConfirmationForStripeSession: vi.fn() }));
 
 import {
   getStripeConnectWebhookAccount,
+  isStripeConnectExpiredCheckoutEventType,
   isStripeConnectPaidCheckoutEventType,
   isVerifiedPaidStripeTestSession,
   stripeLiveWebhookHandler,
@@ -79,6 +81,7 @@ describe("Stripe Connect Test webhook", () => {
     dbMocks.storeStripeShippingAddress.mockResolvedValue(undefined);
     dbMocks.finalizePaidOrderRedemption.mockResolvedValue(undefined);
     dbMocks.markOrderPaidByStripeSession.mockResolvedValue({ success: true, justPaid: true, processingUpdated: false });
+    dbMocks.releaseExpiredStripePendingOrder.mockResolvedValue({ released: true, releasedLines: 1 });
   });
 
   it("accepts only Stripe Test sessions that are fully paid", () => {
@@ -88,6 +91,8 @@ describe("Stripe Connect Test webhook", () => {
     expect(isStripeConnectPaidCheckoutEventType("checkout.session.completed")).toBe(true);
     expect(isStripeConnectPaidCheckoutEventType("checkout.session.async_payment_succeeded")).toBe(true);
     expect(isStripeConnectPaidCheckoutEventType("checkout.session.async_payment_failed")).toBe(false);
+    expect(isStripeConnectExpiredCheckoutEventType("checkout.session.expired")).toBe(true);
+    expect(isStripeConnectExpiredCheckoutEventType("checkout.session.completed")).toBe(false);
   });
 
   it("requires the connected-account event scope before any order transition", async () => {
@@ -139,6 +144,22 @@ describe("Stripe Connect Test webhook", () => {
     await stripeLiveWebhookHandler(request(), response);
 
     expect(dbMocks.confirmStripeConnectSessionOwner).not.toHaveBeenCalled();
+    expect(dbMocks.markOrderPaidByStripeSession).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith({ received: true });
+  });
+
+  it("releases only the matching unpaid reservation when Stripe expires a checkout", async () => {
+    stripeMocks.constructEvent.mockReturnValue(checkoutEvent({
+      type: "checkout.session.expired",
+      data: { object: { ...paidSession(), payment_status: "unpaid" } },
+    }));
+    dbMocks.confirmStripeConnectSessionOwner.mockResolvedValue({ accepted: true, orderId: 91 });
+    const response = responseSpy();
+
+    await stripeWebhookHandler(request(), response);
+
+    expect(dbMocks.confirmStripeConnectSessionOwner).toHaveBeenCalledWith({ mode: "test", sessionId: "cs_test_123", stripeAccountId: "acct_testBoutique" });
+    expect(dbMocks.releaseExpiredStripePendingOrder).toHaveBeenCalledWith({ mode: "test", sessionId: "cs_test_123", stripeAccountId: "acct_testBoutique" });
     expect(dbMocks.markOrderPaidByStripeSession).not.toHaveBeenCalled();
     expect(response.json).toHaveBeenCalledWith({ received: true });
   });

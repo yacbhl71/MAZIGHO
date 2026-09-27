@@ -80,6 +80,9 @@ describe("Stripe Connect Test checkout route", () => {
       payment_intent_data: { application_fee_amount: 250 },
       metadata: expect.objectContaining({ store_id: "72", order_id: "91", commission_rate_bps: "250" }),
     }), { stripeAccount: "acct_testBoutique" });
+    const checkoutParams = stripeMocks.createSession.mock.calls[0]?.[0] as { expires_at?: number };
+    expect(checkoutParams.expires_at).toBeGreaterThanOrEqual(Math.floor(Date.now() / 1000) + 30 * 60);
+    expect(checkoutParams.expires_at).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) + 31 * 60);
     expect(dbMocks.bindStripeConnectSessionToPendingOrder).toHaveBeenCalledWith({
       storeId: 72,
       userId: 7,

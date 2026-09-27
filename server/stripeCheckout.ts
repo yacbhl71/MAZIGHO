@@ -123,10 +123,17 @@ export const stripeCheckoutRouter = router({
           });
         }
         const origin = `https://${ctx.store!.primaryDomain}`;
+        // Inventory is reserved atomically with the pending order. Keep the
+        // hosted session short-lived so an abandoned checkout releases it via
+        // Stripe's signed checkout.session.expired event.
+        // Stripe requires at least 30 minutes; one minute avoids a boundary
+        // rejection between request construction and API receipt.
+        const checkoutExpiresAt = Math.floor(Date.now() / 1000) + 31 * 60;
         // TWINT is retained for the Swiss franc storefront; card is used for the other configured currencies.
         const paymentMethodTypes: Stripe.Checkout.SessionCreateParams.PaymentMethodType[] = cart.currency.code === "CHF" ? ["card", "twint"] : ["card"];
         const sessionParams: Stripe.Checkout.SessionCreateParams = {
           mode: "payment",
+          expires_at: checkoutExpiresAt,
           payment_method_types: paymentMethodTypes,
           line_items: lineItems,
           shipping_address_collection: {

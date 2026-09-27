@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import Stripe from "stripe";
-import { confirmStripeConnectSessionOwner, finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
+import { confirmStripeConnectSessionOwner, finalizePaidOrderRedemption, getOrderForStripeSession, markOrderPaidByStripeSession, queueCjSandboxPreparationForPaidOrder, releaseExpiredStripePendingOrder, setSettingValue, storeOdooSaleOrderId, storeStripeShippingAddress } from "./db";
 import { syncOrderToOdoo } from "./services/odoo";
 import { sendOrderConfirmationForStripeSession } from "./emails";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
@@ -73,9 +73,14 @@ const stripeConnectPaidCheckoutEventTypes = new Set([
   "checkout.session.completed",
   "checkout.session.async_payment_succeeded",
 ]);
+const stripeConnectExpiredCheckoutEventTypes = new Set(["checkout.session.expired"]);
 
 export function isStripeConnectPaidCheckoutEventType(eventType: string) {
   return stripeConnectPaidCheckoutEventTypes.has(eventType);
+}
+
+export function isStripeConnectExpiredCheckoutEventType(eventType: string) {
+  return stripeConnectExpiredCheckoutEventTypes.has(eventType);
 }
 
 /**
@@ -155,6 +160,21 @@ async function handleStripeWebhook(mode: StripeConnectMode, req: Request, res: R
         }
         const paid = await markOrderPaidByStripeSession(session.id);
         await completePaidStripeOrder(session, { mode, sendCustomerEmail: paid.justPaid });
+      }
+    } else if (isStripeConnectExpiredCheckoutEventType(event.type)) {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.livemode === (mode === "live") && session.mode === "payment") {
+        const connectedAccountId = getStripeConnectWebhookAccount(event);
+        if (!connectedAccountId) {
+          console.warn("[Stripe Connect] Ignored expiry event without connected-account scope", { mode, eventId: event.id, eventType: event.type });
+          return res.json({ received: true, ignored: true });
+        }
+        const ownership = await confirmStripeConnectSessionOwner({ mode, sessionId: session.id, stripeAccountId: connectedAccountId });
+        if (!ownership.accepted) {
+          console.warn("[Stripe Connect] Ignored expiry event for an unbound or cross-store session", { mode, eventId: event.id, connectedAccountId });
+          return res.json({ received: true, ignored: true });
+        }
+        await releaseExpiredStripePendingOrder({ mode, sessionId: session.id, stripeAccountId: connectedAccountId });
       }
     }
     return res.json({ received: true });
