@@ -741,6 +741,15 @@ describe("owner product variant routes", () => {
       discoveryBrowseShopLabel: "Découvrir les créations",
       discoveryBrowseShopUrl: "/boutique",
       showStory: false,
+      storyEyebrow: "L'atelier raconte",
+      storyFollowup: "Chaque détail peut être adapté à l'univers de la boutique.",
+      storyPoints: ["Imaginer", "Créer", "Partager"],
+      storyCtaLabel: "Voir l'atelier",
+      storyCtaUrl: "/boutique",
+      storyVisualEyebrow: "Une image personnalisée",
+      storyVisualTitle: "Le monde créatif de la boutique.",
+      storyPromiseEyebrow: "Notre promesse",
+      storyPromise: "Un contenu entièrement à votre image.",
       showTestimonials: true,
       testimonialsEyebrow: "Votre message",
       testimonialsTitle: "Un atelier à votre image",
@@ -765,7 +774,7 @@ describe("owner product variant routes", () => {
     };
     await expect(callerFor().owner.saveHomepageSections(input)).resolves.toMatchObject({ showClosing: true, discoveryTitle: "Nos catégories créatives" });
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
-    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, closingTitle: "Préparez votre prochain projet.", closingVisualValue: "", closingVisualFont: "editorial", closingVisualColor: "#C80AFF" }), 77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, storyPoints: ["Imaginer", "Créer", "Partager"], closingTitle: "Préparez votre prochain projet.", closingVisualValue: "", closingVisualFont: "editorial", closingVisualColor: "#C80AFF" }), 77);
     expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("design", 1, 77);
   });
 

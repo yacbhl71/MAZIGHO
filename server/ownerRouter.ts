@@ -163,6 +163,15 @@ export const ownerHomepageSections = z.object({
   discoveryBrowseShopLabel: z.string().trim().max(60),
   discoveryBrowseShopUrl: storefrontLink,
   showStory: z.boolean(),
+  storyEyebrow: z.string().trim().max(120).default("Notre inspiration"),
+  storyFollowup: z.string().trim().max(600).default("Des univers à découvrir, à personnaliser et à faire évoluer selon vos envies."),
+  storyPoints: z.array(z.string().trim().min(2).max(100)).length(3).default(["Choisir avec attention", "Simplifier la recherche", "Inspirer le quotidien"]),
+  storyCtaLabel: z.string().trim().max(60).default("Découvrir la boutique"),
+  storyCtaUrl: storefrontLink.default("/boutique"),
+  storyVisualEyebrow: z.string().trim().max(120).default("L’esprit MAZIGHO"),
+  storyVisualTitle: z.string().trim().max(180).default("Des trouvailles pour accompagner les moments qui comptent."),
+  storyPromiseEyebrow: z.string().trim().max(120).default("Notre promesse"),
+  storyPromise: z.string().trim().max(180).default("De l’inspiration, simplement."),
   showTestimonials: z.boolean(),
   testimonialsEyebrow: z.string().trim().max(120),
   testimonialsTitle: z.string().trim().min(2).max(180),
@@ -188,6 +197,7 @@ export const ownerHomepageSections = z.object({
   for (const [labelKey, urlKey] of [
     ["discoveryAllShopLabel", "discoveryAllShopUrl"],
     ["discoveryBrowseShopLabel", "discoveryBrowseShopUrl"],
+    ["storyCtaLabel", "storyCtaUrl"],
     ["testimonialsCtaLabel", "testimonialsCtaUrl"],
     ["closingShopCtaLabel", "closingShopCtaUrl"],
     ["closingContactCtaLabel", "closingContactCtaUrl"],
@@ -1340,10 +1350,11 @@ export const ownerRouter = router({
     const saved = await db.updateDesignProfile({ ...current, ...input }, ctx.store!.id);
     const publicCopyFields = [
       "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryBrowseShopLabel",
+      "storyEyebrow", "storyFollowup", "storyCtaLabel", "storyVisualEyebrow", "storyVisualTitle", "storyPromiseEyebrow", "storyPromise",
       "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel",
       "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingContactCtaLabel", "closingVisualValue", "closingVisualText",
     ] as const;
-    if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    if (publicCopyFields.some(field => current[field] !== saved[field]) || JSON.stringify(current.storyPoints) !== JSON.stringify(saved.storyPoints)) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;
   }),
   saveCataloguePageCopy: storeManagementProcedure.input(ownerCataloguePageCopy).mutation(async ({ ctx, input }) => {

@@ -87,6 +87,15 @@ export type DesignProfile = {
   discoveryAllShopUrl: string;
   discoveryBrowseShopLabel: string;
   discoveryBrowseShopUrl: string;
+  storyEyebrow: string;
+  storyFollowup: string;
+  storyPoints: string[];
+  storyCtaLabel: string;
+  storyCtaUrl: string;
+  storyVisualEyebrow: string;
+  storyVisualTitle: string;
+  storyPromiseEyebrow: string;
+  storyPromise: string;
   testimonialsEyebrow: string;
   testimonialsTitle: string;
   testimonialsText: string;
@@ -221,6 +230,15 @@ export const defaultDesignProfile: DesignProfile = {
   discoveryAllShopUrl: "/boutique",
   discoveryBrowseShopLabel: "Parcourir toute la boutique",
   discoveryBrowseShopUrl: "/boutique",
+  storyEyebrow: "Notre inspiration",
+  storyFollowup: "Des univers à découvrir, à personnaliser et à faire évoluer selon vos envies.",
+  storyPoints: ["Choisir avec attention", "Simplifier la recherche", "Inspirer le quotidien"],
+  storyCtaLabel: "Découvrir la boutique",
+  storyCtaUrl: "/boutique",
+  storyVisualEyebrow: "L’esprit MAZIGHO",
+  storyVisualTitle: "Des trouvailles pour accompagner les moments qui comptent.",
+  storyPromiseEyebrow: "Notre promesse",
+  storyPromise: "De l’inspiration, simplement.",
   testimonialsEyebrow: "La parole à nos clients",
   testimonialsTitle: "Vos retours font grandir MAZIGHO.",
   testimonialsText: "Aucun avis client vérifié n’est publié pour le moment.",

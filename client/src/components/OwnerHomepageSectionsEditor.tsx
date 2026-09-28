@@ -12,7 +12,8 @@ import { toast } from "sonner";
 type HomepageDraft = Pick<DesignProfile,
   | "showReassurance" | "reassuranceItems"
   | "showDiscovery" | "discoveryEyebrow" | "discoveryTitle" | "discoveryText" | "discoveryAllShopLabel" | "discoveryAllShopUrl" | "discoveryBrowseShopLabel" | "discoveryBrowseShopUrl"
-  | "showStory" | "showTestimonials" | "testimonialsEyebrow" | "testimonialsTitle" | "testimonialsText" | "testimonialsCtaLabel" | "testimonialsCtaUrl"
+  | "showStory" | "storyEyebrow" | "storyFollowup" | "storyPoints" | "storyCtaLabel" | "storyCtaUrl" | "storyVisualEyebrow" | "storyVisualTitle" | "storyPromiseEyebrow" | "storyPromise"
+  | "showTestimonials" | "testimonialsEyebrow" | "testimonialsTitle" | "testimonialsText" | "testimonialsCtaLabel" | "testimonialsCtaUrl"
   | "showEditorial" | "showFeatured"
   | "showClosing" | "closingEyebrow" | "closingTitle" | "closingText" | "closingShopCtaLabel" | "closingShopCtaUrl" | "closingContactCtaLabel" | "closingContactCtaUrl" | "closingVisualValue" | "closingVisualFont" | "closingVisualColor" | "closingVisualText" | "closingImageUrl"
 >;
@@ -30,6 +31,15 @@ function toDraft(profile: DesignProfile): HomepageDraft {
     discoveryBrowseShopLabel: profile.discoveryBrowseShopLabel,
     discoveryBrowseShopUrl: profile.discoveryBrowseShopUrl,
     showStory: profile.showStory,
+    storyEyebrow: profile.storyEyebrow,
+    storyFollowup: profile.storyFollowup,
+    storyPoints: [...profile.storyPoints] as HomepageDraft["storyPoints"],
+    storyCtaLabel: profile.storyCtaLabel,
+    storyCtaUrl: profile.storyCtaUrl,
+    storyVisualEyebrow: profile.storyVisualEyebrow,
+    storyVisualTitle: profile.storyVisualTitle,
+    storyPromiseEyebrow: profile.storyPromiseEyebrow,
+    storyPromise: profile.storyPromise,
     showTestimonials: profile.showTestimonials,
     testimonialsEyebrow: profile.testimonialsEyebrow,
     testimonialsTitle: profile.testimonialsTitle,
@@ -126,6 +136,16 @@ export default function OwnerHomepageSectionsEditor({ profile, onSaved }: { prof
         <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Surtitre</Label><Input value={draft.discoveryEyebrow} maxLength={120} onChange={event => setDraft(current => ({ ...current, discoveryEyebrow: event.target.value }))} /></div><div className="space-y-2"><Label>Titre</Label><Input value={draft.discoveryTitle} maxLength={180} onChange={event => setDraft(current => ({ ...current, discoveryTitle: event.target.value }))} /></div></div>
         <div className="mt-4 space-y-2"><Label>Texte</Label><Textarea rows={3} value={draft.discoveryText} maxLength={600} onChange={event => setDraft(current => ({ ...current, discoveryText: event.target.value }))} /></div>
         <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Libellé du lien supérieur</Label><Input value={draft.discoveryAllShopLabel} maxLength={60} onChange={event => setDraft(current => ({ ...current, discoveryAllShopLabel: event.target.value }))} /></div><div className="space-y-2"><Label>Destination du lien supérieur</Label><Input value={draft.discoveryAllShopUrl} maxLength={300} onChange={event => setDraft(current => ({ ...current, discoveryAllShopUrl: event.target.value }))} placeholder="/boutique ou https://…" /></div><div className="space-y-2"><Label>Libellé du bouton</Label><Input value={draft.discoveryBrowseShopLabel} maxLength={60} onChange={event => setDraft(current => ({ ...current, discoveryBrowseShopLabel: event.target.value }))} /></div><div className="space-y-2"><Label>Destination du bouton</Label><Input value={draft.discoveryBrowseShopUrl} maxLength={300} onChange={event => setDraft(current => ({ ...current, discoveryBrowseShopUrl: event.target.value }))} placeholder="/boutique ou https://…" /></div></div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mb-4"><p className="font-semibold text-slate-950">L’histoire de votre boutique</p><p className="mt-1 text-xs leading-5 text-slate-600">Les titre, texte et image se règlent dans « Identité et textes ». Ici, personnalisez tous les repères complémentaires : aucune phrase MAZIGHO n’est imposée.</p></div>
+        <div className="mb-4"><SectionToggle checked={draft.showStory} label={draft.showStory ? "Histoire visible" : "Histoire masquée"} description="Le masquage conserve les textes et l’image pour une réactivation ultérieure." onChange={showStory => setDraft(current => ({ ...current, showStory }))} /></div>
+        <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Surtitre</Label><Input value={draft.storyEyebrow} maxLength={120} onChange={event => setDraft(current => ({ ...current, storyEyebrow: event.target.value }))} /></div><div className="space-y-2"><Label>Bouton</Label><Input value={draft.storyCtaLabel} maxLength={60} onChange={event => setDraft(current => ({ ...current, storyCtaLabel: event.target.value }))} /></div><div className="space-y-2"><Label>Destination du bouton</Label><Input value={draft.storyCtaUrl} maxLength={300} onChange={event => setDraft(current => ({ ...current, storyCtaUrl: event.target.value }))} placeholder="/boutique ou https://…" /></div><div className="space-y-2"><Label>Repère sur l’image</Label><Input value={draft.storyVisualEyebrow} maxLength={120} onChange={event => setDraft(current => ({ ...current, storyVisualEyebrow: event.target.value }))} /></div></div>
+        <div className="mt-4 space-y-2"><Label>Texte complémentaire</Label><Textarea rows={3} value={draft.storyFollowup} maxLength={600} onChange={event => setDraft(current => ({ ...current, storyFollowup: event.target.value }))} /></div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">{draft.storyPoints.map((point, index) => <div key={index} className="space-y-2"><Label>Étape {index + 1}</Label><Input value={point} maxLength={100} onChange={event => setDraft(current => ({ ...current, storyPoints: current.storyPoints.map((item, itemIndex) => itemIndex === index ? event.target.value : item) as HomepageDraft["storyPoints"] }))} /></div>)}</div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Titre sur l’image</Label><Input value={draft.storyVisualTitle} maxLength={180} onChange={event => setDraft(current => ({ ...current, storyVisualTitle: event.target.value }))} /></div><div className="space-y-2"><Label>Libellé de la promesse</Label><Input value={draft.storyPromiseEyebrow} maxLength={120} onChange={event => setDraft(current => ({ ...current, storyPromiseEyebrow: event.target.value }))} /></div></div>
+        <div className="mt-4 space-y-2"><Label>Texte de la promesse</Label><Input value={draft.storyPromise} maxLength={180} onChange={event => setDraft(current => ({ ...current, storyPromise: event.target.value }))} /></div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

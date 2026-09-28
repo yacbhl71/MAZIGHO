@@ -9612,6 +9612,15 @@ export type DesignProfile = {
   discoveryAllShopUrl: string;
   discoveryBrowseShopLabel: string;
   discoveryBrowseShopUrl: string;
+  storyEyebrow: string;
+  storyFollowup: string;
+  storyPoints: string[];
+  storyCtaLabel: string;
+  storyCtaUrl: string;
+  storyVisualEyebrow: string;
+  storyVisualTitle: string;
+  storyPromiseEyebrow: string;
+  storyPromise: string;
   testimonialsEyebrow: string;
   testimonialsTitle: string;
   testimonialsText: string;
@@ -9736,6 +9745,15 @@ export const defaultDesignProfile: DesignProfile = {
   discoveryAllShopUrl: "/boutique",
   discoveryBrowseShopLabel: "Parcourir toute la boutique",
   discoveryBrowseShopUrl: "/boutique",
+  storyEyebrow: "Notre inspiration",
+  storyFollowup: "Des univers à découvrir, à personnaliser et à faire évoluer selon vos envies.",
+  storyPoints: ["Choisir avec attention", "Simplifier la recherche", "Inspirer le quotidien"],
+  storyCtaLabel: "Découvrir la boutique",
+  storyCtaUrl: "/boutique",
+  storyVisualEyebrow: "L’esprit MAZIGHO",
+  storyVisualTitle: "Des trouvailles pour accompagner les moments qui comptent.",
+  storyPromiseEyebrow: "Notre promesse",
+  storyPromise: "De l’inspiration, simplement.",
   testimonialsEyebrow: "La parole à nos clients",
   testimonialsTitle: "Vos retours font grandir MAZIGHO.",
   testimonialsText: "Aucun avis client vérifié n’est publié pour le moment.",
@@ -9846,6 +9864,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     "highlightEyebrow", "highlightTitle", "highlightText", "highlightImageUrl",
     "storyTitle", "storyText", "storyImageUrl", "editorialEyebrow", "editorialTitle", "editorialImageUrl",
     "discoveryEyebrow", "discoveryTitle", "discoveryText", "discoveryAllShopLabel", "discoveryAllShopUrl", "discoveryBrowseShopLabel", "discoveryBrowseShopUrl",
+    "storyEyebrow", "storyFollowup", "storyCtaLabel", "storyCtaUrl", "storyVisualEyebrow", "storyVisualTitle", "storyPromiseEyebrow", "storyPromise",
     "testimonialsEyebrow", "testimonialsTitle", "testimonialsText", "testimonialsCtaLabel", "testimonialsCtaUrl",
     "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingShopCtaUrl", "closingContactCtaLabel", "closingContactCtaUrl", "closingVisualValue", "closingVisualText", "closingImageUrl",
     "promosTitle", "promosLead", "promosBannerTitle", "promosBannerText", "promosEmptyText", "promosAllProductsLabel",
@@ -9944,6 +9963,11 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     }
   }
   if (reassuranceItems.length === 3) normalized.reassuranceItems = reassuranceItems;
+
+  if (Array.isArray(source.storyPoints) && source.storyPoints.length === 3) {
+    const storyPoints = source.storyPoints.map(point => typeof point === "string" ? point.trim().slice(0, 100) : "");
+    if (storyPoints.every(point => point.length >= 2)) normalized.storyPoints = storyPoints as DesignProfile["storyPoints"];
+  }
 
   const productReassuranceItems: DesignProfile["productReassuranceItems"] = [];
   if (Array.isArray(source.productReassuranceItems)) {

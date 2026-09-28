@@ -61,7 +61,19 @@ export default function Home() {
   const copy = {
     ...generatedCopy,
     highlight: useManagedPublicTranslation ? { ...generatedCopy.highlight, eyebrow: profile.highlightEyebrow, title: profile.highlightTitle, text: profile.highlightText } : generatedCopy.highlight,
-    story: useManagedPublicTranslation ? { ...generatedCopy.story, title: profile.storyTitle, text: profile.storyText } : generatedCopy.story,
+    story: useManagedPublicTranslation ? {
+      ...generatedCopy.story,
+      eyebrow: profile.storyEyebrow,
+      title: profile.storyTitle,
+      text: profile.storyText,
+      followup: profile.storyFollowup,
+      points: profile.storyPoints,
+      cta: profile.storyCtaLabel,
+      visualEyebrow: profile.storyVisualEyebrow,
+      visualTitle: profile.storyVisualTitle,
+      promiseEyebrow: profile.storyPromiseEyebrow,
+      promise: profile.storyPromise,
+    } : generatedCopy.story,
     editorial: useManagedPublicTranslation ? { ...generatedCopy.editorial, eyebrow: profile.editorialEyebrow, title: profile.editorialTitle } : generatedCopy.editorial,
     reassurance: useManagedPublicTranslation ? profile.reassuranceItems : generatedCopy.reassurance,
     discovery: useManagedPublicTranslation ? { ...generatedCopy.discovery, eyebrow: profile.discoveryEyebrow, title: profile.discoveryTitle, text: profile.discoveryText, allShop: profile.discoveryAllShopLabel, browseShop: profile.discoveryBrowseShopLabel } : generatedCopy.discovery,
@@ -203,7 +215,7 @@ export default function Home() {
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
                 <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
               </div>
-              <Button asChild className="text-white shadow-lg shadow-fuchsia-700/20 hover:brightness-95"><Link href="/boutique" className="mt-8 inline-block" style={{ backgroundColor: palette.accent }}>{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+              {copy.story.cta && profile.storyCtaUrl ? <Button asChild className="text-white shadow-lg shadow-fuchsia-700/20 hover:brightness-95"><Link href={useManagedPublicTranslation ? profile.storyCtaUrl : "/boutique"} className="mt-8 inline-block" style={{ backgroundColor: palette.accent }}>{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
               <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5" style={{ color: "#F2C36B" }} /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: "#F2C36B" }}>{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></div>
