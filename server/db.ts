@@ -3719,8 +3719,11 @@ async function ensureStoreRelationshipScopeSchema() {
     await addAndBackfill("orderDecisions", "(SELECT o.`storeId` FROM `orders` o WHERE o.`id` = `orderDecisions`.`orderId` LIMIT 1)");
     await addAndBackfill("returnRequests", "(SELECT o.`storeId` FROM `orders` o WHERE o.`id` = `returnRequests`.`orderId` LIMIT 1)");
 
-    try { await db.execute(sql.raw("ALTER TABLE `carts` DROP INDEX `carts_userId_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
-    try { await db.execute(sql.raw("ALTER TABLE `promotions` DROP INDEX `promotions_code_unique`")); } catch (error) { if (!/doesn't exist|cannot drop|check that column\/key exists/i.test(String(error))) throw error; }
+    // The versioned migration already removes these legacy global indexes. Keep
+    // this compatibility guard idempotent as well: a public product view must
+    // never fail merely because a cold serverless instance sees a migrated DB.
+    await db.execute(sql.raw("ALTER TABLE `carts` DROP INDEX IF EXISTS `carts_userId_unique`"));
+    await db.execute(sql.raw("ALTER TABLE `promotions` DROP INDEX IF EXISTS `promotions_code_unique`"));
     const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
     await createIndex("CREATE UNIQUE INDEX `carts_store_user_unique` ON `carts` (`storeId`, `userId`)");
     await createIndex("CREATE INDEX `cart_items_store_cart_product_idx` ON `cartItems` (`storeId`, `cartId`, `productId`)");
