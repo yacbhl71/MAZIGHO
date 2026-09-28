@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-type OwnerModuleTarget = "vitrine" | "catalogue" | "stock" | "operations" | "legal" | "markets" | "integrations" | "public_view" | "support";
+type OwnerModuleTarget = "vitrine" | "catalogue" | "stock" | "operations" | "legal" | "markets" | "integrations" | "orders" | "public_view" | "support";
 type ReadinessItem = { id: OwnerModuleTarget; label: string; ready: boolean; detail: string };
 type OpeningReadiness = {
   state: "action_required" | "ready_for_studio_review" | "opened" | "unavailable";
@@ -18,10 +18,12 @@ type OpeningReadiness = {
   paymentActivationExecuted: false;
 };
 type PaymentReadiness = {
-  stage: "storefront_setup_required" | "plan_required" | "stripe_schema_required" | "seller_account_required" | "seller_capabilities_required" | "test_environment_required" | "test_checkout_ready";
+  stage: "storefront_setup_required" | "plan_required" | "stripe_schema_required" | "seller_account_required" | "seller_capabilities_required" | "test_environment_required" | "test_checkout_ready" | "test_checkout_confirmed";
   label: string;
   detail: string;
   testCheckoutReady: boolean;
+  testCheckoutEvidenceConfirmed: boolean;
+  testCheckoutEvidence: { confirmedOrderCount: number; latestConfirmedOrderCreatedAt: Date | string | null };
   liveReviewReady: false;
   liveActivationExecuted: false;
   checks: Array<{ id: string; label: string; state: "ready" | "attention" | "pending"; detail: string }>;
@@ -43,6 +45,7 @@ const actionLabels: Record<OwnerModuleTarget, string> = {
   legal: "Compléter le légal et fiscal",
   markets: "Choisir les marchés",
   integrations: "Ouvrir les intégrations",
+  orders: "Voir les commandes",
   public_view: "Voir la vitrine",
   support: "Ouvrir l’assistance",
 };
@@ -104,12 +107,22 @@ function PaymentActivationCard({ payment, onNavigate }: { payment: PaymentReadin
           <div><p className="text-sm font-semibold text-slate-950">{check.label}</p><p className="mt-0.5 text-xs leading-5 text-slate-600">{check.detail}</p></div>
         </div>)}
       </div>
+      {payment.testCheckoutReady && <div className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${payment.testCheckoutEvidenceConfirmed ? "border-emerald-200 bg-white/80" : "border-violet-200 bg-white/80"}`}>
+        <div><p className="font-semibold text-slate-950">Preuve locale de première vente Test</p><p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">{payment.testCheckoutEvidenceConfirmed ? <><strong>{payment.testCheckoutEvidence.confirmedOrderCount}</strong> commande{payment.testCheckoutEvidence.confirmedOrderCount > 1 ? "s" : ""} Stripe Test confirmée{payment.testCheckoutEvidence.confirmedOrderCount > 1 ? "s" : ""} dans cette boutique{formatEvidenceDate(payment.testCheckoutEvidence.latestConfirmedOrderCreatedAt) ? ` · dernière créée le ${formatEvidenceDate(payment.testCheckoutEvidence.latestConfirmedOrderCreatedAt)}` : ""}.</> : "Aucune commande Stripe Test confirmée n’est encore enregistrée. Réalisez un essai, puis vérifiez son apparition dans les commandes."}</p><p className="mt-2 text-xs leading-5 text-slate-500">Cette preuve ne contient ni montant, ni identité client, ni adresse, ni carte et ne constitue pas une autorisation Production.</p></div><Button type="button" variant="outline" className="min-h-11 shrink-0 border-violet-300 bg-white text-violet-950 hover:bg-violet-100" onClick={() => onNavigate("orders")}>Voir les commandes <ArrowRight className="ml-2 h-4 w-4" /></Button>
+      </div>}
       <div className="flex flex-col gap-3 rounded-xl border border-violet-200 bg-white/70 p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-slate-950">Compte vendeur et essai de checkout</p><p className="mt-1 text-xs leading-5 text-slate-600">Ouvrez les intégrations pour créer ou reprendre le compte Stripe Connect de cette boutique et actualiser son statut.</p></div><Button type="button" className="min-h-11 bg-violet-700 hover:bg-violet-800" onClick={() => onNavigate("integrations")}>Ouvrir Stripe Connect <ArrowRight className="ml-2 h-4 w-4" /></Button></div>
       {payment.testCheckoutReady && <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-white/75 p-4 text-sm leading-6 text-emerald-950"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><p><strong>Essai prêt :</strong> réalisez un checkout de préparation, vérifiez la commande et le webhook, puis conservez le résultat pour la revue finale. Cette étape ne déclenche pas de paiement réel.</p></div>}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-700"><p><strong>Passage aux paiements réels :</strong> il reste une décision explicite, les clés et événements de production, une revue des remboursements/litiges et une validation opérationnelle. Le changement ne peut pas être effectué depuis ce panneau.</p><p className="mt-2"><strong>Facturation MAZIGHO séparée :</strong> Lemon Squeezy concerne uniquement l’abonnement de la boutique, jamais ses clients ni ses commandes.</p></div>
       <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/65 p-4 text-xs leading-5 text-slate-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p>Aucune carte bancaire, coordonnée bancaire, clé Stripe ou donnée de client n’est affichée dans ce contrôle.</p></div>
     </CardContent>
   </Card>;
+}
+
+function formatEvidenceDate(value: Date | string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("fr-CH", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function ReadinessMetric({ label, value, detail, warn = false, text = false }: { label: string; value: string | number; detail: string; warn?: boolean; text?: boolean }) {

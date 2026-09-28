@@ -7752,9 +7752,34 @@ export async function getOwnerCommercialReadiness(storeId: number) {
         paymentReadiness: { enabled: false as const, reason: "payment_setup_unavailable" },
       };
     });
+  // This evidence is intentionally reconstructed only from the local order
+  // record after its tenant-bound Stripe Test verification path marked it paid.
+  // It exposes no amount, Stripe identifier, customer or delivery information.
+  const [testCheckoutEvidenceCountRows, testCheckoutEvidenceLatestRows] = await Promise.all([
+    db.select({ confirmedOrderCount: count(orders.id) })
+      .from(orders)
+      .where(and(
+        eq(orders.storeId, storeId),
+        eq(orders.paymentMethod, "stripe_connect_test"),
+        eq(orders.paymentStatus, "paid"),
+      )),
+    db.select({ createdAt: orders.createdAt })
+      .from(orders)
+      .where(and(
+        eq(orders.storeId, storeId),
+        eq(orders.paymentMethod, "stripe_connect_test"),
+        eq(orders.paymentStatus, "paid"),
+      ))
+      .orderBy(desc(orders.createdAt))
+      .limit(1),
+  ]);
   const payment = buildStorePaymentActivationReadiness({
     storefrontPrepared: opening.localRequirementsComplete,
     stripe,
+    testCheckoutEvidence: {
+      confirmedOrderCount: Number(testCheckoutEvidenceCountRows[0]?.confirmedOrderCount ?? 0),
+      latestConfirmedOrderCreatedAt: testCheckoutEvidenceLatestRows[0]?.createdAt ?? null,
+    },
   });
 
   return {

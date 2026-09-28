@@ -14,7 +14,7 @@ type StripeSetupSnapshot = {
 };
 
 export type StorePaymentActivationCheck = {
-  id: "storefront" | "plan" | "stripe_schema" | "seller_account" | "seller_capabilities" | "test_environment";
+  id: "storefront" | "plan" | "stripe_schema" | "seller_account" | "seller_capabilities" | "test_environment" | "test_checkout_evidence";
   label: string;
   state: "ready" | "attention" | "pending";
   detail: string;
@@ -28,10 +28,16 @@ export type StorePaymentActivationReadiness = {
     | "seller_account_required"
     | "seller_capabilities_required"
     | "test_environment_required"
-    | "test_checkout_ready";
+    | "test_checkout_ready"
+    | "test_checkout_confirmed";
   label: string;
   detail: string;
   testCheckoutReady: boolean;
+  testCheckoutEvidenceConfirmed: boolean;
+  testCheckoutEvidence: {
+    confirmedOrderCount: number;
+    latestConfirmedOrderCreatedAt: Date | string | null;
+  };
   liveReviewReady: false;
   liveActivationExecuted: false;
   checks: StorePaymentActivationCheck[];
@@ -46,6 +52,15 @@ export type StorePaymentActivationReadiness = {
 export function buildStorePaymentActivationReadiness(input: {
   storefrontPrepared: boolean;
   stripe: StripeSetupSnapshot;
+  /**
+   * Local evidence only: orders persisted as paid after the tenant-bound Test
+   * checkout verification flow. No external Stripe object, amount or customer
+   * detail is accepted here.
+   */
+  testCheckoutEvidence?: {
+    confirmedOrderCount: number;
+    latestConfirmedOrderCreatedAt: Date | string | null;
+  };
 }): StorePaymentActivationReadiness {
   const account = input.stripe.account;
   const sellerCapabilitiesReady = Boolean(
@@ -55,6 +70,14 @@ export function buildStorePaymentActivationReadiness(input: {
       && account.payoutsEnabled,
   );
   const testEnvironmentReady = input.stripe.paymentReadiness.enabled;
+  const confirmedOrderCount = Number.isSafeInteger(input.testCheckoutEvidence?.confirmedOrderCount)
+    ? Math.max(0, Number(input.testCheckoutEvidence?.confirmedOrderCount))
+    : 0;
+  const testCheckoutEvidence = {
+    confirmedOrderCount,
+    latestConfirmedOrderCreatedAt: input.testCheckoutEvidence?.latestConfirmedOrderCreatedAt ?? null,
+  };
+  const testCheckoutEvidenceConfirmed = confirmedOrderCount > 0;
 
   const checks: StorePaymentActivationCheck[] = [
     {
@@ -109,13 +132,25 @@ export function buildStorePaymentActivationReadiness(input: {
           ? "Un checkout Direct Charges peut être vérifié avec des cartes Stripe de préparation, sans débit réel."
           : "MAZIGHO Studio doit terminer la configuration Stripe de préparation avant l’essai du checkout.",
     },
+    {
+      id: "test_checkout_evidence",
+      label: "Preuve d’essai Stripe Test",
+      state: !testEnvironmentReady ? "pending" : testCheckoutEvidenceConfirmed ? "ready" : "attention",
+      detail: !testEnvironmentReady
+        ? "Cette preuve devient disponible après la préparation complète du checkout Test."
+        : testCheckoutEvidenceConfirmed
+          ? `${confirmedOrderCount} commande${confirmedOrderCount > 1 ? "s" : ""} Test réglée${confirmedOrderCount > 1 ? "s" : ""} et vérifiée${confirmedOrderCount > 1 ? "s" : ""} localement pour cette boutique.`
+          : "Effectuez un checkout Test et vérifiez que la commande réglée apparaît dans le panneau avant toute revue finale.",
+    },
   ];
 
   const result = (stage: StorePaymentActivationReadiness["stage"], label: string, detail: string): StorePaymentActivationReadiness => ({
     stage,
     label,
     detail,
-    testCheckoutReady: stage === "test_checkout_ready",
+    testCheckoutReady: stage === "test_checkout_ready" || stage === "test_checkout_confirmed",
+    testCheckoutEvidenceConfirmed,
+    testCheckoutEvidence,
     liveReviewReady: false,
     liveActivationExecuted: false,
     checks,
@@ -138,6 +173,9 @@ export function buildStorePaymentActivationReadiness(input: {
   }
   if (!testEnvironmentReady) {
     return result("test_environment_required", "Validation du checkout à préparer", "Le compte vendeur est prêt ; MAZIGHO Studio doit terminer la configuration Stripe de préparation avant les essais.");
+  }
+  if (testCheckoutEvidenceConfirmed) {
+    return result("test_checkout_confirmed", "Essai Stripe Test confirmé", "Une commande Stripe Connect Test réglée a été vérifiée pour cette boutique. Cette preuve de préparation ne constitue pas une autorisation d’encaisser en Production.");
   }
   return result("test_checkout_ready", "Prête pour un essai de checkout", "La boutique peut effectuer une validation Stripe Connect de préparation. Documentez l’essai avant toute revue finale de passage aux paiements réels.");
 }

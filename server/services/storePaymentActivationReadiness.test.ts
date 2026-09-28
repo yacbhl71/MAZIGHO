@@ -57,8 +57,42 @@ describe("buildStorePaymentActivationReadiness", () => {
     expect(result).toMatchObject({
       stage: "test_checkout_ready",
       testCheckoutReady: true,
+      testCheckoutEvidenceConfirmed: false,
+      testCheckoutEvidence: { confirmedOrderCount: 0, latestConfirmedOrderCreatedAt: null },
       liveReviewReady: false,
       liveActivationExecuted: false,
     });
+  });
+
+  it("records only a locally verified Test order as preparation evidence, never a Live authorization", () => {
+    const result = buildStorePaymentActivationReadiness({
+      storefrontPrepared: true,
+      stripe: readyStripe,
+      testCheckoutEvidence: {
+        confirmedOrderCount: 2,
+        latestConfirmedOrderCreatedAt: "2026-09-28T00:15:00.000Z",
+      },
+    });
+
+    expect(result).toMatchObject({
+      stage: "test_checkout_confirmed",
+      testCheckoutReady: true,
+      testCheckoutEvidenceConfirmed: true,
+      testCheckoutEvidence: { confirmedOrderCount: 2, latestConfirmedOrderCreatedAt: "2026-09-28T00:15:00.000Z" },
+      liveReviewReady: false,
+      liveActivationExecuted: false,
+    });
+    expect(result.checks.find(check => check.id === "test_checkout_evidence")).toMatchObject({ state: "ready" });
+  });
+
+  it("does not promote invalid evidence into a Test completion", () => {
+    const result = buildStorePaymentActivationReadiness({
+      storefrontPrepared: true,
+      stripe: readyStripe,
+      testCheckoutEvidence: { confirmedOrderCount: -1, latestConfirmedOrderCreatedAt: "2026-09-28T00:15:00.000Z" },
+    });
+
+    expect(result).toMatchObject({ stage: "test_checkout_ready", testCheckoutEvidenceConfirmed: false });
+    expect(result.testCheckoutEvidence.confirmedOrderCount).toBe(0);
   });
 });
