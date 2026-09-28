@@ -112,7 +112,7 @@ const ownerNavigation: Array<{ label: string; items: Array<{ id: OwnerModule; ti
       { id: "simulation", title: "Simulation panier", description: "Tester stock, livraison et total sans vente", icon: ShoppingBag, available: true },
       { id: "public_view", title: "Parcours de vitrine", description: "Ouvrir les pages publiques de votre boutique", icon: ExternalLink, available: true },
       { id: "orders", title: "Commandes", description: "Suivi des ventes et traitements", icon: ShoppingBag, available: true },
-      { id: "returns", title: "Retours & SAV", description: "Demandes clients et suivi manuel", icon: RotateCcw, available: true },
+      { id: "returns", title: "Retours & litiges", description: "Demandes clients et procédure manuelle", icon: RotateCcw, available: true },
       { id: "customers", title: "Clients", description: "Relation client et historique", icon: UsersRound, available: true },
       { id: "customer_relations", title: "Avis & messages", description: "Modération et demandes de contact", icon: MessageCircle, available: true },
       { id: "team", title: "Équipe & accès", description: "Rôles délégués et limites d’accès", icon: UsersRound, available: true },

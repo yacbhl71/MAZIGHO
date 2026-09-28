@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
-type OwnerModuleTarget = "vitrine" | "catalogue" | "stock" | "operations" | "legal" | "markets" | "integrations" | "orders" | "public_view" | "support";
+type OwnerModuleTarget = "vitrine" | "catalogue" | "stock" | "operations" | "legal" | "markets" | "integrations" | "orders" | "returns" | "public_view" | "support";
 type ReadinessItem = { id: OwnerModuleTarget; label: string; ready: boolean; detail: string };
 type OpeningReadiness = {
   state: "action_required" | "ready_for_studio_review" | "opened" | "unavailable";
@@ -46,6 +46,7 @@ const actionLabels: Record<OwnerModuleTarget, string> = {
   markets: "Choisir les marchés",
   integrations: "Ouvrir les intégrations",
   orders: "Voir les commandes",
+  returns: "Ouvrir les retours",
   public_view: "Voir la vitrine",
   support: "Ouvrir l’assistance",
 };
@@ -81,6 +82,7 @@ export default function OwnerCommercialReadiness({ readiness, loading, onNavigat
     <div className="grid gap-3">{items.map(item => <div key={`${item.id}-${item.label}`} className={`flex flex-col gap-4 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${item.ready ? "border-emerald-200 bg-emerald-50/60" : "border-amber-200 bg-amber-50/60"}`}><div className="flex items-start gap-3"><div className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full ${item.ready ? "bg-emerald-600 text-white" : "bg-amber-400 text-amber-950"}`}>{item.ready ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-4 w-4" />}</div><div><p className="font-semibold text-slate-950">{item.label}</p><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{item.detail}</p></div></div><Button type="button" variant={item.ready ? "outline" : "default"} className={item.ready ? "min-h-11 border-emerald-300 text-emerald-800 hover:bg-emerald-100" : "min-h-11 bg-teal-700 hover:bg-teal-800"} onClick={() => onNavigate(item.id)}>{item.ready ? "Consulter" : actionLabels[item.id]}{item.id === "public_view" && <ExternalLink className="ml-2 h-4 w-4" />}</Button></div>)}</div>
 
     <PaymentActivationCard payment={payment} onNavigate={onNavigate} />
+    <PilotBoutiqueCard items={items} payment={payment} onNavigate={onNavigate} />
   </div>;
 }
 
@@ -116,6 +118,24 @@ function PaymentActivationCard({ payment, onNavigate }: { payment: PaymentReadin
       <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/65 p-4 text-xs leading-5 text-slate-700"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-slate-600" /><p>Aucune carte bancaire, coordonnée bancaire, clé Stripe ou donnée de client n’est affichée dans ce contrôle.</p></div>
     </CardContent>
   </Card>;
+}
+
+function PilotBoutiqueCard({ items, payment, onNavigate }: { items: readonly ReadinessItem[]; payment: PaymentReadiness; onNavigate: (module: OwnerModuleTarget) => void }) {
+  const pilotPrerequisites = items.filter(item => ["operations", "legal", "markets"].includes(item.id));
+  const firstMissingPrerequisite = pilotPrerequisites.find(item => !item.ready);
+  const operatingBasicsReady = pilotPrerequisites.length > 0 && !firstMissingPrerequisite;
+  const completed = Number(operatingBasicsReady) + Number(payment.testCheckoutReady) + Number(payment.testCheckoutEvidenceConfirmed);
+  const nextModule: OwnerModuleTarget = firstMissingPrerequisite?.id || (!payment.testCheckoutReady ? "integrations" : !payment.testCheckoutEvidenceConfirmed ? "orders" : "returns");
+  const nextLabel = firstMissingPrerequisite ? actionLabels[firstMissingPrerequisite.id] : !payment.testCheckoutReady ? "Ouvrir Stripe Connect" : !payment.testCheckoutEvidenceConfirmed ? "Vérifier les commandes Test" : "Ouvrir les retours";
+
+  return <Card className="border-sky-200 bg-gradient-to-br from-sky-50 via-white to-violet-50">
+    <CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle className="flex items-center gap-2 text-slate-950"><ShieldCheck className="h-5 w-5 text-sky-700" /> Parcours boutique pilote</CardTitle><CardDescription className="mt-1 max-w-3xl text-slate-700">Préparez une première boutique de référence avec des contrôles réels et traçables. Ce parcours reste guidé : il n’ouvre ni paiement Production, ni remboursement, ni litige automatiquement.</CardDescription></div><Badge variant="outline" className={payment.testCheckoutEvidenceConfirmed ? "w-fit border-emerald-200 bg-white text-emerald-800" : "w-fit border-sky-200 bg-white text-sky-900"}>{completed}/3 contrôles locaux</Badge></div></CardHeader>
+    <CardContent className="space-y-4"><div className="grid gap-3 md:grid-cols-3"><PilotStep number="1" label="Conditions boutique" detail="Livraison, retours, informations légales, fiscalité affichée et marché visible sont complétés." ready={operatingBasicsReady} /><PilotStep number="2" label="Checkout Stripe Test" detail="Le vendeur Test et le checkout de préparation sont prêts, sans débit réel." ready={payment.testCheckoutReady} /><PilotStep number="3" label="Preuve de commande Test" detail="Une commande réglée est visible dans cette boutique après le flux de vérification local." ready={payment.testCheckoutEvidenceConfirmed} /></div><div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="max-w-2xl text-xs leading-5 text-slate-700">Après les trois contrôles, effectuez la revue humaine : commande, stock, contenu de livraison, retours et traitement manuel. Une preuve Test prépare la décision mais ne remplace jamais les validations juridiques, fiscales ou Production.</p><Button type="button" variant="outline" className="min-h-11 shrink-0 border-sky-300 bg-white text-sky-950 hover:bg-sky-100" onClick={() => onNavigate(nextModule)}>{nextLabel} <ArrowRight className="ml-2 h-4 w-4" /></Button></div></CardContent>
+  </Card>;
+}
+
+function PilotStep({ number, label, detail, ready }: { number: string; label: string; detail: string; ready: boolean }) {
+  return <div className={`rounded-xl border p-4 ${ready ? "border-emerald-200 bg-emerald-50/70" : "border-slate-200 bg-white/80"}`}><div className="flex items-center gap-2"><span className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${ready ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>{ready ? <CheckCircle2 className="h-4 w-4" /> : number}</span><p className="font-semibold text-slate-950">{label}</p></div><p className="mt-3 text-xs leading-5 text-slate-600">{detail}</p></div>;
 }
 
 function formatEvidenceDate(value: Date | string | null) {
