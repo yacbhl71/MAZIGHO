@@ -1,4 +1,4 @@
-export const SUPPORTED_STORE_CURRENCIES = ["CHF", "EUR", "USD", "GBP", "CAD"] as const;
+export const SUPPORTED_STORE_CURRENCIES = ["CHF", "EUR", "USD", "GBP", "CAD", "DZD"] as const;
 
 export type StoreCurrencyCode = (typeof SUPPORTED_STORE_CURRENCIES)[number];
 
@@ -16,6 +16,7 @@ export const STORE_CURRENCY_LABELS: Record<StoreCurrencyCode, string> = {
   USD: "Dollar américain (USD)",
   GBP: "Livre sterling (GBP)",
   CAD: "Dollar canadien (CAD)",
+  DZD: "Dinar algérien (DZD)",
 };
 
 export function isStoreCurrencyCode(value: unknown): value is StoreCurrencyCode {
@@ -26,7 +27,9 @@ export function normalizeStoreCurrencyConfig(input: { code?: unknown; rateBps?: 
   const code = isStoreCurrencyCode(input.code) ? input.code : DEFAULT_STORE_CURRENCY.code;
   const parsedRate = typeof input.rateBps === "number" ? input.rateBps : Number(input.rateBps);
   if (code === "CHF") return DEFAULT_STORE_CURRENCY;
-  if (!Number.isInteger(parsedRate) || parsedRate < 1_000 || parsedRate > 50_000) {
+  // DZD has materially more minor units per CHF than the other currencies.
+  // Keep the conversion manually configured per boutique; no market rate is assumed.
+  if (!Number.isInteger(parsedRate) || parsedRate < 1_000 || parsedRate > 2_000_000) {
     return { code, rateBps: 10_000 };
   }
   return { code, rateBps: parsedRate };

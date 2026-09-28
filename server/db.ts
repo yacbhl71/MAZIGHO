@@ -19,7 +19,8 @@ import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureRea
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
 import { getStoreTaxPolicyForCountry, normalizeStoreTaxPolicies, parseStoreTaxPolicies, type StoreTaxPolicy } from "../shared/storeTaxPolicy";
-import { calculateConvertedCartTotals, convertChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
+import { calculateConvertedCartTotals, convertChfCents, convertToChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
+import { createAlgeriaWilayaReferenceSettings, getAlgeriaWilayaDeliveryQuote, isAlgeriaWilayaDeliveryConfigured, normalizeAlgeriaWilayaDeliverySettings, parseAlgeriaWilayaDeliverySettings, type AlgeriaDeliveryMode, type AlgeriaWilayaDeliverySettings } from "../shared/algeriaWilayaDelivery";
 import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
@@ -47,6 +48,7 @@ import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettleme
 import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
 import { buildCheckoutStockReservations, buildStoredOrderStockReservations } from "./services/checkoutStockReservation";
 import { buildCheckoutLegalAcceptanceSnapshot, CHECKOUT_LEGAL_VERSION } from "../shared/checkoutLegalAcceptance";
+import { ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD, getAlgeriaCashOnDeliveryEligibility, getAlgeriaOnlinePaymentPreparationStatus, makeAlgeriaCashOnDeliverySettings, makeAlgeriaOnlinePaymentPreparation, parseAlgeriaCashOnDeliverySettings, parseAlgeriaOnlinePaymentPreparation, type AlgeriaOnlinePaymentPreparation } from "../shared/algeriaCashOnDelivery";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
 import { normalizeOwnerCustomDomainRequest, normalizeOwnerDomainConnectionGuide, parseOwnerCustomDomainRequest } from "./services/ownerCustomDomainRequest";
@@ -7951,6 +7953,128 @@ export async function saveStoreMarketSettings(storeId: number, input: StoreMarke
 }
 
 /**
+ * Read-only availability for payment on delivery in Algeria. It never creates
+ * a provider account, collects card data or certifies a local merchant.
+ */
+export async function getAlgeriaCashOnDeliveryReadiness(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, setting, markets, shipping, legal, wilayaDelivery, currency] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "algeria_cash_on_delivery"))).limit(1),
+    getStoreMarketSettings(storeId),
+    getOwnerShippingReturnsSettings(storeId),
+    getCheckoutLegalReadiness(storeId, "DZ"),
+    getAlgeriaWilayaDeliverySettings(storeId),
+    getStoreCurrencyConfig(storeId),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  const settings = parseAlgeriaCashOnDeliverySettings(setting[0]?.value);
+  const eligibility = getAlgeriaCashOnDeliveryEligibility({
+    activeCountries: markets.activeCountries,
+    servedCountries: shipping.servedCountries,
+    wilayaDeliveryConfigured: isAlgeriaWilayaDeliveryConfigured(wilayaDelivery),
+    dzdCurrencyConfigured: currency.code === "DZD",
+    legalReady: legal.ready,
+  });
+  return { ...settings, eligibility };
+}
+
+/**
+ * Stores an owner-confirmed availability flag only after the locally visible
+ * Algeria market, delivery and checkout disclosures have been completed.
+ */
+export async function saveAlgeriaCashOnDeliverySettings(storeId: number, enabled: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const current = await getAlgeriaCashOnDeliveryReadiness(storeId);
+  if (enabled && !current.eligibility.eligible) throw new Error("CASH_ON_DELIVERY_DZ_REQUIREMENTS_INCOMPLETE");
+  const settings = makeAlgeriaCashOnDeliverySettings(enabled);
+  await db.insert(storeSettings).values({
+    storeId,
+    key: "algeria_cash_on_delivery",
+    value: JSON.stringify(settings),
+    description: "Paiement à la livraison en Algérie uniquement ; sans carte, passerelle, identifiant marchand ni encaissement automatique",
+  }).onDuplicateKeyUpdate({ set: {
+    value: JSON.stringify(settings),
+    description: "Paiement à la livraison en Algérie uniquement ; sans carte, passerelle, identifiant marchand ni encaissement automatique",
+  } });
+  return { ...settings, eligibility: current.eligibility };
+}
+
+/** Reads only the current boutique's editable DZ delivery grid. */
+export async function getAlgeriaWilayaDeliverySettings(storeId: number): Promise<AlgeriaWilayaDeliverySettings> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "algeria_wilaya_delivery_profile"))).limit(1);
+  return parseAlgeriaWilayaDeliverySettings(row?.value);
+}
+
+/** Saves a fully normalized per-wilaya grid without carrier credentials or customer data. */
+export async function saveAlgeriaWilayaDeliverySettings(storeId: number, input: AlgeriaWilayaDeliverySettings) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const settings = normalizeAlgeriaWilayaDeliverySettings({ ...input, updatedAt: new Date().toISOString() });
+  await db.insert(storeSettings).values({
+    storeId,
+    key: "algeria_wilaya_delivery_profile",
+    value: JSON.stringify(settings),
+    description: "Grille livraison Algérie par wilaya, domicile ou relais ; tarifs et délais éditables propres à cette boutique",
+  }).onDuplicateKeyUpdate({ set: {
+    value: JSON.stringify(settings),
+    description: "Grille livraison Algérie par wilaya, domicile ou relais ; tarifs et délais éditables propres à cette boutique",
+  } });
+  return settings;
+}
+
+/** Installs the public 07/02/2023 reference as an inactive, editable tenant copy. */
+export async function installAlgeriaWilayaDeliveryReference(storeId: number) {
+  return await saveAlgeriaWilayaDeliverySettings(storeId, createAlgeriaWilayaReferenceSettings());
+}
+
+export async function getAlgeriaWilayaDeliveryQuoteForStore(storeId: number, input: { wilayaCode: string; mode: AlgeriaDeliveryMode }) {
+  const settings = await getAlgeriaWilayaDeliverySettings(storeId);
+  return getAlgeriaWilayaDeliveryQuote(settings, input);
+}
+
+/**
+ * Progress tracker for a future CIB/Edahabia integration. It intentionally
+ * records no provider credential or gateway activation state.
+ */
+export async function getAlgeriaOnlinePaymentPreparation(storeId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, setting, legal] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "algeria_online_payment_preparation"))).limit(1),
+    getCheckoutLegalReadiness(storeId, "DZ"),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  const preparation = parseAlgeriaOnlinePaymentPreparation(setting[0]?.value);
+  return { ...preparation, legalReady: legal.ready, status: getAlgeriaOnlinePaymentPreparationStatus(preparation, legal.ready) };
+}
+
+export async function saveAlgeriaOnlinePaymentPreparation(storeId: number, input: Omit<AlgeriaOnlinePaymentPreparation, "updatedAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const current = await getAlgeriaOnlinePaymentPreparation(storeId);
+  const preparation = makeAlgeriaOnlinePaymentPreparation(input);
+  await db.insert(storeSettings).values({
+    storeId,
+    key: "algeria_online_payment_preparation",
+    value: JSON.stringify(preparation),
+    description: "Progression déclarative vers une passerelle locale Algérie ; aucune clé, certificat, carte, OTP, compte marchand ou activation de paiement en ligne",
+  }).onDuplicateKeyUpdate({ set: {
+    value: JSON.stringify(preparation),
+    description: "Progression déclarative vers une passerelle locale Algérie ; aucune clé, certificat, carte, OTP, compte marchand ou activation de paiement en ligne",
+  } });
+  return { ...preparation, legalReady: current.legalReady, status: getAlgeriaOnlinePaymentPreparationStatus(preparation, current.legalReady) };
+}
+
+/**
  * Tax wording is stored separately from markets, prices and checkout totals.
  * It is a disclosure prepared by the operator, never an automatic tax engine.
  */
@@ -8073,6 +8197,7 @@ export async function getOwnerOrderSummaries(storeId: number) {
     id: orders.id,
     status: orders.status,
     paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
     totalAmount: orders.totalAmount,
     currencyCode: orders.currencyCode,
     trackingNumber: orders.trackingNumber,
@@ -8149,6 +8274,7 @@ export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: num
   const rows = await db.select({
     id: orders.id,
     paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
     status: orders.status,
     shippingAddress: orders.shippingAddress,
     trackingNumber: orders.trackingNumber,
@@ -8240,11 +8366,12 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
 
-  const order = await db.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.orderId))).limit(1);
+  const order = await db.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, paymentMethod: orders.paymentMethod }).from(orders).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.orderId))).limit(1);
   if (!order[0]) throw new Error("ORDER_NOT_FOUND");
 
   if (input.action === "accepted") {
-    if (order[0].paymentStatus !== "paid") throw new Error("ORDER_NOT_PAID");
+    const cashOnDelivery = order[0].paymentMethod === ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD;
+    if (order[0].paymentStatus !== "paid" && !cashOnDelivery) throw new Error("ORDER_NOT_PAID");
     // A verified Stripe webhook now moves the order to processing immediately.
     // Treat a repeat acceptance as an idempotent success, so Odoo/CJ recovery
     // can run without creating an additional decision or changing the status.
@@ -8262,7 +8389,19 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
 
   if (input.action === "rejected") {
     if (order[0].status === "shipped" || order[0].status === "delivered") throw new Error("ORDER_ALREADY_FULFILLED");
-    await db.update(orders).set({ status: "cancelled" }).where(and(eq(orders.storeId, effectiveStoreId), eq(orders.id, input.orderId)));
+    if (order[0].status !== "cancelled") {
+      await db.transaction(async tx => {
+        const cancelled = await tx.update(orders).set({ status: "cancelled" }).where(and(
+          eq(orders.storeId, effectiveStoreId),
+          eq(orders.id, input.orderId),
+          ne(orders.status, "cancelled"),
+        ));
+        if (affectedRows(cancelled) !== 1) return;
+        if (order[0].paymentMethod === ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD && order[0].paymentStatus === "unpaid") {
+          await releaseStoredCheckoutStock(tx, effectiveStoreId, input.orderId);
+        }
+      });
+    }
   }
 
   await db.insert(orderDecisions).values({
@@ -8274,6 +8413,30 @@ export async function recordOrderDecision(input: { orderId: number; action: "acc
   });
 
   return { success: true, supplierOrderCreated: false, paymentRefunded: false };
+}
+
+/**
+ * Records a manual collection only after the delivery-payment order is marked
+ * delivered. This does not contact a bank, courier, provider or customer.
+ */
+export async function confirmAlgeriaCashOnDeliveryCollection(input: { orderId: number; storeId: number }) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [order] = await db.select({ id: orders.id, status: orders.status, paymentStatus: orders.paymentStatus, paymentMethod: orders.paymentMethod })
+    .from(orders).where(and(eq(orders.storeId, input.storeId), eq(orders.id, input.orderId))).limit(1);
+  if (!order) throw new Error("ORDER_NOT_FOUND");
+  if (order.paymentMethod !== ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD) throw new Error("ORDER_PAYMENT_METHOD_INVALID");
+  if (order.paymentStatus === "paid") return { success: true, alreadyCollected: true };
+  if (order.status !== "delivered") throw new Error("CASH_ON_DELIVERY_NOT_DELIVERED");
+  const update = await db.update(orders).set({ paymentStatus: "paid" }).where(and(
+    eq(orders.storeId, input.storeId),
+    eq(orders.id, input.orderId),
+    eq(orders.paymentMethod, ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD),
+    eq(orders.paymentStatus, "unpaid"),
+    eq(orders.status, "delivered"),
+  ));
+  return { success: true, alreadyCollected: affectedRows(update) !== 1 };
 }
 
 export async function getOrderItemsAdmin(orderId: number, storeId?: number) {
@@ -8953,6 +9116,25 @@ export async function getCheckoutShippingPolicy(storeId?: number, countryCode?: 
 export async function getStoreCurrencyConfig(storeId?: number): Promise<StoreCurrencyConfig> {
   const allSettings = await getAllStorefrontSettings(storeId);
   return currencyConfigFromSettings(allSettings.map(setting => ({ key: setting.key, value: setting.value })));
+}
+
+/** Owner-managed public sale currency; a manual rate is stored per boutique. */
+export async function saveStoreCurrencyConfig(storeId: number, input: StoreCurrencyConfig): Promise<StoreCurrencyConfig> {
+  const currency = currencyConfigFromSettings([
+    { key: "store_currency_code", value: input.code },
+    { key: "store_currency_rate_bps", value: String(input.rateBps) },
+  ]);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const values = [
+    { key: "store_currency_code", value: currency.code, description: "Devise de vente active de cette boutique" },
+    { key: "store_currency_rate_bps", value: String(currency.rateBps), description: "Taux manuel : unités de devise de vente pour 1 CHF" },
+    { key: "currency", value: currency.code, description: "Compatibilité : devise de vente active de cette boutique" },
+  ];
+  for (const setting of values) {
+    await db.insert(storeSettings).values({ storeId, ...setting }).onDuplicateKeyUpdate({ set: { value: setting.value, description: setting.description } });
+  }
+  return currency;
 }
 
 /** Public identifiers only. Invalid or legacy values are never emitted to the storefront. */
@@ -10943,6 +11125,215 @@ export async function createStripePendingOrder(input: {
     })));
     return { id: orderId };
   });
+}
+
+export type CashOnDeliveryShippingAddressInput = {
+  name: string;
+  phone: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  postalCode: string;
+};
+
+function normalizeCashOnDeliveryAddress(input: CashOnDeliveryShippingAddressInput) {
+  const text = (value: unknown, maxLength: number) => typeof value === "string"
+    ? value.replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength)
+    : "";
+  const address = {
+    source: ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD,
+    name: text(input.name, 160),
+    phone: text(input.phone, 60),
+    line1: text(input.line1, 240),
+    line2: text(input.line2, 240) || null,
+    city: text(input.city, 120),
+    postalCode: text(input.postalCode, 32),
+    countryCode: "DZ",
+  };
+  if (!address.name || !address.phone || !address.line1 || !address.city || !address.postalCode) {
+    throw new Error("CASH_ON_DELIVERY_ADDRESS_INCOMPLETE");
+  }
+  return address;
+}
+
+/**
+ * Creates a tenant-bound Algeria payment-on-delivery order. The server freezes
+ * catalogue totals, delivery terms, legal acceptance and stock; the browser
+ * can never mark the order as paid or select another country/payment method.
+ */
+export async function createAlgeriaCashOnDeliveryOrder(input: {
+  userId: number;
+  requestId: string;
+  countryCode: "DZ";
+  wilayaCode: string;
+  deliveryMode: AlgeriaDeliveryMode;
+  address: CashOnDeliveryShippingAddressInput;
+  promoCode?: string;
+  legalAcceptanceVersion: string;
+  legalAccepted: boolean;
+  items: StripeCheckoutCartLine[];
+  storeId: number;
+}) {
+  await ensureStoreRelationshipScopeSchema();
+  await ensureFulfillmentSchema();
+  await ensureCheckoutShippingSchema();
+  await ensureOrderCurrencySchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId)) {
+    throw new Error("CASH_ON_DELIVERY_REQUEST_INVALID");
+  }
+  if (input.countryCode !== "DZ") throw new Error("CASH_ON_DELIVERY_COUNTRY_INVALID");
+  if (input.legalAcceptanceVersion !== CHECKOUT_LEGAL_VERSION || input.legalAccepted !== true) {
+    throw new Error("CHECKOUT_LEGAL_ACCEPTANCE_REQUIRED");
+  }
+
+  const readiness = await getAlgeriaCashOnDeliveryReadiness(input.storeId);
+  if (!readiness.enabled || !readiness.eligibility.eligible) throw new Error("CASH_ON_DELIVERY_DZ_NOT_AVAILABLE");
+  const [existing] = await db.select({ id: orders.id, userId: orders.userId }).from(orders)
+    .where(and(eq(orders.storeId, input.storeId), eq(orders.cashOnDeliveryRequestId, input.requestId))).limit(1);
+  if (existing) {
+    if (existing.userId !== input.userId) throw new Error("CASH_ON_DELIVERY_REQUEST_CONFLICT");
+    return { id: existing.id, created: false as const };
+  }
+
+  const [cart, storeRows, legalProfile, shippingPolicy, taxDisclosure, systemPages, wilayaQuote] = await Promise.all([
+    getStripeCheckoutCart(input.userId, "DZ", input.items, input.storeId),
+    db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain }).from(stores).where(eq(stores.id, input.storeId)).limit(1),
+    getLegalProfile(input.storeId),
+    getCheckoutShippingPolicy(input.storeId, "DZ"),
+    getCheckoutTaxDisclosure(input.storeId, "DZ"),
+    getStoreSystemPages(input.storeId),
+    getAlgeriaWilayaDeliveryQuoteForStore(input.storeId, { wilayaCode: input.wilayaCode, mode: input.deliveryMode }),
+  ]);
+  const store = storeRows[0];
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (
+    legalProfile.operatorName === defaultLegalProfile.operatorName
+    || legalProfile.country === defaultLegalProfile.country
+    || legalProfile.contactEmail === defaultLegalProfile.contactEmail
+    || legalProfile.businessStatus === defaultLegalProfile.businessStatus
+    || legalProfile.returnsPolicy === defaultLegalProfile.returnsPolicy
+    || !shippingPolicy.countryServed
+    || !shippingPolicy.deliveryLeadTime.trim()
+    || !shippingPolicy.returnsSummary.trim()
+    || !taxDisclosure.configured
+  ) throw new Error("CHECKOUT_LEGAL_PROFILE_INCOMPLETE");
+
+  if (cart.currency.code !== "DZD") throw new Error("ALGERIA_WILAYA_DELIVERY_CURRENCY_REQUIRED");
+  const customerShippingAmount = wilayaQuote.amountDzd * 100;
+  const customerShippingAmountChf = convertToChfCents(customerShippingAmount, cart.currency);
+  const deliveryCart = {
+    ...cart,
+    customerShippingAmount,
+    customerShippingAmountChf,
+    shippingPolicy: "wilaya_rate" as const,
+    totalAmount: cart.productSubtotal + customerShippingAmount,
+    totalAmountChf: cart.productSubtotalChf + customerShippingAmountChf,
+  };
+
+  let promotionId: number | null = null;
+  let discountAmount = 0;
+  let discountAmountChf = 0;
+  if (input.promoCode) {
+    const promotion = await validatePromotion(input.promoCode, deliveryCart.productSubtotalChf, {
+      userId: input.userId,
+      cartItems: deliveryCart.items.map(item => ({ productId: item.productId, price: item.unitAmountChf, quantity: item.quantity })),
+      storeId: input.storeId,
+    });
+    promotionId = promotion.promotion.id;
+    discountAmountChf = promotion.discountAmount;
+    discountAmount = convertChfCents(discountAmountChf, deliveryCart.currency);
+  }
+  const totalAmount = deliveryCart.totalAmount - discountAmount;
+  if (totalAmount <= 0) throw new Error("CASH_ON_DELIVERY_TOTAL_INVALID");
+  const address = normalizeCashOnDeliveryAddress(input.address);
+  const legalAcceptance = buildCheckoutLegalAcceptanceSnapshot({
+    store: { id: store.id, name: store.displayName, domain: store.primaryDomain },
+    paymentMode: "cash_on_delivery",
+    merchant: {
+      operatorName: legalProfile.operatorName,
+      country: legalProfile.country,
+      contactEmail: legalProfile.contactEmail,
+      businessStatus: legalProfile.businessStatus,
+      ideVatNumber: legalProfile.ideVatNumber,
+    },
+    delivery: {
+      countryCode: "DZ",
+      mode: "wilaya_rate",
+      flatShippingRateCents: customerShippingAmount,
+      freeShippingThresholdCents: 0,
+      deliveryLeadTime: `${wilayaQuote.wilayaName} · ${wilayaQuote.mode === "home" ? "Domicile" : "Point relais"} · ${wilayaQuote.deliveryLeadTime}`,
+      returnsSummary: shippingPolicy.returnsSummary,
+    },
+    returnsPage: systemPages.returns ? { title: systemPages.returns.title, body: systemPages.returns.body } : null,
+    taxNotice: taxDisclosure.notice,
+  });
+
+  const order = await db.transaction(async tx => {
+    const duplicate = await tx.select({ id: orders.id, userId: orders.userId }).from(orders)
+      .where(and(eq(orders.storeId, input.storeId), eq(orders.cashOnDeliveryRequestId, input.requestId))).limit(1);
+    if (duplicate[0]) {
+      if (duplicate[0].userId !== input.userId) throw new Error("CASH_ON_DELIVERY_REQUEST_CONFLICT");
+      return { id: duplicate[0].id, created: false as const };
+    }
+    await reserveCheckoutStock(tx, input.storeId, deliveryCart.items);
+    const result = await tx.insert(orders).values({
+      storeId: input.storeId,
+      userId: input.userId,
+      totalAmount,
+      totalAmountChf: Math.max(0, deliveryCart.totalAmountChf - discountAmountChf),
+      currencyCode: deliveryCart.currency.code,
+      currencyRateBps: deliveryCart.currency.rateBps,
+      customerShippingAmount: deliveryCart.customerShippingAmount,
+      customerShippingAmountChf: deliveryCart.customerShippingAmountChf,
+      shippingAddress: JSON.stringify(address),
+      billingAddress: null,
+      paymentStatus: "unpaid",
+      paymentMethod: ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD,
+      cashOnDeliveryRequestId: input.requestId,
+      promotionId,
+      discountAmount,
+      discountAmountChf,
+      legalAcceptanceVersion: legalAcceptance.version,
+      legalAcceptedAt: new Date(legalAcceptance.acceptedAt),
+      legalAcceptanceSnapshot: JSON.stringify(legalAcceptance),
+      status: "pending",
+      fulfillmentState: "not_eligible",
+    });
+    const orderId = Number((result as any)[0].insertId);
+    await tx.insert(orderItems).values(deliveryCart.items.map(item => ({
+      storeId: input.storeId,
+      orderId,
+      productId: item.productId,
+      quantity: item.quantity,
+      priceAtPurchase: item.unitAmount + item.shippingAmount,
+      priceAtPurchaseChf: item.unitAmountChf + item.shippingAmount,
+      productNameSnapshot: item.name.slice(0, 255),
+      selectedOptions: JSON.stringify(item.selectedOptions),
+      supplierSnapshot: JSON.stringify({ ...item.supplierSnapshot, inventoryReservation: true }),
+    })));
+    if (promotionId) {
+      try {
+        await tx.insert(promotionRedemptions).values({
+          storeId: input.storeId,
+          promotionId,
+          userId: input.userId,
+          orderId,
+          discountAmount,
+        });
+        await tx.update(promotions).set({ usedCount: sql`${promotions.usedCount} + 1` }).where(and(
+          eq(promotions.storeId, input.storeId),
+          eq(promotions.id, promotionId),
+        ));
+      } catch (error) {
+        if (!String(error).toLowerCase().includes("duplicate")) throw error;
+      }
+    }
+    return { id: orderId, created: true as const };
+  });
+  if (order.created) await clearCart(input.userId, input.storeId);
+  return order;
 }
 
 /** Binds an already-created pending order to exactly one tenant Stripe session. */

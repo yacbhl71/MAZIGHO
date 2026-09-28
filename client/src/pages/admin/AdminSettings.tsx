@@ -17,7 +17,7 @@ type SettingsForm = {
   site_name: string;
   contact_email: string;
   currency: string;
-  store_currency_code: "CHF" | "EUR" | "USD" | "GBP" | "CAD";
+  store_currency_code: "CHF" | "EUR" | "USD" | "GBP" | "CAD" | "DZD";
   store_currency_rate_bps: string;
   shipping_policy: ShippingPolicy;
   free_shipping_threshold: string;
@@ -62,10 +62,10 @@ export default function AdminSettings() {
         next[setting.key] = centsToChfInput(setting.value);
       } else if (setting.key === "shipping_policy") {
         next.shipping_policy = setting.value === "flat_rate" ? "flat_rate" : "included";
-      } else if (setting.key === "store_currency_code" && ["CHF", "EUR", "USD", "GBP", "CAD"].includes(setting.value)) {
+      } else if (setting.key === "store_currency_code" && ["CHF", "EUR", "USD", "GBP", "CAD", "DZD"].includes(setting.value)) {
         next.store_currency_code = setting.value as SettingsForm["store_currency_code"];
         next.currency = setting.value;
-      } else if (setting.key === "store_currency_rate_bps" && /^\d{4,5}$/.test(setting.value)) {
+      } else if (setting.key === "store_currency_rate_bps" && /^\d{4,7}$/.test(setting.value)) {
         next.store_currency_rate_bps = (Number(setting.value) / 10_000).toFixed(4).replace(".", ",");
       } else if (setting.key === "site_name" || setting.key === "contact_email" || setting.key === "currency") {
         next[setting.key] = setting.value;
@@ -95,8 +95,8 @@ export default function AdminSettings() {
       toast.error("Saisissez des montants de livraison valides en CHF (ex. 5,00 ou 5.00)");
       return;
     }
-    if (!Number.isInteger(rateBps) || rateBps < 1_000 || rateBps > 50_000) {
-      toast.error("Saisissez un taux compris entre 0,1000 et 5,0000 par CHF.");
+    if (!Number.isInteger(rateBps) || rateBps < 1_000 || rateBps > 2_000_000) {
+      toast.error("Saisissez un taux manuel valide pour 1 CHF.");
       return;
     }
 
@@ -170,7 +170,7 @@ export default function AdminSettings() {
                 <div className="space-y-2"><Label htmlFor="siteName">Nom du site</Label><Input id="siteName" value={form.site_name} onChange={event => setField("site_name", event.target.value)} /></div>
                 <div className="space-y-2"><Label htmlFor="contactEmail">E-mail de contact</Label><Input id="contactEmail" type="email" value={form.contact_email} onChange={event => setField("contact_email", event.target.value)} /></div>
               </div>
-              <div className="grid max-w-2xl gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="currency">Devise de vente</Label><select id="currency" value={form.store_currency_code} onChange={event => setField("store_currency_code", event.target.value as SettingsForm["store_currency_code"])} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CHF">Franc suisse (CHF)</option><option value="EUR">Euro (EUR)</option><option value="USD">Dollar américain (USD)</option><option value="GBP">Livre sterling (GBP)</option><option value="CAD">Dollar canadien (CAD)</option></select><p className="text-xs text-muted-foreground">Le catalogue reste stocké en CHF de référence ; l’affichage et Stripe Test utilisent la devise sélectionnée.</p></div><div className="space-y-2"><Label htmlFor="currencyRate">Taux pour 1 CHF</Label><Input id="currencyRate" type="text" inputMode="decimal" disabled={form.store_currency_code === "CHF"} placeholder="Ex. 0,9600" value={form.store_currency_code === "CHF" ? "1,0000" : form.store_currency_rate_bps} onChange={event => setField("store_currency_rate_bps", event.target.value.replace(/[^0-9,.]/g, ""))} /><p className="text-xs text-muted-foreground">Exemple : 1 CHF = 0,9600 EUR. Saisissez et contrôlez ce taux avant toute campagne ou vente dans une nouvelle devise.</p></div></div>
+              <div className="grid max-w-2xl gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="currency">Devise de vente</Label><select id="currency" value={form.store_currency_code} onChange={event => setField("store_currency_code", event.target.value as SettingsForm["store_currency_code"])} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="CHF">Franc suisse (CHF)</option><option value="EUR">Euro (EUR)</option><option value="USD">Dollar américain (USD)</option><option value="GBP">Livre sterling (GBP)</option><option value="CAD">Dollar canadien (CAD)</option><option value="DZD">Dinar algérien (DZD)</option></select><p className="text-xs text-muted-foreground">Le catalogue reste stocké en CHF de référence ; l’affichage et Stripe Test utilisent la devise sélectionnée.</p></div><div className="space-y-2"><Label htmlFor="currencyRate">Taux pour 1 CHF</Label><Input id="currencyRate" type="text" inputMode="decimal" disabled={form.store_currency_code === "CHF"} placeholder={form.store_currency_code === "DZD" ? "Ex. 140,0000" : "Ex. 0,9600"} value={form.store_currency_code === "CHF" ? "1,0000" : form.store_currency_rate_bps} onChange={event => setField("store_currency_rate_bps", event.target.value.replace(/[^0-9,.]/g, ""))} /><p className="text-xs text-muted-foreground">Saisissez et contrôlez le taux manuel avant toute vente dans une nouvelle devise. MAZIGHO ne récupère jamais un taux de change automatiquement.</p></div></div>
               <Button onClick={handleSave} disabled={isSaving} className="bg-orange-500 hover:bg-orange-600">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Enregistrer</Button>
             </CardContent></Card>
           </TabsContent>

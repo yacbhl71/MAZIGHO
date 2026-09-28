@@ -51,6 +51,12 @@ describe("checkout legal acceptance", () => {
     expect(parseCheckoutLegalAcceptanceSnapshot(JSON.stringify(snapshot))).toEqual(snapshot);
   });
 
+  it("preserves an Algeria payment-on-delivery mode without mislabelling it as Stripe", () => {
+    const snapshot = buildCheckoutLegalAcceptanceSnapshot({ ...input, paymentMode: "cash_on_delivery", delivery: { ...input.delivery, countryCode: "DZ" } });
+    expect(snapshot.payment.mode).toBe("cash_on_delivery");
+    expect(parseCheckoutLegalAcceptanceSnapshot(JSON.stringify(snapshot))).toEqual(snapshot);
+  });
+
   it("keeps a structurally valid historical version readable for an existing order", () => {
     const snapshot = buildCheckoutLegalAcceptanceSnapshot(input);
     const historical = { ...snapshot, version: "2026-01-15" };

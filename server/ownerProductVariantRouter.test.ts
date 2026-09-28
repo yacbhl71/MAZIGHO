@@ -55,6 +55,16 @@ vi.mock("./db", () => ({
   getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
   getOwnerOrderDeliveryDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: null, addressIncomplete: false })),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
+  getAlgeriaCashOnDeliveryReadiness: vi.fn(async (storeId) => ({ storeId, enabled: false, enabledAt: null, eligibility: { eligible: true, marketEnabled: true, deliveryEnabled: true, wilayaDeliveryConfigured: true, dzdCurrencyConfigured: true, legalReady: true, missing: [] } })),
+  saveAlgeriaCashOnDeliverySettings: vi.fn(async (storeId, enabled) => ({ storeId, enabled, enabledAt: enabled ? "2026-09-28T00:00:00.000Z" : null, eligibility: { eligible: true, marketEnabled: true, deliveryEnabled: true, wilayaDeliveryConfigured: true, dzdCurrencyConfigured: true, legalReady: true, missing: [] } })),
+  getStoreCurrencyConfig: vi.fn(async () => ({ code: "CHF", rateBps: 10_000 })),
+  saveStoreCurrencyConfig: vi.fn(async (_storeId, input) => input),
+  getAlgeriaWilayaDeliverySettings: vi.fn(async () => ({ source: "custom", updatedAt: null, rates: [] })),
+  installAlgeriaWilayaDeliveryReference: vi.fn(async () => ({ source: "letshop_public_2023_02_07", updatedAt: null, rates: [] })),
+  saveAlgeriaWilayaDeliverySettings: vi.fn(async (_storeId, input) => input),
+  getAlgeriaOnlinePaymentPreparation: vi.fn(async (storeId) => ({ storeId, merchantEligibilityConfirmed: false, acquirerContractConfirmed: false, testAccessReceived: false, certificationCompleted: false, updatedAt: null, legalReady: true, status: { completed: 1, total: 5, readyForProviderActivation: false } })),
+  saveAlgeriaOnlinePaymentPreparation: vi.fn(async (storeId, input) => ({ storeId, ...input, updatedAt: "2026-09-28T00:00:00.000Z", legalReady: true, status: { completed: 2, total: 5, readyForProviderActivation: false } })),
+  confirmAlgeriaCashOnDeliveryCollection: vi.fn(async input => ({ ...input, success: true, alreadyCollected: false })),
   updateOperationalOrderTracking: vi.fn(async (input) => ({ ...input, ...state.trackingResult })),
   getOrderContactById: vi.fn(async () => state.orderContact),
   prepareStoreTeamInvitation: vi.fn(async () => ({
@@ -519,6 +529,38 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.recordOrderDecision({ orderId: 481, action: "rejected" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps Algeria delivery-payment settings and manual collection inside the resolved store", async () => {
+    await expect(callerFor().owner.getAlgeriaCashOnDeliveryReadiness()).resolves.toMatchObject({ storeId: 77, enabled: false });
+    expect(db.getAlgeriaCashOnDeliveryReadiness).toHaveBeenCalledWith(77);
+
+    await expect(callerFor().owner.getAlgeriaWilayaDeliverySettings()).resolves.toMatchObject({ source: "custom" });
+    expect(db.getAlgeriaWilayaDeliverySettings).toHaveBeenCalledWith(77);
+    await expect(callerFor().owner.installAlgeriaWilayaDeliveryReference()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor().owner.saveStoreCurrency({ code: "DZD", rateBps: 1_400_000 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(callerFor().owner.saveAlgeriaCashOnDeliverySettings({ enabled: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.saveStoreCurrency({ code: "DZD", rateBps: 1_400_000 })).resolves.toEqual({ code: "DZD", rateBps: 1_400_000 });
+    expect(db.saveStoreCurrencyConfig).toHaveBeenCalledWith(77, { code: "DZD", rateBps: 1_400_000 });
+    await expect(callerFor().owner.installAlgeriaWilayaDeliveryReference()).resolves.toMatchObject({ source: "letshop_public_2023_02_07" });
+    expect(db.installAlgeriaWilayaDeliveryReference).toHaveBeenCalledWith(77);
+    await expect(callerFor().owner.saveAlgeriaCashOnDeliverySettings({ enabled: true })).resolves.toMatchObject({ storeId: 77, enabled: true });
+    expect(db.saveAlgeriaCashOnDeliverySettings).toHaveBeenCalledWith(77, true);
+
+    await expect(callerFor().owner.confirmAlgeriaCashOnDeliveryCollection({ orderId: 481 })).resolves.toMatchObject({ storeId: 77, orderId: 481, success: true });
+    expect(db.confirmAlgeriaCashOnDeliveryCollection).toHaveBeenCalledWith({ storeId: 77, orderId: 481 });
+
+    await expect(callerFor().owner.getAlgeriaOnlinePaymentPreparation()).resolves.toMatchObject({ storeId: 77, legalReady: true });
+    await expect(callerFor().owner.saveAlgeriaOnlinePaymentPreparation({ merchantEligibilityConfirmed: true, acquirerContractConfirmed: false, testAccessReceived: false, certificationCompleted: false })).resolves.toMatchObject({ storeId: 77, merchantEligibilityConfirmed: true });
+    expect(db.saveAlgeriaOnlinePaymentPreparation).toHaveBeenCalledWith(77, {
+      merchantEligibilityConfirmed: true,
+      acquirerContractConfirmed: false,
+      testAccessReceived: false,
+      certificationCompleted: false,
+    });
   });
 
   it("records manual shipment status only for the current resolved store", async () => {

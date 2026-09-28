@@ -3711,7 +3711,7 @@ export const adminRouter = router({
       if (input.key === "store_currency_code" && !(SUPPORTED_STORE_CURRENCIES as readonly string[]).includes(input.value)) {
         ctx.addIssue({ code: "custom", message: "Devise de vente non prise en charge" });
       }
-      if (input.key === "store_currency_rate_bps" && !/^\d{4,5}$/.test(input.value)) {
+      if (input.key === "store_currency_rate_bps" && (!/^\d{4,7}$/.test(input.value) || Number(input.value) > 2_000_000)) {
         ctx.addIssue({ code: "custom", message: "Taux de conversion invalide" });
       }
       if (input.key === "shipping_policy" && input.value !== "included" && input.value !== "flat_rate") {

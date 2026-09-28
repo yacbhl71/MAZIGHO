@@ -293,6 +293,9 @@ export const orders = mysqlTable("orders", {
   billingAddress: text("billingAddress"),
   paymentStatus: mysqlEnum("paymentStatus", ["unpaid", "paid", "refunded"]).default("unpaid").notNull(),
   paymentMethod: varchar("paymentMethod", { length: 50 }),
+  // Browser-submitted delivery-payment requests use a server-validated UUID to
+  // make retries safe within the store. It is not an external payment reference.
+  cashOnDeliveryRequestId: varchar("cashOnDeliveryRequestId", { length: 64 }),
   stripeSessionId: varchar("stripeSessionId", { length: 255 }),
   // Direct Charges remain isolated to the connected account that owns this
   // boutique. These snapshots make webhook reconciliation tenant-safe.

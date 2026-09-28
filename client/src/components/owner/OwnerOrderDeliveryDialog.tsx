@@ -30,7 +30,7 @@ export default function OwnerOrderDeliveryDialog({ orderId, onOpenChange }: Owne
     <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-slate-950"><MapPin className="h-5 w-5 text-teal-700" /> Livraison · commande #{orderId ?? "—"}</DialogTitle>
-        <DialogDescription>Les coordonnées restent masquées par défaut. Elles ne peuvent être consultées que par le propriétaire, pour préparer l’expédition d’une commande réglée et acceptée.</DialogDescription>
+        <DialogDescription>Les coordonnées restent masquées par défaut. Elles ne peuvent être consultées que par le propriétaire, pour préparer une commande réglée et acceptée ou une commande Algérie acceptée à encaisser à la livraison.</DialogDescription>
       </DialogHeader>
 
       {!details ? <section className="space-y-4">
@@ -43,7 +43,7 @@ export default function OwnerOrderDeliveryDialog({ orderId, onOpenChange }: Owne
           {reveal.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Vérification…</> : <><Eye className="mr-2 h-4 w-4" /> Afficher pour préparer l’expédition</>}
         </Button>
       </section> : !details.available ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">{unavailableMessage(details.reason)}</div> : <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><span className="font-semibold">Commande réglée et prête à préparer</span><Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">Propriétaire uniquement</Badge></div>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950"><span className="font-semibold">{details.collectionPending ? "Commande à préparer · encaissement à la livraison" : "Commande réglée et prête à préparer"}</span><Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">Propriétaire uniquement</Badge></div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-900">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Destinataire</p>
           <p className="mt-1 font-semibold">{details.recipientName || "Nom non renseigné"}</p>

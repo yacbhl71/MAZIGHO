@@ -9,6 +9,7 @@ const stripeMocks = vi.hoisted(() => ({
 const dbMocks = vi.hoisted(() => ({
   bindStripeConnectSessionToPendingOrder: vi.fn(),
   cancelUnboundStripePendingOrder: vi.fn(),
+  createAlgeriaCashOnDeliveryOrder: vi.fn(),
   createStripePendingOrder: vi.fn(),
   getOrderForStripeSessionForStore: vi.fn(),
   getStoreStripeConnectCheckoutContext: vi.fn(),
@@ -68,6 +69,7 @@ describe("Stripe Connect Test checkout route", () => {
     dbMocks.getStripeCheckoutCart.mockResolvedValue(cart);
     dbMocks.getStoreStripeConnectCheckoutContext.mockResolvedValue({ ready: true, accountId: "acct_testBoutique", commissionRateBps: 250, planId: "basic" });
     dbMocks.createStripePendingOrder.mockResolvedValue({ id: 91 });
+    dbMocks.createAlgeriaCashOnDeliveryOrder.mockResolvedValue({ id: 92, created: true });
     dbMocks.bindStripeConnectSessionToPendingOrder.mockResolvedValue({ id: 91 });
     stripeMocks.createSession.mockResolvedValue({ id: "cs_test_123", url: "https://checkout.stripe.test/session" });
   });
@@ -96,6 +98,42 @@ describe("Stripe Connect Test checkout route", () => {
       commissionRateBps: 250,
     });
     expect(result).toEqual({ sessionId: "cs_test_123", orderId: 91, url: "https://checkout.stripe.test/session" });
+  });
+
+  it("creates an Algeria payment-on-delivery order only for the resolved store and customer", async () => {
+    await expect(callerFor(72, 7).createAlgeriaCashOnDeliveryOrder({
+      requestId: "431a76c2-40fa-4b07-875b-e8af89957f3c",
+      countryCode: "DZ",
+      wilayaCode: "16",
+      deliveryMode: "home",
+      legalAcceptanceVersion,
+      legalAccepted: true,
+      address: { name: "Client test", phone: "+213 555 00 00 00", line1: "Rue Exemple 4", city: "Alger", postalCode: "16000" },
+      items: [{ productId: 41, quantity: 1 }],
+    })).resolves.toEqual({ id: 92, created: true });
+
+    expect(dbMocks.createAlgeriaCashOnDeliveryOrder).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 7,
+      storeId: 72,
+      countryCode: "DZ",
+      wilayaCode: "16",
+      deliveryMode: "home",
+      legalAcceptanceVersion,
+      legalAccepted: true,
+    }));
+    expect(stripeMocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it("requires a selected wilaya and delivery mode for Algeria payment on delivery", async () => {
+    await expect(callerFor().createAlgeriaCashOnDeliveryOrder({
+      requestId: "431a76c2-40fa-4b07-875b-e8af89957f3c",
+      countryCode: "DZ",
+      legalAcceptanceVersion,
+      legalAccepted: true,
+      address: { name: "Client test", phone: "+213 555 00 00 00", line1: "Rue Exemple 4", city: "Alger", postalCode: "16000" },
+      items: [{ productId: 41, quantity: 1 }],
+    } as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(dbMocks.createAlgeriaCashOnDeliveryOrder).not.toHaveBeenCalled();
   });
 
   it("uses the isolated Production account context only after both live flags are enabled", async () => {

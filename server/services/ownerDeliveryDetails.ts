@@ -1,6 +1,7 @@
 export type OwnerDeliveryOrderRow = {
   id: number;
   paymentStatus: string;
+  paymentMethod?: string | null;
   status: string;
   shippingAddress: string | null;
   trackingNumber?: string | null;
@@ -24,6 +25,7 @@ export type OwnerDeliveryDetails =
     email: string | null;
     trackingNumber: string | null;
     addressIncomplete: boolean;
+    collectionPending: boolean;
   };
 
 type StoredShippingAddress = {
@@ -57,13 +59,15 @@ function parseStoredShippingAddress(value: string | null): StoredShippingAddress
 }
 
 /**
- * Releases the minimum delivery record only after a payment is confirmed and
- * the order entered the manual fulfillment sequence. The caller must already
- * enforce owner-only, tenant-scoped authorization before using this policy.
+ * Releases the minimum delivery record only after a confirmed payment, or for
+ * an accepted Algeria payment-on-delivery order that requires an address to be
+ * delivered and collected manually. The caller must enforce owner-only,
+ * tenant-scoped authorization before using this policy.
  */
 export function buildOwnerDeliveryDetails(row: OwnerDeliveryOrderRow | null | undefined): OwnerDeliveryDetails {
   if (!row) return { available: false, reason: "ORDER_NOT_FOUND" };
-  if (row.paymentStatus !== "paid") return { available: false, reason: "PAYMENT_NOT_CONFIRMED" };
+  const cashOnDelivery = row.paymentMethod === "cash_on_delivery_dz";
+  if (row.paymentStatus !== "paid" && !cashOnDelivery) return { available: false, reason: "PAYMENT_NOT_CONFIRMED" };
   if (!(["processing", "shipped", "delivered"] as const).includes(row.status as "processing" | "shipped" | "delivered")) {
     return { available: false, reason: "ORDER_NOT_READY" };
   }
@@ -99,5 +103,6 @@ export function buildOwnerDeliveryDetails(row: OwnerDeliveryOrderRow | null | un
     email,
     trackingNumber: cleanText(row.trackingNumber, 100),
     addressIncomplete: !recipientName || !postalCode || !city || !countryCode,
+    collectionPending: cashOnDelivery && row.paymentStatus !== "paid",
   };
 }

@@ -15,6 +15,7 @@ import { createOwnerLemonSqueezyBillingCheckout } from "./lemonSqueezyCheckout";
 import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
+import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -28,6 +29,18 @@ const visualUrl = z.string().trim().max(1000).refine(value => value === "" || va
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
+const algeriaWilayaDeliverySettings = z.object({
+  source: z.enum(["custom", "letshop_public_2023_02_07"]),
+  updatedAt: z.string().nullable(),
+  rates: z.array(z.object({
+    code: z.string().regex(/^\d{1,2}$/),
+    name: z.string().trim().min(2).max(120),
+    homeDeliveryDzd: z.number().int().min(0).max(20_000).nullable(),
+    relayDeliveryDzd: z.number().int().min(0).max(20_000).nullable(),
+    deliveryLeadTime: z.string().trim().max(120),
+    enabled: z.boolean(),
+  })).min(1).max(69),
+});
 const ownerSupportTicket = z.object({ topic: z.enum(storeSupportTicketTopics), subject: z.string().trim().min(3).max(120), message: z.string().trim().min(10).max(2000) });
 const ownerPromotionInput = z.object({
   code: z.string().trim().min(2).max(64).regex(/^[A-Za-z0-9_-]+$/, "Utilisez seulement des lettres, chiffres, tirets ou traits de soulignement."),
@@ -777,6 +790,130 @@ export const ownerRouter = router({
   }),
   saveIntegrationRequests: storeOwnerProcedure.input(ownerIntegrationRequests).mutation(async ({ ctx, input }) => {
     return await db.saveOwnerIntegrationRequests(ctx.store!.id, input.integrationIds);
+  }),
+  getAlgeriaCashOnDeliveryReadiness: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getAlgeriaCashOnDeliveryReadiness(ctx.store!.id);
+  }),
+  getStoreCurrency: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreCurrencyConfig(ctx.store!.id);
+  }),
+  saveStoreCurrency: storeOwnerProcedure.input(z.object({
+    code: z.enum(SUPPORTED_STORE_CURRENCIES),
+    rateBps: z.number().int().min(1_000).max(2_000_000),
+  })).mutation(async ({ ctx, input }) => {
+    const result = await db.saveStoreCurrencyConfig(ctx.store!.id, input);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      action: "store_currency_saved",
+      entityType: "store_settings",
+      entityId: ctx.store!.id,
+      summary: `Devise de vente ${result.code} enregistrée pour cette boutique.`,
+      metadata: { code: result.code, rateBps: result.rateBps },
+    });
+    return result;
+  }),
+  getAlgeriaWilayaDeliverySettings: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getAlgeriaWilayaDeliverySettings(ctx.store!.id);
+  }),
+  installAlgeriaWilayaDeliveryReference: storeOwnerProcedure.mutation(async ({ ctx }) => {
+    const result = await db.installAlgeriaWilayaDeliveryReference(ctx.store!.id);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      action: "algeria_wilaya_delivery_reference_installed",
+      entityType: "store_settings",
+      entityId: ctx.store!.id,
+      summary: "Référence de livraison Algérie par wilaya installée comme brouillon éditable.",
+      metadata: { source: result.source, activeWilayas: result.rates.filter(rate => rate.enabled).length },
+    });
+    return result;
+  }),
+  saveAlgeriaWilayaDeliverySettings: storeOwnerProcedure.input(algeriaWilayaDeliverySettings).mutation(async ({ ctx, input }) => {
+    const result = await db.saveAlgeriaWilayaDeliverySettings(ctx.store!.id, input);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      action: "algeria_wilaya_delivery_settings_saved",
+      entityType: "store_settings",
+      entityId: ctx.store!.id,
+      summary: "Grille de livraison Algérie par wilaya enregistrée.",
+      metadata: { source: result.source, activeWilayas: result.rates.filter(rate => rate.enabled).length },
+    });
+    return result;
+  }),
+  saveAlgeriaCashOnDeliverySettings: storeOwnerProcedure.input(z.object({ enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.saveAlgeriaCashOnDeliverySettings(ctx.store!.id, input.enabled);
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.algeria_cash_on_delivery.settings",
+        entityType: "store_payment_setting",
+        entityId: ctx.store!.id,
+        summary: input.enabled ? "Paiement à la livraison Algérie activé pour cette boutique." : "Paiement à la livraison Algérie désactivé pour cette boutique.",
+        metadata: { paymentMethod: "cash_on_delivery_dz", enabled: input.enabled },
+      });
+      return result;
+    } catch (error) {
+      if (error instanceof Error && error.message === "CASH_ON_DELIVERY_DZ_REQUIREMENTS_INCOMPLETE") {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Complétez le marché Algérie, la livraison, une wilaya active avec tarif et délai, la devise DZD et les informations légales/fiscales avant d’ouvrir le paiement à la livraison." });
+      }
+      throw error;
+    }
+  }),
+  getAlgeriaOnlinePaymentPreparation: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getAlgeriaOnlinePaymentPreparation(ctx.store!.id);
+  }),
+  saveAlgeriaOnlinePaymentPreparation: storeOwnerProcedure.input(z.object({
+    merchantEligibilityConfirmed: z.boolean(),
+    acquirerContractConfirmed: z.boolean(),
+    testAccessReceived: z.boolean(),
+    certificationCompleted: z.boolean(),
+  })).mutation(async ({ ctx, input }) => {
+    const result = await db.saveAlgeriaOnlinePaymentPreparation(ctx.store!.id, input);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: "owner.algeria_online_payment.preparation",
+      entityType: "store_payment_preparation",
+      entityId: ctx.store!.id,
+      summary: "Étapes de préparation de paiement en ligne Algérie mises à jour ; aucune passerelle n’est activée.",
+      metadata: {
+        merchantEligibilityConfirmed: input.merchantEligibilityConfirmed,
+        acquirerContractConfirmed: input.acquirerContractConfirmed,
+        testAccessReceived: input.testAccessReceived,
+        certificationCompleted: input.certificationCompleted,
+      },
+    });
+    return result;
+  }),
+  confirmAlgeriaCashOnDeliveryCollection: storeOwnerProcedure.input(z.object({ orderId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.confirmAlgeriaCashOnDeliveryCollection({ orderId: input.orderId, storeId: ctx.store!.id });
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.algeria_cash_on_delivery.collection_confirmed",
+        entityType: "order",
+        entityId: input.orderId,
+        summary: result.alreadyCollected ? `Encaissement à la livraison déjà confirmé pour la commande #${input.orderId}.` : `Encaissement à la livraison confirmé manuellement pour la commande #${input.orderId}.`,
+        metadata: { paymentMethod: "cash_on_delivery_dz", alreadyCollected: result.alreadyCollected },
+      });
+      return result;
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable dans cette boutique." });
+      if (code === "ORDER_PAYMENT_METHOD_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande n’utilise pas le paiement à la livraison Algérie." });
+      if (code === "CASH_ON_DELIVERY_NOT_DELIVERED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Marquez d’abord la commande comme livrée avant de confirmer l’encaissement." });
+      throw error;
+    }
   }),
   getSupportTickets: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerSupportTickets(ctx.store!.id);

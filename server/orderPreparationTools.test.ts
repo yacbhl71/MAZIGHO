@@ -18,6 +18,12 @@ describe("owner order preparation queue", () => {
     expect(getOwnerOrderPreparationFilterCount(rows, "closed")).toBe(1);
     expect(matchesOwnerOrderPreparationFilter(rows[3], "to_accept")).toBe(false);
   });
+
+  it("routes Algeria payment-on-delivery orders through manual acceptance and preparation", () => {
+    expect(matchesOwnerOrderPreparationFilter({ id: 12, paymentStatus: "unpaid", paymentMethod: "cash_on_delivery_dz", status: "pending" }, "to_accept")).toBe(true);
+    expect(matchesOwnerOrderPreparationFilter({ id: 13, paymentStatus: "unpaid", paymentMethod: "cash_on_delivery_dz", status: "processing" }, "to_prepare")).toBe(true);
+    expect(matchesOwnerOrderPreparationFilter({ id: 14, paymentStatus: "unpaid", paymentMethod: "cash_on_delivery_dz", status: "cancelled" }, "closed")).toBe(true);
+  });
 });
 
 describe("owner packing slip renderer", () => {

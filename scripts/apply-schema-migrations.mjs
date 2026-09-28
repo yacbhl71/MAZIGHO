@@ -13,6 +13,7 @@ const migrations = [
   ["0030_controlled_return_requests", "drizzle/0030_controlled_return_requests.sql"],
   ["0031_stripe_connect_live_direct_charges", "drizzle/0031_stripe_connect_live_direct_charges.sql"],
   ["0032_checkout_legal_acceptance", "drizzle/0032_checkout_legal_acceptance.sql"],
+  ["0033_algeria_cash_on_delivery", "drizzle/0033_algeria_cash_on_delivery.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

@@ -34,6 +34,7 @@ describe("owner delivery details", () => {
       email: "cliente@example.test",
       trackingNumber: null,
       addressIncomplete: false,
+      collectionPending: false,
     });
   });
 
@@ -50,6 +51,18 @@ describe("owner delivery details", () => {
       recipientName: null,
       countryCode: null,
       addressIncomplete: true,
+    });
+  });
+
+  it("releases the minimum address for an accepted Algeria payment-on-delivery order without treating it as paid", () => {
+    expect(buildOwnerDeliveryDetails({
+      ...paidProcessingOrder,
+      paymentStatus: "unpaid",
+      paymentMethod: "cash_on_delivery_dz",
+    })).toMatchObject({
+      available: true,
+      countryCode: "CH",
+      collectionPending: true,
     });
   });
 });

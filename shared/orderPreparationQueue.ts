@@ -2,6 +2,7 @@ export type OwnerOrderPreparationRow = {
   id: number;
   status: string;
   paymentStatus: string;
+  paymentMethod?: string | null;
 };
 
 export const ownerOrderPreparationFilters = [
@@ -31,9 +32,10 @@ export function getOwnerOrderPreparationFilterCount(rows: OwnerOrderPreparationR
  * by store-scoped server procedures.
  */
 export function matchesOwnerOrderPreparationFilter(row: OwnerOrderPreparationRow, filter: OwnerOrderPreparationFilter) {
+  const paymentAcceptedForPreparation = row.paymentStatus === "paid" || row.paymentMethod === "cash_on_delivery_dz";
   if (filter === "all") return true;
-  if (filter === "to_accept") return row.paymentStatus === "paid" && row.status === "pending";
-  if (filter === "to_prepare") return row.paymentStatus === "paid" && row.status === "processing";
+  if (filter === "to_accept") return paymentAcceptedForPreparation && row.status === "pending";
+  if (filter === "to_prepare") return paymentAcceptedForPreparation && row.status === "processing";
   if (filter === "shipped") return row.status === "shipped";
   return ["delivered", "cancelled", "refunded"].includes(row.status);
 }

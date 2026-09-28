@@ -3,7 +3,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
 import { mayServeStorefront } from "./services/storeScope";
-import { bindStripeConnectSessionToPendingOrder, cancelUnboundStripePendingOrder, createStripePendingOrder, getOrderForStripeSessionForStore, getStoreStripeConnectCheckoutContext, getStoreStripeConnectSetup, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
+import { bindStripeConnectSessionToPendingOrder, cancelUnboundStripePendingOrder, createAlgeriaCashOnDeliveryOrder, createStripePendingOrder, getOrderForStripeSessionForStore, getStoreStripeConnectCheckoutContext, getStoreStripeConnectSetup, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { convertChfCents } from "../shared/storeCurrency";
 import { getCheckoutPaymentGate } from "./services/checkoutPaymentGate";
@@ -43,6 +43,75 @@ function stripeUnavailable(mode: StripeConnectMode, operation: "create" | "retri
 }
 
 export const stripeCheckoutRouter = router({
+  createAlgeriaCashOnDeliveryOrder: storefrontProtectedProcedure
+    .input(z.object({
+      requestId: z.string().uuid(),
+      countryCode: z.literal("DZ"),
+      wilayaCode: z.string().trim().regex(/^\d{1,2}$/),
+      deliveryMode: z.enum(["home", "relay"]),
+      promoCode: z.string().trim().min(2).max(64).optional(),
+      legalAcceptanceVersion: z.literal(CHECKOUT_LEGAL_VERSION),
+      legalAccepted: z.literal(true),
+      address: z.object({
+        name: z.string().trim().min(2).max(160),
+        phone: z.string().trim().min(5).max(60),
+        line1: z.string().trim().min(3).max(240),
+        line2: z.string().trim().max(240).optional(),
+        city: z.string().trim().min(2).max(120),
+        postalCode: z.string().trim().min(2).max(32),
+      }),
+      items: z.array(z.object({
+        productId: z.number().int().positive(),
+        quantity: z.number().int().min(1).max(20),
+        selectedOptions: z.record(z.string().max(80), z.string().max(120)).optional(),
+        variantId: z.number().int().positive().optional(),
+      })).min(1).max(30),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        return await createAlgeriaCashOnDeliveryOrder({
+          userId: ctx.user.id,
+          requestId: input.requestId,
+          countryCode: input.countryCode,
+          wilayaCode: input.wilayaCode,
+          deliveryMode: input.deliveryMode,
+          address: input.address,
+          promoCode: input.promoCode,
+          legalAcceptanceVersion: input.legalAcceptanceVersion,
+          legalAccepted: input.legalAccepted,
+          items: input.items,
+          storeId: ctx.store!.id,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "CASH_ON_DELIVERY_DZ_NOT_AVAILABLE") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le paiement à la livraison n’est pas disponible pour cette boutique et cette destination." });
+        }
+        if (code === "CASH_ON_DELIVERY_ADDRESS_INCOMPLETE") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Complétez le nom, téléphone, adresse, ville et code postal avant de commander." });
+        }
+        if (code === "ALGERIA_WILAYA_DELIVERY_UNAVAILABLE") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cette wilaya ou ce mode de livraison n’est pas disponible pour cette boutique." });
+        }
+        if (code === "ALGERIA_WILAYA_DELIVERY_CURRENCY_REQUIRED") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cette boutique doit d’abord configurer ses prix en dinar algérien pour utiliser une grille par wilaya." });
+        }
+        if (code === "CHECKOUT_LEGAL_PROFILE_INCOMPLETE") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Cette boutique doit compléter ses informations légales, fiscales et de livraison avant de prendre une commande." });
+        }
+        if (code === "CHECKOUT_LEGAL_ACCEPTANCE_REQUIRED") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "L’acceptation des conditions de vente est requise avant la commande." });
+        }
+        if (code === "CASH_ON_DELIVERY_REQUEST_CONFLICT") {
+          throw new TRPCError({ code: "CONFLICT", message: "Cette tentative de commande ne peut pas être réutilisée." });
+        }
+        if (code === "OUT_OF_STOCK") {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Un article vient de ne plus être disponible. Actualisez votre panier." });
+        }
+        console.error("Algeria cash-on-delivery checkout error", error);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La commande à la livraison n’a pas pu être créée. Aucun paiement n’a été enregistré." });
+      }
+    }),
   createSession: storefrontProtectedProcedure
     .input(z.object({
       countryCode: z.string().length(2).regex(/^[A-Za-z]{2}$/),

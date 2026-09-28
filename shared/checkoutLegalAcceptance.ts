@@ -10,7 +10,7 @@ export type CheckoutLegalAcceptanceSnapshot = {
     domain: string;
   };
   payment: {
-    mode: "test" | "live";
+    mode: "test" | "live" | "cash_on_delivery";
   };
   merchant: {
     operatorName: string;
@@ -21,7 +21,7 @@ export type CheckoutLegalAcceptanceSnapshot = {
   };
   delivery: {
     countryCode: string;
-    mode: "included" | "flat_rate";
+    mode: "included" | "flat_rate" | "wilaya_rate";
     flatShippingRateCents: number;
     freeShippingThresholdCents: number;
     deliveryLeadTime: string;
@@ -63,7 +63,7 @@ function safeOrigin(domain: string): string {
 export function buildCheckoutLegalAcceptanceSnapshot(input: {
   acceptedAt?: Date;
   store: { id: number; name: string; domain: string };
-  paymentMode: "test" | "live";
+  paymentMode: "test" | "live" | "cash_on_delivery";
   merchant: LegalFields;
   delivery: DeliveryFields;
   returnsPage?: CheckoutLegalAcceptanceSnapshot["returnsPage"];
@@ -125,7 +125,7 @@ export function parseCheckoutLegalAcceptanceSnapshot(value: string | null | unde
       || !parsed.store || typeof parsed.store.id !== "number" || typeof parsed.store.name !== "string" || typeof parsed.store.domain !== "string"
       || !parsed.merchant || typeof parsed.merchant.operatorName !== "string" || typeof parsed.merchant.contactEmail !== "string"
       || !parsed.delivery || !/^[A-Z]{2}$/.test(String(parsed.delivery.countryCode || ""))
-      || (parsed.payment?.mode !== "test" && parsed.payment?.mode !== "live")
+      || (parsed.payment?.mode !== "test" && parsed.payment?.mode !== "live" && parsed.payment?.mode !== "cash_on_delivery")
       || (parsed.returnsPage !== null && parsed.returnsPage !== undefined && (typeof parsed.returnsPage.title !== "string" || typeof parsed.returnsPage.body !== "string"))
       || !parsed.documentUrls || typeof parsed.documentUrls.terms !== "string"
     ) return null;

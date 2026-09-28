@@ -83,14 +83,18 @@ export const appRouter = router({
       isPlatformStore: Boolean(ctx.store?.isPlatformStore),
     })),
     getPaymentAvailability: storefrontProcedure.query(async ({ ctx }) => {
-      const { getStoreStripeConnectCheckoutContext } = await import("./db");
+      const { getAlgeriaCashOnDeliveryReadiness, getStoreStripeConnectCheckoutContext } = await import("./db");
       const { getCheckoutPaymentGate } = await import("./services/checkoutPaymentGate");
       const mode = getCheckoutPaymentGate("live").enabled ? "live" as const : "test" as const;
-      const payment = await getStoreStripeConnectCheckoutContext(ctx.store!.id, mode);
+      const [payment, cashOnDelivery] = await Promise.all([
+        getStoreStripeConnectCheckoutContext(ctx.store!.id, mode),
+        getAlgeriaCashOnDeliveryReadiness(ctx.store!.id).catch(() => null),
+      ]);
       const readiness = payment.setup.paymentReadiness;
+      const cashOnDeliveryAvailable = Boolean(cashOnDelivery?.enabled && cashOnDelivery.eligibility.eligible);
       return payment.ready
-        ? { enabled: true as const, mode: `stripe_connect_${mode}` as const }
-        : { enabled: false as const, mode: `stripe_connect_${mode}` as const, reason: readiness.enabled ? "connect_onboarding_incomplete" : readiness.reason };
+        ? { enabled: true as const, mode: `stripe_connect_${mode}` as const, cashOnDeliveryAvailable }
+        : { enabled: false as const, mode: `stripe_connect_${mode}` as const, reason: readiness.enabled ? "connect_onboarding_incomplete" : readiness.reason, cashOnDeliveryAvailable };
     }),
     getMarketSettings: storefrontProcedure.query(async ({ ctx }) => {
       const { getStoreMarketSettings } = await import("./db");
@@ -136,6 +140,19 @@ export const appRouter = router({
     }).optional()).query(async ({ ctx, input }) => {
       const { getCheckoutShippingPolicy } = await import("./db");
       return await getCheckoutShippingPolicy(ctx.store?.id, input?.countryCode);
+    }),
+    getAlgeriaWilayaDeliveryOptions: storefrontProcedure.query(async ({ ctx }) => {
+      const { getAlgeriaWilayaDeliverySettings } = await import("./db");
+      const settings = await getAlgeriaWilayaDeliverySettings(ctx.store!.id);
+      return settings.rates
+        .filter(rate => rate.enabled && rate.deliveryLeadTime && (rate.homeDeliveryDzd !== null || rate.relayDeliveryDzd !== null))
+        .map(rate => ({
+          code: rate.code,
+          name: rate.name,
+          deliveryLeadTime: rate.deliveryLeadTime,
+          homeDeliveryDzd: rate.homeDeliveryDzd,
+          relayDeliveryDzd: rate.relayDeliveryDzd,
+        }));
     }),
     getCheckoutTaxDisclosure: storefrontProcedure.input(z.object({
       countryCode: z.string().trim().length(2).regex(/^[A-Za-z]{2}$/).optional(),

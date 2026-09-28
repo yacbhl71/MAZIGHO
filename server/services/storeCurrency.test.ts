@@ -31,6 +31,13 @@ describe("store currency configuration", () => {
     })).toEqual({ subtotal: 2350, shipping: 470, discount: 96, total: 2724 });
   });
 
+  it("supports an owner-controlled DZD rate without assuming a live exchange rate", () => {
+    const dzd = normalizeStoreCurrencyConfig({ code: "DZD", rateBps: 1_400_000 });
+    expect(dzd).toEqual({ code: "DZD", rateBps: 1_400_000 });
+    expect(convertChfCents(10_000, dzd)).toBe(1_400_000);
+    expect(convertToChfCents(25_000, dzd)).toBe(179);
+  });
+
   it("refuses unsafe values by falling back to a neutral rate", () => {
     expect(normalizeStoreCurrencyConfig({ code: "EUR", rateBps: 999 })).toEqual({ code: "EUR", rateBps: 10_000 });
     expect(normalizeStoreCurrencyConfig({ code: "JPY", rateBps: 10_000 })).toEqual(DEFAULT_STORE_CURRENCY);
