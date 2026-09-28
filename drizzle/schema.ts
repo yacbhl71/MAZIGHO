@@ -63,6 +63,8 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   customBusinessTheme: varchar("customBusinessTheme", { length: 160 }),
   // Optional Studio visual starter. It is only an identifier, never a secret or client asset.
   themePreset: varchar("themePreset", { length: 32 }),
+  // Optional geography and operations starting point selected in Studio.
+  provisioningTemplate: varchar("provisioningTemplate", { length: 32 }).default("standard").notNull(),
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
   status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
   notes: text("notes"),

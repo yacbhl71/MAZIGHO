@@ -23,6 +23,7 @@ import { calculateConvertedCartTotals, convertChfCents, convertToChfCents, curre
 import { createAlgeriaWilayaReferenceSettings, getAlgeriaWilayaDeliveryQuote, isAlgeriaWilayaDeliveryConfigured, normalizeAlgeriaWilayaDeliverySettings, parseAlgeriaWilayaDeliverySettings, type AlgeriaDeliveryMode, type AlgeriaWilayaDeliverySettings } from "../shared/algeriaWilayaDelivery";
 import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
+import { buildAlgeriaStandardStoreTemplate, normalizeStoreProvisioningTemplate, type StoreProvisioningTemplate } from "./services/algeriaStoreTemplate";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
@@ -306,9 +307,10 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedAt` timestamp NULL"));
     await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_provisioned_store_idx` ON `storeProvisioningDrafts` (`provisionedStoreId`)"));
@@ -2522,13 +2524,30 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     if (recipient[0]) {
       await tx.insert(storeMemberships).values({ storeId, userId: recipient[0].id, role: "owner", status: "active" });
     }
-    await tx.insert(storeSettings).values([
+    const initialSettings = [
       { storeId, key: "provisioning_mode", value: "gift", description: "Boutique offerte, sans facturation automatique." },
       { storeId, key: "provisioning_draft_id", value: String(draft.id), description: "Brouillon Studio source du provisionnement." },
       { storeId, key: "provisioning_business_type", value: draft.businessType, description: "Univers de départ choisi lors du provisionnement." },
       ...(draft.customBusinessTheme ? [{ storeId, key: "provisioning_custom_business_theme", value: draft.customBusinessTheme, description: "Thématique personnalisée renseignée dans Studio." }] : []),
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
-    ]);
+      { storeId, key: "currency", value: draft.preferredCurrency, description: "Compatibilité : devise de départ choisie lors du provisionnement." },
+      { storeId, key: "provisioning_template", value: normalizeStoreProvisioningTemplate(draft.provisioningTemplate), description: "Base géographique et opérationnelle choisie dans Studio." },
+    ];
+
+    if (normalizeStoreProvisioningTemplate(draft.provisioningTemplate) === "algeria") {
+      const template = buildAlgeriaStandardStoreTemplate(now.toISOString());
+      initialSettings.push(
+        { storeId, key: "store_currency_rate_bps", value: String(template.currency.rateBps), description: "Référence DZD préremplie par le modèle Algérie ; à contrôler et ajuster par le propriétaire avant vente." },
+        { storeId, key: "owner_market_settings", value: JSON.stringify(template.market), description: "Marché Algérie et langues français/arabe préremplis par le modèle Algérie." },
+        { storeId, key: "owner_shipping_returns_profile", value: JSON.stringify(template.shippingReturns), description: "Livraison Algérie et retour à compléter par le propriétaire ; sans transporteur ni paiement." },
+        { storeId, key: "algeria_wilaya_delivery_profile", value: JSON.stringify(template.wilayaDelivery), description: "Référence Letshop 07/02/2023 par wilaya, copiée et éditable pour cette boutique ; à vérifier avant vente." },
+        { storeId, key: "owner_tax_disclosures", value: JSON.stringify(template.taxPolicies), description: "Mention fiscale Algérie à confirmer par l’exploitant ; aucune taxe n’est calculée ou encaissée par MAZIGHO." },
+        { storeId, key: "algeria_cash_on_delivery", value: JSON.stringify(template.cashOnDelivery), description: "Paiement à la livraison Algérie préparé mais désactivé jusqu’à validation des prérequis de la boutique." },
+        { storeId, key: "algeria_online_payment_preparation", value: JSON.stringify(template.onlinePaymentPreparation), description: "Parcours de préparation à une passerelle locale Algérie ; aucune clé ni activation de paiement en ligne." },
+        { storeId, key: "algeria_standard_template", value: JSON.stringify({ appliedAt: now.toISOString(), version: 1, rateReference: "letshop_public_2023_02_07", currencyRateReviewRequired: true }), description: "Trace de la base Algérie réutilisable appliquée depuis Studio." },
+      );
+    }
+    await tx.insert(storeSettings).values(initialSettings);
     await tx.update(storeProvisioningDrafts).set({ provisionedStoreId: storeId, provisionedAt: now }).where(eq(storeProvisioningDrafts.id, draft.id));
 
     return {
@@ -2549,6 +2568,7 @@ export type StudioProvisioningDraftInput = {
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
   customBusinessTheme?: string | null;
   themePreset?: StorefrontThemeId | null;
+  provisioningTemplate?: StoreProvisioningTemplate;
   preferredCurrency: string;
   notes?: string | null;
 };
@@ -2556,12 +2576,15 @@ export type StudioProvisioningDraftInput = {
 function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
   const customBusinessTheme = input.businessType === "autre" ? input.customBusinessTheme?.trim() || null : null;
   if (input.businessType === "autre" && !customBusinessTheme) throw new Error("PROVISIONING_CUSTOM_THEME_REQUIRED");
+  const provisioningTemplate = normalizeStoreProvisioningTemplate(input.provisioningTemplate);
   return {
     ...input,
     requestedDomain: input.requestedDomain.trim().toLowerCase(),
     ownerEmail: input.ownerEmail.trim().toLowerCase(),
     customBusinessTheme,
     themePreset: input.themePreset ?? null,
+    provisioningTemplate,
+    preferredCurrency: provisioningTemplate === "algeria" ? "DZD" : input.preferredCurrency,
     notes: input.notes?.trim() || null,
   };
 }
@@ -2595,6 +2618,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     businessType: normalized.businessType,
     customBusinessTheme: normalized.customBusinessTheme,
     themePreset: normalized.themePreset,
+    provisioningTemplate: normalized.provisioningTemplate,
     preferredCurrency: normalized.preferredCurrency,
     notes: normalized.notes,
     status: "draft",

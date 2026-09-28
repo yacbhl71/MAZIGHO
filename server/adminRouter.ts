@@ -707,6 +707,7 @@ const studioProvisioningDraftInputSchema = z.object({
   businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
   customBusinessTheme: z.string().trim().min(2).max(160).optional().nullable(),
   themePreset: storefrontThemeIdSchema.optional().nullable(),
+  provisioningTemplate: z.enum(["standard", "algeria"]).default("standard"),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -2523,7 +2524,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: `Brouillon de mise en service créé pour ${input.displayName}`,
-          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null },
+          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, provisioningTemplate: input.provisioningTemplate },
         });
         return draft;
       } catch (error) {
@@ -2539,7 +2540,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: "Brouillon de mise en service modifié",
-          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null },
+          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, provisioningTemplate: input.provisioningTemplate },
         });
         return draft;
       } catch (error) {
