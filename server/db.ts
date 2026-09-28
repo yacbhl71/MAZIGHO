@@ -74,6 +74,7 @@ import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
 import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type ReturnExternalCaseInput } from "./services/returnExternalCase";
 import { getStoreSystemPages } from "./storeSystemPagesDb";
+import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -6508,6 +6509,41 @@ export async function getOwnerStoreSettingsSummary(storeId: number) {
     paymentsConfigured: false,
     supplierConfigured: false,
   };
+}
+
+/** Reads one boutique's public maintenance state without using global platform settings. */
+export async function getStoreMaintenanceMode(storeId: number): Promise<StoreMaintenanceMode> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, setting] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "store_maintenance_mode")))
+      .limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  return parseStoreMaintenanceMode(setting[0]?.value);
+}
+
+/**
+ * Saves a presentation-only maintenance screen for one resolved boutique.
+ * It never changes the public lifecycle, domain, catalogue, checkout setup or
+ * payment configuration; server-side commerce guards read this setting too.
+ */
+export async function saveStoreMaintenanceMode(storeId: number, input: StoreMaintenanceMode): Promise<StoreMaintenanceMode> {
+  const settings = normalizeStoreMaintenanceMode(input);
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.insert(storeSettings).values({
+    storeId,
+    key: "store_maintenance_mode",
+    value: JSON.stringify(settings),
+    description: "Mode maintenance public propre à cette boutique ; les panneaux propriétaire et Studio restent accessibles, sans modifier le statut commercial.",
+  }).onDuplicateKeyUpdate({ set: {
+    value: JSON.stringify(settings),
+    description: "Mode maintenance public propre à cette boutique ; les panneaux propriétaire et Studio restent accessibles, sans modifier le statut commercial.",
+  } });
+  return settings;
 }
 
 /**

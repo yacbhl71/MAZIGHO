@@ -773,6 +773,28 @@ export const ownerRouter = router({
   getSettingsSummary: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerStoreSettingsSummary(ctx.store!.id);
   }),
+  getMaintenanceMode: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getStoreMaintenanceMode(ctx.store!.id);
+  }),
+  saveMaintenanceMode: storeOwnerProcedure.input(z.object({
+    enabled: z.boolean(),
+    title: z.string().trim().min(2).max(160),
+    message: z.string().trim().min(2).max(2000),
+  })).mutation(async ({ ctx, input }) => {
+    const result = await db.saveStoreMaintenanceMode(ctx.store!.id, input);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: "owner.store_maintenance.save",
+      entityType: "store_setting",
+      entityId: null,
+      summary: result.enabled ? "Mode maintenance de la boutique activé." : "Mode maintenance de la boutique désactivé.",
+      metadata: { enabled: result.enabled, titleLength: result.title.length, messageLength: result.message.length },
+    });
+    return result;
+  }),
   getPromotions: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getAllPromotions(ctx.store!.id);
   }),

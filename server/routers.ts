@@ -10,6 +10,7 @@ import { authRouter } from "./authRouter";
 import { ownerRouter } from "./ownerRouter";
 import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
+import { DEFAULT_STORE_MAINTENANCE_MODE } from "../shared/storeMaintenanceMode";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
@@ -82,6 +83,13 @@ export const appRouter = router({
       // hors des storefronts clients sans exposer de donnée commerciale ou personnelle.
       isPlatformStore: Boolean(ctx.store?.isPlatformStore),
     })),
+    getMaintenanceMode: publicProcedure.query(async ({ ctx }) => {
+      // The MAZIGHO platform keeps its existing operator-wide maintenance page.
+      // Customer boutiques receive an independent, tenant-scoped maintenance mode.
+      if (!ctx.store || ctx.store.isPlatformStore) return { ...DEFAULT_STORE_MAINTENANCE_MODE, brandName: null };
+      const { getStoreMaintenanceMode } = await import("./db");
+      return { ...(await getStoreMaintenanceMode(ctx.store.id)), brandName: ctx.store.displayName };
+    }),
     getPaymentAvailability: storefrontProcedure.query(async ({ ctx }) => {
       const { getAlgeriaCashOnDeliveryReadiness, getStoreStripeConnectCheckoutContext } = await import("./db");
       const { getCheckoutPaymentGate } = await import("./services/checkoutPaymentGate");

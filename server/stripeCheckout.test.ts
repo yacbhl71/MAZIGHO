@@ -12,6 +12,7 @@ const dbMocks = vi.hoisted(() => ({
   createAlgeriaCashOnDeliveryOrder: vi.fn(),
   createStripePendingOrder: vi.fn(),
   getOrderForStripeSessionForStore: vi.fn(),
+  getStoreMaintenanceMode: vi.fn(),
   getStoreStripeConnectCheckoutContext: vi.fn(),
   getStoreStripeConnectSetup: vi.fn(),
   getStripeCheckoutCart: vi.fn(),
@@ -66,6 +67,7 @@ describe("Stripe Connect Test checkout route", () => {
     for (const mock of Object.values(dbMocks)) mock.mockReset();
     for (const mock of Object.values(stripeMocks)) mock.mockReset();
     for (const mock of Object.values(webhookMocks)) mock.mockReset();
+    dbMocks.getStoreMaintenanceMode.mockResolvedValue({ enabled: false, title: "Retour bientôt", message: "La boutique est en pause." });
     dbMocks.getStripeCheckoutCart.mockResolvedValue(cart);
     dbMocks.getStoreStripeConnectCheckoutContext.mockResolvedValue({ ready: true, accountId: "acct_testBoutique", commissionRateBps: 250, planId: "basic" });
     dbMocks.createStripePendingOrder.mockResolvedValue({ id: 91 });
@@ -98,6 +100,13 @@ describe("Stripe Connect Test checkout route", () => {
       commissionRateBps: 250,
     });
     expect(result).toEqual({ sessionId: "cs_test_123", orderId: 91, url: "https://checkout.stripe.test/session" });
+  });
+
+  it("refuses checkout while the resolved boutique is in maintenance", async () => {
+    dbMocks.getStoreMaintenanceMode.mockResolvedValueOnce({ enabled: true, title: "Mise à jour", message: "Revenez bientôt." });
+    await expect(callerFor().createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] }))
+      .rejects.toMatchObject({ code: "FORBIDDEN", message: expect.stringContaining("maintenance") });
+    expect(dbMocks.getStripeCheckoutCart).not.toHaveBeenCalled();
   });
 
   it("creates an Algeria payment-on-delivery order only for the resolved store and customer", async () => {

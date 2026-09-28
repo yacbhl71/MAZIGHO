@@ -14,6 +14,7 @@ vi.mock("./db", () => ({
   getUserReturnRequests: vi.fn(async () => []),
   getUserOrders: vi.fn(async () => []),
   getOrderDetail: vi.fn(async () => null),
+  getStoreMaintenanceMode: vi.fn(async () => ({ enabled: false, title: "Retour bientôt", message: "La boutique est en pause." })),
 }));
 
 import * as db from "./db";

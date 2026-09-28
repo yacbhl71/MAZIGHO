@@ -7,12 +7,18 @@ import * as db from "./db";
 const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
   if (!ctx.store) throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable pour ce domaine." });
   if (!mayServeStorefront(ctx.store.status)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de panier ou commande." });
+  if (!(ctx.store.isPlatformStore) && (await db.getStoreMaintenanceMode(ctx.store.id)).enabled) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est momentanément en maintenance et n’accepte pas de commande." });
+  }
   return next({ ctx });
 });
 
 const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   if (!ctx.store) throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable pour ce domaine." });
   if (!mayServeStorefront(ctx.store.status)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de panier ou commande." });
+  if (!(ctx.store.isPlatformStore) && (await db.getStoreMaintenanceMode(ctx.store.id)).enabled) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est momentanément en maintenance et n’accepte pas de commande." });
+  }
   return next({ ctx });
 });
 

@@ -336,6 +336,7 @@ function Router() {
   const { user } = useAuth();
   const { data: maintenance } = trpc.content.getMaintenance.useQuery(undefined, { refetchInterval: 60000 });
   const storefrontAvailabilityQuery = trpc.storefront.getAvailability.useQuery(undefined, { refetchOnWindowFocus: false });
+  const storefrontMaintenanceQuery = trpc.storefront.getMaintenanceMode.useQuery(undefined, { refetchInterval: 60000, refetchOnWindowFocus: false });
   const path = location.split("?")[0];
   const currentHostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
   const isStudioHost = currentHostname === "studio.mazigho.ch";
@@ -349,7 +350,9 @@ function Router() {
   const isExemptPath =
     path.startsWith("/admin") ||
     ["/login", "/register", "/mot-de-passe-oublie", "/reinitialiser-mot-de-passe", "/activer-compte"].includes(path);
-  const forcePreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview_maintenance") === "1";
+  const maintenancePreview = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const forcePreview = maintenancePreview?.get("preview_maintenance") === "1";
+  const forceStoreMaintenancePreview = maintenancePreview?.get("preview_store_maintenance") === "1";
 
   // The Studio hostname is an operator-only front door. It keeps the main
   // MAZIGHO storefront at its own address while preserving every existing
@@ -383,6 +386,16 @@ function Router() {
       <>
         <ScrollToTop />
         <MaintenancePage title={maintenance.title} message={maintenance.message} />
+      </>
+    );
+  }
+
+  const storefrontMaintenance = storefrontMaintenanceQuery.data;
+  if (storefrontMaintenance && !isSupportImpersonating && (forceStoreMaintenancePreview || (storefrontMaintenance.enabled && !isStaff && !isExemptPath))) {
+    return (
+      <>
+        <ScrollToTop />
+        <MaintenancePage title={storefrontMaintenance.title} message={storefrontMaintenance.message} brandName={storefrontMaintenance.brandName || undefined} />
       </>
     );
   }

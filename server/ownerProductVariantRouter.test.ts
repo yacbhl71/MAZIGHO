@@ -16,6 +16,8 @@ vi.mock("./db", () => ({
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
+  getStoreMaintenanceMode: vi.fn(async () => ({ enabled: false, title: "Retour bientôt", message: "La boutique est en pause." })),
+  saveStoreMaintenanceMode: vi.fn(async (_storeId, input) => input),
   getOwnerCustomDomainRequest: vi.fn(async () => ({ currentDomain: "boutique.test", supported: true, request: null })),
   saveOwnerCustomDomainRequest: vi.fn(async (_storeId, domain) => ({ domain, requestedAt: "2026-09-25T10:00:00.000Z", guide: null })),
   acknowledgeOwnerCustomDomainGuide: vi.fn(async () => ({ domain: "atelier-client.ch", requestedAt: "2026-09-25T10:00:00.000Z", guide: { providerLabel: "", records: [{ type: "A", host: "@", value: "76.76.21.21" }], note: "", preparedAt: "2026-09-25T11:00:00.000Z", clientAcknowledgedAt: "2026-09-25T12:00:00.000Z" } })),
@@ -377,6 +379,22 @@ describe("owner product variant routes", () => {
     const input = { primaryLanguage: "ar" as const, activeLanguages: ["ar", "fr", "en"], showLanguageSelector: true, primaryCountry: "DZ" as const, activeCountries: ["DZ", "FR"], showCountrySelector: true };
     await expect(caller.owner.saveMarketSettings(input)).resolves.toEqual(input);
     expect(db.saveStoreMarketSettings).toHaveBeenCalledWith(77, input);
+  });
+
+  it("keeps the boutique maintenance screen scoped to its owner and resolved store", async () => {
+    const input = { enabled: true, title: "Mise à jour créative", message: "La boutique revient très bientôt." };
+    await expect(callerFor().owner.getMaintenanceMode()).resolves.toMatchObject({ enabled: false });
+    expect(db.getStoreMaintenanceMode).toHaveBeenCalledWith(77);
+    await expect(callerFor().owner.saveMaintenanceMode(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.saveMaintenanceMode(input)).resolves.toEqual(input);
+    expect(db.saveStoreMaintenanceMode).toHaveBeenCalledWith(77, input);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      action: "owner.store_maintenance.save",
+      metadata: expect.objectContaining({ enabled: true }),
+    }));
   });
 
   it("keeps storefront translations inside the resolved store and reserves publication to its owner", async () => {

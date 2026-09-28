@@ -3,7 +3,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { protectedProcedure, router } from "./_core/trpc";
 import { mayServeStorefront } from "./services/storeScope";
-import { bindStripeConnectSessionToPendingOrder, cancelUnboundStripePendingOrder, createAlgeriaCashOnDeliveryOrder, createStripePendingOrder, getOrderForStripeSessionForStore, getStoreStripeConnectCheckoutContext, getStoreStripeConnectSetup, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
+import { bindStripeConnectSessionToPendingOrder, cancelUnboundStripePendingOrder, createAlgeriaCashOnDeliveryOrder, createStripePendingOrder, getOrderForStripeSessionForStore, getStoreMaintenanceMode, getStoreStripeConnectCheckoutContext, getStoreStripeConnectSetup, getStripeCheckoutCart, markOrderPaidByStripeSession, validatePromotion } from "./db";
 import { completePaidStripeOrder, isVerifiedPaidStripeTestSession } from "./stripeWebhook";
 import { convertChfCents } from "../shared/storeCurrency";
 import { getCheckoutPaymentGate } from "./services/checkoutPaymentGate";
@@ -17,6 +17,9 @@ const storefrontProtectedProcedure = protectedProcedure.use(async ({ ctx, next }
   }
   if (!mayServeStorefront(ctx.store.status)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est en cours de préparation et n’accepte pas encore de paiement." });
+  }
+  if (!ctx.store.isPlatformStore && (await getStoreMaintenanceMode(ctx.store.id)).enabled) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique est momentanément en maintenance et n’accepte pas de paiement." });
   }
   return next({ ctx });
 });
