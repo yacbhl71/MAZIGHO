@@ -70,7 +70,7 @@ describe("MAZIGHO Studio platform guard", () => {
       ownerEmail: "client@example.test",
       businessType: "autre",
       customBusinessTheme: "Décoration artisanale",
-      preferredCurrency: "CHF",
+      preferredCurrency: "DZD",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateProvisioningDraft({
       id: 1,

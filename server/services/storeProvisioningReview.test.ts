@@ -19,6 +19,12 @@ describe("store provisioning review", () => {
     expect(review.checks.find(check => check.key === "external_launch_checks")).toMatchObject({ state: "pending" });
   });
 
+  it("accepts DZD as a locally supported Algerian starting currency", () => {
+    const review = reviewStoreProvisioningDraft({ ...completeDraft, preferredCurrency: "DZD" }, 1);
+    expect(review.readiness).toBe("ready_for_confirmation");
+    expect(review.checks.find(check => check.key === "business")).toMatchObject({ state: "complete" });
+  });
+
   it("requires attention for incomplete local details", () => {
     const review = reviewStoreProvisioningDraft({ ...completeDraft, displayName: "", ownerEmail: "invalid", requestedDomain: "https://bad.example" }, 1);
     expect(review.readiness).toBe("needs_attention");

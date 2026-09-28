@@ -18,7 +18,7 @@ export type ProvisioningReviewCheck = {
 };
 
 const domainPattern = /^(?=.{3,255}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-const supportedCurrencies = new Set(["CHF", "EUR", "USD", "GBP"]);
+const supportedCurrencies = new Set(["CHF", "EUR", "USD", "GBP", "DZD"]);
 
 export function reviewStoreProvisioningDraft(input: ProvisioningReviewInput, matchingDomainCount: number) {
   const normalizedDomain = input.requestedDomain.trim().toLowerCase();

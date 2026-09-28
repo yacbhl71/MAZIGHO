@@ -707,7 +707,7 @@ const studioProvisioningDraftInputSchema = z.object({
   businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
   customBusinessTheme: z.string().trim().min(2).max(160).optional().nullable(),
   themePreset: storefrontThemeIdSchema.optional().nullable(),
-  preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP"]).default("CHF"),
+  preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
 
