@@ -18,9 +18,10 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { APP_LOGO } from "@/const";
 import { storefrontThemeCatalog, type StorefrontThemeId } from "@shared/storefrontThemeCatalog";
+import { trpc } from "@/lib/trpc";
 
 const navigation = [
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
@@ -86,10 +87,10 @@ const plans = [
   },
 ];
 
-function Wordmark({ compact = false }: { compact?: boolean }) {
+function Wordmark({ compact = false, logoUrl = APP_LOGO }: { compact?: boolean; logoUrl?: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <img src={APP_LOGO} alt="" className="h-9 w-9 object-contain" />
+      <img src={logoUrl} alt="" className="h-9 w-9 object-contain" />
       <div className="leading-none">
         <p className="font-serif text-xl font-bold tracking-[0.12em] text-slate-950">MAZIGH<span className="text-[#7b8a3f]">O</span></p>
         {!compact && <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">Commerce indépendant</p>}
@@ -192,14 +193,25 @@ function ThemeLivePreview({ onCreateSpace }: { onCreateSpace: () => void }) {
 export default function MazighoSaasLanding() {
   const [menuOpen, setMenuOpen] = useState(false);
   const isSaasSubdomain = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "pro.mazigho.ch";
+  const platformIdentityQuery = trpc.platformIdentity.get.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const saasLogoUrl = isSaasSubdomain ? (platformIdentityQuery.data?.saas.logoUrl || APP_LOGO) : APP_LOGO;
+  const saasFaviconUrl = isSaasSubdomain ? (platformIdentityQuery.data?.saas.faviconUrl || APP_LOGO) : "";
   const landingHomeHref = isSaasSubdomain ? "/" : "/mazigho-saas";
   const platformHref = (path: string) => `https://mazigho.ch${path}`;
+
+  useEffect(() => {
+    if (!saasFaviconUrl || typeof document === "undefined") return;
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null ?? document.createElement("link");
+    link.rel = "icon";
+    link.href = saasFaviconUrl;
+    if (!link.parentNode) document.head.appendChild(link);
+  }, [saasFaviconUrl]);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#fbfaf5] text-slate-950" data-testid="mazigho-saas-landing">
       <header className="sticky top-0 z-50 border-b border-[#e9e6d9]/80 bg-[#fbfaf5]/92 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
-          <Link href={landingHomeHref} aria-label="MAZIGHO SaaS"><Wordmark /></Link>
+          <Link href={landingHomeHref} aria-label="MAZIGHO SaaS"><Wordmark logoUrl={saasLogoUrl} /></Link>
           <nav className="hidden items-center gap-7 lg:flex" aria-label="Navigation MAZIGHO SaaS">{navigation.map((item) => <a key={item.href} href={item.href} className="text-sm font-semibold text-slate-600 transition-colors hover:text-[#58662f]">{item.label}</a>)}</nav>
           <div className="hidden items-center gap-3 sm:flex"><a href={platformHref("/login")} className="rounded-xl px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:bg-[#f0efe7]">Connexion</a><a href={platformHref("/register")} className="inline-flex min-h-11 items-center rounded-xl bg-[#5a6834] px-4 text-sm font-bold text-white shadow-[0_10px_24px_-13px_rgba(71,83,39,.8)] transition hover:-translate-y-0.5 hover:bg-[#4c592d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a></div>
           <button type="button" className="grid h-11 w-11 place-items-center rounded-xl border border-[#e4e1d4] bg-white text-slate-800 sm:hidden" aria-expanded={menuOpen} aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"} onClick={() => setMenuOpen(open => !open)}>{menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
@@ -243,7 +255,7 @@ export default function MazighoSaasLanding() {
         <section className="px-4 py-16 sm:px-6 sm:py-24 lg:px-8"><div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-[#26301b] px-6 py-10 text-white sm:px-10 sm:py-14"><div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end"><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d5e08e]">Prêt à poser les bases ?</p><h2 className="mt-4 font-serif text-4xl font-bold leading-[1.02] tracking-[-0.035em] sm:text-5xl">Votre prochaine boutique peut déjà prendre forme.</h2><p className="mt-5 max-w-xl text-base leading-7 text-white/70">Créez votre espace MAZIGHO. Vous pourrez préparer, personnaliser et faire évoluer votre projet sans repartir de zéro.</p></div><div className="flex flex-col gap-3 sm:flex-row lg:flex-col"><a href={platformHref("/register")} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#f2c36b] px-5 text-sm font-bold text-[#493715] transition hover:bg-[#ffcf78]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a><a href={platformHref("/contact")} className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 px-5 text-sm font-bold text-white transition hover:bg-white/10">Parler de mon projet</a></div></div></div></section>
       </main>
 
-      <footer className="border-t border-[#e9e6d9] bg-[#fffefb]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><Wordmark compact /><div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500"><a href={platformHref("/")}>La boutique MAZIGHO</a><a href={platformHref("/contact")}>Contact</a><a href={platformHref("/confidentialite")}>Confidentialité</a><a href={platformHref("/conditions-generales")}>Conditions</a></div><p className="text-xs text-slate-400">© {new Date().getFullYear()} MAZIGHO</p></div></footer>
+      <footer className="border-t border-[#e9e6d9] bg-[#fffefb]"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><Wordmark compact logoUrl={saasLogoUrl} /><div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500"><a href={platformHref("/")}>La boutique MAZIGHO</a><a href={platformHref("/contact")}>Contact</a><a href={platformHref("/confidentialite")}>Confidentialité</a><a href={platformHref("/conditions-generales")}>Conditions</a></div><p className="text-xs text-slate-400">© {new Date().getFullYear()} MAZIGHO</p></div></footer>
     </div>
   );
 }

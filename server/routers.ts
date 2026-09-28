@@ -73,6 +73,15 @@ export const appRouter = router({
   storefrontSystemPages: storefrontSystemPagesRouter,
   checkout: stripeCheckoutRouter,
 
+  // Only visual URLs are public. Mutations are platformProcedure-only through
+  // admin.platformIdentity, so customer boutiques cannot alter this setting.
+  platformIdentity: router({
+    get: publicProcedure.query(async () => {
+      const { getPlatformIdentity } = await import("./db");
+      return await getPlatformIdentity();
+    }),
+  }),
+
   // Minimal host-scoped availability signal used before rendering any public or admin shell.
   // It deliberately exposes no brand, catalogue, domain, customer, order or integration data.
   storefront: router({

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { isCarouselVideoUrl } from "@shared/carouselMedia";
 
 type CarouselBannerForm = {
   id?: number;
@@ -133,7 +134,7 @@ export default function OwnerCarouselEditor() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2"><ImagePlus className="h-5 w-5 text-violet-700" /> Carrousel principal</CardTitle>
-            <CardDescription className="mt-1 max-w-3xl">Modifiez les diapositives visibles tout en haut de l’accueil : image, titre, texte, lien, ordre et visibilité. Ces réglages sont isolés à votre boutique.</CardDescription>
+            <CardDescription className="mt-1 max-w-3xl">Modifiez les diapositives visibles tout en haut de l’accueil : image ou vidéo MP4, titre, texte, lien, ordre et visibilité. Ces réglages sont isolés à votre boutique.</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => bannersQuery.refetch()} disabled={bannersQuery.isFetching}>{bannersQuery.isFetching ? "Actualisation…" : "Actualiser"}</Button>
@@ -158,7 +159,7 @@ export default function OwnerCarouselEditor() {
             {[...banners].sort((left: any, right: any) => Number(left.displayOrder) - Number(right.displayOrder)).map((banner: any) => (
               <article key={banner.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <div className="relative aspect-[16/8] bg-slate-100">
-                  <img src={banner.imageUrl} alt="" className="h-full w-full object-cover" />
+                  {isCarouselVideoUrl(banner.imageUrl) ? <video src={banner.imageUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={banner.imageUrl} alt="" className="h-full w-full object-cover" />}
                   <div className="absolute left-3 top-3 flex flex-wrap gap-2"><Badge className={banner.active ? "border-0 bg-emerald-600" : "border-0 bg-slate-700"}>{banner.active ? "Visible" : "Masquée"}</Badge><Badge variant="secondary">Ordre {banner.displayOrder}</Badge></div>
                 </div>
                 <div className="p-4">
@@ -179,7 +180,7 @@ export default function OwnerCarouselEditor() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader><DialogTitle>{form.id ? "Modifier la diapositive" : "Nouvelle diapositive"}</DialogTitle><DialogDescription>L’image doit être large pour un meilleur rendu ; le texte reste lisible au-dessus de la photo.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{form.id ? "Modifier la diapositive" : "Nouvelle diapositive"}</DialogTitle><DialogDescription>Utilisez une image large ou une URL MP4 publique. Sur vidéo, la lecture démarre sans son puis le visiteur peut l’activer lui-même.</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="owner-carousel-title">Titre *</Label><Input id="owner-carousel-title" value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="Ex. Diamond Painting & créations" /></div>
@@ -187,7 +188,7 @@ export default function OwnerCarouselEditor() {
             </div>
             <div className="space-y-2"><Label htmlFor="owner-carousel-subtitle">Texte secondaire</Label><Textarea id="owner-carousel-subtitle" rows={3} value={form.subtitle} onChange={event => setForm(current => ({ ...current, subtitle: event.target.value }))} placeholder="Une phrase courte pour présenter votre sélection." /></div>
             <div className="space-y-2"><Label htmlFor="owner-carousel-link">Lien du bouton</Label><Input id="owner-carousel-link" value={form.linkUrl} onChange={event => setForm(current => ({ ...current, linkUrl: event.target.value }))} placeholder="/boutique" /><p className="text-xs text-slate-500">Par exemple : <code>/boutique</code>, <code>/categorie/diamond-painting</code> ou une URL https://.</p></div>
-            <div className="space-y-2"><Label htmlFor="owner-carousel-image">Image *</Label><div className="flex items-center gap-3"><div className="grid h-20 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-violet-700">{form.imageUrl ? <img src={form.imageUrl} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-6 w-6" />}</div><div className="min-w-0 flex-1"><Input id="owner-carousel-image" value={form.imageUrl} onChange={event => setForm(current => ({ ...current, imageUrl: event.target.value }))} placeholder="https://… ou téléverser" /><label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-violet-800"><Upload className="h-4 w-4" /> {upload.isPending ? "Téléversement…" : "Téléverser"}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={upload.isPending} onChange={async event => { const file = event.target.files?.[0]; if (file) await uploadImage(file); }} /></label></div></div></div>
+            <div className="space-y-2"><Label htmlFor="owner-carousel-image">Image ou URL vidéo MP4 *</Label><div className="flex items-center gap-3"><div className="grid h-20 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-violet-700">{form.imageUrl ? (isCarouselVideoUrl(form.imageUrl) ? <video src={form.imageUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />) : <ImagePlus className="h-6 w-6" />}</div><div className="min-w-0 flex-1"><Input id="owner-carousel-image" value={form.imageUrl} onChange={event => setForm(current => ({ ...current, imageUrl: event.target.value }))} placeholder="https://… (image ou vidéo .mp4)" /><label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-violet-800"><Upload className="h-4 w-4" /> {upload.isPending ? "Téléversement…" : "Téléverser une image"}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={upload.isPending} onChange={async event => { const file = event.target.files?.[0]; if (file) await uploadImage(file); }} /></label><p className="mt-1 text-xs leading-5 text-slate-500">Les images se téléversent ici. Pour une vidéo, collez son URL HTTPS finissant par <code>.mp4</code>.</p></div></div></div>
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><div><p className="font-semibold text-slate-950">Visible sur la vitrine</p><p className="mt-1 text-xs leading-5 text-slate-600">Désactivez pour préparer la diapositive sans l’afficher.</p></div><Button type="button" variant={form.active ? "default" : "outline"} className={form.active ? "bg-emerald-600 hover:bg-emerald-700" : ""} onClick={() => setForm(current => ({ ...current, active: !current.active }))}>{form.active ? "Visible" : "Masquée"}</Button></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button><Button disabled={saving || upload.isPending} onClick={submit} className="bg-violet-700 hover:bg-violet-800">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{form.id ? "Enregistrer" : "Ajouter la diapositive"}</Button></DialogFooter>

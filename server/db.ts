@@ -76,6 +76,7 @@ import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnReque
 import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type ReturnExternalCaseInput } from "./services/returnExternalCase";
 import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
+import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -10163,6 +10164,27 @@ export async function deleteAccountingEntry(id: number, storeId?: number) {
 }
 
 // --- Generic settings (key/value) helpers ---
+const PLATFORM_IDENTITY_SETTING_KEY = "platform.identity.v1";
+
+/**
+ * Operator-wide visual identity for Studio and the SaaS landing. This is
+ * intentionally separated from a storefront design profile: no customer
+ * boutique can read or overwrite it through its owner procedures.
+ */
+export async function getPlatformIdentity(): Promise<PlatformIdentity> {
+  return parsePlatformIdentity(await getSettingValue(PLATFORM_IDENTITY_SETTING_KEY));
+}
+
+export async function savePlatformIdentity(identity: PlatformIdentity) {
+  const normalized = parsePlatformIdentity(identity);
+  await setSettingValue(
+    PLATFORM_IDENTITY_SETTING_KEY,
+    JSON.stringify(normalized),
+    "Logos et favicons de MAZIGHO Studio et de la landing Pro.",
+  );
+  return normalized;
+}
+
 export async function getSettingValue(key: string): Promise<string | null> {
   const db = await getDb();
   if (!db) return null;

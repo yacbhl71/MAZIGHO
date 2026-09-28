@@ -10,6 +10,7 @@ import { ArrowDown, ArrowUp, ArrowUpRight, Edit, Eye, EyeOff, Image as ImageIcon
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { homeSectionMeta, type DesignProfile } from "@/hooks/useDesignProfile";
+import { isCarouselVideoUrl } from "@shared/carouselMedia";
 import {
   Dialog,
   DialogContent,
@@ -222,7 +223,7 @@ export default function AdminContent() {
             {[...banners].sort((a, b) => a.displayOrder - b.displayOrder).map(banner => (
               <article key={banner.id} className="overflow-hidden rounded-2xl border bg-white shadow-sm">
                 <div className="relative aspect-[16/8] overflow-hidden bg-slate-100">
-                  {banner.imageUrl ? <img src={banner.imageUrl} alt={banner.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-400"><ImageIcon className="h-8 w-8" /></div>}
+                  {banner.imageUrl ? (isCarouselVideoUrl(banner.imageUrl) ? <video src={banner.imageUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={banner.imageUrl} alt={banner.title} className="h-full w-full object-cover" />) : <div className="flex h-full items-center justify-center text-slate-400"><ImageIcon className="h-8 w-8" /></div>}
                   <div className="absolute left-3 top-3 flex gap-2"><Badge className={banner.active ? "border-0 bg-emerald-600" : "border-0 bg-slate-700"}>{banner.active ? "Visible" : "En préparation"}</Badge><Badge variant="secondary">Ordre {banner.displayOrder}</Badge></div>
                 </div>
                 <div className="p-5"><h2 className="line-clamp-1 text-lg font-bold text-slate-900">{banner.title}</h2><p className="mt-1 min-h-10 line-clamp-2 text-sm text-muted-foreground">{banner.subtitle || "Aucune accroche ajoutée."}</p><div className="mt-5 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => toggleBanner.mutate({ id: banner.id, active: banner.active ? 0 : 1 })} disabled={toggleBanner.isPending}>{banner.active ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}{banner.active ? "Masquer" : "Afficher"}</Button><Button variant="outline" size="sm" onClick={() => openEdit(banner)}><Edit className="mr-1.5 h-4 w-4" /> Modifier</Button><Button variant="outline" size="icon" className="text-red-600 hover:text-red-700" title="Supprimer" onClick={() => { if (window.confirm(`Supprimer « ${banner.title} » ?`)) deleteBanner.mutate(banner.id); }} disabled={deleteBanner.isPending}><Trash2 className="h-4 w-4" /></Button></div></div>

@@ -18,6 +18,8 @@ import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 import { isNewProduct } from "@/lib/isNewProduct";
 import { isProductPurchasableForStorefront, isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
+import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -32,7 +34,7 @@ export default function Category() {
   const [, params] = useRoute("/categorie/:slug");
   const slug = params?.slug || "";
   const { locale } = useLocale();
-  const { profile } = useDesignProfile(locale);
+  const { profile, palette } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
   const categoryQuery = trpc.categories.getBySlugWithProducts.useQuery({ slug, locale }, { placeholderData: (prev) => prev });
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
@@ -47,6 +49,8 @@ export default function Category() {
   const usesStoreCategoryImage = Boolean(creativeVisual?.imageUrl || category?.imageUrl);
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
+  const catalogueFilters = useStorefrontCatalogueFiltering(products, { fixedCategoryId: categoryData ? String(categoryData.id) : undefined });
+  const visibleProducts = catalogueFilters.visibleProducts;
 
   useEffect(() => {
     if (!category || typeof document === "undefined") return;
@@ -168,8 +172,10 @@ export default function Category() {
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
             {products.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map((product) => (
+              <>
+                <div className="mb-6"><StorefrontCatalogueFilters products={products} categories={[]} categoryLabel={shopControls.categoryLabel} allCategoriesLabel={shopControls.allCategories} sortLabel={shopControls.sortLabel} sortOptions={[{ value: "featured", label: shopControls.sortFeatured }, { value: "newest", label: shopControls.sortNewest }, { value: "price-asc", label: shopControls.sortPriceAsc }, { value: "price-desc", label: shopControls.sortPriceDesc }]} value={catalogueFilters.value} onChange={catalogueFilters.setValue} formatPrice={cents => formatPrice(cents, locale)} primaryColor={palette.primary} hideCategory /></div>
+                {visibleProducts.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {visibleProducts.map((product) => (
                   <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <CardContent className="p-0">
                               {/* Product Image */}
@@ -276,7 +282,8 @@ export default function Category() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
+                </div> : <div className="py-10 text-center text-sm text-slate-600">Aucun produit ne correspond aux filtres choisis.</div>}
+              </>
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">{isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel })}</p>

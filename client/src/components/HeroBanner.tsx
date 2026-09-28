@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import { getBanners } from "@/data/mockData";
 import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { useLocale, type StorefrontLocale } from "@/contexts/LocaleContext";
 import { getPublicCopy } from "@/lib/publicCopy";
 import { t } from "@/lib/i18n";
+import { isCarouselVideoUrl } from "@shared/carouselMedia";
 
 const DEFAULT_HERO_IMAGE = "/assets/hero-best-offers.webp";
 const HERO_MODE_IMAGE = "/assets/hero-mode-accessoires.webp";
@@ -48,6 +49,7 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
   const copy = getPublicCopy(locale);
   const remoteBanners = trpc.content.getActiveBanners.useQuery(locale);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [videoSoundEnabled, setVideoSoundEnabled] = useState(false);
   // These labels belong to the storefront profile, not to MAZIGHO's generic
   // copy. They can therefore be changed in the owner panel and translated as
   // part of the design content when the boutique publishes another language.
@@ -91,6 +93,12 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
   }, [banners.length, currentSlide]);
 
   useEffect(() => {
+    // Autoplay with sound is blocked by browsers. Reset to muted when visitors
+    // change slide, then let them explicitly opt into the workshop ambience.
+    setVideoSoundEnabled(false);
+  }, [currentSlide]);
+
+  useEffect(() => {
     if (banners.length < 2) return;
     const timer = window.setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % banners.length);
@@ -120,7 +128,19 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
     <div className="relative h-[520px] w-full overflow-hidden md:h-[560px] lg:h-[640px]">
       <div className="absolute inset-0">
         <div className="absolute inset-0 bg-slate-950">
-          {currentBanner.imageUrl && (
+          {currentBanner.imageUrl && (isCarouselVideoUrl(currentBanner.imageUrl) ? (
+            <video
+              key={currentBanner.id}
+              src={currentBanner.imageUrl}
+              autoPlay
+              loop
+              muted={!videoSoundEnabled}
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover opacity-90"
+              aria-label={currentBanner.title}
+            />
+          ) : (
             <img
               key={currentBanner.id}
               src={currentBanner.imageUrl}
@@ -132,7 +152,7 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
               decoding="async"
               className="absolute inset-0 h-full w-full object-cover opacity-90"
             />
-          )}
+          ))}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/55 to-slate-950/10" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent" />
         </div>
@@ -162,6 +182,12 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
             ))}
           </div>
         </>
+      )}
+      {isCarouselVideoUrl(currentBanner.imageUrl) && (
+        <button type="button" onClick={() => setVideoSoundEnabled(enabled => !enabled)} className="absolute bottom-5 right-5 z-30 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/65 px-4 text-xs font-bold text-white shadow-lg backdrop-blur hover:bg-slate-950/85" aria-pressed={videoSoundEnabled}>
+          {videoSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          {videoSoundEnabled ? "Couper le son" : "Activer le son"}
+        </button>
       )}
     </div>
   );

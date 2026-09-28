@@ -18,10 +18,13 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { toast } from "sonner";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
+import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
+import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 
 export default function BestSellers() {
   const { locale } = useLocale();
-  const { profile } = useDesignProfile(locale);
+  const { profile, palette } = useDesignProfile(locale);
   const { formatStorePrice: formatPrice } = useStorePrice();
   const defaultCopy = getMarketingCopy(locale).bestSellers;
   const copy = locale === "fr" && profile.cataloguePageCopyCustomized ? {
@@ -33,9 +36,14 @@ export default function BestSellers() {
   } : defaultCopy;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));
+  const categories = categoriesQuery.data || [];
+  const shopControls = getShopControlsCopy(locale);
+  const catalogueFilters = useStorefrontCatalogueFiltering(products);
+  const visibleProducts = catalogueFilters.visibleProducts;
   const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -88,8 +96,8 @@ export default function BestSellers() {
                 <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
               </div>
             ) : (
-            products.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {products.slice(0, 12).map((product, index) => (
+            products.length > 0 ? <><div className="mb-6"><StorefrontCatalogueFilters products={products} categories={categories} categoryLabel={shopControls.categoryLabel} allCategoriesLabel={shopControls.allCategories} sortLabel={shopControls.sortLabel} sortOptions={[{ value: "featured", label: shopControls.sortFeatured }, { value: "newest", label: shopControls.sortNewest }, { value: "price-asc", label: shopControls.sortPriceAsc }, { value: "price-desc", label: shopControls.sortPriceDesc }]} value={catalogueFilters.value} onChange={catalogueFilters.setValue} formatPrice={cents => formatPrice(cents, locale)} primaryColor={palette.primary} /></div>{visibleProducts.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {visibleProducts.slice(0, 12).map((product, index) => (
                 <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                   <CardContent className="p-0">
 	                    {/* Product Image */}
@@ -197,7 +205,7 @@ export default function BestSellers() {
                   </CardContent>
                 </Card>
               ))}
-            </div> : <div className="py-16 text-center text-sm text-gray-600">{copy.empty.replace("{country}", countryLabel)}</div>
+            </div> : <div className="py-16 text-center text-sm text-gray-600">Aucun produit ne correspond aux filtres choisis.</div>}</> : <div className="py-16 text-center text-sm text-gray-600">{copy.empty.replace("{country}", countryLabel)}</div>
             )}
           </div>
         </section>

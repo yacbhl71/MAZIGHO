@@ -4004,6 +4004,48 @@ export const adminRouter = router({
     }),
   }),
 
+  // Operator-wide visual identity. It is deliberately separate from design:
+  // storefront owners cannot alter Studio or the SaaS landing identity.
+  platformIdentity: router({
+    get: platformProcedure.query(async () => await db.getPlatformIdentity()),
+    save: platformProcedure.input(z.object({
+      studio: z.object({
+        logoUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
+        faviconUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
+      }),
+      saas: z.object({
+        logoUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
+        faviconUrl: z.union([z.literal(""), visualUrlSchema]).default(""),
+      }),
+    })).mutation(async ({ ctx, input }) => {
+      const identity = await db.savePlatformIdentity(input);
+      logAudit(ctx, {
+        action: "platform_identity.update",
+        entityType: "platform_identity",
+        entityId: 1,
+        summary: "Identité visuelle Studio et Pro mise à jour.",
+        metadata: {
+          studioLogo: Boolean(identity.studio.logoUrl),
+          studioFavicon: Boolean(identity.studio.faviconUrl),
+          saasLogo: Boolean(identity.saas.logoUrl),
+          saasFavicon: Boolean(identity.saas.faviconUrl),
+        },
+      });
+      return identity;
+    }),
+    uploadImage: platformProcedure.input(z.object({
+      dataUrl: z.string().max(7_100_000),
+      fileName: z.string().trim().min(1).max(160),
+      surface: z.enum(["studio", "saas"]),
+    })).mutation(async ({ ctx, input }) => {
+      const image = decodeDesignImage(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "identite";
+      const key = `platform-identity/${input.surface}/${ctx.user.id}/${Date.now()}-${safeName}.${image.extension}`;
+      const { url } = await storagePut(key, image.buffer, image.contentType);
+      return { url };
+    }),
+  }),
+
   // Visual customisation of the public storefront
   design: router({
     get: adminProcedure.query(async ({ ctx }) => {

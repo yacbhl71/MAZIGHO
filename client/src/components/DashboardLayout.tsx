@@ -78,6 +78,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     tone: "violet",
     items: [
       { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
+      { icon: Palette, label: "Identité Studio & Pro", path: "/admin/studio/identite" },
       { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
       { icon: Network, label: "Domaines personnalisés", path: "/admin/studio/domaines" },
       { icon: PlugZap, label: "Demandes d’intégrations", path: "/admin/studio/integrations" },
@@ -191,6 +192,9 @@ export default function DashboardLayout({
   const { isLoading: loading, user } = useAuth() as any;
   const [location, setLocation] = useLocation();
   const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
+  const platformIdentityQuery = trpc.platformIdentity.get.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const studioLogoUrl = isStudioHost ? (platformIdentityQuery.data?.studio.logoUrl || APP_LOGO) : APP_LOGO;
+  const studioFaviconUrl = isStudioHost ? (platformIdentityQuery.data?.studio.faviconUrl || APP_LOGO) : "";
   const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: Boolean(user) });
   const isPlatformOperator = Boolean(workspaceQuery.data?.store?.isPlatformStore && user?.role === "admin");
   const isStudioPath = location === "/admin/studio" || location.startsWith("/admin/studio/");
@@ -198,6 +202,14 @@ export default function DashboardLayout({
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!studioFaviconUrl || typeof document === "undefined") return;
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null ?? document.createElement("link");
+    link.rel = "icon";
+    link.href = studioFaviconUrl;
+    if (!link.parentNode) document.head.appendChild(link);
+  }, [studioFaviconUrl]);
 
   if (loading) {
     return <DashboardLayoutSkeleton />
@@ -210,7 +222,7 @@ export default function DashboardLayout({
           <div className="flex flex-col items-center gap-6">
             <div className="relative">
               <img
-                src={APP_LOGO}
+                src={studioLogoUrl}
                 alt={APP_TITLE}
                 className="h-20 w-20 rounded-xl object-cover shadow"
               />
@@ -261,7 +273,7 @@ export default function DashboardLayout({
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-6 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl text-center" data-testid="admin-forbidden-gate">
-          <img src={APP_LOGO} alt={APP_TITLE} className="h-16 w-16 rounded-xl object-cover shadow" />
+          <img src={studioLogoUrl} alt={APP_TITLE} className="h-16 w-16 rounded-xl object-cover shadow" />
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight">Accès non autorisé</h1>
             <p className="text-sm text-muted-foreground">
@@ -289,7 +301,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isPlatformOperator={isPlatformOperator}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isPlatformOperator={isPlatformOperator} studioLogoUrl={studioLogoUrl}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -300,12 +312,14 @@ type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
   isPlatformOperator: boolean;
+  studioLogoUrl: string;
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
   isPlatformOperator,
+  studioLogoUrl,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
@@ -317,6 +331,7 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const isStudioHost = typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch";
   const isStudio = isStudioHost;
+  const sidebarLogoUrl = isStudio ? studioLogoUrl : APP_LOGO;
   const visibleMenuSections = isStudioHost
     ? menuSections.filter(section => section.label === "Plateforme")
     : menuSections.filter(section => section.label !== "Plateforme");
@@ -371,7 +386,7 @@ function DashboardLayoutContent({
               {isCollapsed ? (
                 <div className="relative h-8 w-8 shrink-0 group">
                   <img
-                    src={APP_LOGO}
+                    src={sidebarLogoUrl}
                     className="h-8 w-8 rounded-md object-cover ring-1 ring-border"
                     alt="Logo"
                   />
@@ -388,7 +403,7 @@ function DashboardLayoutContent({
                 <>
                   <div className="flex items-center gap-3 min-w-0">
                     <img
-                      src={APP_LOGO}
+                      src={sidebarLogoUrl}
                       className="h-8 w-8 rounded-md object-cover ring-1 ring-border shrink-0"
                       alt="Logo"
                     />

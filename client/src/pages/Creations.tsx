@@ -10,6 +10,9 @@ import { getCollectionVisual } from "@/lib/collectionVisuals";
 import { getCollectionsCopy } from "@/lib/collectionsCopy";
 import { commerceT, t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
+import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
+import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
+import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 
 export default function Creations() {
   const { locale } = useLocale();
@@ -23,6 +26,9 @@ export default function Creations() {
   const creativeCategories = (categoriesQuery.data || []).filter(category => category.catalogSection === "creations");
   const creativeCategoryIds = new Set(creativeCategories.map(category => category.id));
   const creativeProducts = (productsQuery.data || []).filter(product => creativeCategoryIds.has(product.categoryId));
+  const shopControls = getShopControlsCopy(locale);
+  const catalogueFilters = useStorefrontCatalogueFiltering(creativeProducts);
+  const visibleCreativeProducts = catalogueFilters.visibleProducts;
 
   return (
     <div className="min-h-screen bg-[#fffaf7] text-slate-900">
@@ -108,8 +114,8 @@ export default function Creations() {
             {productsQuery.isLoading ? (
               <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-rose-600" /></div>
             ) : creativeProducts.length > 0 ? (
-              <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                {creativeProducts.map(product => {
+              <><div className="mt-8"><StorefrontCatalogueFilters products={creativeProducts} categories={creativeCategories} categoryLabel={shopControls.categoryLabel} allCategoriesLabel={shopControls.allCategories} sortLabel={shopControls.sortLabel} sortOptions={[{ value: "featured", label: shopControls.sortFeatured }, { value: "newest", label: shopControls.sortNewest }, { value: "price-asc", label: shopControls.sortPriceAsc }, { value: "price-desc", label: shopControls.sortPriceDesc }]} value={catalogueFilters.value} onChange={catalogueFilters.setValue} formatPrice={cents => formatPrice(cents, locale)} primaryColor="#be123c" /></div>{visibleCreativeProducts.length > 0 ? <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {visibleCreativeProducts.map(product => {
                   const imageUrl = product.images?.[0]?.imageUrl;
                   const profile = getDeliveryProfileForCountry(product.deliveryProfiles, countryCode);
                   return (
@@ -131,7 +137,7 @@ export default function Creations() {
                     </Link>
                   );
                 })}
-              </div>
+              </div> : <div className="mt-8 text-center text-sm text-slate-600">Aucune création ne correspond aux filtres choisis.</div>}</>
             ) : (
               <div className="mt-8 grid gap-6 border border-dashed border-rose-200 bg-[#fffaf7] px-6 py-12 md:grid-cols-[1fr_auto] md:items-center">
                 <div>

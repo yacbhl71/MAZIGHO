@@ -18,6 +18,9 @@ import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { toast } from "sonner";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
+import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
+import { getShopControlsCopy } from "@/lib/shopControlsCopy";
 
 export default function Promos() {
   const { locale } = useLocale();
@@ -35,9 +38,14 @@ export default function Promos() {
   } : defaultCopy;
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => product.originalPrice && getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
+  const categories = categoriesQuery.data || [];
+  const shopControls = getShopControlsCopy(locale);
+  const catalogueFilters = useStorefrontCatalogueFiltering(products);
+  const visibleProducts = catalogueFilters.visibleProducts;
   const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const [addedToCart, setAddedToCart] = useState<number | null>(null);
@@ -98,8 +106,8 @@ export default function Promos() {
                 <Loader2 className="h-10 w-10 animate-spin" style={{ color: palette.accent }} />
               </div>
             ) : products.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {products.map((product) => {
+              <><div className="mb-6"><StorefrontCatalogueFilters products={products} categories={categories} categoryLabel={shopControls.categoryLabel} allCategoriesLabel={shopControls.allCategories} sortLabel={shopControls.sortLabel} sortOptions={[{ value: "featured", label: shopControls.sortFeatured }, { value: "newest", label: shopControls.sortNewest }, { value: "price-asc", label: shopControls.sortPriceAsc }, { value: "price-desc", label: shopControls.sortPriceDesc }]} value={catalogueFilters.value} onChange={catalogueFilters.setValue} formatPrice={cents => formatPrice(cents, locale)} primaryColor={palette.primary} /></div>{visibleProducts.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {visibleProducts.map((product) => {
                   const discount = product.originalPrice ? Math.round(
                     ((product.originalPrice - product.price) / product.originalPrice) * 100
                   ) : 0;
@@ -209,7 +217,7 @@ export default function Promos() {
                     </Card>
                   );
                 })}
-              </div>
+              </div> : <div className="py-16 text-center text-sm text-gray-600">Aucun produit ne correspond aux filtres choisis.</div>}</>
             ) : (
               <div className="text-center py-12">
                 <p className="text-gray-600 text-lg">{copy.empty.replace("{country}", countryLabel)}</p>
