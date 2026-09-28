@@ -784,6 +784,14 @@ export const returnRequests = mysqlTable("returnRequests", {
   instructions: varchar("instructions", { length: 1000 }),
   resolutionNote: varchar("resolutionNote", { length: 1000 }),
   refundAmount: int("refundAmount"),
+  // Opaque seller-side tracking only: no refund API call, card, account, key
+  // or provider payload is ever stored or triggered from this record.
+  externalCaseType: mysqlEnum("externalCaseType", ["none", "refund", "dispute", "other"]).default("none").notNull(),
+  externalCaseStatus: mysqlEnum("externalCaseStatus", ["not_started", "action_required", "submitted", "resolved"]).default("not_started").notNull(),
+  externalCaseProvider: mysqlEnum("externalCaseProvider", ["not_specified", "stripe", "chargily", "carrier", "other"]).default("not_specified").notNull(),
+  externalCaseReference: varchar("externalCaseReference", { length: 120 }),
+  externalCaseDeadlineAt: timestamp("externalCaseDeadlineAt"),
+  externalCaseNote: varchar("externalCaseNote", { length: 1000 }),
   actorUserId: int("actorUserId"),
   returnReceivedAt: timestamp("returnReceivedAt"),
   closedAt: timestamp("closedAt"),
@@ -792,6 +800,7 @@ export const returnRequests = mysqlTable("returnRequests", {
 }, (table) => ({
   storeOrderIndex: index("return_requests_store_order_idx").on(table.storeId, table.orderId),
   storeUserStatusIndex: index("return_requests_store_user_status_idx").on(table.storeId, table.userId, table.status),
+  storeCaseStatusIndex: index("return_requests_store_case_status_idx").on(table.storeId, table.externalCaseStatus, table.updatedAt),
 }));
 
 export type ReturnRequest = typeof returnRequests.$inferSelect;

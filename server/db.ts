@@ -72,6 +72,7 @@ import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
 import type { StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
+import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type ReturnExternalCaseInput } from "./services/returnExternalCase";
 import { getStoreSystemPages } from "./storeSystemPagesDb";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
@@ -10535,7 +10536,13 @@ export async function getUserReturnRequests(userId: number, storeId?: number) {
   const rows = await db.select().from(returnRequests)
     .where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.userId, userId)))
     .orderBy(desc(returnRequests.createdAt));
-  return await getReturnRequestDetails(effectiveStoreId, rows);
+  const details = await getReturnRequestDetails(effectiveStoreId, rows);
+  // External provider case references, deadlines and internal notes are owner
+  // operational data. They must never be exposed through the customer API.
+  return details.map(({ externalCaseType, externalCaseStatus, externalCaseProvider, externalCaseReference, externalCaseDeadlineAt, externalCaseNote, actorUserId, events, ...request }) => ({
+    ...request,
+    events: events.filter(event => event.action !== "external_case_updated"),
+  }));
 }
 
 export async function getOwnerReturnRequests(storeId?: number) {
@@ -10606,6 +10613,49 @@ export async function updateOwnerReturnRequest(input: { id: number; action: Retu
     });
   });
   return { success: true, orderId: current.orderId, status: nextStatus, label: getReturnRequestActionLabel(input.action) };
+}
+
+/**
+ * Records a seller-side provider case for one return request. It never calls a
+ * provider, changes a payment or exposes information beyond the current store.
+ */
+export async function saveOwnerReturnExternalCase(input: {
+  id: number;
+  caseRecord: ReturnExternalCaseInput;
+  actorUserId: number;
+  storeId?: number;
+}) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
+  const [current] = await db.select({ id: returnRequests.id, orderId: returnRequests.orderId, status: returnRequests.status })
+    .from(returnRequests)
+    .where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id)))
+    .limit(1);
+  if (!current) throw new Error("RETURN_NOT_FOUND");
+  const caseRecord = normalizeReturnExternalCase(input.caseRecord);
+  await db.transaction(async tx => {
+    await tx.update(returnRequests).set({
+      externalCaseType: caseRecord.type,
+      externalCaseStatus: caseRecord.status,
+      externalCaseProvider: caseRecord.provider,
+      externalCaseReference: caseRecord.reference,
+      externalCaseDeadlineAt: caseRecord.deadlineAt,
+      externalCaseNote: caseRecord.note,
+      actorUserId: input.actorUserId,
+    }).where(and(eq(returnRequests.storeId, effectiveStoreId), eq(returnRequests.id, input.id)));
+    await tx.insert(returnRequestEvents).values({
+      storeId: effectiveStoreId,
+      returnRequestId: input.id,
+      action: "external_case_updated",
+      fromStatus: current.status,
+      toStatus: current.status,
+      note: getReturnExternalCaseEventNote(caseRecord),
+      actorUserId: input.actorUserId,
+    });
+  });
+  return { success: true, orderId: current.orderId, caseRecord };
 }
 
 // Compatibility for older callers: payment mutation is deliberately removed.

@@ -8,6 +8,7 @@ vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
   getOwnerReturnRequests: vi.fn(async storeId => [{ id: 81, storeId, orderId: 41, status: "requested", items: [], events: [] }]),
   updateOwnerReturnRequest: vi.fn(async input => ({ success: true, orderId: 41, status: "approved", label: "instructions de retour enregistrées", ...input })),
+  saveOwnerReturnExternalCase: vi.fn(async input => ({ success: true, orderId: 41, caseRecord: input.caseRecord })),
   recordAuditLog: vi.fn(async () => undefined),
 }));
 
@@ -33,10 +34,22 @@ describe("owner controlled returns", () => {
 
     await expect(callerFor("user", 77).owner.updateReturnRequest({ id: 81, action: "approve", note: "Retournez les articles avec le numéro de commande." })).resolves.toMatchObject({ status: "approved" });
     expect(db.updateOwnerReturnRequest).toHaveBeenCalledWith(expect.objectContaining({ id: 81, action: "approve", actorUserId: 7, storeId: 77 }));
+
+    await expect(callerFor("user", 77).owner.saveReturnExternalCase({
+      id: 81,
+      type: "dispute",
+      status: "action_required",
+      provider: "stripe",
+      reference: "dp_2026-09-28",
+      deadlineAt: "2026-09-30T10:00:00.000Z",
+      note: "Preuve de livraison à vérifier.",
+    })).resolves.toMatchObject({ orderId: 41 });
+    expect(db.saveOwnerReturnExternalCase).toHaveBeenCalledWith(expect.objectContaining({ id: 81, actorUserId: 7, storeId: 77, caseRecord: expect.objectContaining({ type: "dispute", provider: "stripe" }) }));
   });
 
   it("refuses a non-management membership even for a globally privileged account", async () => {
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor("admin").owner.getReturnRequests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor("admin").owner.saveReturnExternalCase({ id: 81, type: "refund", status: "submitted", provider: "stripe" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

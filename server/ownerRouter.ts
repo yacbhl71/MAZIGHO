@@ -16,6 +16,7 @@ import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
+import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -580,6 +581,49 @@ export const ownerRouter = router({
       if (code === "RETURN_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Demande de retour introuvable dans cette boutique." });
       if (code === "RETURN_NOTE_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Ajoutez une note ou des instructions claires pour cette décision." });
       if (code === "RETURN_TRANSITION_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette transition de retour n’est pas autorisée." });
+      throw error;
+    }
+  }),
+  saveReturnExternalCase: storeManagementProcedure.input(z.object({
+    id: z.number().int().positive(),
+    type: z.enum(returnExternalCaseTypes),
+    status: z.enum(returnExternalCaseStatuses),
+    provider: z.enum(returnExternalCaseProviders),
+    reference: z.string().trim().max(120).nullable().optional(),
+    deadlineAt: z.string().datetime({ offset: true }).nullable().optional(),
+    note: z.string().trim().max(1000).nullable().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const result = await db.saveOwnerReturnExternalCase({
+        id: input.id,
+        actorUserId: ctx.user!.id,
+        storeId: ctx.store!.id,
+        caseRecord: {
+          type: input.type,
+          status: input.status,
+          provider: input.provider,
+          reference: input.reference,
+          deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : null,
+          note: input.note,
+        },
+      });
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.return.external_case_saved",
+        entityType: "return_request",
+        entityId: input.id,
+        summary: `Dossier externe du retour #${input.id} mis à jour.`,
+        metadata: { type: result.caseRecord.type, status: result.caseRecord.status, provider: result.caseRecord.provider, orderId: result.orderId },
+      });
+      return result;
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "RETURN_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Demande de retour introuvable dans cette boutique." });
+      if (code === "RETURN_EXTERNAL_CASE_REFERENCE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La référence externe doit contenir uniquement des lettres, chiffres, tirets, points, deux-points ou traits de soulignement." });
+      if (code === "RETURN_EXTERNAL_CASE_DEADLINE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "L’échéance du dossier est invalide." });
       throw error;
     }
   }),
