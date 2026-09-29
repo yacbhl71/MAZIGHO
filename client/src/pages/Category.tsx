@@ -47,6 +47,8 @@ export default function Category() {
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const heroImageUrl = creativeVisual?.imageUrl || category?.imageUrl || categoryHeroImages[slug]?.src || "/assets/shop-editorial-hero.webp";
   const usesStoreCategoryImage = Boolean(creativeVisual?.imageUrl || category?.imageUrl);
+  const categoryNotice = category?.publicNotice?.trim() || (isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : categoryT(locale, "categoryNotice", { category: category?.name || "", country: countryLabel }));
+  const categoryEmptyMessage = category?.emptyStateMessage?.trim() || (isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel }));
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const catalogueFilters = useStorefrontCatalogueFiltering(products, { fixedCategoryId: categoryData ? String(categoryData.id) : undefined });
@@ -166,7 +168,7 @@ export default function Category() {
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : categoryT(locale, "categoryNotice", { category: category.name, country: countryLabel })}</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{categoryNotice}</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
@@ -286,7 +288,7 @@ export default function Category() {
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-600 text-lg">{isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel })}</p>
+                <p className="text-gray-600 text-lg">{categoryEmptyMessage}</p>
                 <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
                     {isCreativeCategory ? categoryT(locale, "backCreations") : categoryT(locale, "chooseCountryOrShop")}

@@ -319,16 +319,27 @@ describe("owner product variant routes", () => {
 
   it("manages categories only through the current resolved store", async () => {
     const caller = callerFor();
-    const input = { name: "Laine et crochet", slug: "laine-crochet", description: "Pelotes et accessoires.", imageUrl: "/media/laine.webp", displayOrder: 30, catalogSection: "creations" as const };
+    const input = { name: "Laine et crochet", slug: "laine-crochet", description: "Pelotes et accessoires.", publicNotice: "Des pelotes, des outils et des idées à imaginer.", emptyStateMessage: "Les premières créations arrivent bientôt.", imageUrl: "/media/laine.webp", displayOrder: 30, catalogSection: "creations" as const };
 
     await expect(caller.owner.createCategory(input)).resolves.toEqual({ id: 41 });
     expect(db.createCategory).toHaveBeenCalledWith(input, 77);
 
-    await expect(caller.owner.updateCategory({ id: 41, name: "Laine & crochet", displayOrder: 40, catalogSection: "creations" })).resolves.toEqual({ success: true });
-    expect(db.updateCategory).toHaveBeenCalledWith(41, { name: "Laine & crochet", displayOrder: 40, catalogSection: "creations" }, 77);
+    await expect(caller.owner.updateCategory({ id: 41, name: "Laine & crochet", publicNotice: "Un message à personnaliser.", emptyStateMessage: "La collection arrive.", displayOrder: 40, catalogSection: "creations" })).resolves.toEqual({ success: true });
+    expect(db.updateCategory).toHaveBeenCalledWith(41, { name: "Laine & crochet", publicNotice: "Un message à personnaliser.", emptyStateMessage: "La collection arrive.", displayOrder: 40, catalogSection: "creations" }, 77);
 
     await expect(caller.owner.deleteCategory({ id: 41 })).resolves.toEqual({ success: true });
     expect(db.deleteCategory).toHaveBeenCalledWith(41, 77);
+  });
+
+  it("assigns one catalogue product to several categories within the resolved store", async () => {
+    const caller = callerFor();
+    const product = { categoryId: 41, categoryIds: [41, 42], name: "Carnet créatif", slug: "carnet-creatif", description: "Un carnet prêt à dessiner.", longDescription: "Un carnet créatif à personnaliser.", price: 1890, stock: 4, featured: 0, status: "active" as const, images: [], options: "" };
+
+    await expect(caller.owner.createProduct(product)).resolves.toEqual({ id: 108 });
+    expect(db.createProduct).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 41, categoryIds: [41, 42] }), 77);
+
+    await expect(caller.owner.updateProduct({ id: 108, categoryId: 42, categoryIds: [42, 41] })).resolves.toEqual({ success: true });
+    expect(db.updateProduct).toHaveBeenCalledWith(108, expect.objectContaining({ categoryId: 42, categoryIds: [42, 41] }), 77);
   });
 
   it("keeps custom menu nesting scoped, visible, and one level deep", async () => {
@@ -789,6 +800,33 @@ describe("owner product variant routes", () => {
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
     expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ showReassurance: true, storyPoints: ["Imaginer", "Créer", "Partager"], closingTitle: "Préparez votre prochain projet.", closingVisualValue: "", closingVisualFont: "editorial", closingVisualColor: "#C80AFF" }), 77);
     expect(db.markPublicContentTranslationsStale).toHaveBeenCalledWith("design", 1, 77);
+  });
+
+  it("saves free homepage blocks only through the current resolved store", async () => {
+    const blocks = [{
+      id: "block-atelier-commande",
+      eyebrow: "Sur demande",
+      title: "Une création à imaginer ensemble",
+      text: "Expliquez votre projet et découvrez les possibilités de l’atelier.",
+      buttonLabel: "Nous écrire",
+      buttonUrl: "/contact",
+      imageUrl: "https://example.test/atelier.webp",
+      imageAlt: "Matériel créatif dans un atelier lumineux",
+      layout: "split" as const,
+      theme: "soft" as const,
+      enabled: true,
+    }];
+    await expect(callerFor().owner.saveCustomHomepageBlocks({
+      blocks,
+      homeOrder: ["discovery", "text:block-atelier-commande", "story", "testimonials", "editorial", "featured"],
+    })).resolves.toMatchObject({ textBanners: blocks });
+    expect(db.getDesignProfile).toHaveBeenCalledWith(77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ textBanners: blocks }), 77);
+
+    await expect(callerFor().owner.saveCustomHomepageBlocks({
+      blocks: [{ ...blocks[0], imageAlt: "" }],
+      homeOrder: ["text:block-atelier-commande"],
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("saves catalogue page copy only through the current resolved store", async () => {

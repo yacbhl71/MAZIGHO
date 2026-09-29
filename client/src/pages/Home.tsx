@@ -306,18 +306,26 @@ export default function Home() {
         </section>
         )}
 
-        {(profile.textBanners || []).filter(banner => banner.enabled).map(banner => (
-          <section key={`text-${banner.id}`} style={{ order: orderIndex(`text:${banner.id}`) }} className="container py-4 md:py-8">
-            <div className="relative overflow-hidden rounded-[1.5rem] px-7 py-8 md:px-12 md:py-12" style={{ backgroundColor: palette.primary }}>
-              <div className="max-w-2xl text-white">
-                {banner.eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.28em] text-white/80">{banner.eyebrow}</p> : null}
-                <p className="mt-3 text-2xl font-semibold md:text-3xl">{banner.title}</p>
-                {banner.text ? <p className="mt-3 text-sm leading-6 text-white/85 md:text-base">{banner.text}</p> : null}
-                {banner.buttonLabel && banner.buttonUrl ? <Button asChild className="mt-6 bg-white text-slate-900 hover:bg-white/90"><Link href={banner.buttonUrl}>{banner.buttonLabel}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
-              </div>
-            </div>
-          </section>
-        ))}
+        {(profile.textBanners || []).filter(banner => banner.enabled).map(banner => {
+          const blockTheme = banner.theme || "primary";
+          const blockLayout = banner.layout || "banner";
+          const isDark = blockTheme === "dark";
+          const isLight = blockTheme === "light";
+          const isSoft = blockTheme === "soft";
+          const blockStyle = isDark ? { backgroundColor: "#0f172a" } : isLight ? { backgroundColor: "#ffffff" } : isSoft ? { backgroundColor: palette.soft } : { backgroundColor: palette.primary };
+          const textClass = isDark || blockTheme === "primary" ? "text-white" : "text-slate-950";
+          const mutedClass = isDark || blockTheme === "primary" ? "text-white/80" : "text-slate-600";
+          const hasImage = Boolean(banner.imageUrl);
+          const content = <div className={`relative ${hasImage && blockLayout === "banner" ? "z-10 max-w-2xl" : ""} ${textClass}`}>
+            {banner.eyebrow ? <p className={`text-xs font-bold uppercase tracking-[0.28em] ${mutedClass}`}>{banner.eyebrow}</p> : null}
+            <h2 className="mt-3 text-2xl font-semibold leading-tight md:text-4xl">{banner.title}</h2>
+            {banner.text ? <p className={`mt-3 max-w-xl text-sm leading-6 md:text-base ${mutedClass}`}>{banner.text}</p> : null}
+            {banner.buttonLabel && banner.buttonUrl ? <Button asChild className={`mt-6 ${isDark || blockTheme === "primary" ? "bg-white text-slate-900 hover:bg-white/90" : "text-white hover:brightness-95"}`} style={isDark || blockTheme === "primary" ? undefined : { backgroundColor: palette.primary }}><Link href={banner.buttonUrl}>{banner.buttonLabel}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
+          </div>;
+          return <section key={`text-${banner.id}`} style={{ order: orderIndex(`text:${banner.id}`) }} className="container py-4 md:py-8">
+            {blockLayout === "split" ? <div className="grid overflow-hidden rounded-[1.5rem] border border-slate-200 md:grid-cols-2" style={blockStyle}><div className="flex items-center px-7 py-9 md:px-12 md:py-12">{content}</div><div className="relative min-h-[230px] bg-slate-100 md:min-h-full">{hasImage ? <img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="absolute inset-0 bg-gradient-to-br from-[var(--mazigho-soft)] via-white to-slate-100" />}</div></div> : blockLayout === "spotlight" ? <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 px-7 py-8 md:px-12 md:py-12" style={blockStyle}>{hasImage ? <img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover opacity-15" loading="lazy" decoding="async" /> : null}<div aria-hidden="true" className="absolute -right-10 -top-12 h-52 w-52 rounded-full border-[26px] border-white/20" />{content}</div> : <div className="relative overflow-hidden rounded-[1.5rem] px-7 py-8 md:px-12 md:py-12" style={blockStyle}>{hasImage ? <><img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" /><div className="absolute inset-0 bg-slate-950/55" /></> : null}{content}</div>}
+          </section>;
+        })}
         </div>
 
         {profile.showClosing && (

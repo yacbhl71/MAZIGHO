@@ -1978,13 +1978,15 @@ export async function importOwnerCatalogueProducts(input: { storeId: number; row
     let category = categoryByNormalizedName.get(categoryKey);
     if (!category) {
       const slug = uniqueStudioExistingCatalogueSlug(row.category, usedCategorySlugs, "nouvelle-categorie");
-      const result = await db.insert(categories).values({ storeId: input.storeId, name: row.category, slug, description: null, displayOrder: nextCategoryOrder, catalogSection: "standard" });
+      const result = await db.insert(categories).values({ storeId: input.storeId, name: row.category, slug, description: null, publicNotice: null, emptyStateMessage: null, displayOrder: nextCategoryOrder, catalogSection: "standard" });
       category = {
         id: Number((result as any)[0].insertId),
         storeId: input.storeId,
         name: row.category,
         slug,
         description: null,
+        publicNotice: null,
+        emptyStateMessage: null,
         imageUrl: null,
         icon: null,
         displayOrder: nextCategoryOrder,
@@ -5250,8 +5252,9 @@ export async function getAllProducts(storeId?: number) {
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
   }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
+  const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id), effectiveStoreId);
   return attachDeliveryProfiles(rows, await getProductDeliveryProfiles(rows.map(row => row.id), effectiveStoreId))
-    .map(({ supplier, ...product }) => ({ ...product, isManualProduct: !supplier }));
+    .map(({ supplier, ...product }) => ({ ...product, categoryIds: categoryMap.get(product.id) || [product.categoryId], isManualProduct: !supplier }));
 }
 
 export async function getFeaturedProducts(limit: number = 8, storeId?: number) {
@@ -5307,12 +5310,12 @@ export async function getProductsByCategory(categoryId: number, storeId?: number
     supplier: products.supplier,
     createdAt: products.createdAt,
     updatedAt: products.updatedAt,
-    }).from(products)
+  }).from(products)
     .where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
   const categoryMap = await getProductCategoryIdsForProducts(rows.map(row => row.id), effectiveStoreId);
-  const filteredRows = rows.filter(row => (categoryMap.get(row.id) || []).includes(categoryId));
+  const filteredRows = rows.filter(row => (categoryMap.get(row.id) || [row.categoryId]).includes(categoryId));
   return attachDeliveryProfiles(filteredRows, await getProductDeliveryProfiles(filteredRows.map(row => row.id), effectiveStoreId))
-    .map(({ supplier, ...product }) => ({ ...product, isManualProduct: !supplier }));
+    .map(({ supplier, ...product }) => ({ ...product, categoryIds: categoryMap.get(product.id) || [product.categoryId], isManualProduct: !supplier }));
 }
 export async function getProductBySlug(slug: string, storeId?: number) {
   await ensureStoreCatalogScopeSchema();
@@ -6269,9 +6272,7 @@ export async function createProduct(data: any, storeId?: number) {
   if (deliveryProfiles && deliveryProfiles.length > 0) {
     await replaceProductDeliveryProfiles(productId, deliveryProfiles, effectiveStoreId);
   }
-  if (categoryIds && categoryIds.length > 0) {
-    await replaceProductCategories(productId, categoryIds, effectiveStoreId);
-  }
+  await replaceProductCategories(productId, categoryIds?.length ? categoryIds : [productData.categoryId], effectiveStoreId);
   return { id: productId };
 }
 
@@ -6431,7 +6432,8 @@ export async function updateProduct(id: number, data: any, storeId?: number) {
     }
   }
   if (deliveryProfiles) await replaceProductDeliveryProfiles(id, deliveryProfiles, effectiveStoreId);
-  if (categoryIds) await replaceProductCategories(id, categoryIds, effectiveStoreId);
+  if (categoryIds?.length) await replaceProductCategories(id, categoryIds, effectiveStoreId);
+  else if (productData.categoryId != null) await replaceProductCategories(id, [productData.categoryId], effectiveStoreId);
   return { success: true };
 }
 export async function deleteProduct(id: number, storeId?: number) {
@@ -6505,7 +6507,9 @@ export async function deleteCategory(id: number, storeId?: number) {
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const productsInCategory = await db.select({ id: products.id }).from(products).where(and(eq(products.storeId, effectiveStoreId), eq(products.categoryId, id))).limit(1);
-  if (productsInCategory.length > 0) throw new Error("Cannot delete category with products");
+  const productAssignments = await db.select({ productId: productCategories.productId }).from(productCategories)
+    .where(and(eq(productCategories.storeId, effectiveStoreId), eq(productCategories.categoryId, id))).limit(1);
+  if (productsInCategory.length > 0 || productAssignments.length > 0) throw new Error("Cannot delete category with products");
   const result = await db.delete(categories).where(and(eq(categories.storeId, effectiveStoreId), eq(categories.id, id)));
   if (Number((result as any)[0]?.affectedRows ?? 0) === 0) throw new Error("CATEGORY_NOT_FOUND");
   return { success: true };
@@ -9567,6 +9571,10 @@ export type HomeTextBanner = {
   text: string;
   buttonLabel: string;
   buttonUrl: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  layout?: "banner" | "split" | "spotlight";
+  theme?: "primary" | "dark" | "soft" | "light";
   enabled: boolean;
 };
 
@@ -10021,10 +10029,14 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
         id,
         title,
         eyebrow: typeof b.eyebrow === "string" ? b.eyebrow.trim().slice(0, 120) : "",
-        text: typeof b.text === "string" ? b.text.trim().slice(0, 600) : "",
-        buttonLabel: typeof b.buttonLabel === "string" ? b.buttonLabel.trim().slice(0, 60) : "",
-        buttonUrl: typeof b.buttonUrl === "string" ? b.buttonUrl.trim().slice(0, 300) : "",
-        enabled: typeof b.enabled === "boolean" ? b.enabled : true,
+      text: typeof b.text === "string" ? b.text.trim().slice(0, 600) : "",
+      buttonLabel: typeof b.buttonLabel === "string" ? b.buttonLabel.trim().slice(0, 60) : "",
+      buttonUrl: typeof b.buttonUrl === "string" ? b.buttonUrl.trim().slice(0, 300) : "",
+      imageUrl: typeof b.imageUrl === "string" ? b.imageUrl.trim().slice(0, 1000) : "",
+      imageAlt: typeof b.imageAlt === "string" ? b.imageAlt.trim().slice(0, 180) : "",
+      layout: ["banner", "split", "spotlight"].includes(String(b.layout)) ? b.layout as HomeTextBanner["layout"] : "banner",
+      theme: ["primary", "dark", "soft", "light"].includes(String(b.theme)) ? b.theme as HomeTextBanner["theme"] : "primary",
+      enabled: typeof b.enabled === "boolean" ? b.enabled : true,
       });
     }
   }

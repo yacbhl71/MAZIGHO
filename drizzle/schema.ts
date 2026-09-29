@@ -114,6 +114,10 @@ export const categories = mysqlTable("categories", {
   name: varchar("name", { length: 100 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull(),
   description: text("description"),
+  /** Optional customer-facing notice shown just below this category hero. */
+  publicNotice: text("publicNotice"),
+  /** Optional customer-facing empty state when this category has no products yet. */
+  emptyStateMessage: text("emptyStateMessage"),
   imageUrl: varchar("imageUrl", { length: 500 }),
   icon: varchar("icon", { length: 20 }),
   displayOrder: int("displayOrder").default(0).notNull(),

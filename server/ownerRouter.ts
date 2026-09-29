@@ -206,6 +206,45 @@ export const ownerHomepageSections = z.object({
   }
 });
 
+const ownerCustomHomepageBlock = z.object({
+  id: z.string().trim().min(4).max(60).regex(/^(?:block-[a-z0-9-]+|tb_[a-z0-9]+)$/, "Identifiant de bloc invalide."),
+  eyebrow: z.string().trim().max(120),
+  title: z.string().trim().min(2).max(180),
+  text: z.string().trim().max(600),
+  buttonLabel: z.string().trim().max(60),
+  buttonUrl: storefrontLink,
+  imageUrl: z.union([z.literal(""), visualUrl]),
+  imageAlt: z.string().trim().max(180),
+  layout: z.enum(["banner", "split", "spotlight"]),
+  theme: z.enum(["primary", "dark", "soft", "light"]),
+  enabled: z.boolean(),
+}).superRefine((block, ctx) => {
+  if (block.buttonLabel && !block.buttonUrl) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["buttonUrl"], message: "Indiquez le lien associé au bouton." });
+  }
+  if (block.imageUrl && !block.imageAlt) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["imageAlt"], message: "Ajoutez une courte description de l’image." });
+  }
+});
+
+export const ownerCustomHomepageBlocks = z.object({
+  blocks: z.array(ownerCustomHomepageBlock).max(8),
+  homeOrder: z.array(z.string().trim().max(80)).max(13),
+}).superRefine((input, ctx) => {
+  const ids = input.blocks.map(block => block.id);
+  if (new Set(ids).size !== ids.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["blocks"], message: "Chaque bloc doit avoir un identifiant unique." });
+  }
+  const allowedKeys = new Set(["discovery", "story", "testimonials", "editorial", "featured", ...ids.map(id => `text:${id}`)]);
+  const seen = new Set<string>();
+  input.homeOrder.forEach((key, index) => {
+    if (!allowedKeys.has(key) || seen.has(key)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["homeOrder", index], message: "Ordre de blocs invalide." });
+    }
+    seen.add(key);
+  });
+});
+
 export const ownerCataloguePageCopy = z.object({
   promosTitle: z.string().trim().min(2).max(120),
   promosLead: z.string().trim().min(2).max(420),
@@ -409,6 +448,7 @@ const shippingReturnsSettings = z.object({
 
 const productFields = z.object({
   categoryId: z.number().int().positive(),
+  categoryIds: z.array(z.number().int().positive()).min(1).max(20).refine(values => new Set(values).size === values.length, "Une catégorie ne peut être sélectionnée qu’une fois.").optional(),
   name: z.string().trim().min(2).max(200),
   slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Utilisez un slug en minuscules avec des tirets."),
   description: z.string().trim().max(2000).optional(),
@@ -1283,6 +1323,8 @@ export const ownerRouter = router({
     name: z.string().trim().min(2).max(100),
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     description: z.string().trim().max(2000).optional(),
+    publicNotice: z.string().trim().max(600).optional(),
+    emptyStateMessage: z.string().trim().max(600).optional(),
     imageUrl: visualUrl.optional(),
     displayOrder: z.number().int().min(0).max(999_999).default(0),
     catalogSection: z.enum(["standard", "creations"]).default("standard"),
@@ -1294,6 +1336,8 @@ export const ownerRouter = router({
     name: z.string().trim().min(2).max(100).optional(),
     slug: z.string().trim().min(2).max(220).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
     description: z.string().trim().max(2000).optional(),
+    publicNotice: z.string().trim().max(600).optional(),
+    emptyStateMessage: z.string().trim().max(600).optional(),
     imageUrl: visualUrl.optional(),
     displayOrder: z.number().int().min(0).max(999_999).optional(),
     catalogSection: z.enum(["standard", "creations"]).optional(),
@@ -1365,6 +1409,14 @@ export const ownerRouter = router({
       "closingEyebrow", "closingTitle", "closingText", "closingShopCtaLabel", "closingContactCtaLabel", "closingVisualValue", "closingVisualText",
     ] as const;
     if (publicCopyFields.some(field => current[field] !== saved[field]) || JSON.stringify(current.storyPoints) !== JSON.stringify(saved.storyPoints)) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    return saved;
+  }),
+  saveCustomHomepageBlocks: storeManagementProcedure.input(ownerCustomHomepageBlocks).mutation(async ({ ctx, input }) => {
+    const current = await db.getDesignProfile(ctx.store!.id);
+    const saved = await db.updateDesignProfile({ ...current, textBanners: input.blocks, homeOrder: input.homeOrder }, ctx.store!.id);
+    if (JSON.stringify(current.textBanners) !== JSON.stringify(saved.textBanners)) {
+      await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
+    }
     return saved;
   }),
   saveCataloguePageCopy: storeManagementProcedure.input(ownerCataloguePageCopy).mutation(async ({ ctx, input }) => {
