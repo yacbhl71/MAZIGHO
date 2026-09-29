@@ -27,4 +27,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("CREATE INDEX IF NOT EXISTS `contact_messages_store_status_created_idx`");
     expect(migration).toContain("ALTER TABLE `carts` DROP INDEX IF EXISTS `carts_userId_unique`");
   });
+
+  it("registers the durable catalog section column before deployment", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0039_catalog_section.sql");
+
+    expect(runner).toContain('["0039_catalog_section", "drizzle/0039_catalog_section.sql"]');
+    expect(migration).toContain("ALTER TABLE `categories`");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS `catalogSection`");
+    expect(migration).toContain("enum('standard','creations')");
+  });
 });

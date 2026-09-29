@@ -1818,6 +1818,9 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
  * Studio. It is store-scoped and deliberately does not publish the storefront.
  */
 export async function createStudioOwnerExistingCatalogueCategory(input: { storeId: number; name: string; description: string }) {
+  // The deployment migration is the normal path. This scoped fallback protects
+  // an explicit catalogue write if an older production schema is still warming.
+  await ensureCatalogSectionSchema();
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.categories.map(category => category.slug)), "nouvelle-categorie");
   const displayOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
@@ -1869,6 +1872,7 @@ export async function createStudioOwnerExistingCatalogueProduct(input: { storeId
  * customer, order, payment or cross-store data is accepted here.
  */
 export async function importStudioOwnerExistingCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[] }) {
+  await ensureCatalogSectionSchema();
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");

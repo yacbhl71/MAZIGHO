@@ -19,6 +19,7 @@ const migrations = [
   ["0036_category_public_messages", "drizzle/0036_category_public_messages.sql"],
   ["0037_owner_product_variants", "drizzle/0037_owner_product_variants.sql"],
   ["0038_store_relationship_indexes", "drizzle/0038_store_relationship_indexes.sql"],
+  ["0039_catalog_section", "drizzle/0039_catalog_section.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
