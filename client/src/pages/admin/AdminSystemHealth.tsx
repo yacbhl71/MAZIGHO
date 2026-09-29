@@ -1,8 +1,9 @@
+import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
-import { Activity, Database, GitCommitHorizontal, Network, RefreshCw, Loader2 } from "lucide-react";
+import { Activity, Database, GitCommitHorizontal, Network, RefreshCw, Loader2, MailCheck } from "lucide-react";
 
 function StatusDot({ ok }: { ok: boolean }) {
   return (
@@ -22,10 +23,22 @@ function formatDateTime(value: string | null | undefined) {
 
 export default function AdminSystemHealth() {
   const healthQuery = trpc.admin.system.health.useQuery(undefined, { refetchInterval: 30000 });
+  const [emailHealth, setEmailHealth] = useState<{
+    configured: boolean;
+    authenticated: boolean;
+    senderReady: boolean | null;
+    message: string;
+  } | null>(null);
+  const verifyEmail = trpc.admin.system.verifyTransactionalEmail.useMutation({
+    onSuccess: result => setEmailHealth(result),
+  });
   const data = healthQuery.data;
 
   const dbOk = Boolean(data?.database.ok);
   const odooOk = Boolean(data?.odoo.configured);
+  const emailConfigured = Boolean(data?.email.configured);
+  const emailReady = emailHealth?.senderReady === true;
+  const emailStatus = emailReady ? "Prêt" : emailHealth?.authenticated === false && emailHealth?.configured ? "Clé à corriger" : emailConfigured ? "À vérifier" : "À configurer";
 
   return (
     <DashboardLayout>
@@ -36,7 +49,7 @@ export default function AdminSystemHealth() {
               <Activity className="h-6 w-6 text-orange-500" /> Santé du système
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              État en temps réel de la base de données, de la synchronisation Odoo et de la version déployée du site.
+              État en temps réel de la base de données, du service e-mail, de la synchronisation Odoo et de la version déployée du site.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -57,7 +70,7 @@ export default function AdminSystemHealth() {
         {healthQuery.isLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>
         ) : (
-          <div className="grid gap-5 md:grid-cols-3">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {/* Base de données TiDB */}
             <Card data-testid="health-card-db">
               <CardHeader className="pb-3">
@@ -82,6 +95,43 @@ export default function AdminSystemHealth() {
                   <span className="text-muted-foreground">Hôte</span>
                   <span className="max-w-[60%] truncate text-right text-xs text-foreground" title={data?.database.host || ""}>{data?.database.host || "—"}</span>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Brevo transactionnel */}
+            <Card data-testid="health-card-email">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base"><MailCheck className="h-4 w-4 text-slate-500" /> E-mails transactionnels</CardTitle>
+                  <StatusDot ok={emailReady} />
+                </div>
+                <CardDescription>Brevo — sécurité et notifications</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">État</span>
+                  <span className={`font-semibold ${emailReady ? "text-emerald-600" : "text-amber-700"}`} data-testid="health-email-status">
+                    {emailStatus}
+                  </span>
+                </div>
+                <p className="min-h-10 text-xs leading-5 text-muted-foreground">
+                  {emailHealth?.message || (emailConfigured
+                    ? "Vérifiez la clé et l’expéditeur Brevo avant de compter sur les invitations et réinitialisations."
+                    : "Une clé Brevo et un expéditeur vérifié sont nécessaires.")}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="min-h-10 w-full"
+                  onClick={() => verifyEmail.mutate()}
+                  disabled={verifyEmail.isPending}
+                  data-testid="health-verify-email-btn"
+                >
+                  {verifyEmail.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MailCheck className="mr-2 h-4 w-4" />}
+                  Vérifier Brevo
+                </Button>
+                <p className="text-[11px] leading-4 text-muted-foreground">Ce contrôle ne crée ni n’envoie aucun e-mail.</p>
               </CardContent>
             </Card>
 

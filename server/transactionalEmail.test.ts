@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BREVO_REQUEST_TIMEOUT_MS, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail } from "./transactionalEmail";
+import { BREVO_REQUEST_TIMEOUT_MS, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail } from "./transactionalEmail";
 
 describe("transactionalEmail", () => {
   afterEach(() => {
@@ -14,6 +14,43 @@ describe("transactionalEmail", () => {
     vi.stubEnv("MAZIGHO_EMAIL_FROM", "");
 
     expect(isTransactionalEmailConfigured()).toBe(false);
+  });
+
+  it("checks the Brevo key and active sender without sending an email", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ email: "operator@example.test" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ senders: [{ email: "securite@mazigho.ch", active: true }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getTransactionalEmailHealth()).resolves.toEqual({
+      configured: true,
+      authenticated: true,
+      senderReady: true,
+      message: "Brevo accepte la clé et l’expéditeur transactionnel est actif. Aucun e-mail n’a été envoyé.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "https://api.brevo.com/v3/account",
+      "https://api.brevo.com/v3/senders",
+    ]);
+    expect(fetchMock.mock.calls.every(([, request]) => (request as RequestInit).method !== "POST")).toBe(true);
+  });
+
+  it("reports a valid key but an inactive configured sender", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ senders: [{ email: "securite@mazigho.ch", active: false }] }), { status: 200 })));
+
+    await expect(getTransactionalEmailHealth()).resolves.toMatchObject({
+      configured: true,
+      authenticated: true,
+      senderReady: false,
+      message: "La clé Brevo est valide, mais l’expéditeur configuré n’est pas actif dans Brevo.",
+    });
   });
 
   it("sends account-security messages through Brevo with a separate sender identity", async () => {

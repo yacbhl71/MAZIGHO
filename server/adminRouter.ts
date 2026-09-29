@@ -8,7 +8,7 @@ import { getSupportImpersonationCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { normalizeSupportImpersonationIdentity, SUPPORT_IMPERSONATION_TTL_MS, supportImpersonationExpiresAt } from "./services/supportImpersonationSession";
 import { getStoreRecoveryHost } from "./services/storeScope";
-import { getAccountInvitationLink, isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
+import { getAccountInvitationLink, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
 import { createBrevoMarketingCampaignDraft, getBrevoMarketingStatus, listBrevoMarketingLists } from "./brevoMarketing";
 import { storagePut } from "./storage";
 import { buildCjVariantStoreData, checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
@@ -956,7 +956,9 @@ export const adminRouter = router({
     cancelOrder: platformProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => cancelOdooSaleOrder(input.id)),
   }),
 
-  // System health dashboard (admin-only): TiDB ping, last Odoo sync, site version.
+  // System health dashboard (admin-only): TiDB ping, e-mail configuration,
+  // last Odoo sync and site version. The explicit e-mail check below never
+  // creates or sends a message.
   system: router({
     health: platformProcedure.query(async () => {
       const [dbPing, lastOdooSync] = await Promise.all([
@@ -971,6 +973,7 @@ export const adminRouter = router({
       return {
         checkedAt: new Date().toISOString(),
         database: { ok: dbPing.ok, responseMs: dbPing.responseMs, host: dbHost },
+        email: { configured: isTransactionalEmailConfigured() },
         odoo: { configured: odoo.configured, message: odoo.message, url: odoo.url, lastSyncAt: lastOdooSync },
         site: {
           commitSha,
@@ -983,6 +986,7 @@ export const adminRouter = router({
         },
       };
     }),
+    verifyTransactionalEmail: platformProcedure.mutation(() => getTransactionalEmailHealth()),
     getMaintenance: adminProcedure.query(async () => db.getMaintenanceStatus()),
     setMaintenance: adminProcedure.input(z.object({
       enabled: z.boolean(),

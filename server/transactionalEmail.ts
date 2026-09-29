@@ -16,6 +16,13 @@ type TransactionalSender = {
   name: string;
 };
 
+export type TransactionalEmailHealth = {
+  configured: boolean;
+  authenticated: boolean;
+  senderReady: boolean | null;
+  message: string;
+};
+
 const defaultPublicUrl = "https://www.mazigho.ch";
 const defaultSenderName = "MAZIGHO";
 const studioSupportUrl = "https://studio.mazigho.ch/admin/studio/assistance";
@@ -64,6 +71,78 @@ export function getPublicUrl(): string {
 export function isTransactionalEmailConfigured(): boolean {
   const { apiKey, sender } = getMailConfiguration();
   return Boolean(apiKey && sender);
+}
+
+/**
+ * Verifies the Brevo API key and the configured sender without sending an
+ * email. The browser receives only a small readiness result: never an API key,
+ * account profile, plan, recipient, or sender address.
+ */
+export async function getTransactionalEmailHealth(): Promise<TransactionalEmailHealth> {
+  const { apiKey, sender } = getMailConfiguration();
+  if (!apiKey || !sender) {
+    return {
+      configured: false,
+      authenticated: false,
+      senderReady: null,
+      message: "Ajoutez une clé Brevo et une adresse expéditrice valide dans le déploiement.",
+    };
+  }
+
+  const headers = { Accept: "application/json", "api-key": apiKey };
+  let accountResponse: Response;
+  let sendersResponse: Response;
+  try {
+    [accountResponse, sendersResponse] = await Promise.all([
+      fetch("https://api.brevo.com/v3/account", { headers, signal: AbortSignal.timeout(BREVO_REQUEST_TIMEOUT_MS) }),
+      fetch("https://api.brevo.com/v3/senders", { headers, signal: AbortSignal.timeout(BREVO_REQUEST_TIMEOUT_MS) }),
+    ]);
+  } catch (error) {
+    console.error("[Email] Brevo health check did not complete", {
+      reason: error instanceof Error && error.name === "TimeoutError" ? "TIMEOUT" : "REQUEST_FAILED",
+    });
+    return {
+      configured: true,
+      authenticated: false,
+      senderReady: null,
+      message: "Brevo n’a pas répondu. Vérifiez la connexion et réessayez.",
+    };
+  }
+
+  if (!accountResponse.ok) {
+    console.error("[Email] Brevo health authentication failed", { status: accountResponse.status });
+    return {
+      configured: true,
+      authenticated: false,
+      senderReady: null,
+      message: "La clé Brevo a été refusée ou n’est plus valide.",
+    };
+  }
+
+  if (!sendersResponse.ok) {
+    console.error("[Email] Brevo sender health lookup failed", { status: sendersResponse.status });
+    return {
+      configured: true,
+      authenticated: true,
+      senderReady: null,
+      message: "La clé Brevo est valide, mais la liste des expéditeurs est indisponible.",
+    };
+  }
+
+  const payload = (await sendersResponse.json().catch(() => null)) as {
+    senders?: Array<{ email?: string; active?: boolean }>;
+  } | null;
+  const matchingSender = payload?.senders?.find(candidate => candidate.email?.trim().toLowerCase() === sender.email.toLowerCase());
+  const senderReady = Boolean(matchingSender?.active);
+
+  return {
+    configured: true,
+    authenticated: true,
+    senderReady,
+    message: senderReady
+      ? "Brevo accepte la clé et l’expéditeur transactionnel est actif. Aucun e-mail n’a été envoyé."
+      : "La clé Brevo est valide, mais l’expéditeur configuré n’est pas actif dans Brevo.",
+  };
 }
 
 export function getAccountInvitationLink(token: string): string {
