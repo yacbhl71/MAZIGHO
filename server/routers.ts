@@ -347,16 +347,20 @@ export const appRouter = router({
       throw new Error("Invalid contact data");
     }).mutation(async ({ ctx, input }) => {
       const { createContactMessage } = await import("./db");
-      const { notifyOwner } = await import("./_core/notification");
-      
       await createContactMessage(input, ctx.store?.id);
-      
-      // Notify owner about new contact message
-      await notifyOwner({
-        title: "Nouveau message de contact",
-        content: `De: ${input.name} (${input.email})\nSujet: ${input.subject || "Aucun sujet"}\nMessage: ${input.message}`,
-      });
-      
+
+      // A public message must never be rejected after its tenant-scoped
+      // persistence succeeds merely because an operator alert is unavailable.
+      // The alert itself deliberately excludes all visitor personal data.
+      const { sendPublicContactMessageAlert } = await import("./transactionalEmail");
+      try {
+        await sendPublicContactMessageAlert({
+          storeName: ctx.store?.displayName || "Boutique MAZIGHO",
+        });
+      } catch {
+        console.warn("[Contact] Professional alert unavailable; public message remains stored.");
+      }
+
       return { success: true };
     }),
   }),

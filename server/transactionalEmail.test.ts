@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BREVO_REQUEST_TIMEOUT_MS, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail, sendTransactionalEmailTest } from "./transactionalEmail";
+import { BREVO_REQUEST_TIMEOUT_MS, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendPublicContactMessageAlert, sendStudioSupportTicketAlert, sendTransactionalEmail, sendTransactionalEmailTest } from "./transactionalEmail";
 
 describe("transactionalEmail", () => {
   afterEach(() => {
@@ -177,6 +177,27 @@ describe("transactionalEmail", () => {
     });
     expect(body.textContent).toContain("https://studio.mazigho.ch/admin/studio/assistance");
     expect(body.textContent).toContain("ni le texte libre du ticket");
+  });
+
+  it("sends a public contact alert without visitor data", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ messageId: "<contact-alert-id>" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendPublicContactMessageAlert({ storeName: "Atelier Sylvie" })).resolves.toEqual({ delivered: true, id: "<contact-alert-id>" });
+
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(request.body));
+    expect(body).toMatchObject({
+      to: [{ email: "securite@mazigho.ch" }],
+      subject: "Nouveau message public MAZIGHO",
+      tags: ["mazigho-public-contact-alert"],
+    });
+    expect(body.textContent).toContain("Atelier Sylvie");
+    expect(body.textContent).toContain("ni le nom, ni l’adresse, ni le sujet, ni le texte du visiteur");
+    expect(JSON.stringify(body)).not.toContain("visitor@example.test");
+    expect(JSON.stringify(body)).not.toContain("Question du visiteur");
   });
 
   it("does not claim delivery when Brevo rejects a message", async () => {

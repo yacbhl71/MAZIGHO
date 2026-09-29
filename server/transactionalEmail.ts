@@ -332,3 +332,26 @@ export async function sendStudioSupportTicketAlert(input: {
     html: `<p>Un nouveau ticket d’assistance est disponible dans <strong>MAZIGHO Studio</strong>.</p><ul><li><strong>Boutique :</strong> ${storeName}</li><li><strong>Domaine :</strong> ${primaryDomain}</li><li><strong>Sujet :</strong> ${subject}</li><li><strong>Catégorie :</strong> ${topic}</li><li><strong>Référence :</strong> ${ticketId}</li></ul><p><a href="${studioSupportUrl}" style="display:inline-block;background:#5a6834;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600">Ouvrir l’assistance Studio</a></p><p style="color:#64748b;font-size:12px">Cet e-mail ne contient volontairement ni le texte libre du ticket, ni donnée client, mot de passe, clé API ou information de paiement.</p>`,
   });
 }
+
+/**
+ * Alerts the professional MAZIGHO mailbox after a public contact form message
+ * was persisted. The notification intentionally contains only the storefront
+ * name and no visitor name, email, subject, message body or other personal
+ * data. The complete message remains tenant-scoped in the Messages panel.
+ */
+export async function sendPublicContactMessageAlert(input: {
+  storeName: string;
+}): Promise<DeliveryResult> {
+  const { sender } = getMailConfiguration();
+  if (!sender) return { delivered: false, reason: "EMAIL_NOT_CONFIGURED" };
+
+  const storeName = escapeHtml(input.storeName.trim().slice(0, 160) || "Boutique MAZIGHO");
+  return sendTransactionalEmail({
+    to: sender.email,
+    subject: "Nouveau message public MAZIGHO",
+    idempotencyKey: `public-contact-alert/${Date.now()}`,
+    tags: ["mazigho-public-contact-alert"],
+    text: `Un message a été enregistré depuis le formulaire public de ${input.storeName.trim().slice(0, 160) || "la boutique MAZIGHO"}.\n\nConsultez le panneau Messages de cette boutique pour le lire et y répondre. Cet e-mail ne contient volontairement ni le nom, ni l’adresse, ni le sujet, ni le texte du visiteur.`,
+    html: `<p>Un message a été enregistré depuis le formulaire public de <strong>${storeName}</strong>.</p><p>Consultez le panneau <strong>Messages</strong> de cette boutique pour le lire et y répondre.</p><p style="color:#64748b;font-size:12px">Cet e-mail ne contient volontairement ni le nom, ni l’adresse, ni le sujet, ni le texte du visiteur.</p>`,
+  });
+}
