@@ -49,8 +49,13 @@ const statusClasses: Record<string, string> = {
   cancelled: "bg-rose-100 text-rose-800",
 };
 
-function formatMoney(value: unknown) {
-  return `${(Number(value || 0) / 100).toFixed(2)} CHF`;
+function formatMoney(value: unknown, currency: string) {
+  const amount = Number(value || 0) / 100;
+  try {
+    return new Intl.NumberFormat("fr-CH", { style: "currency", currency, currencyDisplay: "code", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`;
+  }
 }
 
 function formatDate(value: Date | string | null) {
@@ -120,8 +125,10 @@ function QuickAction({ href, title, detail, icon: Icon }: { href: string; title:
 
 export default function AdminDashboard() {
   const { data: stats, isLoading, refetch, isFetching } = trpc.admin.getStats.useQuery();
+  const settingsQuery = trpc.admin.settings.getAll.useQuery();
   const currentYear = new Date().getFullYear();
   const accountingOverviewQuery = trpc.admin.accounting.getOverview.useQuery({ year: currentYear });
+  const activeCurrency = settingsQuery.data?.find(setting => setting.key === "store_currency_code")?.value?.trim().toUpperCase() || "CHF";
   const lowStockProducts = stats?.lowStockProducts ?? [];
   const recentOrders = stats?.recentOrders ?? [];
   const productsWithoutDeliveryProfiles = stats?.catalogReadiness?.productsWithoutDeliveryProfiles ?? [];
@@ -178,21 +185,21 @@ export default function AdminDashboard() {
   const metrics = [
     {
       title: "Ventes encaissées",
-      value: formatMoney(stats?.revenue),
+      value: formatMoney(stats?.revenue, activeCurrency),
       helper: "Commandes réglées",
       icon: TrendingUp,
       tone: "bg-emerald-100 text-emerald-700",
     },
     {
       title: "Panier moyen",
-      value: formatMoney(stats?.averageCart),
+      value: formatMoney(stats?.averageCart, activeCurrency),
       helper: "Sur commandes payées",
       icon: ShoppingCart,
       tone: "bg-teal-100 text-teal-700",
     },
     {
       title: "CA 30 derniers jours",
-      value: formatMoney(stats?.revenueLast30Days),
+      value: formatMoney(stats?.revenueLast30Days, activeCurrency),
       helper: "Ventes réglées récentes",
       icon: ChartNoAxesCombined,
       tone: "bg-sky-100 text-sky-700",
@@ -245,6 +252,7 @@ export default function AdminDashboard() {
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Tableau de bord MAZIGHO</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">Vos indicateurs essentiels, vos alertes et vos prochaines actions réunis au même endroit.</p>
+              <div className="mt-4 inline-flex min-h-9 items-center rounded-full border border-orange-200 bg-white px-3 text-xs font-semibold text-orange-900">Devise active de la boutique : {activeCurrency}</div>
             </div>
             <Button onClick={() => refetch()} disabled={isFetching} variant="outline" className="border-orange-200 bg-white text-orange-700 hover:bg-orange-100">
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
@@ -271,7 +279,7 @@ export default function AdminDashboard() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} interval={4} />
                       <YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)}`} />
-                      <Tooltip formatter={(value: number | string) => [formatMoney(value), "Ventes"]} labelStyle={{ color: "#0f172a" }} />
+                      <Tooltip formatter={(value: number | string) => [formatMoney(value, activeCurrency), "Ventes"]} labelStyle={{ color: "#0f172a" }} />
                       <Line type="monotone" dataKey="revenue" name="Ventes encaissées" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -299,7 +307,7 @@ export default function AdminDashboard() {
                         <p className="truncate font-semibold text-slate-900">{product.name}</p>
                         <p className="text-xs text-muted-foreground">{product.quantitySold} vendu(s)</p>
                       </div>
-                      <p className="ml-auto font-semibold text-emerald-700">{formatMoney(product.revenue)}</p>
+                      <p className="ml-auto font-semibold text-emerald-700">{formatMoney(product.revenue, activeCurrency)}</p>
                     </div>
                   ))}
                 </div>
@@ -315,7 +323,7 @@ export default function AdminDashboard() {
               <CardDescription>Ventes encaissées et dépenses réellement saisies en {currentYear}.</CardDescription>
             </CardHeader>
             <CardContent className="p-5">
-              {isLoading || accountingOverviewQuery.isLoading ? <Skeleton className="h-[280px] w-full" /> : hasMonthlyData ? <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyData} margin={{ top: 14, right: 8, left: -12, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} /><YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)} CHF`} /><Tooltip formatter={(value: number | string) => formatMoney(value)} labelStyle={{ color: "#0f172a" }} /><Line type="monotone" dataKey="sales" name="Ventes encaissées" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 3, fill: "#0ea5e9" }} activeDot={{ r: 5 }} /><Line type="monotone" dataKey="expenses" name="Achats et frais" stroke="#f97316" strokeWidth={3} dot={{ r: 3, fill: "#f97316" }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyChart icon={ReceiptText} title="Aucun flux financier à tracer" detail="Le graphique apparaîtra dès qu’une commande payée, un achat ou un frais sera enregistré." />}
+              {isLoading || accountingOverviewQuery.isLoading ? <Skeleton className="h-[280px] w-full" /> : hasMonthlyData ? <div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={monthlyData} margin={{ top: 14, right: 8, left: -12, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={12} /><YAxis tickLine={false} axisLine={false} fontSize={12} tickFormatter={(value) => `${Math.round(Number(value) / 100)} ${activeCurrency}`} /><Tooltip formatter={(value: number | string) => formatMoney(value, activeCurrency)} labelStyle={{ color: "#0f172a" }} /><Line type="monotone" dataKey="sales" name="Ventes encaissées" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 3, fill: "#0ea5e9" }} activeDot={{ r: 5 }} /><Line type="monotone" dataKey="expenses" name="Achats et frais" stroke="#f97316" strokeWidth={3} dot={{ r: 3, fill: "#f97316" }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyChart icon={ReceiptText} title="Aucun flux financier à tracer" detail="Le graphique apparaîtra dès qu’une commande payée, un achat ou un frais sera enregistré." />}
             </CardContent>
           </Card>
 
@@ -415,7 +423,7 @@ export default function AdminDashboard() {
                         <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
                       </div>
                       <Badge className={`border-0 ${statusClasses[order.status] || "bg-slate-100 text-slate-700"}`}>{statusLabels[order.status] || order.status}</Badge>
-                      <p className="ml-auto font-semibold text-slate-900">{formatMoney(order.totalAmount)}</p>
+                      <p className="ml-auto font-semibold text-slate-900">{formatMoney(order.totalAmount, activeCurrency)}</p>
                     </div>
                   ))}
                 </div>

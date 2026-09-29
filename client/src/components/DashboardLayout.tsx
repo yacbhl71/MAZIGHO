@@ -409,7 +409,7 @@ function DashboardLayoutContent({
                       alt="Logo"
                     />
                     <span className="font-semibold tracking-tight truncate">
-                      {isStudio ? "MAZIGHO Studio" : "Pilotage boutique MAZIGHO"}
+                      {isStudio ? "MAZIGHO Studio" : "Pilotage de la boutique"}
                     </span>
                   </div>
                   <button
@@ -530,7 +530,7 @@ function DashboardLayoutContent({
         <main className="flex-1 p-4">
           <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900">
             <span className="font-semibold">MAZIGHO · espace d’administration</span>
-            <span className="text-orange-700">Pilotage en CHF</span>
+            <span className="text-orange-700">Données isolées par boutique</span>
           </div>
           {children}
         </main>
