@@ -9,6 +9,8 @@ export const storefrontThemeIds = [
   "sport",
   "jewelry",
   "coffee",
+  "gallerySignature",
+  "studioFlux",
 ] as const;
 
 export type StorefrontThemeId = (typeof storefrontThemeIds)[number];
@@ -135,6 +137,26 @@ export const storefrontThemeCatalog: readonly StorefrontThemeCatalogItem[] = [
     visualAlt: "Café espresso et accessoires artisanaux dans une ambiance chaleureuse",
     benefits: ["Hero café immersif", "Menu cafés, thés et cadeaux", "Cartes découverte, origines et accessoires"],
     palette: { card: "border-orange-200 bg-orange-50/70", label: "text-orange-800", title: "text-stone-950", text: "text-stone-700", button: "bg-[#5A321E] hover:bg-[#402316]", badge: "bg-orange-100 text-orange-900" },
+  },
+  {
+    id: "gallerySignature",
+    label: "Galerie Signature — design premium",
+    eyebrow: "Art, design & objets",
+    description: "Une direction galerie haut de gamme : identité centrée, navigation en seconde ligne et récit de collection.",
+    visual: "/assets/themes/galerie-signature/hero.webp",
+    visualAlt: "Composition premium d’objets design dans une galerie contemporaine",
+    benefits: ["Identité centrée et menu galerie", "Manifeste éditorial en ouverture", "Palette encre, ivoire et laiton"],
+    palette: { card: "border-stone-300 bg-stone-50", label: "text-stone-700", title: "text-slate-950", text: "text-stone-700", button: "bg-slate-950 hover:bg-slate-800", badge: "bg-stone-200 text-stone-900" },
+  },
+  {
+    id: "studioFlux",
+    label: "Studio Flux — commerce premium",
+    eyebrow: "Sélection contemporaine",
+    description: "Une vitrine directe et graphique : recherche prioritaire, navigation en bande et mises en avant rythmées.",
+    visual: "/assets/themes/studio-flux/hero.webp",
+    visualAlt: "Sélection d’objets contemporains sur des socles bleu cobalt et orange",
+    benefits: ["Recherche large et navigation utilitaire", "Nouveautés mises en avant avant le récit", "Blocs modulaires au rythme graphique"],
+    palette: { card: "border-blue-200 bg-blue-50/60", label: "text-blue-800", title: "text-slate-950", text: "text-slate-700", button: "bg-[#183B73] hover:bg-[#102B57]", badge: "bg-orange-100 text-orange-900" },
   },
 ] as const;
 

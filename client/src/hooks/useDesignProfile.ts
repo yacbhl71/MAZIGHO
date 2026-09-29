@@ -10,7 +10,7 @@ export type NavigationLabels = {
 };
 
 export type ButtonRadius = "flat" | "rounded" | "full";
-export type HeaderLayout = "inline" | "split" | "searchFirst";
+export type HeaderLayout = "inline" | "split" | "searchFirst" | "gallery" | "market";
 export type ClosingVisualFont = "inherit" | "editorial" | "modern" | "classic";
 
 export type StoreNavigationItem = {

@@ -65,7 +65,9 @@ export default function Header() {
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
   const headerLayout = profile.headerLayout || "inline";
-  const usesSplitHeader = headerLayout === "split";
+  const usesGalleryHeader = headerLayout === "gallery";
+  const usesMarketHeader = headerLayout === "market";
+  const usesSplitHeader = headerLayout === "split" || usesGalleryHeader || usesMarketHeader;
   const usesSearchFirstHeader = headerLayout === "searchFirst";
   const copy = getPublicCopy(locale);
   const creativeCopy = getCreativeMenuCopy(locale);
@@ -145,11 +147,11 @@ export default function Header() {
       </div>}
 
       {/* Main Navigation */}
-      <nav className="w-full px-3 py-2 sm:px-4 xl:px-6 xl:py-2.5">
-        <div className="flex items-center gap-2 xl:gap-3">
+      <nav className={`w-full px-3 py-2 sm:px-4 xl:px-6 ${usesGalleryHeader ? "xl:py-3" : "xl:py-2.5"}`}>
+        <div className={`relative flex items-center gap-2 xl:gap-3 ${usesGalleryHeader ? "xl:min-h-12 xl:justify-between" : ""}`}>
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
-            <div className="group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3">
+            <div className={`group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3 ${usesGalleryHeader ? "xl:absolute xl:left-1/2 xl:-translate-x-1/2 xl:border-r-0 xl:px-6 xl:pr-6" : ""} ${usesMarketHeader ? "xl:min-w-[13rem]" : ""}`}>
               <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" style={{ borderColor: palette.soft }} /> : isPlatformStore ? <img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-8 w-8 shrink-0 object-contain" /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg" style={{ color: palette.primary }}>{brandName}</span>{!brandLogoUrl && !isPlatformStore && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" style={{ backgroundColor: palette.accent }} aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline" style={{ borderColor: palette.soft }}>{brandMessage}</span> : null}</>
             </div>
           </Link>
@@ -160,7 +162,7 @@ export default function Header() {
           </div>}
 
           {/* Search Bar - Desktop */}
-          <div className={`hidden flex-none xl:ml-auto xl:block ${usesSearchFirstHeader ? "w-60" : usesSplitHeader ? "w-48" : "w-32"}`}>
+          <div className={`hidden flex-none xl:ml-auto xl:block ${usesMarketHeader ? "w-72" : usesGalleryHeader ? "w-40" : usesSearchFirstHeader ? "w-60" : usesSplitHeader ? "w-48" : "w-32"}`}>
             <SearchBar />
           </div>
 
@@ -212,8 +214,10 @@ export default function Header() {
           </div>
         </div>
 
-        {usesSplitHeader && <div className="hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:justify-center xl:gap-1 xl:pb-0.5">
-          {rootNavigationItems.map(renderDesktopNavigationItem)}
+        {usesSplitHeader && <div className={`hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:gap-1 xl:pb-0.5 ${usesMarketHeader ? "xl:justify-between" : "xl:justify-center"}`}>
+          {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Sélection en ligne</span>}
+          <div className="flex items-center gap-1">{rootNavigationItems.map(renderDesktopNavigationItem)}</div>
+          {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: palette.accent }}>Nouveautés & offres</span>}
         </div>}
 
         {/* Mobile Search Bar */}

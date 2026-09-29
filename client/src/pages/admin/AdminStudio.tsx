@@ -191,6 +191,8 @@ const storefrontThemePresetBusinessTypes: Record<StorefrontThemePreset, Provisio
   sport: "autre",
   jewelry: "bijoux",
   coffee: "autre",
+  gallerySignature: "autre",
+  studioFlux: "autre",
 };
 
 const storeStatusPresentation = {

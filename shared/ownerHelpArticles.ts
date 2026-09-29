@@ -95,7 +95,7 @@ export const ownerHelpArticles: readonly OwnerHelpArticle[] = [
     id: "theme-and-style",
     category: "storefront",
     title: "Choisir un thème puis le personnaliser",
-    summary: "Démarrez avec l’un des dix univers visuels, puis remplacez ce qui ne correspond pas à votre marque.",
+    summary: "Démarrez avec l’un des douze univers visuels, puis remplacez ce qui ne correspond pas à votre marque.",
     steps: [
       "Ouvrez Thèmes de vitrine et choisissez un univers proche de votre activité.",
       "Appliquez-le uniquement lorsque vous êtes prêt : les contenus de votre boutique restent modifiables ensuite.",

@@ -202,6 +202,33 @@ describe("owner product variant routes", () => {
     }));
   });
 
+  it("applies both premium themes with their distinct navigation layouts", async () => {
+    state.membership = { role: "owner", status: "active" };
+    const caller = callerFor();
+
+    await expect(caller.owner.applyStorefrontTheme({ themeId: "gallerySignature" })).resolves.toMatchObject({
+      themeId: "gallerySignature",
+      heroApplied: true,
+      categoryImageCount: 3,
+    });
+    expect(db.updateDesignProfile).toHaveBeenLastCalledWith(expect.objectContaining({
+      brandName: "Galerie Signature",
+      headerLayout: "gallery",
+      customPrimary: "#142033",
+    }), 77);
+
+    await expect(caller.owner.applyStorefrontTheme({ themeId: "studioFlux" })).resolves.toMatchObject({
+      themeId: "studioFlux",
+      heroApplied: true,
+      categoryImageCount: 3,
+    });
+    expect(db.updateDesignProfile).toHaveBeenLastCalledWith(expect.objectContaining({
+      brandName: "Studio Flux",
+      headerLayout: "market",
+      customPrimary: "#183B73",
+    }), 77);
+  });
+
   it("keeps integration requests visible to managers but writable only by the current store owner", async () => {
     await expect(callerFor().owner.getIntegrationRequests()).resolves.toEqual({ requests: [{ id: "google_analytics", requestedAt: "2026-09-26T00:00:00.000Z" }] });
     expect(db.getOwnerIntegrationRequests).toHaveBeenCalledWith(77);
@@ -708,11 +735,11 @@ describe("owner product variant routes", () => {
   });
 
   it("saves the header layout only through the current resolved store", async () => {
-    await expect(callerFor().owner.saveStorefrontHeaderLayout({ headerLayout: "searchFirst" })).resolves.toMatchObject({
-      headerLayout: "searchFirst",
+    await expect(callerFor().owner.saveStorefrontHeaderLayout({ headerLayout: "gallery" })).resolves.toMatchObject({
+      headerLayout: "gallery",
     });
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
-    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ headerLayout: "searchFirst" }), 77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ headerLayout: "gallery" }), 77);
   });
 
   it("saves footer settings only through the current resolved store", async () => {

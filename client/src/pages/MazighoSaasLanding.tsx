@@ -26,7 +26,7 @@ import { trpc } from "@/lib/trpc";
 const navigation = [
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
   { label: "Votre espace", href: "#espace" },
-  { label: "10 thèmes", href: "#themes" },
+  { label: "12 thèmes", href: "#themes" },
   { label: "Tarifs", href: "#tarifs" },
 ];
 
@@ -130,7 +130,7 @@ function ProductStudioPreview() {
               </div>
               <div className="mt-5 grid grid-cols-[1.15fr_.85fr] gap-3">
                 <div className="rounded-2xl bg-[#5b6836] p-3.5 text-white"><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/65">Vitrine</p><p className="mt-1 text-xs font-semibold">Personnalisez chaque détail.</p><div className="mt-3 flex h-9 items-end gap-1"><span className="h-4 w-3 rounded-t bg-[#dce5aa]" /><span className="h-7 w-3 rounded-t bg-[#f5bc61]" /><span className="h-5 w-3 rounded-t bg-white/65" /><span className="h-8 w-3 rounded-t bg-[#dce5aa]" /><span className="h-6 w-3 rounded-t bg-white/65" /></div></div>
-                <div className="rounded-2xl border border-[#e7e4d9] p-3.5"><Palette className="h-4 w-4 text-[#d68a25]" /><p className="mt-2 text-[10px] font-bold text-slate-900">10 thèmes</p><p className="mt-1 text-[9px] leading-4 text-slate-500">Une base, jamais une contrainte.</p></div>
+                <div className="rounded-2xl border border-[#e7e4d9] p-3.5"><Palette className="h-4 w-4 text-[#d68a25]" /><p className="mt-2 text-[10px] font-bold text-slate-900">12 thèmes</p><p className="mt-1 text-[9px] leading-4 text-slate-500">Une base, jamais une contrainte.</p></div>
               </div>
             </div>
           </div>
@@ -149,7 +149,7 @@ function ThemeLivePreview({ onCreateSpace }: { onCreateSpace: () => void }) {
     <section id="themes" className="scroll-mt-20 border-y border-[#e9e6d9] bg-[#fffefb] py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b8b40]">10 univers de départ</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#7b8b40]">12 univers de départ</p>
           <h2 className="mt-3 font-serif text-4xl font-bold tracking-[-0.035em] text-[#26301b] sm:text-5xl">Projetez votre boutique avant même de commencer.</h2>
           <p className="mt-4 text-sm leading-6 text-slate-600 sm:text-base">Choisissez un univers : l’aperçu change immédiatement. Les images, textes, couleurs, sections et menu restent ensuite entièrement entre vos mains.</p>
         </div>
@@ -173,7 +173,7 @@ function ThemeLivePreview({ onCreateSpace }: { onCreateSpace: () => void }) {
           </div>
 
           <div className="flex flex-col rounded-[2rem] border border-[#e7e4d9] bg-[#fbfaf5] p-4 shadow-[0_18px_45px_-36px_rgba(34,43,22,.45)] sm:p-5">
-            <div className="flex items-start justify-between gap-4 px-1 pb-4"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#7a8942]">Prévisualisation en direct</p><p className="mt-1 text-sm leading-5 text-slate-600">10 bases, sans vous enfermer dans un modèle.</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9eed0] text-[#5d6a31]"><Palette className="h-5 w-5" /></span></div>
+            <div className="flex items-start justify-between gap-4 px-1 pb-4"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-[#7a8942]">Prévisualisation en direct</p><p className="mt-1 text-sm leading-5 text-slate-600">12 bases, sans vous enfermer dans un modèle.</p></div><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9eed0] text-[#5d6a31]"><Palette className="h-5 w-5" /></span></div>
             <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Choisir un univers de boutique à prévisualiser">{storefrontThemeCatalog.map(theme => {
               const active = theme.id === selectedThemeId;
               return <button key={theme.id} type="button" aria-pressed={active} onClick={() => setSelectedThemeId(theme.id)} className={`group relative flex min-h-[78px] items-center gap-3 overflow-hidden rounded-2xl border p-2.5 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-[#69783c] focus:ring-offset-2 ${active ? "border-[#647336] bg-white shadow-[0_10px_20px_-16px_rgba(64,77,31,.7)]" : "border-[#e6e2d6] bg-white/70 hover:border-[#a9b773] hover:bg-white"}`}>
