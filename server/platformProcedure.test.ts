@@ -37,6 +37,7 @@ describe("MAZIGHO Studio platform guard", () => {
     const caller = appRouter.createCaller(createContext({ role: "admin", isPlatformStore: 0 }));
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.verifyTransactionalEmail()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.system.sendTransactionalEmailTest()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCustomDomainRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getIntegrationRequestRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -146,6 +147,7 @@ describe("MAZIGHO Studio platform guard", () => {
     const caller = appRouter.createCaller(createContext({ role: "user", isPlatformStore: 1 }));
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.verifyTransactionalEmail()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.system.sendTransactionalEmailTest()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getCommercialReadiness()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.owner.getPrivateCartSimulation({ countryCode: "CH", lines: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });

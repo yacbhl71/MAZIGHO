@@ -2,8 +2,9 @@ import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { trpc } from "@/lib/trpc";
-import { Activity, Database, GitCommitHorizontal, Network, RefreshCw, Loader2, MailCheck } from "lucide-react";
+import { Activity, Database, GitCommitHorizontal, Network, RefreshCw, Loader2, MailCheck, Send } from "lucide-react";
 
 function StatusDot({ ok }: { ok: boolean }) {
   return (
@@ -29,16 +30,36 @@ export default function AdminSystemHealth() {
     senderReady: boolean | null;
     message: string;
   } | null>(null);
+  const [emailTest, setEmailTest] = useState<{
+    sent: boolean;
+    sentAt: string | null;
+    message: string;
+  } | null>(null);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
   const verifyEmail = trpc.admin.system.verifyTransactionalEmail.useMutation({
     onSuccess: result => setEmailHealth(result),
+  });
+  const sendEmailTest = trpc.admin.system.sendTransactionalEmailTest.useMutation({
+    onSuccess: result => {
+      setEmailTest(result);
+      setTestDialogOpen(false);
+    },
+    onError: () => {
+      setEmailTest({
+        sent: false,
+        sentAt: null,
+        message: "Le test n’a pas pu être lancé. Vérifiez vos droits Studio et réessayez.",
+      });
+      setTestDialogOpen(false);
+    },
   });
   const data = healthQuery.data;
 
   const dbOk = Boolean(data?.database.ok);
   const odooOk = Boolean(data?.odoo.configured);
   const emailConfigured = Boolean(data?.email.configured);
-  const emailReady = emailHealth?.senderReady === true;
-  const emailStatus = emailReady ? "Prêt" : emailHealth?.authenticated === false && emailHealth?.configured ? "Clé à corriger" : emailConfigured ? "À vérifier" : "À configurer";
+  const emailReady = emailTest?.sent || emailHealth?.senderReady === true;
+  const emailStatus = emailTest?.sent ? "Test accepté" : emailReady ? "Prêt" : emailHealth?.authenticated === false && emailHealth?.configured ? "Clé à corriger" : emailConfigured ? "À vérifier" : "À configurer";
 
   return (
     <DashboardLayout>
@@ -132,6 +153,39 @@ export default function AdminSystemHealth() {
                   Vérifier Brevo
                 </Button>
                 <p className="text-[11px] leading-4 text-muted-foreground">Ce contrôle ne crée ni n’envoie aucun e-mail.</p>
+
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                  <div className="flex items-start gap-2">
+                    <Send className="mt-0.5 h-4 w-4 shrink-0 text-orange-600" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">Preuve de réception interne</p>
+                      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                        Envoie un message fixe uniquement vers la boîte professionnelle configurée. Aucun client ni destinataire libre ne peut être choisi.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3 min-h-11 w-full"
+                    onClick={() => setTestDialogOpen(true)}
+                    disabled={!emailConfigured || sendEmailTest.isPending}
+                    data-testid="health-send-email-test-btn"
+                  >
+                    {sendEmailTest.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Envoyer un test à la boîte professionnelle
+                  </Button>
+                  {emailTest && (
+                    <div
+                      className={`mt-3 rounded-md px-3 py-2 text-xs leading-5 ${emailTest.sent ? "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" : "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100"}`}
+                      role="status"
+                      data-testid="health-email-test-result"
+                    >
+                      <p className="font-medium">{emailTest.message}</p>
+                      {emailTest.sentAt && <p className="mt-1 opacity-80">Résultat : {formatDateTime(emailTest.sentAt)}</p>}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -195,6 +249,27 @@ export default function AdminSystemHealth() {
           Les informations de version proviennent des variables Vercel (<span className="font-mono">VERCEL_GIT_COMMIT_SHA</span>). En prévisualisation locale, « local / dev » s'affiche.
         </p>
       </div>
+      <AlertDialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Envoyer le test professionnel ?</AlertDialogTitle>
+            <AlertDialogDescription className="leading-6">
+              Un seul e-mail technique, sans donnée client, sera envoyé à la boîte professionnelle définie dans la configuration MAZIGHO. Aucun autre destinataire ne sera utilisé. Brevo accepté ne prouve pas encore la lecture ou la réception dans la boîte.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendEmailTest.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => sendEmailTest.mutate()}
+              disabled={sendEmailTest.isPending}
+              data-testid="health-confirm-send-email-test-btn"
+            >
+              {sendEmailTest.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Envoyer le test
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

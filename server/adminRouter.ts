@@ -8,7 +8,7 @@ import { getSupportImpersonationCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { normalizeSupportImpersonationIdentity, SUPPORT_IMPERSONATION_TTL_MS, supportImpersonationExpiresAt } from "./services/supportImpersonationSession";
 import { getStoreRecoveryHost } from "./services/storeScope";
-import { getAccountInvitationLink, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendAccountInvitationEmail } from "./transactionalEmail";
+import { getAccountInvitationLink, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendAccountInvitationEmail, sendTransactionalEmailTest } from "./transactionalEmail";
 import { createBrevoMarketingCampaignDraft, getBrevoMarketingStatus, listBrevoMarketingLists } from "./brevoMarketing";
 import { storagePut } from "./storage";
 import { buildCjVariantStoreData, checkCjSwissDelivery, getCjConnectionStatus, getCjGlobalWarehouses, prepareCjProductImport, quoteCjDelivery, searchCjCatalog, searchCjCatalogByImage, verifyCjConnection } from "./cjDropshipping";
@@ -957,8 +957,9 @@ export const adminRouter = router({
   }),
 
   // System health dashboard (admin-only): TiDB ping, e-mail configuration,
-  // last Odoo sync and site version. The explicit e-mail check below never
-  // creates or sends a message.
+  // last Odoo sync and site version. The readiness check never sends a
+  // message; the separate, confirmed self-test is internal-only and always
+  // targets the configured professional sender mailbox.
   system: router({
     health: platformProcedure.query(async () => {
       const [dbPing, lastOdooSync] = await Promise.all([
@@ -987,6 +988,7 @@ export const adminRouter = router({
       };
     }),
     verifyTransactionalEmail: platformProcedure.mutation(() => getTransactionalEmailHealth()),
+    sendTransactionalEmailTest: platformProcedure.mutation(() => sendTransactionalEmailTest()),
     getMaintenance: adminProcedure.query(async () => db.getMaintenanceStatus()),
     setMaintenance: adminProcedure.input(z.object({
       enabled: z.boolean(),

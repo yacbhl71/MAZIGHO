@@ -23,6 +23,17 @@ export type TransactionalEmailHealth = {
   message: string;
 };
 
+/**
+ * Deliberately minimal response for the Studio self-test. It contains no
+ * provider identifier, recipient address, sender address, account data, or
+ * message body.
+ */
+export type TransactionalEmailTestResult = {
+  sent: boolean;
+  sentAt: string | null;
+  message: string;
+};
+
 const defaultPublicUrl = "https://www.mazigho.ch";
 const defaultSenderName = "MAZIGHO";
 const studioSupportUrl = "https://studio.mazigho.ch/admin/studio/assistance";
@@ -143,6 +154,63 @@ export async function getTransactionalEmailHealth(): Promise<TransactionalEmailH
       ? "Brevo accepte la clé et l’expéditeur transactionnel est actif. Aucun e-mail n’a été envoyé."
       : "La clé Brevo est valide, mais l’expéditeur configuré n’est pas actif dans Brevo.",
   };
+}
+
+/**
+ * Sends a fixed, internal-only delivery test to the verified professional
+ * sender mailbox. There is intentionally no recipient parameter: Studio
+ * operators cannot use this control to send mail to customers or personal
+ * addresses.
+ */
+export async function sendTransactionalEmailTest(): Promise<TransactionalEmailTestResult> {
+  const health = await getTransactionalEmailHealth();
+  if (!health.configured || !health.authenticated || !health.senderReady) {
+    return {
+      sent: false,
+      sentAt: null,
+      message: "Test non envoyé : vérifiez d’abord la clé Brevo et l’expéditeur transactionnel.",
+    };
+  }
+
+  const { sender } = getMailConfiguration();
+  if (!sender) {
+    return {
+      sent: false,
+      sentAt: null,
+      message: "Test non envoyé : l’expéditeur transactionnel n’est pas disponible.",
+    };
+  }
+
+  try {
+    const outcome = await sendTransactionalEmail({
+      to: sender.email,
+      subject: "Test technique MAZIGHO — e-mail transactionnel",
+      idempotencyKey: "studio-transactional-email-self-test",
+      tags: ["mazigho-studio-email-test"],
+      text: "Test technique MAZIGHO\n\nBrevo a accepté un test interne de l’e-mail transactionnel. Ce message ne contient aucune donnée client, commande, mot de passe ou information de paiement.",
+      html: "<p><strong>Test technique MAZIGHO</strong></p><p>Brevo a accepté un test interne de l’e-mail transactionnel.</p><p style=\"color:#64748b;font-size:12px\">Ce message ne contient aucune donnée client, commande, mot de passe ou information de paiement.</p>",
+    });
+
+    if (!outcome.delivered) {
+      return {
+        sent: false,
+        sentAt: null,
+        message: "Test non envoyé : l’e-mail transactionnel n’est pas configuré.",
+      };
+    }
+
+    return {
+      sent: true,
+      sentAt: new Date().toISOString(),
+      message: "Brevo a accepté le test pour la boîte professionnelle configurée. Vérifiez maintenant sa réception : l’acceptation ne confirme pas encore sa lecture.",
+    };
+  } catch {
+    return {
+      sent: false,
+      sentAt: null,
+      message: "Brevo n’a pas accepté le test. Réessayez après avoir vérifié la configuration.",
+    };
+  }
 }
 
 export function getAccountInvitationLink(token: string): string {

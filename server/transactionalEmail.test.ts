@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BREVO_REQUEST_TIMEOUT_MS, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail } from "./transactionalEmail";
+import { BREVO_REQUEST_TIMEOUT_MS, getTransactionalEmailHealth, isTransactionalEmailConfigured, sendStudioSupportTicketAlert, sendTransactionalEmail, sendTransactionalEmailTest } from "./transactionalEmail";
 
 describe("transactionalEmail", () => {
   afterEach(() => {
@@ -51,6 +51,76 @@ describe("transactionalEmail", () => {
       senderReady: false,
       message: "La clé Brevo est valide, mais l’expéditeur configuré n’est pas actif dans Brevo.",
     });
+  });
+
+  it("sends the Studio self-test only to the configured professional sender and returns no address or provider id", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    vi.stubEnv("BREVO_SENDER_NAME", "MAZIGHO");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ senders: [{ email: "securite@mazigho.ch", active: true }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ messageId: "<internal-test-id>" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendTransactionalEmailTest();
+
+    expect(result).toEqual({
+      sent: true,
+      sentAt: expect.any(String),
+      message: "Brevo a accepté le test pour la boîte professionnelle configurée. Vérifiez maintenant sa réception : l’acceptation ne confirme pas encore sa lecture.",
+    });
+    expect(JSON.stringify(result)).not.toContain("securite@mazigho.ch");
+    expect(JSON.stringify(result)).not.toContain("internal-test-id");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const [url, request] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
+    const body = JSON.parse(String(request.body));
+    expect(body).toMatchObject({
+      sender: { email: "securite@mazigho.ch", name: "MAZIGHO" },
+      to: [{ email: "securite@mazigho.ch" }],
+      subject: "Test technique MAZIGHO — e-mail transactionnel",
+      tags: ["mazigho-studio-email-test"],
+    });
+    expect(JSON.stringify(body)).not.toContain("client@example.com");
+    expect(body.textContent).toContain("aucune donnée client");
+  });
+
+  it("does not attempt a self-test send when the configured sender is inactive", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ senders: [{ email: "securite@mazigho.ch", active: false }] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(sendTransactionalEmailTest()).resolves.toEqual({
+      sent: false,
+      sentAt: null,
+      message: "Test non envoyé : vérifiez d’abord la clé Brevo et l’expéditeur transactionnel.",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([url]) => url)).not.toContain("https://api.brevo.com/v3/smtp/email");
+  });
+
+  it("returns a safe failed self-test result when Brevo rejects the message", async () => {
+    vi.stubEnv("BREVO_API_KEY", "test-brevo-key");
+    vi.stubEnv("BREVO_SENDER_EMAIL", "securite@mazigho.ch");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ senders: [{ email: "securite@mazigho.ch", active: true }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: "invalid_parameter" }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendTransactionalEmailTest();
+
+    expect(result).toEqual({
+      sent: false,
+      sentAt: null,
+      message: "Brevo n’a pas accepté le test. Réessayez après avoir vérifié la configuration.",
+    });
+    expect(JSON.stringify(result)).not.toContain("securite@mazigho.ch");
   });
 
   it("sends account-security messages through Brevo with a separate sender identity", async () => {
