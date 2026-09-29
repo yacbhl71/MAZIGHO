@@ -1775,6 +1775,20 @@ function uniqueStudioExistingCatalogueSlug(value: string, used: Set<string>, fal
 }
 
 /**
+ * A prepared Studio catalogue may be created on an installation that still
+ * retains a historical global slug index. The visible category/product name
+ * stays unchanged; only its private routing key carries the tenant id.
+ */
+export function studioExistingCatalogueStoreSlug(
+  value: string,
+  used: Set<string>,
+  fallback: string,
+  storeId: number
+) {
+  return uniqueStudioExistingCatalogueSlug(`${value}-${storeId}`, used, `${fallback}-${storeId}`);
+}
+
+/**
  * Controlled Studio view of a gift store's real catalogue. It intentionally
  * excludes supplier, customer, order and payment data and remains available
  * after activation for ongoing store management.
@@ -1806,7 +1820,7 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
   const current = snapshot.categories.find(category => category.id === input.categoryId);
   if (!current) throw new Error("CATEGORY_NOT_FOUND");
   const used = new Set(snapshot.categories.filter(category => category.id !== input.categoryId).map(category => category.slug));
-  const slug = uniqueStudioExistingCatalogueSlug(input.name, used, `categorie-${input.categoryId}`);
+  const slug = studioExistingCatalogueStoreSlug(input.name, used, `categorie-${input.categoryId}`, input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(categories).set({ name: input.name, description: input.description, slug }).where(and(eq(categories.storeId, input.storeId), eq(categories.id, input.categoryId)));
@@ -1823,7 +1837,7 @@ export async function createStudioOwnerExistingCatalogueCategory(input: { storeI
   await ensureStoreCatalogScopeSchema();
   await ensureCatalogSectionSchema();
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
-  const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.categories.map(category => category.slug)), "nouvelle-categorie");
+  const slug = studioExistingCatalogueStoreSlug(input.name, new Set(snapshot.categories.map(category => category.slug)), "nouvelle-categorie", input.storeId);
   const displayOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -1844,7 +1858,7 @@ export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: 
   if (!current) throw new Error("PRODUCT_NOT_FOUND");
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
   const used = new Set(snapshot.products.filter(product => product.id !== input.productId).map(product => product.slug));
-  const slug = uniqueStudioExistingCatalogueSlug(input.name, used, `produit-${input.productId}`);
+  const slug = studioExistingCatalogueStoreSlug(input.name, used, `produit-${input.productId}`, input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, options: input.options.length ? JSON.stringify(input.options) : null }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
@@ -1858,7 +1872,7 @@ export async function createStudioOwnerExistingCatalogueProduct(input: { storeId
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
   await assertStoreActiveProductCapacity(input.storeId);
-  const slug = uniqueStudioExistingCatalogueSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit");
+  const slug = studioExistingCatalogueStoreSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit", input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: "active", options: input.options.length ? JSON.stringify(input.options) : null });
@@ -1895,7 +1909,7 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
     const categoryKey = row.category.trim().toLocaleLowerCase("fr");
     let category = categoryByNormalizedName.get(categoryKey);
     if (!category) {
-      const slug = uniqueStudioExistingCatalogueSlug(row.category, usedCategorySlugs, "nouvelle-categorie");
+      const slug = studioExistingCatalogueStoreSlug(row.category, usedCategorySlugs, "nouvelle-categorie", input.storeId);
       const result = await db.insert(categories).values({
         storeId: input.storeId,
         name: row.category,
@@ -1929,7 +1943,7 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
       await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, productId)));
       updated += 1;
     } else {
-      const slug = uniqueStudioExistingCatalogueSlug(row.name, usedProductSlugs, "nouveau-produit");
+      const slug = studioExistingCatalogueStoreSlug(row.name, usedProductSlugs, "nouveau-produit", input.storeId);
       usedProductSlugs.add(slug);
       const result = await db.insert(products).values({
         storeId: input.storeId,
