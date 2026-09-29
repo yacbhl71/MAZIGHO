@@ -37,4 +37,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("ADD COLUMN IF NOT EXISTS `catalogSection`");
     expect(migration).toContain("enum('standard','creations')");
   });
+
+  it("registers tenant-scoped category slug indexes before deployment", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0040_categories_store_slug_index.sql");
+
+    expect(runner).toContain('["0040_categories_store_slug_index", "drizzle/0040_categories_store_slug_index.sql"]');
+    expect(migration).toContain("DROP INDEX IF EXISTS `categories_slug_unique`");
+    expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS `categories_store_slug_unique`");
+    expect(migration).toContain("(`storeId`, `slug`)");
+  });
 });
