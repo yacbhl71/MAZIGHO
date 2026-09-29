@@ -2011,6 +2011,9 @@ export const adminRouter = router({
         navigationTranslations: z.object({ de: z.any().optional(), it: z.any().optional(), en: z.any().optional(), es: z.any().optional(), nl: z.any().optional(), ar: z.any().optional() }).default({}),
         showDiscovery: z.boolean(), showStory: z.boolean(), showTestimonials: z.boolean(), showEditorial: z.boolean(), showFeatured: z.boolean(),
         customColorsEnabled: z.boolean(), customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), buttonRadius: z.enum(["flat", "rounded", "full"]),
+        // The Studio storefront editor may update the regional footer title
+        // without dropping the rest of the owner-managed footer settings.
+        footerDeliveryTitle: z.string().trim().min(2).max(80).optional(),
         homeOrder: z.array(z.string().max(60)).max(40), textBanners: z.array(z.object({ id: z.string().trim().min(1).max(60), eyebrow: z.string().trim().max(120), title: z.string().trim().min(1).max(180), text: z.string().trim().max(600), buttonLabel: z.string().trim().max(60), buttonUrl: z.string().trim().max(300), enabled: z.boolean() })).max(8),
       }),
     })).mutation(async ({ ctx, input }) => {
