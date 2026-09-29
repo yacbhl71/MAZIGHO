@@ -374,14 +374,14 @@ function Router() {
     return <ExternalLocationRedirect href="/gestion-boutique" />;
   }
 
-  if (storefrontAvailabilityQuery.isLoading && !isPublicSaasLanding) {
+  if (storefrontAvailabilityQuery.isLoading && !isPublicSaasLanding && !isStudioHost) {
     return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
   }
 
   // A setup boutique stays unavailable to the public. Its authenticated owner
   // may nevertheless reach the isolated management panel through the explicit
   // preparation hint; server-side membership guards still enforce access.
-  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding) {
+  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding && !isStudioHost) {
     return <StorefrontUnavailablePage />;
   }
 
