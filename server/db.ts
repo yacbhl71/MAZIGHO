@@ -10183,7 +10183,21 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   for (const key of baseKeys) if (!seen.has(key)) { order.push(key); seen.add(key); }
   for (const b of textBanners) { const key = `text:${b.id}`; if (!seen.has(key)) { order.push(key); seen.add(key); } }
-  normalized.homeOrder = order;
+
+  // Studio Flux existed before the inspiration and reassurance strips became
+  // orderable. Recognize that preset by its private block identifiers and
+  // repair older saved profiles at read time: products stay immediately below
+  // the split hero while every store-owned text block is preserved.
+  const isStudioFlux = normalized.headerLayout === "market"
+    && bannerIds.has("flux-drop")
+    && bannerIds.has("flux-service");
+  if (isStudioFlux) {
+    const studioFluxOrder = ["featured", "text:flux-drop", "discovery", "text:flux-service", "story", "editorial", "highlight", "reassurance", "testimonials"];
+    const orderedStudioFlux = studioFluxOrder.filter(key => seen.has(key));
+    normalized.homeOrder = [...orderedStudioFlux, ...order.filter(key => !orderedStudioFlux.includes(key))];
+  } else {
+    normalized.homeOrder = order;
+  }
 
   return normalized;
 }
