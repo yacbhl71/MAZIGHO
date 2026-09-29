@@ -18,6 +18,7 @@ const migrations = [
   ["0035_algeria_standard_template", "drizzle/0035_algeria_standard_template.sql"],
   ["0036_category_public_messages", "drizzle/0036_category_public_messages.sql"],
   ["0037_owner_product_variants", "drizzle/0037_owner_product_variants.sql"],
+  ["0038_store_relationship_indexes", "drizzle/0038_store_relationship_indexes.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

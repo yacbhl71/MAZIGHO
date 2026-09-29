@@ -17,4 +17,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("`stock` int NOT NULL DEFAULT 0");
     expect(migration).toContain("`owner_product_variants_store_product_label_unique`");
   });
+
+  it("registers idempotent store relationship indexes before deployment", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0038_store_relationship_indexes.sql");
+
+    expect(runner).toContain('["0038_store_relationship_indexes", "drizzle/0038_store_relationship_indexes.sql"]');
+    expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS `carts_store_user_unique`");
+    expect(migration).toContain("CREATE INDEX IF NOT EXISTS `contact_messages_store_status_created_idx`");
+    expect(migration).toContain("ALTER TABLE `carts` DROP INDEX IF EXISTS `carts_userId_unique`");
+  });
 });

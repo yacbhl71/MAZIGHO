@@ -3751,7 +3751,13 @@ async function ensureStoreRelationshipScopeSchema() {
     // never fail merely because a cold serverless instance sees a migrated DB.
     await db.execute(sql.raw("ALTER TABLE `carts` DROP INDEX IF EXISTS `carts_userId_unique`"));
     await db.execute(sql.raw("ALTER TABLE `promotions` DROP INDEX IF EXISTS `promotions_code_unique`"));
-    const createIndex = async (statement: string) => { try { await db.execute(sql.raw(statement)); } catch (error) { if (!/duplicate key name|already exists/i.test(String(error))) throw error; } };
+    const createIndex = async (statement: string) => {
+      // Drizzle's wrapped TiDB errors do not reliably preserve duplicate-index
+      // wording. Use TiDB's native idempotent syntax instead of trying to infer
+      // whether an already-created index caused the failure.
+      const idempotentStatement = statement.replace(/^CREATE (UNIQUE )?INDEX /, (_match, uniquePrefix?: string) => `CREATE ${uniquePrefix || ""}INDEX IF NOT EXISTS `);
+      await db.execute(sql.raw(idempotentStatement));
+    };
     await createIndex("CREATE UNIQUE INDEX `carts_store_user_unique` ON `carts` (`storeId`, `userId`)");
     await createIndex("CREATE INDEX `cart_items_store_cart_product_idx` ON `cartItems` (`storeId`, `cartId`, `productId`)");
     await createIndex("CREATE INDEX `reviews_store_product_status_idx` ON `reviews` (`storeId`, `productId`, `status`)");
