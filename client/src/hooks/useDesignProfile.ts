@@ -331,7 +331,7 @@ export const defaultDesignProfile: DesignProfile = {
     { id: "pinterest", url: "" },
     { id: "linkedin", url: "" },
   ],
-  homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
+  homeOrder: ["highlight", "reassurance", "discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };
 
@@ -342,6 +342,8 @@ export const buttonRadiusValues: Record<ButtonRadius, string> = {
 };
 
 export const homeSectionMeta: Record<string, { label: string; description: string }> = {
+  highlight: { label: "Bloc inspiration", description: "Image et message de marque" },
+  reassurance: { label: "Bande de réassurance", description: "Trois repères de confiance" },
   discovery: { label: "Découvrez nos univers", description: "Grille illustrée des grandes catégories" },
   story: { label: "L’histoire MAZIGHO", description: "Section éditoriale avec grande image" },
   testimonials: { label: "Témoignages clients", description: "Section avis / paroles de clients" },

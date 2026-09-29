@@ -144,7 +144,8 @@ export default function Home() {
       <main>
         <HeroBanner allowPlatformFallback={!isClientStore} />
 
-        <section className="container py-8 md:py-12">
+        <div className="flex flex-col">
+        <section style={{ order: orderIndex("highlight") }} className="container py-8 md:py-12">
           <div className="relative min-h-[230px] overflow-hidden rounded-[1.75rem] bg-slate-950 md:min-h-[300px]">
             <img src={highlightImageUrl} alt={copy.highlight.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
@@ -159,7 +160,7 @@ export default function Home() {
         </section>
 
         {profile.showReassurance && (
-        <section className="border-y border-[#eadfd2] bg-white/80">
+        <section style={{ order: orderIndex("reassurance") }} className="border-y border-[#eadfd2] bg-white/80">
           <div className="container grid gap-0 md:grid-cols-3">
             {copy.reassurance.slice(0, 3).map((item, index) => {
               const icon = useManagedPublicTranslation ? profile.reassuranceItems[index]?.icon : ["sparkles", "check", "arrow"][index];
@@ -175,7 +176,6 @@ export default function Home() {
         </section>
         )}
 
-        <div className="flex flex-col">
         {profile.showDiscovery && (
         <section style={{ order: orderIndex("discovery") }} className="bg-white py-16 md:py-24">
           <div className="container">

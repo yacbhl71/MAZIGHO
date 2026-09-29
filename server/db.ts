@@ -9976,7 +9976,7 @@ export const defaultDesignProfile: DesignProfile = {
     { id: "pinterest", url: "" },
     { id: "linkedin", url: "" },
   ],
-  homeOrder: ["discovery", "story", "testimonials", "editorial", "featured"],
+  homeOrder: ["highlight", "reassurance", "discovery", "story", "testimonials", "editorial", "featured"],
   textBanners: [],
 };
 
@@ -10167,8 +10167,9 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   normalized.textBanners = textBanners;
 
-  // Ordered homepage layout: keep valid keys, then ensure every section + banner is present
-  const baseKeys = ["discovery", "story", "testimonials", "editorial", "featured"];
+  // Ordered homepage layout: every visual section, including the former fixed
+  // inspiration and reassurance strips, belongs to the same movable sequence.
+  const baseKeys = ["highlight", "reassurance", "discovery", "story", "testimonials", "editorial", "featured"];
   const bannerIds = new Set(textBanners.map(b => b.id));
   const order: string[] = [];
   const seen = new Set<string>();

@@ -226,6 +226,7 @@ describe("owner product variant routes", () => {
       brandName: "Studio Flux",
       headerLayout: "market",
       customPrimary: "#183B73",
+      homeOrder: ["featured", "text:flux-drop", "discovery", "text:flux-service", "story", "editorial", "highlight", "reassurance"],
     }), 77);
   });
 

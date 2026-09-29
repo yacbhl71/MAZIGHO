@@ -771,7 +771,10 @@ const studioFluxThemeTemplate = {
   buttonRadius: "rounded" as const,
   headerLayout: "market" as const,
   showTestimonials: false,
-  homeOrder: ["featured", "text:flux-drop", "discovery", "text:flux-service", "story", "editorial"],
+  // Hero is rendered by the theme. The product gallery must be the first
+  // homepage section, followed by the editorial blocks; no generic brand
+  // block may appear between the Studio Flux hero and its products.
+  homeOrder: ["featured", "text:flux-drop", "discovery", "text:flux-service", "story", "editorial", "highlight", "reassurance"],
   textBanners: [
     { id: "flux-drop", eyebrow: "À la une", title: "Le drop de la semaine commence ici.", text: "Un bloc premium pour faire ressortir une capsule, un lancement ou une sélection saisonnière sans transformer la boutique en campagne automatique.", buttonLabel: "Découvrir", buttonUrl: "/nouveautes", imageUrl: "/assets/themes/studio-flux/hero.webp", imageAlt: "Sélection contemporaine sur des socles graphiques", layout: "banner" as const, theme: "primary" as const, enabled: true },
     { id: "flux-service", eyebrow: "Le bon choix", title: "Un parcours rapide, sans sacrifier le style.", text: "Présentez ici une promesse de marque, un service ou une collection à forte valeur ajoutée.", buttonLabel: "Voir le catalogue", buttonUrl: "/boutique", imageUrl: "/assets/themes/studio-flux/hero.webp", imageAlt: "Objets contemporains dans une composition graphique", layout: "split" as const, theme: "soft" as const, enabled: true },

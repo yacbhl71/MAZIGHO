@@ -229,13 +229,13 @@ const ownerCustomHomepageBlock = z.object({
 
 export const ownerCustomHomepageBlocks = z.object({
   blocks: z.array(ownerCustomHomepageBlock).max(8),
-  homeOrder: z.array(z.string().trim().max(80)).max(13),
+  homeOrder: z.array(z.string().trim().max(80)).max(15),
 }).superRefine((input, ctx) => {
   const ids = input.blocks.map(block => block.id);
   if (new Set(ids).size !== ids.length) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["blocks"], message: "Chaque bloc doit avoir un identifiant unique." });
   }
-  const allowedKeys = new Set(["discovery", "story", "testimonials", "editorial", "featured", ...ids.map(id => `text:${id}`)]);
+  const allowedKeys = new Set(["highlight", "reassurance", "discovery", "story", "testimonials", "editorial", "featured", ...ids.map(id => `text:${id}`)]);
   const seen = new Set<string>();
   input.homeOrder.forEach((key, index) => {
     if (!allowedKeys.has(key) || seen.has(key)) {

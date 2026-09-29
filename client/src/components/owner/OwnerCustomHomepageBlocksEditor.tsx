@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-const BASE_SECTION_KEYS = ["discovery", "story", "testimonials", "editorial", "featured"];
+const BASE_SECTION_KEYS = ["highlight", "reassurance", "discovery", "story", "testimonials", "editorial", "featured"];
 
 const layoutOptions: Array<{ value: HomeTextBanner["layout"]; label: string; description: string }> = [
   { value: "banner", label: "Bannière", description: "Texte large, image optionnelle en fond." },
@@ -58,7 +58,7 @@ function fileToDataUrl(file: File) {
 
 function labelForKey(key: string, blocks: HomeTextBanner[]) {
   if (key.startsWith("text:")) return blocks.find(block => `text:${block.id}` === key)?.title || "Bloc libre";
-  return ({ discovery: "Univers / catégories", story: "Histoire", testimonials: "Message", editorial: "Bannière éditoriale", featured: "Produits vedettes" } as Record<string, string>)[key] || key;
+  return ({ highlight: "Bloc inspiration", reassurance: "Bande de réassurance", discovery: "Univers / catégories", story: "Histoire", testimonials: "Message", editorial: "Bannière éditoriale", featured: "Produits vedettes" } as Record<string, string>)[key] || key;
 }
 
 export default function OwnerCustomHomepageBlocksEditor({ profile, onSaved }: { profile: DesignProfile; onSaved: (profile: DesignProfile) => void }) {
