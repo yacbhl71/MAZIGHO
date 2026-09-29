@@ -87,6 +87,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
       { icon: Palette, label: "Thèmes de boutiques", path: "/admin/studio/themes" },
       { icon: TrendingUp, label: "Priorités Studio", path: "/admin/studio#studio-priorities" },
       { icon: Activity, label: "Santé des boutiques", path: "/admin/studio#studio-health" },
+      { icon: Activity, label: "Santé du système", path: "/admin/studio/sante" },
     ],
   },
   {
