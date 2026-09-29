@@ -864,13 +864,15 @@ function detectDeliveryCountry(address: string | null | undefined): string {
   return codeMatch ? codeMatch[1] : "—";
 }
 
-const studioProvisioningDraftInputSchema = z.object({
+export const studioProvisioningDraftInputSchema = z.object({
   displayName: z.string().trim().min(2).max(160),
   requestedDomain: z.string().trim().toLowerCase().regex(/^(?=.{3,255}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "Saisissez un domaine valide, sans http:// ni chemin."),
   ownerName: z.string().trim().min(2).max(160),
   ownerEmail: z.string().trim().email().max(320),
   businessType: z.enum(["animalier", "bijoux", "vetements", "autre"]),
-  customBusinessTheme: z.string().trim().min(2).max(160).optional().nullable(),
+  // A custom theme is required only for "autre" by the database normalizer.
+  // The visual preset picker can legitimately leave this empty for Vêtements.
+  customBusinessTheme: z.string().trim().max(160).optional().nullable(),
   themePreset: storefrontThemeIdSchema.optional().nullable(),
   provisioningTemplate: z.enum(["standard", "algeria"]).default("standard"),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
@@ -2655,6 +2657,53 @@ export const adminRouter = router({
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
         if (["STORE_NOT_ELIGIBLE_FOR_OWNER_HANDOFF", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "OWNER_ALREADY_ATTACHED"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir ce parcours propriétaire." });
         if (code === "OWNER_INVITATION_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement l’e-mail du bénéficiaire pour confirmer la préparation." });
+        throw error;
+      }
+    }),
+    transferStoreOwnership: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      newOwnerName: z.string().trim().min(2).max(160),
+      newOwnerEmail: z.string().trim().email().max(320),
+      confirmationEmail: z.string().trim().email().max(320),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const transferred = await db.transferStudioStoreOwnership(input);
+        logAudit(ctx, {
+          action: "studio.store.owner.transfer",
+          entityType: "store",
+          entityId: transferred.store.id,
+          summary: `Transfert de propriété préparé : ${transferred.store.displayName}`,
+          metadata: {
+            accountCreated: transferred.owner.accountCreated,
+            invitationPrepared: transferred.owner.invitationPrepared,
+            formerOwnersBlocked: transferred.formerOwnersBlocked,
+            invitationsSent: 0,
+          },
+        });
+        return transferred.invitation
+          ? {
+            store: transferred.store,
+            owner: transferred.owner,
+            formerOwnersBlocked: transferred.formerOwnersBlocked,
+            invitation: { expiresAt: transferred.invitation.expiresAt, link: getAccountInvitationLink(transferred.invitation.token) },
+          }
+          : {
+            store: transferred.store,
+            owner: transferred.owner,
+            formerOwnersBlocked: transferred.formerOwnersBlocked,
+            invitation: null,
+          };
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "La boutique principale MAZIGHO ne peut pas être transférée depuis ce contrôle." });
+        if (code === "OWNER_TRANSFER_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer le transfert." });
+        if (code === "OWNER_TRANSFER_EMAIL_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement l’e-mail du nouveau propriétaire pour confirmer le transfert." });
+        if (code === "OWNER_TRANSFER_TARGET_ACCOUNT_BLOCKED") throw new TRPCError({ code: "CONFLICT", message: "Ce compte est bloqué et ne peut pas devenir propriétaire." });
+        if (code === "OWNER_TRANSFER_TARGET_ALREADY_OWNER") throw new TRPCError({ code: "CONFLICT", message: "Ce compte est déjà propriétaire actif de cette boutique." });
+        if (code === "OWNER_TRANSFER_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "La confirmation explicite du transfert est obligatoire." });
         throw error;
       }
     }),

@@ -2473,6 +2473,105 @@ export async function reissueGiftStoreOwnerInvitation(input: { storeId: number; 
   return { store: { id: store.id, displayName: store.displayName }, invitation: { token: invitation.invitation.token, expiresAt: invitation.invitation.expiresAt, email } };
 }
 
+/**
+ * Transfers one client boutique to a named owner without touching passwords,
+ * account email addresses, store data, billing, domains, payments or status.
+ * Existing owner memberships are demoted and blocked in the same transaction:
+ * the incoming owner can later restore a former collaborator deliberately from
+ * the boutique team tools if needed.
+ */
+export async function transferStudioStoreOwnership(input: {
+  storeId: number;
+  confirmationName: string;
+  newOwnerName: string;
+  newOwnerEmail: string;
+  confirmationEmail: string;
+  acknowledged: boolean;
+}) {
+  await ensureMultiStoreSchema();
+  await ensureInvitationSchema();
+  await ensureStaffRoles();
+  await ensureAccountStatusColumn();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  const email = normaliseEmail(input.newOwnerEmail);
+  if (!input.acknowledged) throw new Error("OWNER_TRANSFER_CONFIRMATION_INCOMPLETE");
+  if (normaliseEmail(input.confirmationEmail) !== email) throw new Error("OWNER_TRANSFER_EMAIL_CONFIRMATION_MISMATCH");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+    if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("OWNER_TRANSFER_NAME_CONFIRMATION_MISMATCH");
+
+    const [existingUser] = await tx.select().from(users).where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+    if (existingUser?.accountStatus === "blocked") throw new Error("OWNER_TRANSFER_TARGET_ACCOUNT_BLOCKED");
+
+    let userId: number;
+    let accountCreated = false;
+    let invitation: { token: string; expiresAt: Date } | null = null;
+    if (existingUser) {
+      userId = existingUser.id;
+    } else {
+      const createdUser = await tx.insert(users).values({
+        openId: `local_${randomUUID()}`,
+        name: input.newOwnerName.trim(),
+        email,
+        role: "user",
+        passwordHash: null,
+        loginMethod: "invitation_pending",
+        accountStatus: "pending_invitation",
+        lastSignedIn: null,
+      });
+      userId = Number((createdUser as any)?.[0]?.insertId ?? (createdUser as any)?.insertId);
+      if (!Number.isInteger(userId) || userId <= 0) throw new Error("OWNER_TRANSFER_ACCOUNT_CREATION_FAILED");
+      accountCreated = true;
+    }
+
+    const [targetMembership] = await tx.select().from(storeMemberships)
+      .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.userId, userId))).limit(1);
+    if (targetMembership?.role === "owner" && targetMembership.status === "active") throw new Error("OWNER_TRANSFER_TARGET_ALREADY_OWNER");
+
+    if (targetMembership) {
+      await tx.update(storeMemberships).set({ role: "owner", status: "active" }).where(eq(storeMemberships.id, targetMembership.id));
+    } else {
+      await tx.insert(storeMemberships).values({ storeId: store.id, userId, role: "owner", status: "active" });
+    }
+
+    const blockedFormerOwners = await tx.update(storeMemberships)
+      .set({ role: "manager", status: "blocked" })
+      .where(and(
+        eq(storeMemberships.storeId, store.id),
+        eq(storeMemberships.role, "owner"),
+        eq(storeMemberships.status, "active"),
+        ne(storeMemberships.userId, userId),
+      ));
+    const blockedFormerOwnerCount = Number((blockedFormerOwners as any)?.[0]?.affectedRows ?? (blockedFormerOwners as any)?.affectedRows ?? 0);
+
+    const targetAccountStatus = existingUser?.accountStatus ?? "pending_invitation";
+    if (targetAccountStatus === "pending_invitation") {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 1000 * 60 * 60 * 24);
+      const token = randomBytes(32).toString("base64url");
+      await tx.update(accountTokens).set({ usedAt: now }).where(and(
+        eq(accountTokens.userId, userId),
+        eq(accountTokens.purpose, "account_invitation"),
+        isNull(accountTokens.usedAt),
+      ));
+      await tx.insert(accountTokens).values({ userId, purpose: "account_invitation", tokenHash: hashAccountToken(token), expiresAt });
+      invitation = { token, expiresAt };
+    }
+
+    return {
+      store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain },
+      owner: { email, accountCreated, invitationPrepared: Boolean(invitation) },
+      formerOwnersBlocked: blockedFormerOwnerCount,
+      invitation: invitation ? { token: invitation.token, expiresAt: invitation.expiresAt, email } : null,
+    };
+  });
+}
+
 export async function provisionGiftStoreFromDraft(input: { draftId: number; confirmationName: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { studioProvisioningDraftInputSchema } from "../adminRouter";
 import { reviewStoreProvisioningDraft } from "./storeProvisioningReview";
 
 const completeDraft = {
@@ -38,6 +39,20 @@ describe("store provisioning review", () => {
 
     const themed = reviewStoreProvisioningDraft({ ...completeDraft, businessType: "autre", customBusinessTheme: "Décoration artisanale" }, 1);
     expect(themed.checks.find(check => check.key === "business")).toMatchObject({ state: "complete" });
+  });
+
+  it("accepts an empty custom label for a known clothing universe with a premium visual preset", () => {
+    const parsed = studioProvisioningDraftInputSchema.parse({
+      ...completeDraft,
+      businessType: "vetements",
+      customBusinessTheme: "",
+      themePreset: "studioFlux",
+      provisioningTemplate: "algeria",
+      preferredCurrency: "DZD",
+    });
+    expect(parsed.customBusinessTheme).toBe("");
+    expect(parsed.businessType).toBe("vetements");
+    expect(parsed.themePreset).toBe("studioFlux");
   });
 
   it("flags a duplicate domain only inside the local draft queue", () => {

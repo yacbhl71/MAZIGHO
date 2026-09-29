@@ -70,8 +70,8 @@ describe("MAZIGHO Studio platform guard", () => {
       requestedDomain: "client.test",
       ownerName: "Client Test",
       ownerEmail: "client@example.test",
-      businessType: "autre",
-      customBusinessTheme: "Décoration artisanale",
+      businessType: "vetements",
+      customBusinessTheme: "",
       preferredCurrency: "DZD",
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateProvisioningDraft({
@@ -141,6 +141,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.activateGiftStore({ storeId: 1, confirmationName: "Boutique cliente", confirmationOwnerEmail: "client@example.test", domainVerified: true, variantsReviewed: true, shippingReturnsReviewed: true, activationAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.prepareGiftStoreOwnerInvitation({ storeId: 1, confirmationEmail: "client@example.test" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.reissueGiftStoreOwnerInvitation({ storeId: 1, confirmationEmail: "client@example.test" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.transferStoreOwnership({ storeId: 1, confirmationName: "Boutique cliente", newOwnerName: "Nouveau propriétaire", newOwnerEmail: "nouveau@example.test", confirmationEmail: "nouveau@example.test", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("refuses technical platform controls from a non-administrator", async () => {

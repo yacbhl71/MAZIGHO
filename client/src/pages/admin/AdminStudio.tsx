@@ -94,6 +94,11 @@ type MediaUsageTarget = {
   displayName: string;
   primaryDomain: string;
 };
+type OwnerTransferTarget = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
+};
 
 const emptyProvisioningDraft: ProvisioningDraftForm = {
   displayName: "",
@@ -276,6 +281,13 @@ export default function AdminStudio() {
   const [commercialOfferConfirmationName, setCommercialOfferConfirmationName] = useState("");
   const [commercialOfferAcknowledged, setCommercialOfferAcknowledged] = useState(false);
   const [mediaUsageTarget, setMediaUsageTarget] = useState<MediaUsageTarget | null>(null);
+  const [ownerTransferTarget, setOwnerTransferTarget] = useState<OwnerTransferTarget | null>(null);
+  const [ownerTransferName, setOwnerTransferName] = useState("");
+  const [ownerTransferEmail, setOwnerTransferEmail] = useState("");
+  const [ownerTransferConfirmationEmail, setOwnerTransferConfirmationEmail] = useState("");
+  const [ownerTransferConfirmationName, setOwnerTransferConfirmationName] = useState("");
+  const [ownerTransferAcknowledged, setOwnerTransferAcknowledged] = useState(false);
+  const [ownerTransferInvitation, setOwnerTransferInvitation] = useState<{ link: string; expiresAt: Date | string } | null>(null);
   const [registrySearch, setRegistrySearch] = useState("");
   const [registryStatus, setRegistryStatus] = useState<RegistryStatusFilter>("all");
   const [registryOffer, setRegistryOffer] = useState<RegistryOfferFilter>("all");
@@ -362,6 +374,19 @@ export default function AdminStudio() {
       await utils.admin.studio.getInventory.invalidate();
     },
     onError: error => toast.error(error.message || "Le mode commercial n’a pas pu être enregistré."),
+  });
+  const transferStoreOwnershipMutation = trpc.admin.studio.transferStoreOwnership.useMutation({
+    onSuccess: async result => {
+      if (result.invitation) {
+        setOwnerTransferInvitation({ link: result.invitation.link, expiresAt: result.invitation.expiresAt });
+        toast.success("Transfert préparé. Copiez maintenant le lien d’activation : aucun e-mail n’a été envoyé.");
+      } else {
+        toast.success("Transfert effectué vers un compte existant. Aucun e-mail ni mot de passe n’a été modifié.");
+        setOwnerTransferTarget(null);
+      }
+      await utils.admin.studio.getInventory.invalidate();
+    },
+    onError: error => toast.error(error.message || "Le transfert de propriété n’a pas pu être réalisé."),
   });
   const draftsQuery = trpc.admin.studio.getProvisioningDrafts.useQuery(undefined, { refetchOnWindowFocus: false });
   const reviewsQuery = trpc.admin.studio.getProvisioningReviews.useQuery(undefined, { refetchOnWindowFocus: false });
@@ -777,7 +802,7 @@ export default function AdminStudio() {
                         <div><p className="font-semibold text-slate-900">{store.productCount}</p><p className="text-xs text-slate-500">{store.activeProductCount} actif{store.activeProductCount > 1 ? "s" : ""}</p></div>
                         <div><Badge variant="outline" className={stockTone}>{stockLabel}</Badge><p className="mt-1 text-xs text-slate-500">{store.stockSignal.tracked} référence{store.stockSignal.tracked > 1 ? "s" : ""} suivie{store.stockSignal.tracked > 1 ? "s" : ""}</p></div>
                         <div><p className="font-semibold text-slate-900">{store.orderCount}</p><p className="text-xs text-slate-500">{formatStudioDate(store.latestOrderAt)}</p></div>
-                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => setMediaUsageTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain })}><HardDrive className="mr-1.5 h-4 w-4" />Médias</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
+                        <div className="flex flex-wrap items-center gap-2">{store.isPlatformStore ? <Link href="/admin"><Button size="sm" variant="outline" className="min-h-10 border-slate-300 bg-white">Gérer MAZIGHO</Button></Link> : <><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setOwnerTransferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }); setOwnerTransferName(""); setOwnerTransferEmail(""); setOwnerTransferConfirmationEmail(""); setOwnerTransferConfirmationName(""); setOwnerTransferAcknowledged(false); setOwnerTransferInvitation(null); }}>Propriété</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100" onClick={() => { setCommercialOfferTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, mode: store.commercialOfferMode }); setCommercialOfferMode(store.commercialOfferMode); setCommercialOfferConfirmationName(""); setCommercialOfferAcknowledged(false); }}>Offre</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-slate-200 bg-white text-slate-800 hover:bg-slate-50" onClick={() => setMediaUsageTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain })}><HardDrive className="mr-1.5 h-4 w-4" />Médias</Button>{store.status === "setup" ? <Link href={`/admin/studio/lancement/${store.id}`}><Button size="sm" className="min-h-10 bg-amber-700 hover:bg-amber-800">Poursuivre</Button></Link> : <><Link href={`/admin/studio/gestion-boutique/${store.id}`}><Button size="sm" className="min-h-10 bg-slate-900 hover:bg-slate-800">Gérer la boutique</Button></Link><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 bg-violet-50 text-violet-900 hover:bg-violet-100" onClick={() => { setLifecycleTarget({ id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status }); setLifecycleNextStatus(store.status === "active" ? "limited" : "active"); setLifecycleConfirmationName(""); setLifecycleAcknowledged(false); }}>État</Button></>}</>}</div>
                       </div>;
                     })}
                   </div>
@@ -803,6 +828,26 @@ export default function AdminStudio() {
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><input type="checkbox" checked={lifecycleAcknowledged} onChange={event => setLifecycleAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-700 focus:ring-violet-600" /><span>Je confirme modifier l’état de <strong>{lifecycleTarget.displayName}</strong>. Je comprends que cette action est journalisée, qu’elle n’affecte ni la facturation ni les données de la boutique, et qu’elle est réversible depuis Studio.</span></label>
             </div>}
             <DialogFooter><Button type="button" variant="outline" disabled={updateStoreOperationalStatusMutation.isPending} onClick={() => setLifecycleTarget(null)}>Annuler</Button><Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!lifecycleTarget || lifecycleTarget.status === lifecycleNextStatus || lifecycleConfirmationName.trim() !== lifecycleTarget.displayName.trim() || !lifecycleAcknowledged || updateStoreOperationalStatusMutation.isPending} onClick={() => lifecycleTarget && updateStoreOperationalStatusMutation.mutate({ storeId: lifecycleTarget.id, confirmationName: lifecycleConfirmationName, nextStatus: lifecycleNextStatus, acknowledged: true })}>{updateStoreOperationalStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}{lifecycleNextStatus === "active" ? "Réactiver la boutique" : "Confirmer le nouvel état"}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={Boolean(ownerTransferTarget)} onOpenChange={open => { if (!open && !transferStoreOwnershipMutation.isPending) { setOwnerTransferTarget(null); setOwnerTransferInvitation(null); } }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><UsersRound className="h-5 w-5 text-violet-700" /> Transférer la propriété</DialogTitle>
+              <DialogDescription>Action Studio réservée à l’opérateur. Aucun e-mail n’est envoyé, aucun mot de passe ni e-mail de compte existant n’est modifié, et la boutique conserve son domaine, ses données, ses paiements et son état.</DialogDescription>
+            </DialogHeader>
+            {ownerTransferTarget && (ownerTransferInvitation ? <div className="space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">Lien d’activation préparé</p><p className="mt-1">Transmettez-le manuellement au nouveau propriétaire. Aucun e-mail n’a été envoyé. Il expirera le {formatStudioDate(ownerTransferInvitation.expiresAt)}.</p></div>
+              <div className="flex gap-2"><Input value={ownerTransferInvitation.link} readOnly className="min-h-11 bg-white font-mono text-xs" aria-label="Lien d’activation du nouveau propriétaire" /><Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={() => { navigator.clipboard.writeText(ownerTransferInvitation.link); toast.success("Lien d’activation copié dans le presse-papiers."); }}><Copy className="mr-2 h-4 w-4" />Copier</Button></div>
+            </div> : <div className="space-y-4">
+              <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm leading-6 text-violet-950"><p><strong>Boutique :</strong> {ownerTransferTarget.displayName}</p><p className="mt-1"><strong>Domaine :</strong> {ownerTransferTarget.primaryDomain}</p><p className="mt-2 text-xs">Un compte actif devient propriétaire immédiatement. Pour un nouveau compte, un lien d’activation manuel de 24 h est préparé.</p></div>
+              <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="studio-owner-transfer-name">Nom du nouveau propriétaire</Label><Input id="studio-owner-transfer-name" value={ownerTransferName} onChange={event => setOwnerTransferName(event.target.value)} placeholder="Nom et prénom" autoComplete="off" /></div><div className="space-y-2"><Label htmlFor="studio-owner-transfer-email">E-mail du nouveau propriétaire</Label><Input id="studio-owner-transfer-email" type="email" value={ownerTransferEmail} onChange={event => setOwnerTransferEmail(event.target.value)} placeholder="proprietaire@exemple.ch" autoCapitalize="none" /></div></div>
+              <div className="space-y-2"><Label htmlFor="studio-owner-transfer-email-confirmation">Recopiez l’e-mail du nouveau propriétaire</Label><Input id="studio-owner-transfer-email-confirmation" type="email" value={ownerTransferConfirmationEmail} onChange={event => setOwnerTransferConfirmationEmail(event.target.value)} placeholder="proprietaire@exemple.ch" autoCapitalize="none" /></div>
+              <div className="space-y-2"><Label htmlFor="studio-owner-transfer-name-confirmation">Recopiez le nom de la boutique</Label><Input id="studio-owner-transfer-name-confirmation" value={ownerTransferConfirmationName} onChange={event => setOwnerTransferConfirmationName(event.target.value)} placeholder={ownerTransferTarget.displayName} autoComplete="off" /></div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-950"><input type="checkbox" checked={ownerTransferAcknowledged} onChange={event => setOwnerTransferAcknowledged(event.target.checked)} className="mt-1 h-4 w-4 rounded border-rose-300 text-rose-700 focus:ring-rose-600" /><span>Je confirme ce transfert. Les anciens propriétaires actifs de cette boutique perdront immédiatement l’accès à cette boutique ; ils seront conservés comme membres bloqués, sans suppression de compte. Le nouveau propriétaire pourra les réactiver plus tard comme collaborateurs si nécessaire.</span></label>
+            </div>)}
+            <DialogFooter><Button type="button" variant="outline" disabled={transferStoreOwnershipMutation.isPending} onClick={() => { setOwnerTransferTarget(null); setOwnerTransferInvitation(null); }}>{ownerTransferInvitation ? "Terminer" : "Annuler"}</Button>{!ownerTransferInvitation && <Button type="button" className="bg-violet-700 hover:bg-violet-800" disabled={!ownerTransferTarget || ownerTransferName.trim().length < 2 || !ownerTransferEmail.includes("@") || ownerTransferEmail.trim().toLowerCase() !== ownerTransferConfirmationEmail.trim().toLowerCase() || ownerTransferConfirmationName.trim() !== ownerTransferTarget.displayName.trim() || !ownerTransferAcknowledged || transferStoreOwnershipMutation.isPending} onClick={() => ownerTransferTarget && transferStoreOwnershipMutation.mutate({ storeId: ownerTransferTarget.id, confirmationName: ownerTransferConfirmationName, newOwnerName: ownerTransferName, newOwnerEmail: ownerTransferEmail, confirmationEmail: ownerTransferConfirmationEmail, acknowledged: true })}>{transferStoreOwnershipMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UsersRound className="mr-2 h-4 w-4" />}Confirmer le transfert</Button>}</DialogFooter>
           </DialogContent>
         </Dialog>
 
