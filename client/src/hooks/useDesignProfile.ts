@@ -19,6 +19,7 @@ export type StoreNavigationItem = {
   href: string;
   visible: boolean;
   kind: "system" | "custom";
+  parentId?: string;
 };
 
 export type HomeTextBanner = {

@@ -331,6 +331,19 @@ describe("owner product variant routes", () => {
     expect(db.deleteCategory).toHaveBeenCalledWith(41, 77);
   });
 
+  it("keeps custom menu nesting scoped, visible, and one level deep", async () => {
+    const items = [
+      { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },
+      { id: "custom-univers", label: "Univers", href: "/univers", visible: true, kind: "custom" as const },
+      { id: "custom-ania", label: "Ania", href: "/categorie/ania", visible: true, kind: "custom" as const, parentId: "custom-univers" },
+    ];
+    await expect(callerFor().owner.saveNavigation({ items })).resolves.toMatchObject({ navigationItems: items });
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ navigationItems: items }), 77);
+
+    await expect(callerFor().owner.saveNavigation({ items: items.map(item => item.id === "custom-univers" ? { ...item, visible: false } : item) })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(callerFor().owner.saveNavigation({ items: items.map(item => item.id === "custom-univers" ? { ...item, parentId: "custom-ania" } : item) })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("imports catalogue rows only through the current resolved store", async () => {
     const rows = [{
       category: "Laine et crochet",

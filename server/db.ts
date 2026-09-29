@@ -9539,6 +9539,7 @@ export type StoreNavigationItem = {
   href: string;
   visible: boolean;
   kind: "system" | "custom";
+  parentId?: string;
 };
 
 const defaultStoreNavigationItems: StoreNavigationItem[] = [
@@ -9909,6 +9910,7 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   const systemItems = new Map(defaultStoreNavigationItems.map(item => [item.id, item]));
   const sourceNavigation = Array.isArray(source.navigationItems) ? source.navigationItems : [];
   const seenNavigation = new Set<string>();
+  const requestedNavigationParents = new Map<string, string>();
   for (const raw of sourceNavigation.slice(0, 16)) {
     if (!raw || typeof raw !== "object") continue;
     const item = raw as Record<string, unknown>;
@@ -9922,10 +9924,20 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
     if (!system && !(href.startsWith("/") || /^https:\/\//i.test(href))) continue;
     const label = typeof item.label === "string" ? item.label.trim().slice(0, 40) : "";
     navigationItems.push({ id, label, href, visible: typeof item.visible === "boolean" ? item.visible : true, kind });
+    const parentId = !system && typeof item.parentId === "string" ? item.parentId.trim().slice(0, 60) : "";
+    if (parentId) requestedNavigationParents.set(id, parentId);
     seenNavigation.add(id);
   }
   for (const system of defaultStoreNavigationItems) {
     if (!seenNavigation.has(system.id)) navigationItems.push({ ...system });
+  }
+  const navigationById = new Map(navigationItems.map(item => [item.id, item]));
+  for (const item of navigationItems) {
+    const parentId = requestedNavigationParents.get(item.id);
+    const parent = parentId ? navigationById.get(parentId) : undefined;
+    if (item.kind === "custom" && parent && parent.id !== item.id && parent.kind === "custom" && parent.visible && !requestedNavigationParents.get(parent.id)) {
+      item.parentId = parent.id;
+    }
   }
   normalized.navigationItems = navigationItems.length ? navigationItems : defaultStoreNavigationItems.map(item => ({ ...item }));
 

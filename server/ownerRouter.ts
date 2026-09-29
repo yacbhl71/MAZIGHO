@@ -321,10 +321,12 @@ export const navigationItem = z.object({
   href: z.string().trim().max(300),
   visible: z.boolean(),
   kind: z.enum(["system", "custom"]),
+  parentId: z.string().trim().min(1).max(60).regex(/^[a-z0-9-]+$/).optional(),
 }).superRefine((item, ctx) => {
   const expectedTarget = systemNavigationTargets[item.id as keyof typeof systemNavigationTargets];
   if (item.kind === "system") {
     if (!expectedTarget || item.href !== expectedTarget) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Onglet système invalide." });
+    if (item.parentId) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Un onglet système ne peut pas devenir un sous-menu." });
     return;
   }
   if (!item.id.startsWith("custom-") || !item.label) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Onglet personnalisé invalide." });
@@ -1165,6 +1167,14 @@ export const ownerRouter = router({
   saveNavigation: storeManagementProcedure.input(z.object({ items: z.array(navigationItem).min(1).max(16) })).mutation(async ({ ctx, input }) => {
     const uniqueIds = new Set(input.items.map(item => item.id));
     if (uniqueIds.size !== input.items.length) throw new Error("NAVIGATION_DUPLICATE_ID");
+    const itemsById = new Map(input.items.map(item => [item.id, item]));
+    for (const item of input.items) {
+      if (!item.parentId) continue;
+      const parent = itemsById.get(item.parentId);
+      if (item.kind !== "custom" || !parent || parent.id === item.id || parent.kind !== "custom" || !parent.visible || parent.parentId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Le sous-menu doit dépendre d’un onglet personnalisé, visible et placé au premier niveau." });
+      }
+    }
     const current = await db.getDesignProfile(ctx.store!.id);
     return await db.updateDesignProfile({ ...current, navigationItems: input.items }, ctx.store!.id);
   }),
