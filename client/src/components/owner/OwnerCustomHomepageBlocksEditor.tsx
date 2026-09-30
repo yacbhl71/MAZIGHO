@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Eye, EyeOff, ImagePlus, LayoutTemplate, Loader2, Plus, Trash2, Upload } from "lucide-react";
-import type { DesignProfile, HomeTextBanner } from "@/hooks/useDesignProfile";
+import type { DesignProfile, HomeTextBanner, RoundGalleryItem } from "@/hooks/useDesignProfile";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ const layoutOptions: Array<{ value: HomeTextBanner["layout"]; label: string; des
   { value: "banner", label: "Bannière", description: "Texte large, image optionnelle en fond." },
   { value: "split", label: "Texte + image", description: "Deux colonnes élégantes, adaptées aux produits ou services." },
   { value: "spotlight", label: "Mise en avant", description: "Encart lumineux pour une nouveauté, un atelier ou une offre." },
+  { value: "roundGallery", label: "Galerie ronde", description: "Texte éditorial suivi de 2 à 6 visuels ronds, sans cartes." },
 ];
 
 const themeOptions: Array<{ value: HomeTextBanner["theme"]; label: string }> = [
@@ -27,8 +28,9 @@ const themeOptions: Array<{ value: HomeTextBanner["theme"]; label: string }> = [
 type EditableBlock = Omit<HomeTextBanner, "imageUrl" | "imageAlt" | "layout" | "theme"> & {
   imageUrl: string;
   imageAlt: string;
-  layout: "banner" | "split" | "spotlight";
+  layout: "banner" | "split" | "spotlight" | "roundGallery";
   theme: "primary" | "dark" | "soft" | "light";
+  galleryItems: RoundGalleryItem[];
 };
 
 function toBlock(value: HomeTextBanner): EditableBlock {
@@ -43,7 +45,18 @@ function toBlock(value: HomeTextBanner): EditableBlock {
     imageAlt: value.imageAlt || "",
     layout: value.layout || "banner",
     theme: value.theme || "primary",
+    galleryItems: value.galleryItems || [],
     enabled: value.enabled !== false,
+  };
+}
+
+function createGalleryItem() {
+  return {
+    id: `circle-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
+    label: "Nouvel univers",
+    imageUrl: "",
+    imageAlt: "",
+    href: "/boutique",
   };
 }
 
@@ -93,6 +106,18 @@ export default function OwnerCustomHomepageBlocksEditor({ profile, onSaved }: { 
     setBlocks(current => current.map(block => block.id === id ? { ...block, ...patch } : block));
   };
 
+  const updateGalleryItem = (blockId: string, itemId: string, patch: Partial<RoundGalleryItem>) => {
+    setBlocks(current => current.map(block => block.id === blockId ? { ...block, galleryItems: block.galleryItems.map(item => item.id === itemId ? { ...item, ...patch } : item) } : block));
+  };
+
+  const addGalleryItem = (blockId: string) => {
+    setBlocks(current => current.map(block => block.id === blockId && block.galleryItems.length < 6 ? { ...block, galleryItems: [...block.galleryItems, createGalleryItem()] } : block));
+  };
+
+  const removeGalleryItem = (blockId: string, itemId: string) => {
+    setBlocks(current => current.map(block => block.id === blockId ? { ...block, galleryItems: block.galleryItems.filter(item => item.id !== itemId) } : block));
+  };
+
   const addBlock = () => {
     if (blocks.length >= 8) {
       toast.error("Huit blocs libres maximum par boutique.");
@@ -110,6 +135,7 @@ export default function OwnerCustomHomepageBlocksEditor({ profile, onSaved }: { 
       imageAlt: "",
       layout: "split",
       theme: "soft",
+      galleryItems: [],
       enabled: true,
     };
     setBlocks(current => [...current, block]);
@@ -144,6 +170,16 @@ export default function OwnerCustomHomepageBlocksEditor({ profile, onSaved }: { 
     }
   };
 
+  const uploadGalleryImage = async (blockId: string, itemId: string, file: File) => {
+    try {
+      const result = await upload.mutateAsync({ dataUrl: await fileToDataUrl(file), fileName: file.name });
+      updateGalleryItem(blockId, itemId, { imageUrl: result.url });
+      toast.success("Visuel rond prêt à enregistrer.");
+    } catch {
+      // The mutation already provides a concise error message.
+    }
+  };
+
   return <Card className="border-fuchsia-200">
     <CardHeader>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -165,8 +201,9 @@ export default function OwnerCustomHomepageBlocksEditor({ profile, onSaved }: { 
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Surtitre</Label><Input value={block.eyebrow} maxLength={120} onChange={event => updateBlock(block.id, { eyebrow: event.target.value })} placeholder="Ex. Atelier du week-end" /></div><div className="space-y-2"><Label>Titre</Label><Input value={block.title} maxLength={180} onChange={event => updateBlock(block.id, { title: event.target.value })} placeholder="Titre de votre section" /></div></div>
           <div className="mt-4 space-y-2"><Label>Texte</Label><Textarea rows={4} value={block.text} maxLength={600} onChange={event => updateBlock(block.id, { text: event.target.value })} placeholder="Expliquez librement ce que vous souhaitez présenter." /></div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Format</Label><select value={block.layout} onChange={event => updateBlock(block.id, { layout: event.target.value as HomeTextBanner["layout"] })} className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900">{layoutOptions.map(option => <option key={option.value} value={option.value}>{option.label} — {option.description}</option>)}</select></div><div className="space-y-2"><Label>Ambiance</Label><select value={block.theme} onChange={event => updateBlock(block.id, { theme: event.target.value as HomeTextBanner["theme"] })} className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900">{themeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Format</Label><select value={block.layout} onChange={event => { const layout = event.target.value as EditableBlock["layout"]; updateBlock(block.id, { layout, galleryItems: layout === "roundGallery" && block.galleryItems.length === 0 ? [createGalleryItem(), createGalleryItem()] : block.galleryItems }); }} className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900">{layoutOptions.map(option => <option key={option.value} value={option.value}>{option.label} — {option.description}</option>)}</select></div><div className="space-y-2"><Label>Ambiance</Label><select value={block.theme} onChange={event => updateBlock(block.id, { theme: event.target.value as HomeTextBanner["theme"] })} className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900">{themeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
           <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Texte du bouton (facultatif)</Label><Input value={block.buttonLabel} maxLength={60} onChange={event => updateBlock(block.id, { buttonLabel: event.target.value })} placeholder="Découvrir" /></div><div className="space-y-2"><Label>Lien du bouton</Label><Input value={block.buttonUrl} maxLength={300} onChange={event => updateBlock(block.id, { buttonUrl: event.target.value })} placeholder="/boutique ou https://…" /></div></div>
+          {block.layout === "roundGallery" && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-emerald-950">Visuels ronds de la galerie</p><p className="mt-1 text-xs leading-5 text-emerald-900">Ajoutez de 2 à 6 univers. Sur la vitrine, seul le visuel circulaire et son libellé apparaissent : aucune carte ni prix n’est affiché.</p></div><Button type="button" size="sm" variant="outline" disabled={block.galleryItems.length >= 6} onClick={() => addGalleryItem(block.id)} className="min-h-10 border-emerald-300 text-emerald-800 hover:bg-emerald-100"><Plus className="mr-1 h-4 w-4" /> Ajouter un visuel</Button></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{block.galleryItems.map(item => <div key={item.id} className="rounded-xl border border-emerald-100 bg-white p-3"><div className="flex items-start gap-3"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-emerald-50">{item.imageUrl ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center"><ImagePlus className="h-5 w-5 text-emerald-400" /></div>}</div><div className="min-w-0 flex-1 space-y-2"><Input aria-label="Libellé du visuel rond" value={item.label} maxLength={80} onChange={event => updateGalleryItem(block.id, item.id, { label: event.target.value })} placeholder="Ex. Rooibos nature" /><Input aria-label="URL du visuel rond" value={item.imageUrl} maxLength={1000} onChange={event => updateGalleryItem(block.id, item.id, { imageUrl: event.target.value })} placeholder="https://…" /><Input aria-label="Description du visuel rond" value={item.imageAlt} maxLength={180} onChange={event => updateGalleryItem(block.id, item.id, { imageAlt: event.target.value })} placeholder="Description de l’image" /><Input aria-label="Lien du visuel rond" value={item.href} maxLength={300} onChange={event => updateGalleryItem(block.id, item.id, { href: event.target.value })} placeholder="/boutique (facultatif)" /><div className="flex flex-wrap gap-2"><label className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold text-emerald-800"><Upload className="h-3.5 w-3.5" /> Téléverser<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) void uploadGalleryImage(block.id, item.id, file); }} /></label><Button type="button" size="sm" variant="ghost" onClick={() => removeGalleryItem(block.id, item.id)} className="h-9 text-rose-700 hover:bg-rose-50 hover:text-rose-800"><Trash2 className="mr-1 h-3.5 w-3.5" /> Retirer</Button></div></div></div></div>)}</div></div>}
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3"><Label>Visuel (facultatif)</Label><div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center"><div className="grid h-20 w-full shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-100 text-slate-400 sm:w-28">{block.imageUrl ? <img src={block.imageUrl} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-5 w-5" />}</div><div className="min-w-0 flex-1 space-y-2"><Input value={block.imageUrl} maxLength={1000} onChange={event => updateBlock(block.id, { imageUrl: event.target.value })} placeholder="https://… ou téléverser" /><Input value={block.imageAlt} maxLength={180} onChange={event => updateBlock(block.id, { imageAlt: event.target.value })} placeholder="Description courte de l’image" /><label className="inline-flex min-h-10 cursor-pointer items-center gap-2 text-sm font-semibold text-fuchsia-800"><Upload className="h-4 w-4" /> Téléverser<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) void uploadImage(block.id, file); }} /></label></div></div></div>
         </div>;
       })}

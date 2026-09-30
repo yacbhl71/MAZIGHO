@@ -28,6 +28,7 @@ const ownerTransactionalEmailTemplate = z.object({
 
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
+const requiredVisualUrl = z.string().trim().min(1).max(1000).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 const algeriaWilayaDeliverySettings = z.object({
@@ -206,6 +207,14 @@ export const ownerHomepageSections = z.object({
   }
 });
 
+const ownerRoundGalleryItem = z.object({
+  id: z.string().trim().min(4).max(60).regex(/^circle-[a-z0-9-]+$/, "Identifiant de visuel invalide."),
+  label: z.string().trim().min(2).max(80),
+  imageUrl: requiredVisualUrl,
+  imageAlt: z.string().trim().min(2).max(180),
+  href: storefrontLink,
+});
+
 const ownerCustomHomepageBlock = z.object({
   id: z.string().trim().min(4).max(60).regex(/^(?:block-[a-z0-9-]+|tb_[a-z0-9]+)$/, "Identifiant de bloc invalide."),
   eyebrow: z.string().trim().max(120),
@@ -215,15 +224,23 @@ const ownerCustomHomepageBlock = z.object({
   buttonUrl: storefrontLink,
   imageUrl: z.union([z.literal(""), visualUrl]),
   imageAlt: z.string().trim().max(180),
-  layout: z.enum(["banner", "split", "spotlight"]),
+  layout: z.enum(["banner", "split", "spotlight", "roundGallery"]),
   theme: z.enum(["primary", "dark", "soft", "light"]),
+  galleryItems: z.array(ownerRoundGalleryItem).max(6).optional(),
   enabled: z.boolean(),
 }).superRefine((block, ctx) => {
+  const galleryItems = block.galleryItems || [];
   if (block.buttonLabel && !block.buttonUrl) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["buttonUrl"], message: "Indiquez le lien associé au bouton." });
   }
   if (block.imageUrl && !block.imageAlt) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["imageAlt"], message: "Ajoutez une courte description de l’image." });
+  }
+  if (block.layout === "roundGallery" && galleryItems.length < 2) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["galleryItems"], message: "Ajoutez au moins deux visuels à la galerie ronde." });
+  }
+  if (new Set(galleryItems.map(item => item.id)).size !== galleryItems.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["galleryItems"], message: "Chaque visuel de la galerie doit avoir un identifiant unique." });
   }
 });
 

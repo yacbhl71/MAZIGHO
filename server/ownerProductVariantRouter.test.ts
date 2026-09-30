@@ -857,6 +857,36 @@ describe("owner product variant routes", () => {
     })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
+  it("saves a card-free round gallery only for the current store", async () => {
+    const blocks = [{
+      id: "block-maison-de-the",
+      eyebrow: "Explorer nos infusions",
+      title: "Les rituels de la maison",
+      text: "Six univers à découvrir selon vos envies du moment.",
+      buttonLabel: "",
+      buttonUrl: "",
+      imageUrl: "",
+      imageAlt: "",
+      layout: "roundGallery" as const,
+      theme: "soft" as const,
+      galleryItems: [
+        { id: "circle-the-vert", label: "Thés verts", imageUrl: "https://example.test/the-vert.jpg", imageAlt: "Thé vert en feuilles", href: "/boutique" },
+        { id: "circle-rooibos", label: "Rooibos", imageUrl: "https://example.test/rooibos.jpg", imageAlt: "Rooibos en feuilles", href: "/boutique" },
+      ],
+      enabled: true,
+    }];
+    await expect(callerFor().owner.saveCustomHomepageBlocks({
+      blocks,
+      homeOrder: ["text:block-maison-de-the", "featured"],
+    })).resolves.toMatchObject({ textBanners: blocks });
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ textBanners: blocks }), 77);
+
+    await expect(callerFor().owner.saveCustomHomepageBlocks({
+      blocks: [{ ...blocks[0], galleryItems: [blocks[0].galleryItems[0]] }],
+      homeOrder: ["text:block-maison-de-the"],
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("saves catalogue page copy only through the current resolved store", async () => {
     const input = {
       promosTitle: "Offres de l’atelier",

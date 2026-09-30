@@ -9751,8 +9751,15 @@ export type HomeTextBanner = {
   buttonUrl: string;
   imageUrl?: string;
   imageAlt?: string;
-  layout?: "banner" | "split" | "spotlight";
+  layout?: "banner" | "split" | "spotlight" | "roundGallery";
   theme?: "primary" | "dark" | "soft" | "light";
+  galleryItems?: Array<{
+    id: string;
+    label: string;
+    imageUrl: string;
+    imageAlt: string;
+    href: string;
+  }>;
   enabled: boolean;
 };
 
@@ -10203,6 +10210,19 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
       const id = typeof b.id === "string" && b.id.trim() ? b.id.trim().slice(0, 60) : null;
       const title = typeof b.title === "string" ? b.title.trim().slice(0, 180) : "";
       if (!id || !title) continue;
+      const galleryItems: NonNullable<HomeTextBanner["galleryItems"]> = [];
+      if (Array.isArray(b.galleryItems)) {
+        for (const rawItem of b.galleryItems.slice(0, 6)) {
+          if (!rawItem || typeof rawItem !== "object") continue;
+          const item = rawItem as Record<string, unknown>;
+          const itemId = typeof item.id === "string" ? item.id.trim().slice(0, 60) : "";
+          const label = typeof item.label === "string" ? item.label.trim().slice(0, 80) : "";
+          const imageUrl = typeof item.imageUrl === "string" ? item.imageUrl.trim().slice(0, 1000) : "";
+          const imageAlt = typeof item.imageAlt === "string" ? item.imageAlt.trim().slice(0, 180) : "";
+          const href = typeof item.href === "string" ? item.href.trim().slice(0, 300) : "";
+          if (itemId && label && imageUrl && imageAlt) galleryItems.push({ id: itemId, label, imageUrl, imageAlt, href });
+        }
+      }
       textBanners.push({
         id,
         title,
@@ -10212,8 +10232,9 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
       buttonUrl: typeof b.buttonUrl === "string" ? b.buttonUrl.trim().slice(0, 300) : "",
       imageUrl: typeof b.imageUrl === "string" ? b.imageUrl.trim().slice(0, 1000) : "",
       imageAlt: typeof b.imageAlt === "string" ? b.imageAlt.trim().slice(0, 180) : "",
-      layout: ["banner", "split", "spotlight"].includes(String(b.layout)) ? b.layout as HomeTextBanner["layout"] : "banner",
+      layout: ["banner", "split", "spotlight", "roundGallery"].includes(String(b.layout)) ? b.layout as HomeTextBanner["layout"] : "banner",
       theme: ["primary", "dark", "soft", "light"].includes(String(b.theme)) ? b.theme as HomeTextBanner["theme"] : "primary",
+      galleryItems,
       enabled: typeof b.enabled === "boolean" ? b.enabled : true,
       });
     }

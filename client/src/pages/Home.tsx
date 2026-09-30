@@ -322,6 +322,25 @@ export default function Home() {
             {banner.text ? <p className={`mt-3 max-w-xl text-sm leading-6 md:text-base ${mutedClass}`}>{banner.text}</p> : null}
             {banner.buttonLabel && banner.buttonUrl ? <Button asChild className={`mt-6 ${isDark || blockTheme === "primary" ? "bg-white text-slate-900 hover:bg-white/90" : "text-white hover:brightness-95"}`} style={isDark || blockTheme === "primary" ? undefined : { backgroundColor: palette.primary }}><Link href={banner.buttonUrl}>{banner.buttonLabel}<ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
           </div>;
+          if (blockLayout === "roundGallery") {
+            const galleryItems = (banner.galleryItems || []).slice(0, 6);
+            return <section key={`text-${banner.id}`} style={{ order: orderIndex(`text:${banner.id}`), backgroundColor: palette.soft }} className="py-14 md:py-20">
+              <div className="container">
+                <div className="mx-auto max-w-5xl text-center">
+                  {banner.eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{banner.eyebrow}</p> : null}
+                  <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{banner.title}</h2>
+                  {banner.text ? <p className="mx-auto mt-4 max-w-4xl text-sm leading-7 text-slate-600 md:text-base">{banner.text}</p> : null}
+                  {banner.buttonLabel && banner.buttonUrl ? <Link href={banner.buttonUrl} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold underline decoration-1 underline-offset-4 transition-opacity hover:opacity-70" style={{ color: palette.primary }}>{banner.buttonLabel}<ChevronRight className="h-4 w-4" /></Link> : null}
+                </div>
+                <div className="mx-auto mt-9 grid max-w-6xl grid-cols-2 gap-x-5 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+                  {galleryItems.map(item => {
+                    const itemContent = <><img src={item.imageUrl} alt={item.imageAlt} width={400} height={400} loading="lazy" decoding="async" className="aspect-square w-full rounded-full object-cover shadow-sm transition-transform duration-300 group-hover:scale-105" /><p className="mt-3 text-center text-sm font-semibold leading-5" style={{ color: palette.primary }}>{item.label}</p></>;
+                    return item.href ? <Link key={item.id} href={item.href} className="group mx-auto block w-full max-w-[156px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mazigho-accent)] focus-visible:ring-offset-4">{itemContent}</Link> : <div key={item.id} className="mx-auto w-full max-w-[156px]">{itemContent}</div>;
+                  })}
+                </div>
+              </div>
+            </section>;
+          }
           return <section key={`text-${banner.id}`} style={{ order: orderIndex(`text:${banner.id}`) }} className="container py-4 md:py-8">
             {blockLayout === "split" ? <div className="grid overflow-hidden rounded-[1.5rem] border border-slate-200 md:grid-cols-2" style={blockStyle}><div className="flex items-center px-7 py-9 md:px-12 md:py-12">{content}</div><div className="relative min-h-[230px] bg-slate-100 md:min-h-full">{hasImage ? <img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="absolute inset-0 bg-gradient-to-br from-[var(--mazigho-soft)] via-white to-slate-100" />}</div></div> : blockLayout === "spotlight" ? <div className="relative overflow-hidden rounded-[1.5rem] border border-slate-200 px-7 py-8 md:px-12 md:py-12" style={blockStyle}>{hasImage ? <img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover opacity-15" loading="lazy" decoding="async" /> : null}<div aria-hidden="true" className="absolute -right-10 -top-12 h-52 w-52 rounded-full border-[26px] border-white/20" />{content}</div> : <div className="relative overflow-hidden rounded-[1.5rem] px-7 py-8 md:px-12 md:py-12" style={blockStyle}>{hasImage ? <><img src={banner.imageUrl} alt={banner.imageAlt || ""} className="absolute inset-0 h-full w-full object-cover" loading="lazy" decoding="async" /><div className="absolute inset-0 bg-slate-950/55" /></> : null}{content}</div>}
           </section>;

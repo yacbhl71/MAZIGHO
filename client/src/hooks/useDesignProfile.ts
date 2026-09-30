@@ -22,6 +22,14 @@ export type StoreNavigationItem = {
   parentId?: string;
 };
 
+export type RoundGalleryItem = {
+  id: string;
+  label: string;
+  imageUrl: string;
+  imageAlt: string;
+  href: string;
+};
+
 export type HomeTextBanner = {
   id: string;
   eyebrow: string;
@@ -31,8 +39,9 @@ export type HomeTextBanner = {
   buttonUrl: string;
   imageUrl?: string;
   imageAlt?: string;
-  layout?: "banner" | "split" | "spotlight";
+  layout?: "banner" | "split" | "spotlight" | "roundGallery";
   theme?: "primary" | "dark" | "soft" | "light";
+  galleryItems?: RoundGalleryItem[];
   enabled: boolean;
 };
 
