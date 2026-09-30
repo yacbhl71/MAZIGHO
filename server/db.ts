@@ -1798,7 +1798,7 @@ export async function getStudioOwnerExistingCatalogue(storeId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const [categoryRows, productRows, imageRows] = await Promise.all([
-    db.select({ id: categories.id, name: categories.name, slug: categories.slug, description: categories.description, displayOrder: categories.displayOrder }).from(categories).where(eq(categories.storeId, storeId)).orderBy(asc(categories.displayOrder), asc(categories.name)),
+    db.select({ id: categories.id, name: categories.name, slug: categories.slug, description: categories.description, imageUrl: categories.imageUrl, displayOrder: categories.displayOrder }).from(categories).where(eq(categories.storeId, storeId)).orderBy(asc(categories.displayOrder), asc(categories.name)),
     db.select({ id: products.id, categoryId: products.categoryId, name: products.name, slug: products.slug, description: products.description, longDescription: products.longDescription, price: products.price, stock: products.stock, featured: products.featured, status: products.status, options: products.options }).from(products).where(eq(products.storeId, storeId)).orderBy(desc(products.featured), asc(products.name)),
     db.select({ productId: productImages.productId, imageUrl: productImages.imageUrl, displayOrder: productImages.displayOrder }).from(productImages).where(eq(productImages.storeId, storeId)).orderBy(asc(productImages.displayOrder)),
   ]);
@@ -1815,7 +1815,7 @@ export async function getStudioOwnerExistingCatalogue(storeId: number) {
   };
 }
 
-export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId: number; categoryId: number; name: string; description: string }) {
+export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId: number; categoryId: number; name: string; description: string; imageUrl?: string }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const current = snapshot.categories.find(category => category.id === input.categoryId);
   if (!current) throw new Error("CATEGORY_NOT_FOUND");
@@ -1823,7 +1823,7 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
   const slug = studioExistingCatalogueStoreSlug(input.name, used, `categorie-${input.categoryId}`, input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(categories).set({ name: input.name, description: input.description, slug }).where(and(eq(categories.storeId, input.storeId), eq(categories.id, input.categoryId)));
+  await db.update(categories).set({ name: input.name, description: input.description, slug, ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl || null }) }).where(and(eq(categories.storeId, input.storeId), eq(categories.id, input.categoryId)));
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
@@ -1831,7 +1831,7 @@ export async function saveStudioOwnerExistingCatalogueCategory(input: { storeId:
  * Creates the first (or an additional) category for a boutique prepared in
  * Studio. It is store-scoped and deliberately does not publish the storefront.
  */
-export async function createStudioOwnerExistingCatalogueCategory(input: { storeId: number; name: string; description: string }) {
+export async function createStudioOwnerExistingCatalogueCategory(input: { storeId: number; name: string; description: string; imageUrl?: string }) {
   // The deployment migration is the normal path. This scoped fallback protects
   // an explicit catalogue write if an older production schema is still warming.
   await ensureStoreCatalogScopeSchema();
@@ -1846,6 +1846,7 @@ export async function createStudioOwnerExistingCatalogueCategory(input: { storeI
     name: input.name,
     slug,
     description: input.description || null,
+    imageUrl: input.imageUrl || null,
     displayOrder,
     catalogSection: "standard",
   });
@@ -1915,10 +1916,11 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
         name: row.category,
         slug,
         description: null,
+        imageUrl: null,
         displayOrder: nextCategoryOrder,
         catalogSection: "standard",
       });
-      category = { id: Number((result as any)[0].insertId), name: row.category, slug, description: null, displayOrder: nextCategoryOrder };
+      category = { id: Number((result as any)[0].insertId), name: row.category, slug, description: null, imageUrl: null, displayOrder: nextCategoryOrder };
       categoryByNormalizedName.set(categoryKey, category);
       usedCategorySlugs.add(slug);
       nextCategoryOrder += 1;

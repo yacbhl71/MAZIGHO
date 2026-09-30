@@ -2083,6 +2083,7 @@ export const adminRouter = router({
       categoryId: z.number().int().positive(),
       name: z.string().trim().min(2).max(100),
       description: z.string().trim().max(2000),
+      imageUrl: z.union([z.literal(""), visualUrlSchema]).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
         const saved = await db.saveStudioOwnerExistingCatalogueCategory(input);
@@ -2099,6 +2100,7 @@ export const adminRouter = router({
       storeId: z.number().int().positive(),
       name: z.string().trim().min(2).max(100),
       description: z.string().trim().max(2000),
+      imageUrl: z.union([z.literal(""), visualUrlSchema]).optional(),
     })).mutation(async ({ ctx, input }) => {
       try {
         const catalogue = await db.createStudioOwnerExistingCatalogueCategory(input);
@@ -2246,6 +2248,22 @@ export const adminRouter = router({
       const entitlements = await db.getStoreSaasEntitlements(input.storeId);
       const { url } = await storagePut(key, image.buffer, image.contentType, { storeId: input.storeId, quotaBytes: entitlements.mediaQuotaBytes });
       logAudit(ctx, { action: "studio.gift_store.catalogue.image.upload", entityType: "product", entityId: input.productId, summary: "Image produit téléversée dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
+      return { url };
+    }),
+    uploadOwnerExistingCatalogueCategoryImage: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      categoryId: z.number().int().positive(),
+      dataUrl: z.string().max(7_100_000),
+      fileName: z.string().trim().min(1).max(160),
+    })).mutation(async ({ ctx, input }) => {
+      const catalogue = await db.getStudioOwnerExistingCatalogue(input.storeId);
+      if (!catalogue.categories.some(category => category.id === input.categoryId)) throw new TRPCError({ code: "NOT_FOUND", message: "Catégorie introuvable dans cette boutique." });
+      const image = decodeDesignImage(input.dataUrl);
+      const safeName = input.fileName.replace(/[^a-z0-9_-]/gi, "-").replace(/-+/g, "-").slice(0, 80) || "categorie";
+      const key = `studio-catalogue/${input.storeId}/categories/${input.categoryId}/${Date.now()}-${safeName}.${image.extension}`;
+      const entitlements = await db.getStoreSaasEntitlements(input.storeId);
+      const { url } = await storagePut(key, image.buffer, image.contentType, { storeId: input.storeId, quotaBytes: entitlements.mediaQuotaBytes });
+      logAudit(ctx, { action: "studio.gift_store.catalogue.category_image.upload", entityType: "category", entityId: input.categoryId, summary: "Image de catégorie téléversée dans Studio", metadata: { storeId: input.storeId, publicStorefront: false } });
       return { url };
     }),
     getOwnerCataloguePublicationPreview: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
