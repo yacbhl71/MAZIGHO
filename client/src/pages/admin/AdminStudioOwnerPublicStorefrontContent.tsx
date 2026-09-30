@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
-import { type DesignProfile } from "@/hooks/useDesignProfile";
+import { type DesignProfile, type StoreNavigationItem } from "@/hooks/useDesignProfile";
 import { storefrontThemeCatalog } from "@shared/storefrontThemeCatalog";
-import { ArrowLeft, Eye, ImagePlus, Loader2, Palette, Plus, Save, Trash2, Upload, WandSparkles } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, ImagePlus, LayoutPanelTop, Loader2, Palette, Plus, Save, Trash2, Upload, WandSparkles } from "lucide-react";
 
 type BannerDraft = {
   id?: number;
@@ -23,6 +23,17 @@ type BannerDraft = {
 };
 
 const emptyBanner = (displayOrder = 0): BannerDraft => ({ title: "", subtitle: "", imageUrl: "", linkUrl: "/boutique", active: 1, displayOrder });
+
+const navigationSystemLabels: Record<string, string> = {
+  home: "Accueil",
+  shop: "Boutique",
+  categories: "Catégories",
+  creations: "Créations",
+  new: "Nouveautés",
+  "best-sellers": "Best-sellers",
+  promos: "Promotions",
+  contact: "Contact",
+};
 
 const storefrontThemeCards = storefrontThemeCatalog.map(theme => ({
   id: theme.id,
@@ -111,6 +122,33 @@ export default function AdminStudioOwnerPublicStorefrontContent({ storeIdOverrid
     saveProfile.mutate({ storeId, profile: updated });
   };
 
+  const updateNavigationItem = (id: string, changes: Partial<StoreNavigationItem>) => {
+    setProfile(current => current ? { ...current, navigationItems: current.navigationItems.map(item => item.id === id ? { ...item, ...changes } : item) } : current);
+  };
+  const moveNavigationItem = (id: string, offset: -1 | 1) => {
+    setProfile(current => {
+      if (!current) return current;
+      const index = current.navigationItems.findIndex(item => item.id === id);
+      const destination = index + offset;
+      if (index < 0 || destination < 0 || destination >= current.navigationItems.length) return current;
+      const navigationItems = [...current.navigationItems];
+      [navigationItems[index], navigationItems[destination]] = [navigationItems[destination], navigationItems[index]];
+      return { ...current, navigationItems };
+    });
+  };
+  const addCustomNavigationItem = () => {
+    setProfile(current => current ? {
+      ...current,
+      navigationItems: [...current.navigationItems, { id: `custom-lien-${Date.now()}`, label: "Nouvel onglet", href: "/boutique", visible: true, kind: "custom" }],
+    } : current);
+  };
+  const removeNavigationItem = (id: string) => {
+    setProfile(current => current ? {
+      ...current,
+      navigationItems: current.navigationItems.filter(item => item.id !== id).map(item => item.parentId === id ? { ...item, parentId: undefined } : item),
+    } : current);
+  };
+
   const upload = async (file: File, apply: (url: string) => void) => {
     try {
       const dataUrl = await readFileAsDataUrl(file);
@@ -139,6 +177,16 @@ export default function AdminStudioOwnerPublicStorefrontContent({ storeIdOverrid
           <div className="space-y-3 rounded-xl border border-slate-200 p-4"><p className="font-semibold">Encart éditorial</p><Input value={profile.editorialEyebrow} onChange={event => setProfile(current => current ? { ...current, editorialEyebrow: event.target.value } : current)} placeholder="Petit libellé" /><Input value={profile.editorialTitle} onChange={event => setProfile(current => current ? { ...current, editorialTitle: event.target.value } : current)} placeholder="Titre" /><ImageField label="Image" value={profile.editorialImageUrl} onChange={editorialImageUrl => setProfile(current => current ? { ...current, editorialImageUrl } : current)} onUpload={file => upload(file, url => setProfile(current => current ? { ...current, editorialImageUrl: url } : current))} uploading={uploadImage.isPending} /></div></div>
         <Button type="button" disabled={isSaving} onClick={() => profile && saveProfile.mutate({ storeId, profile })} className="min-h-11 w-full bg-slate-950 text-white hover:bg-slate-800 sm:w-auto"><Save className="mr-2 h-4 w-4" /> {saveProfile.isPending ? "Enregistrement…" : "Enregistrer les textes et images"}</Button>
       </CardContent></Card>
+      <StorefrontMenuEditor
+        profile={profile}
+        isSaving={isSaving}
+        onAdd={addCustomNavigationItem}
+        onMove={moveNavigationItem}
+        onRemove={removeNavigationItem}
+        onSave={() => saveProfile.mutate({ storeId, profile })}
+        onUpdate={updateNavigationItem}
+        onLayoutChange={headerLayout => setProfile(current => current ? { ...current, headerLayout } : current)}
+      />
       <section className="space-y-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-semibold text-slate-950">Bannières d’accueil</p><p className="mt-1 text-sm text-slate-600">Elles remplacent la bannière générique MAZIGHO sur ce domaine.</p></div><Button type="button" variant="outline" className="min-h-11" onClick={() => setDraftBanner(emptyBanner(banners.length))}><Plus className="mr-2 h-4 w-4" /> Ajouter une bannière</Button></div>
         {banners.map(banner => <BannerEditor key={banner.id} value={{ id: banner.id, title: banner.title, subtitle: banner.subtitle || "", imageUrl: banner.imageUrl, linkUrl: banner.linkUrl || "/boutique", active: banner.active, displayOrder: banner.displayOrder }} pending={isSaving} onUpload={upload} onSave={value => saveBanner.mutate({ storeId, ...value })} onDelete={() => deleteBanner.mutate({ storeId, bannerId: banner.id })} />)}
         {draftBanner && <BannerEditor value={draftBanner} pending={isSaving} onUpload={upload} onSave={value => saveBanner.mutate({ storeId, ...value })} />}
@@ -147,4 +195,34 @@ export default function AdminStudioOwnerPublicStorefrontContent({ storeIdOverrid
       {notice && <p className={`rounded-xl border px-4 py-3 text-sm ${notice.includes("impossible") || notice.includes("Erreur") ? "border-rose-200 bg-rose-50 text-rose-950" : "border-emerald-200 bg-emerald-50 text-emerald-950"}`}>{notice}</p>}
       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><WandSparkles className="mr-2 inline h-4 w-4" /> Les contenus de cette page sont enregistrés par boutique. Ils ne modifient ni les bannières, ni les images, ni les textes de MAZIGHO principal.</div>
     </>}</main></DashboardLayout>;
+}
+
+function StorefrontMenuEditor({
+  profile,
+  isSaving,
+  onAdd,
+  onMove,
+  onRemove,
+  onSave,
+  onUpdate,
+  onLayoutChange,
+}: {
+  profile: DesignProfile;
+  isSaving: boolean;
+  onAdd: () => void;
+  onMove: (id: string, offset: -1 | 1) => void;
+  onRemove: (id: string) => void;
+  onSave: () => void;
+  onUpdate: (id: string, changes: Partial<StoreNavigationItem>) => void;
+  onLayoutChange: (value: DesignProfile["headerLayout"]) => void;
+}) {
+  return <Card><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50 text-teal-700"><LayoutPanelTop className="h-5 w-5" /></div><div><CardDescription>Navigation storefront</CardDescription><CardTitle className="mt-1">Menu de la boutique</CardTitle><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Réorganisez les onglets et créez des sous-menus d’un seul niveau. Les liens restent limités à cette boutique, pour un menu sûr et agréable sur tablette comme sur téléphone.</p></div></div><Button type="button" variant="outline" className="min-h-11 shrink-0" disabled={profile.navigationItems.length >= 16 || isSaving} onClick={onAdd}><Plus className="mr-2 h-4 w-4" /> Ajouter un onglet</Button></div></CardHeader><CardContent className="space-y-4">
+    <div className="grid gap-3 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="studio-header-layout">Disposition du menu</Label><select id="studio-header-layout" value={profile.headerLayout} onChange={event => onLayoutChange(event.target.value as DesignProfile["headerLayout"])} className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="inline">Compacte — une ligne</option><option value="split">Éditoriale — deux lignes</option><option value="searchFirst">Catalogue — recherche prioritaire</option><option value="gallery">Galerie premium — identité centrée</option><option value="market">Maison de commerce — bande menu</option></select></div><div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-xs leading-5 text-teal-950"><p className="font-semibold">Conseil</p><p className="mt-1">La disposition « Maison de commerce » met le menu sur une ligne dédiée, comme une maison de thé.</p></div></div>
+    <div className="space-y-3">{profile.navigationItems.map((item, index) => {
+      const availableParents = profile.navigationItems.filter(candidate => candidate.kind === "custom" && candidate.visible && candidate.id !== item.id && !candidate.parentId);
+      const children = profile.navigationItems.filter(candidate => candidate.parentId === item.id).length;
+      return <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-slate-900">{item.kind === "system" ? navigationSystemLabels[item.id] || item.id : item.label || "Onglet personnalisé"}{item.parentId && <span className="ml-2 text-xs font-normal text-teal-700">· sous-menu</span>}{children > 0 && <span className="ml-2 text-xs font-normal text-slate-500">· {children} sous-onglet{children > 1 ? "s" : ""}</span>}</p><div className="flex items-center gap-2"><label className="flex min-h-9 items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={item.visible} onChange={event => onUpdate(item.id, { visible: event.target.checked })} /> Visible</label><Button type="button" size="icon" variant="outline" aria-label="Monter l’onglet" disabled={index === 0} onClick={() => onMove(item.id, -1)}><ArrowUp className="h-4 w-4" /></Button><Button type="button" size="icon" variant="outline" aria-label="Descendre l’onglet" disabled={index === profile.navigationItems.length - 1} onClick={() => onMove(item.id, 1)}><ArrowDown className="h-4 w-4" /></Button>{item.kind === "custom" && <Button type="button" size="sm" variant="outline" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={() => onRemove(item.id)}>Retirer</Button>}</div></div><div className="mt-3 grid gap-3 md:grid-cols-3"><div className="space-y-2"><Label>Libellé</Label><Input value={item.label} maxLength={40} placeholder={navigationSystemLabels[item.id] || "Nom de l’onglet"} onChange={event => onUpdate(item.id, { label: event.target.value })} /></div><div className="space-y-2"><Label>Destination</Label><Input value={item.href} disabled={item.kind === "system"} maxLength={300} placeholder="/boutique" onChange={event => onUpdate(item.id, { href: event.target.value })} /></div>{item.kind === "custom" ? <div className="space-y-2"><Label>Rattacher sous</Label><select value={item.parentId || ""} onChange={event => onUpdate(item.id, { parentId: event.target.value || undefined })} className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Menu principal</option>{availableParents.map(parent => <option key={parent.id} value={parent.id}>{parent.label || "Onglet personnalisé"}</option>)}</select></div> : <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-500">Onglet système : destination verrouillée.</div>}</div></article>;
+    })}</div>
+    <Button type="button" disabled={isSaving} onClick={onSave} className="min-h-11 w-full bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"><Save className="mr-2 h-4 w-4" /> {isSaving ? "Enregistrement…" : "Enregistrer le menu"}</Button>
+  </CardContent></Card>;
 }

@@ -105,6 +105,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getOwnerCataloguePublicationPreview({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.publishOwnerCatalogueFromPreview({ storeId: 1, planToken: "a".repeat(24), confirmationName: "Boutique cliente", previewAcknowledged: true, missingMediaVariantsAcknowledged: true, operationsLegalDomainAcknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getOwnerPublicStorefrontContent({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.saveOwnerPublicStorefrontProfile({ storeId: 1, profile: {} } as any)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.issueOwnerTemporaryPassword({ storeId: 1, confirmationEmail: "client@example.test", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.applyStorefrontTheme({ storeId: 1, themeId: "pet" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.applyStorefrontTheme({ storeId: 1, themeId: "beauty" })).rejects.toMatchObject({ code: "FORBIDDEN" });

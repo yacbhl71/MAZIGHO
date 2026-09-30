@@ -2012,6 +2012,11 @@ export const adminRouter = router({
         editorialEyebrow: z.string().trim().min(2).max(120), editorialTitle: z.string().trim().min(2).max(180), editorialImageUrl: visualUrlSchema,
         navigationHome: z.string().trim().min(1).max(40), navigationShop: z.string().trim().min(1).max(40), navigationCategories: z.string().trim().min(1).max(40), navigationCreations: z.string().trim().min(1).max(40), navigationContact: z.string().trim().min(1).max(40),
         navigationTranslations: z.object({ de: z.any().optional(), it: z.any().optional(), en: z.any().optional(), es: z.any().optional(), nl: z.any().optional(), ar: z.any().optional() }).default({}),
+        // Studio manages active boutique storefronts as well. Keep the exact
+        // same constrained navigation contract as the owner workspace: a
+        // maximum of sixteen entries and just one custom submenu level.
+        headerLayout: z.enum(["inline", "split", "searchFirst", "gallery", "market"]),
+        navigationItems: z.array(navigationItem).min(1).max(16),
         showDiscovery: z.boolean(), showStory: z.boolean(), showTestimonials: z.boolean(), showEditorial: z.boolean(), showFeatured: z.boolean(),
         customColorsEnabled: z.boolean(), customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), buttonRadius: z.enum(["flat", "rounded", "full"]),
         // The Studio storefront editor may update the regional footer title
