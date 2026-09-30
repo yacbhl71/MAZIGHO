@@ -2598,6 +2598,31 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    openGiftStoreShowcase: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const opened = await db.openGiftStoreShowcase(input);
+        logAudit(ctx, {
+          action: "studio.gift_store.showcase.open",
+          entityType: "store",
+          entityId: opened.store.id,
+          summary: `Vitrine publique ouverte sans commerce : ${opened.store.displayName}`,
+          metadata: { domain: opened.store.primaryDomain, status: "limited", commerceEnabled: false, billing: "none", invitationsSent: 0 },
+        });
+        return opened;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "SHOWCASE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’ouverture de la vitrine." });
+        if (["STORE_NOT_ELIGIBLE_FOR_SHOWCASE", "STORE_NOT_GIFT_PROVISIONED", "SHOWCASE_PREFLIGHT_INCOMPLETE", "STORE_SHOWCASE_CONFLICT"].includes(code)) {
+          throw new TRPCError({ code: "CONFLICT", message: "La vitrine ne peut pas être ouverte : vérifiez le domaine, l’identité et le catalogue avec ses visuels." });
+        }
+        throw error;
+      }
+    }),
     activateGiftStore: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

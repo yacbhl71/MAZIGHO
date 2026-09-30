@@ -50,6 +50,7 @@ export default function Category() {
   const categoryNotice = category?.publicNotice?.trim() || (isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : categoryT(locale, "categoryNotice", { category: category?.name || "", country: countryLabel }));
   const categoryEmptyMessage = category?.emptyStateMessage?.trim() || (isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel }));
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const catalogueFilters = useStorefrontCatalogueFiltering(products, { fixedCategoryId: categoryData ? String(categoryData.id) : undefined });
   const visibleProducts = catalogueFilters.visibleProducts;
@@ -262,14 +263,14 @@ export default function Category() {
                               {categoryT(locale, "viewDetails")}
                             </Button>
                           </Link>
-                          <button
+                          {commerceEnabled && <button
                             onClick={() => handleAddToCart(product.id)}
                             disabled={Boolean((product as any).variants?.length) || !isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct))}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-35"
                             title={Boolean((product as any).variants?.length) ? "Ouvrez la fiche pour choisir une variante" : isProductPurchasableForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)) ? categoryT(locale, "addToCart") : categoryT(locale, "deliveryToConfirm", { country: countryLabel })}
                           >
                             <ShoppingCart className="h-5 w-5 text-gray-700" />
-                          </button>
+                          </button>}
                           <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={categoryT(locale, "addToWishlist")}>
                             <Heart className="h-5 w-5 text-gray-700" />
                           </button>

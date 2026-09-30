@@ -5,7 +5,7 @@ import { shopRouter } from "./shopRouter";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { mayServeStorefront } from "./services/storeScope";
+import { mayAcceptStorefrontCommerce, mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
 import { ownerRouter } from "./ownerRouter";
 import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
@@ -87,6 +87,7 @@ export const appRouter = router({
   storefront: router({
     getAvailability: publicProcedure.query(({ ctx }) => ({
       publicStorefront: Boolean(ctx.store && (ctx.store.isPlatformStore || mayServeStorefront(ctx.store.status))),
+      commerceEnabled: Boolean(ctx.store && mayAcceptStorefrontCommerce(ctx.store.status, Boolean(ctx.store.isPlatformStore))),
       hasResolvedStore: Boolean(ctx.store),
       // Boolean de présentation uniquement : permet de garder l’identité plateforme
       // hors des storefronts clients sans exposer de donnée commerciale ou personnelle.
@@ -100,6 +101,9 @@ export const appRouter = router({
       return { ...(await getStoreMaintenanceMode(ctx.store.id)), brandName: ctx.store.displayName };
     }),
     getPaymentAvailability: storefrontProcedure.query(async ({ ctx }) => {
+      if (!mayAcceptStorefrontCommerce(ctx.store!.status, Boolean(ctx.store!.isPlatformStore))) {
+        return { enabled: false as const, mode: "showcase_only" as const, reason: "showcase_only" as const, cashOnDeliveryAvailable: false };
+      }
       const { getAlgeriaCashOnDeliveryReadiness, getStoreStripeConnectCheckoutContext } = await import("./db");
       const { getCheckoutPaymentGate } = await import("./services/checkoutPaymentGate");
       const mode = getCheckoutPaymentGate("live").enabled ? "live" as const : "test" as const;

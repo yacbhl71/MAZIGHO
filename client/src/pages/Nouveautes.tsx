@@ -36,6 +36,8 @@ export default function Nouveautes() {
   const productCopy = getProductPublicCopy(locale);
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const storefrontAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const commerceEnabled = storefrontAvailability.data?.commerceEnabled !== false;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode));
@@ -171,13 +173,13 @@ export default function Nouveautes() {
                             {categoryT(locale, "viewDetails")}
                           </Button>
                         </Link>
-                        <button
+                        {commerceEnabled && <button
                           onClick={() => handleAddToCart(product.id)}
                           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                           title={categoryT(locale, "addToCart")}
                         >
                           <ShoppingCart className="h-5 w-5 text-gray-700" />
-                        </button>
+                        </button>}
                         <button onClick={() => handleFavorite(product.id)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title={isFavorite(product.id) ? productCopy.removeFavorite : productCopy.addFavorite} aria-label={isFavorite(product.id) ? productCopy.removeFavorite : productCopy.addFavorite}>
                           <Heart className={`h-5 w-5 ${isFavorite(product.id) ? "fill-red-500 text-red-500" : "text-gray-700"}`} />
                         </button>

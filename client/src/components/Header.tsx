@@ -44,6 +44,7 @@ export default function Header() {
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
   const hasResolvedNonPlatformStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
   const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
   const activeLanguages = marketSettings.data ? localeOptions.filter(option => marketSettings.data.activeLanguages.includes(option.code)) : localeOptions;
   // Do not briefly show fallback selectors before the boutique-specific market
@@ -183,7 +184,7 @@ export default function Header() {
                 )}
               </div>
             </Link>
-            <Link href="/panier" aria-label="Panier">
+            {commerceEnabled && <Link href="/panier" aria-label="Panier">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer">
                 <ShoppingCart className="h-5 w-5 text-gray-700" />
                 {cartCount > 0 && (
@@ -192,7 +193,7 @@ export default function Header() {
                   </span>
                 )}
               </div>
-            </Link>
+            </Link>}
             <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white shadow-sm transition-transform hover:scale-[1.02] sm:inline-flex" style={{ backgroundColor: palette.accent }}>
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>

@@ -48,6 +48,7 @@ export default function Product() {
   const product = productQuery.data;
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
@@ -151,6 +152,10 @@ export default function Product() {
     .slice(0, 4);
 
   const handleAddToCart = () => {
+    if (!commerceEnabled) {
+      toast.info("Cette vitrine est ouverte à la découverte. Les commandes seront activées séparément.");
+      return;
+    }
     if (!product || !hasConfirmedDelivery) {
       toast.error(commerceT(locale, "deliveryUnconfirmed", { country: countryLabel }));
       return;
@@ -301,14 +306,14 @@ export default function Product() {
               </div>
 
               {/* Options */}
-              {(product as any).options && !hasProductVariants && (
+              {commerceEnabled && (product as any).options && !hasProductVariants && (
                 <ProductOptions
                   options={typeof (product as any).options === 'string' ? JSON.parse((product as any).options) : (product as any).options}
                   onSelectOptions={setSelectedOptions}
                 />
               )}
 
-              {hasProductVariants && (
+              {commerceEnabled && hasProductVariants && (
                 <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                   <div>
                     <p className="font-semibold text-gray-900">Variante</p>
@@ -329,7 +334,7 @@ export default function Product() {
               )}
 
               {/* Quantity */}
-              <div className="flex items-center gap-4">
+              {commerceEnabled && <div className="flex items-center gap-4">
                 <label className="font-semibold text-gray-800">{commerceT(locale, "quantity")}:</label>
                 <div className="flex items-center border border-gray-300 rounded-lg">
                   <button
@@ -356,10 +361,10 @@ export default function Product() {
                     +
                   </button>
                 </div>
-              </div>
+              </div>}
 
               {/* Action Buttons */}
-              <div className="flex gap-4">
+              {commerceEnabled ? <div className="flex gap-4">
                 <Button
                   onClick={handleAddToCart}
                   disabled={effectiveStock === 0 || !isPurchasable || isAdding}
@@ -404,7 +409,7 @@ export default function Product() {
                 >
                   <Share2 className="h-6 w-6" />
                 </Button>
-              </div>
+              </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Vitrine publique :</strong> ce produit est présenté à la découverte. Le panier, les commandes et le paiement seront activés séparément après la préparation commerciale.</div>}
 
               {/* Store-owned product reassurance */}
               {profile.showProductReassurance && (

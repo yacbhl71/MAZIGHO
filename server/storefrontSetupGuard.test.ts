@@ -35,12 +35,12 @@ describe("setup storefront guard", () => {
       ...context,
       store: { ...context.store!, id: 1, slug: "primary-store", displayName: "MAZIGHO", primaryDomain: "mazigho.ch", isPlatformStore: 1 },
     });
-    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: true, hasResolvedStore: true, isPlatformStore: true });
+    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: true, commerceEnabled: true, hasResolvedStore: true, isPlatformStore: true });
   });
 
   it("signals the storefront as closed and refuses public catalogue reads and transactional actions before activation", async () => {
     const caller = appRouter.createCaller(setupStoreContext());
-    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, hasResolvedStore: true, isPlatformStore: false });
+    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, commerceEnabled: false, hasResolvedStore: true, isPlatformStore: false });
     await expect(caller.products.getAll("fr")).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.checkout.createSession({ countryCode: "CH", legalAcceptanceVersion: "2026-09-28", legalAccepted: true, items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -52,10 +52,19 @@ describe("setup storefront guard", () => {
     const context = setupStoreContext();
     const caller = appRouter.createCaller({ ...context, store: null });
 
-    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, hasResolvedStore: false, isPlatformStore: false });
+    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, commerceEnabled: false, hasResolvedStore: false, isPlatformStore: false });
     await expect(caller.content.getStoreCurrency()).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.products.getAll("fr")).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.checkout.createSession({ countryCode: "CH", legalAcceptanceVersion: "2026-09-28", legalAccepted: true, items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("serves a limited public showcase but refuses cart and checkout", async () => {
+    const context = setupStoreContext();
+    const caller = appRouter.createCaller({ ...context, store: { ...context.store!, status: "limited" } });
+
+    await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: true, commerceEnabled: false, hasResolvedStore: true, isPlatformStore: false });
+    await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.checkout.createSession({ countryCode: "CH", legalAcceptanceVersion: "2026-09-28", legalAccepted: true, items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

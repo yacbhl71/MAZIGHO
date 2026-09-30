@@ -174,6 +174,19 @@ function ExternalLocationRedirect({ href }: { href: string }) {
   return <div className="min-h-screen bg-slate-950" aria-busy="true" />;
 }
 
+function StorefrontShowcaseCommerceUnavailablePage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#fbf7f2] px-6 text-center text-slate-900">
+      <div className="max-w-md rounded-3xl border border-[#e5d8cb] bg-white p-8 shadow-xl shadow-slate-900/5">
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber-700">Vitrine publique</p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Les commandes arrivent bientôt</h1>
+        <p className="mt-4 text-sm leading-7 text-slate-600">Cette boutique est ouverte à la découverte. Le panier, le paiement et les commandes seront activés séparément après la préparation commerciale.</p>
+        <a href="/boutique" className="mt-7 inline-flex min-h-11 items-center justify-center rounded-md bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800">Découvrir le catalogue</a>
+      </div>
+    </main>
+  );
+}
+
 function BrowserTitle() {
   const [location] = useLocation();
   const { profile, isLoading: profileLoading } = useDesignProfile();
@@ -383,6 +396,10 @@ function Router() {
   // preparation hint; server-side membership guards still enforce access.
   if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding && !isStudioHost) {
     return <StorefrontUnavailablePage />;
+  }
+
+  if (storefrontAvailabilityQuery.data?.commerceEnabled === false && ["/panier", "/commander", "/commande-confirmation"].some(prefix => path === prefix || path.startsWith(`${prefix}/`))) {
+    return <StorefrontShowcaseCommerceUnavailablePage />;
   }
 
   if (maintenance && !isSupportImpersonating && (forcePreview || (maintenance.enabled && !isStaff && !isExemptPath))) {

@@ -799,7 +799,7 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
 
   const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
   if (!store) throw new Error("STORE_NOT_FOUND");
-  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION_REVIEW");
+  if (store.isPlatformStore || (store.status !== "setup" && store.status !== "limited")) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION_REVIEW");
 
   const [settingRows, ownerRows, categoryRows, activeProductRows, activeImageRows] = await Promise.all([
     db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
@@ -835,7 +835,7 @@ export async function getGiftStoreActivationPreflight(storeId: number) {
     }
 
   const preflight = buildStoreActivationPreflight({
-    status: store.status,
+    status: store.status === "limited" ? "setup" : store.status,
     isGiftProvisioned: true,
     businessType: draft.businessType,
     primaryDomain: store.primaryDomain,
@@ -2392,7 +2392,7 @@ export async function activateGiftStore(input: { storeId: number; confirmationNa
   return db.transaction(async tx => {
     const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
     if (!store) throw new Error("STORE_NOT_FOUND");
-    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
+    if (store.isPlatformStore || (store.status !== "setup" && store.status !== "limited")) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
     if (input.confirmationName.trim() !== store.displayName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
     if (!input.domainVerified || !input.variantsReviewed || !input.shippingReturnsReviewed || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
 
@@ -2432,7 +2432,7 @@ export async function activateGiftStore(input: { storeId: number; confirmationNa
       } catch { /* the preflight blocks invalid own legal profile */ }
     }
     const preflight = buildStoreActivationPreflight({
-      status: store.status,
+      status: store.status === "limited" ? "setup" : store.status,
       isGiftProvisioned: true,
       businessType: draft.businessType,
       primaryDomain: store.primaryDomain,
@@ -2450,17 +2450,70 @@ export async function activateGiftStore(input: { storeId: number; confirmationNa
     if (!preflight.locallyReadyForManualActivation) throw new Error("ACTIVATION_PREFLIGHT_INCOMPLETE");
 
     const now = new Date();
-    const activated = await tx.update(stores).set({ status: "active" }).where(and(eq(stores.id, store.id), eq(stores.status, "setup")));
+    const activated = await tx.update(stores).set({ status: "active" }).where(and(eq(stores.id, store.id), eq(stores.status, store.status)));
     const affectedRows = Number((activated as any)?.[0]?.affectedRows ?? (activated as any)?.affectedRows ?? 0);
     if (affectedRows !== 1) throw new Error("STORE_ACTIVATION_CONFLICT");
     await tx.insert(storeSettings).values({
       storeId: store.id,
       key: "public_activation_record",
-      value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true }),
+      value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, previousStatus: store.status }),
       description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio.",
-    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio." } });
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, previousStatus: store.status }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio." } });
 
     return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: "active" as const }, activatedAt: now };
+  });
+}
+
+/**
+ * Opens a gift-store catalogue as a public showcase without enabling commerce.
+ * The `limited` status serves visual catalogue data but is denied by every
+ * cart, order and payment guard until Studio changes it to `active`.
+ */
+export async function openGiftStoreShowcase(input: { storeId: number; confirmationName: string; acknowledged: boolean }) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return db.transaction(async tx => {
+    const [store] = await tx.select().from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_SHOWCASE");
+    if (!input.acknowledged || input.confirmationName.trim() !== store.displayName.trim()) throw new Error("SHOWCASE_CONFIRMATION_MISMATCH");
+
+    const [settingRows, categoryRows, activeProductRows, activeImageRows] = await Promise.all([
+      tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),
+      tx.select({ total: count() }).from(categories).where(eq(categories.storeId, store.id)),
+      tx.select({ id: products.id }).from(products).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+      tx.select({ productId: productImages.productId }).from(productImages).innerJoin(products, and(eq(productImages.productId, products.id), eq(productImages.storeId, products.storeId))).where(and(eq(products.storeId, store.id), eq(products.status, "active"))),
+    ]);
+    const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
+    if (settingsByKey.get("provisioning_mode") !== "gift") throw new Error("STORE_NOT_GIFT_PROVISIONED");
+
+    let brandName = "";
+    try { brandName = String((JSON.parse(settingsByKey.get("design_profile") || "{}") as Record<string, unknown>).brandName || "").trim(); } catch { /* blocked below */ }
+    const validDomain = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(store.primaryDomain.toLowerCase());
+    const hasCompleteCatalogue = Number(categoryRows[0]?.total ?? 0) >= 1
+      && activeProductRows.length >= 1
+      && new Set(activeImageRows.map(image => image.productId)).size >= activeProductRows.length;
+    const hasOwnBrand = brandName.length >= 2 && brandName.toLowerCase() !== "mazigho";
+    if (!validDomain || !hasCompleteCatalogue || !hasOwnBrand) throw new Error("SHOWCASE_PREFLIGHT_INCOMPLETE");
+
+    const openedAt = new Date();
+    const changed = await tx.update(stores).set({ status: "limited" }).where(and(eq(stores.id, store.id), eq(stores.status, "setup")));
+    const affectedRows = Number((changed as any)?.[0]?.affectedRows ?? (changed as any)?.affectedRows ?? 0);
+    if (affectedRows !== 1) throw new Error("STORE_SHOWCASE_CONFLICT");
+    await tx.insert(storeSettings).values({
+      storeId: store.id,
+      key: "public_showcase_record",
+      value: JSON.stringify({ openedAt: openedAt.toISOString(), source: "mazigho_studio_showcase_confirmation", commerceEnabled: false }),
+      description: "Trace d’ouverture publique en vitrine, sans panier ni paiement.",
+    }).onDuplicateKeyUpdate({ set: {
+      value: JSON.stringify({ openedAt: openedAt.toISOString(), source: "mazigho_studio_showcase_confirmation", commerceEnabled: false }),
+      description: "Trace d’ouverture publique en vitrine, sans panier ni paiement.",
+    } });
+
+    return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: "limited" as const }, openedAt, commerceEnabled: false as const };
   });
 }
 

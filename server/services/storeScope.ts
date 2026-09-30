@@ -36,6 +36,16 @@ export function mayServeStorefront(status: StorefrontStatus) {
 }
 
 /**
+ * A limited store is a public catalogue / showcase only. It deliberately has
+ * no cart, order or payment capability until Studio switches it to active.
+ * The platform storefront keeps its historic availability independently from
+ * a legacy status value.
+ */
+export function mayAcceptStorefrontCommerce(status: StorefrontStatus, isPlatformStore = false) {
+  return isPlatformStore || status === "active";
+}
+
+/**
  * A custom hostname must resolve to an explicit store. The compatibility fallback
  * remains available only for the platform domain, the dedicated Studio host,
  * local development, and the project’s Vercel deployment aliases; any other

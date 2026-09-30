@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, isStudioHost, mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
+import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, isStudioHost, mayAcceptStorefrontCommerce, mayServeStorefront, mayUsePlatformStoreFallback, normalizeStoreHost } from "./storeScope";
 
 describe("store scope", () => {
   it("normalise un domaine sans protocole, chemin ni port", () => {
@@ -41,5 +41,12 @@ describe("store scope", () => {
     expect(mayServeStorefront("setup")).toBe(false);
     expect(mayServeStorefront("suspended")).toBe(false);
     expect(mayServeStorefront("closed")).toBe(false);
+  });
+
+  it("réserve panier et paiement aux boutiques actives", () => {
+    expect(mayAcceptStorefrontCommerce("active")).toBe(true);
+    expect(mayAcceptStorefrontCommerce("limited")).toBe(false);
+    expect(mayAcceptStorefrontCommerce("setup")).toBe(false);
+    expect(mayAcceptStorefrontCommerce("limited", true)).toBe(true);
   });
 });
