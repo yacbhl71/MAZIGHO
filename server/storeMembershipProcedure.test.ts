@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const membershipState = vi.hoisted(() => ({ current: null as { role: string; status: string } | null }));
+const llmState = vi.hoisted(() => ({ answer: "Brouillon de réponse IA" }));
+
+vi.mock("./_core/llm", () => ({
+  invokeLLM: vi.fn(async () => ({ choices: [{ message: { content: llmState.answer } }] })),
+}));
 
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => membershipState.current),
@@ -38,6 +43,13 @@ describe("store-scoped management procedure", () => {
       store: { id: 77, displayName: "Boutique test" },
       membership: { role: "manager", status: "active" },
     });
+  });
+
+  it("keeps the AI assistant scoped to an active store manager", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.chat({
+      messages: [{ role: "user", content: "Améliore mon texte d’accueil." }],
+    })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
   });
 
   it("refuses a catalog role from the management workspace", async () => {

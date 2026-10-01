@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Loader2, Send, User, Sparkles } from "lucide-react";
+import { Copy, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
 
@@ -26,6 +26,9 @@ export type AIChatBoxProps = {
    * Typically you'll call a tRPC mutation here to invoke the LLM.
    */
   onSendMessage: (content: string) => void;
+
+  /** Optional action shown below assistant messages, for example copying a draft. */
+  onCopyAssistantMessage?: (content: string) => void;
 
   /**
    * Whether the AI is currently generating a response
@@ -113,6 +116,7 @@ export type AIChatBoxProps = {
 export function AIChatBox({
   messages,
   onSendMessage,
+  onCopyAssistantMessage,
   isLoading = false,
   placeholder = "Type your message...",
   className,
@@ -261,8 +265,19 @@ export function AIChatBox({
                       )}
                     >
                       {message.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <Streamdown>{message.content}</Streamdown>
+                        <div>
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <Streamdown>{message.content}</Streamdown>
+                          </div>
+                          {onCopyAssistantMessage && (
+                            <button
+                              type="button"
+                              onClick={() => onCopyAssistantMessage(message.content)}
+                              className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+                            >
+                              <Copy className="size-3.5" /> Copier le brouillon
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">

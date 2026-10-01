@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import StudioTenantResourceSummary from "@/components/StudioTenantResourceSummary";
+import StudioAICopilot from "@/components/StudioAICopilot";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -730,6 +731,7 @@ export default function AdminStudio() {
           })}</div>}
         </section>
 
+        <StudioAICopilot />
         <section id="studio-health" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>

@@ -31,6 +31,7 @@ import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPix
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
+import { invokeLLM } from "./_core/llm";
 
 /** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
 async function assertDropshippingAccess(storeId: number | undefined) {
@@ -1217,6 +1218,55 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
+    assistant: router({
+      chat: platformProcedure.input(z.object({
+        messages: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string().trim().min(1).max(6000),
+        })).min(1).max(12),
+      })).mutation(async ({ input }) => {
+        const inventory = await db.getStudioStoreInventory({ page: 1, pageSize: 100 });
+        const stores = inventory.stores.map(store => ({
+          name: store.displayName,
+          status: store.status,
+          domain: store.primaryDomain,
+          platform: Boolean(store.isPlatformStore),
+          attention: Boolean(store.needsAttention),
+          offer: store.commercialOfferMode,
+        }));
+        const aggregate = {
+          total: inventory.summary.total,
+          pageSize: stores.length,
+          byStatus: stores.reduce<Record<string, number>>((counts, store) => ({ ...counts, [store.status]: (counts[store.status] || 0) + 1 }), {}),
+          attentionCount: stores.filter(store => store.attention).length,
+          stores,
+        };
+        const result = await invokeLLM({
+          model: "gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: [
+                "Tu es le copilote interne de MAZIGHO Studio.",
+                "Réponds en français avec des priorités concrètes, courtes et vérifiables.",
+                "Tu peux analyser l’état des boutiques, préparer des checklists et rédiger des messages opérateur.",
+                "Ne donne jamais de conseil juridique ou fiscal définitif. Ne prétends jamais avoir effectué une action.",
+                "Ne demande ni ne révèle de secret, mot de passe, jeton, clé, donnée bancaire ou contenu client.",
+                `Inventaire agrégé courant : ${JSON.stringify(aggregate)}`,
+              ].join("\n"),
+            },
+            ...input.messages.map(message => ({ role: message.role, content: message.content })),
+          ],
+        });
+        const content = result.choices[0]?.message?.content;
+        const answer = typeof content === "string"
+          ? content.trim()
+          : Array.isArray(content)
+            ? content.filter(part => part.type === "text").map(part => part.text).join("\n").trim()
+            : "Je n’ai pas pu préparer une réponse exploitable.";
+        return { answer: answer || "Je n’ai pas pu préparer une réponse exploitable." };
+      }),
+    }),
     getCustomDomainRegistry: platformProcedure.input(z.object({
       query: z.string().trim().max(80).optional(),
       status: z.enum(["requested", "guide_ready", "client_acknowledged", "linked", "recovery_active", "needs_attention"]).optional(),

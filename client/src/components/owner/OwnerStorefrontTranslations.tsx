@@ -46,6 +46,11 @@ const fieldLabels: Record<string, string> = {
   editorialTitle: "Titre éditorial",
   discoveryAllShopLabel: "Bouton secondaire du hero",
   discoveryBrowseShopLabel: "Bouton principal du hero",
+  navigationHome: "Menu — Accueil",
+  navigationShop: "Menu — Boutique",
+  navigationCategories: "Menu — Catégories",
+  navigationCreations: "Menu — Créations",
+  navigationContact: "Menu — Contact",
   title: "Titre",
   subtitle: "Texte secondaire",
   name: "Nom",
@@ -147,7 +152,7 @@ export default function OwnerStorefrontTranslations() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2 text-sky-950"><Languages className="h-5 w-5 text-sky-700" /> Traductions de la vitrine</CardTitle>
-          <CardDescription className="mt-1 max-w-3xl">Le carrousel, les textes d’accueil et les catégories disposent d’une version propre par langue. Une version non prête reste volontairement en français : elle n’est jamais remplacée par un texte générique MAZIGHO.</CardDescription>
+          <CardDescription className="mt-1 max-w-3xl">Les thèmes premium, le carrousel, les textes d’accueil, les libellés du menu et les catégories disposent d’une version propre par langue. Une version non prête reste volontairement en français : elle n’est jamais remplacée par un texte générique MAZIGHO.</CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">{activeLocales.map(item => <Button key={item} type="button" size="sm" variant={locale === item ? "default" : "outline"} onClick={() => setLocale(item)} className={locale === item ? "bg-sky-700 hover:bg-sky-800" : "border-sky-200 text-sky-800 hover:bg-sky-50"}>{item.toUpperCase()} · {localeLabels[item]}</Button>)}</div>
       </div>

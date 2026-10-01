@@ -5273,6 +5273,11 @@ export async function getPublicContentTranslationSource(contentType: PublicConte
         editorialTitle: profile.editorialTitle,
         discoveryAllShopLabel: profile.discoveryAllShopLabel,
         discoveryBrowseShopLabel: profile.discoveryBrowseShopLabel,
+        navigationHome: profile.navigationHome,
+        navigationShop: profile.navigationShop,
+        navigationCategories: profile.navigationCategories,
+        navigationCreations: profile.navigationCreations,
+        navigationContact: profile.navigationContact,
       },
       sourceUpdatedAt: new Date(),
     };
