@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Copy, Loader2, Send, User, Sparkles } from "lucide-react";
+import { Copy, Download, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 /**
@@ -190,6 +190,20 @@ export function AIChatBox({
     }
   };
 
+  const downloadAssistantDraft = (content: string) => {
+    const text = content.trim();
+    if (!text) return;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `mazigho-brouillon-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -268,15 +282,10 @@ export function AIChatBox({
                           <div className="max-w-none whitespace-pre-wrap text-sm leading-6 text-foreground">
                             {message.content || "Aucune réponse texte n’a été reçue. Réessayez avec une demande plus courte."}
                           </div>
-                          {onCopyAssistantMessage && (
-                            <button
-                              type="button"
-                              onClick={() => onCopyAssistantMessage(message.content)}
-                              className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
-                            >
-                              <Copy className="size-3.5" /> Copier le brouillon
-                            </button>
-                          )}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {onCopyAssistantMessage && <button type="button" onClick={() => onCopyAssistantMessage(message.content)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"><Copy className="size-3.5" /> Copier le brouillon</button>}
+                            <button type="button" onClick={() => downloadAssistantDraft(message.content)} disabled={!message.content.trim()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-3.5" /> Télécharger (.txt)</button>
+                          </div>
                         </div>
                       ) : (
                         <p className="whitespace-pre-wrap text-sm">
