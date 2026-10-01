@@ -13,6 +13,12 @@ describe("store SaaS plan assignment", () => {
     expect(assignStoreSaasPlanTemplate(lifetime, "2026-09-26T00:00:00.000Z", 30000).lifetimePurchasePriceCents).toBe(30000);
   });
 
+  it("refuses a custom draft that would silently inherit FREE permissions", () => {
+    const custom = { id: "premium-plus", name: "Premium Plus", description: "", monthlyAmountCents: 3000, yearlyAmountCents: 0, currency: "CHF" as const, features: ["dropshipping_import" as const], status: "draft" as const };
+    expect(() => assignStoreSaasPlanTemplate(custom)).toThrow("SAAS_PLAN_TEMPLATE_NOT_OFFICIAL");
+    expect(assignStoreSaasPlanTemplate({ ...custom, id: "free", name: "FREE" }).planId).toBe("free");
+  });
+
   it("discards malformed assignment data", () => {
     expect(parseStoreSaasPlanAssignment(JSON.stringify({ planId: "basic", planName: "Basic", features: ["unknown"], assignedAt: "invalid" }))).toBeNull();
   });

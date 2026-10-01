@@ -67,6 +67,7 @@ import type { StripeConnectMode } from "./services/stripeConnectMode";
 import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezyBillablePlanId, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
+import { paginateStudioSaasPortfolio, summarizeStudioSaasPlanCoverage, type StudioSaasPortfolioQuery } from "../shared/studioSaasPortfolio";
 import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuery } from "../shared/studioCustomDomainRegistry";
 import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequestRegistryQuery } from "../shared/studioIntegrationRequestRegistry";
 import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCsvExport, type OwnerCsvExportKind } from "./services/ownerCsvExport";
@@ -3174,18 +3175,19 @@ export async function updateStudioStoreCommercialOfferMode(input: {
  * Everything returned here is an internal draft: no tax document, recipient,
  * payment link, subscription, external accounting sync or email is created.
  */
-export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery = {}) {
+export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQuery = {}) {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const clientStores = await db.select({ id: stores.id, slug: stores.slug, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
     .from(stores).where(eq(stores.isPlatformStore, 0)).orderBy(asc(stores.displayName));
   if (clientStores.length === 0) {
-    const page = paginateStudioInventory([], input);
+    const page = paginateStudioSaasPortfolio([], input);
     return {
       ...page,
       summary: {
         ...buildSaasPortfolioMetrics([]),
+        planCoverage: summarizeStudioSaasPlanCoverage([]),
         lemonSqueezyTest: { enabled: getLemonSqueezyBillingConfiguration().enabled, schemaReady: false, active: 0, attention: 0, awaitingCheckout: 0 },
       },
     };
@@ -3276,11 +3278,12 @@ export async function getStudioSaasBillingDashboard(input: StudioInventoryQuery 
       },
     };
   });
-  const page = paginateStudioInventory(storesWithBilling, input);
+  const page = paginateStudioSaasPortfolio(storesWithBilling, input);
   return {
     ...page,
     summary: {
       ...buildSaasPortfolioMetrics(storesWithBilling),
+      planCoverage: summarizeStudioSaasPlanCoverage(storesWithBilling),
       lemonSqueezyTest: {
         enabled: lemonConfiguration.enabled,
         schemaReady: lemonSchemaReady,

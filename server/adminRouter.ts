@@ -1396,6 +1396,7 @@ export const adminRouter = router({
       query: z.string().trim().max(80).optional(),
       status: z.enum(["setup", "active", "limited", "suspended", "closed"]).optional(),
       offerMode: z.enum(["undecided", "rental", "perpetual_sale"]).optional(),
+      planId: z.enum(["all", "unassigned", "free", "basic", "pro", "lifetime"]).optional(),
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => {
@@ -1434,6 +1435,7 @@ export const adminRouter = router({
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "STORE_NOT_FOUND" || code === "SAAS_PLAN_TEMPLATE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique ou modèle de plan introuvable." });
+        if (code === "SAAS_PLAN_TEMPLATE_NOT_OFFICIAL") throw new TRPCError({ code: "BAD_REQUEST", message: "Seules les offres officielles FREE, BASIC, PRO et LIFETIME peuvent être attribuées. Les autres modèles restent des brouillons commerciaux." });
         if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
         if (code === "SAAS_PLAN_ASSIGNMENT_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant d’attribuer le plan." });
         throw error;

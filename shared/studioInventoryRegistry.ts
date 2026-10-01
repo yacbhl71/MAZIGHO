@@ -15,7 +15,7 @@ export type StudioInventoryQuery = {
   pageSize?: StudioInventoryPageSize;
 };
 
-type RegistryStore = {
+export type RegistryStore = {
   displayName: string;
   slug: string;
   primaryDomain: string;

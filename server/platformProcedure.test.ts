@@ -49,6 +49,7 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getStoreMediaUsage({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreCommercialSupervision({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getSaasBillingDashboard()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getSaasBillingDashboard({ planId: "unassigned" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getSaasPlanCatalog()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.saveSaasPlanCatalog({ catalog: { plans: [] } })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.assignStoreSaasPlanTemplate({ storeId: 1, confirmationName: "Boutique cliente", planId: "basic", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });

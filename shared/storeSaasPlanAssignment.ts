@@ -1,5 +1,6 @@
 import type { SaasPlanCatalogItem, SaasPlanFeatureId } from "./saasPlanCatalog";
 import { saasPlanFeatureIds } from "./saasPlanCatalog";
+import { getMazighoSaasPlan } from "./mazighoSaasPlans";
 
 export type StoreSaasPlanAssignment = {
   planId: string;
@@ -65,6 +66,7 @@ export function parseStoreSaasPlanAssignment(value: unknown): StoreSaasPlanAssig
 /** Captures the plan features at the moment of manual Studio assignment. */
 export function assignStoreSaasPlanTemplate(plan: SaasPlanCatalogItem, assignedAt = new Date().toISOString(), lifetimePurchasePriceCents: number | null = null): StoreSaasPlanAssignment {
   if (!isPlanId(plan.id) || !plan.name.trim() || Number.isNaN(Date.parse(assignedAt))) throw new Error("SAAS_PLAN_ASSIGNMENT_INVALID");
+  if (!getMazighoSaasPlan(plan.id)) throw new Error("SAAS_PLAN_TEMPLATE_NOT_OFFICIAL");
   if (plan.id === "lifetime" && (lifetimePurchasePriceCents === null || !Number.isInteger(lifetimePurchasePriceCents) || lifetimePurchasePriceCents < 0)) throw new Error("SAAS_LIFETIME_PRICE_SNAPSHOT_REQUIRED");
   return { planId: plan.id, planName: plan.name.trim().replace(/\s+/g, " ").slice(0, 60), features: Array.from(new Set(plan.features)).sort(), lifetimePurchasePriceCents: plan.id === "lifetime" ? lifetimePurchasePriceCents : null, status: "draft", assignedAt, gridVersion: 2 };
 }
