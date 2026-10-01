@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Menu, Search, Settings2, X } from "lucide-react";
-import { resolveOwnerMenuTarget, searchOwnerWorkspace, type OwnerAdminTarget, type OwnerCatalogueItem, type OwnerMenuItem, type OwnerModule } from "@/lib/ownerAdminNavigation";
+import { moveOwnerSearchSelection, resolveOwnerMenuTarget, searchOwnerWorkspace, type OwnerAdminTarget, type OwnerCatalogueItem, type OwnerMenuItem, type OwnerModule } from "@/lib/ownerAdminNavigation";
 
 type Props = {
   brandName: string;
@@ -19,7 +19,9 @@ export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, ca
   const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeResult, setActiveResult] = useState(0);
   const searchRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const visibleItems = useMemo(() => menuItems.filter(item => item.visible), [menuItems]);
   const rootItems = visibleItems.filter(item => !item.parentId);
   const results = useMemo(() => searchOwnerWorkspace(query, modules, categories, products), [query, modules, categories, products]);
@@ -31,10 +33,22 @@ export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, ca
     document.addEventListener("pointerdown", handlePointer);
     return () => document.removeEventListener("pointerdown", handlePointer);
   }, []);
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        inputRef.current?.focus();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleShortcut);
+    return () => document.removeEventListener("keydown", handleShortcut);
+  }, []);
 
   const choose = (target: OwnerAdminTarget) => {
     onSelect(target);
     setQuery("");
+    setActiveResult(0);
     setSearchOpen(false);
     setExpanded(null);
     setMenuOpen(false);
@@ -69,10 +83,19 @@ export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, ca
       <div ref={searchRef} className="relative order-3 w-full min-w-0 sm:order-none sm:ml-auto sm:w-[min(22rem,42vw)] xl:ml-2 xl:w-64">
         <label className="sr-only" htmlFor="owner-workspace-search">Rechercher dans la gestion de boutique</label>
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-teal-700" />
-        <input id="owner-workspace-search" type="search" autoComplete="off" value={query} onChange={event => { setQuery(event.target.value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} onKeyDown={event => { if (event.key === "Escape") setSearchOpen(false); if (event.key === "Enter" && results[0]) { event.preventDefault(); choose(results[0].target); } }} placeholder="Outil, catégorie, fiche produit…" className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-950 placeholder:text-slate-500 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-100" />
-        {searchOpen && query.trim() && <div className="absolute left-0 right-0 top-full z-[60] mt-2 max-h-[55vh] overflow-y-auto rounded-xl border border-teal-100 bg-white p-2 shadow-xl" role="status" aria-live="polite">
-          {results.length ? results.map((result, index) => <button key={`${result.type}-${result.target.module}-${result.target.productId || result.target.categoryId || index}`} type="button" onClick={() => choose(result.target)} className="flex min-h-12 w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-slate-900 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"><span className="mt-0.5 shrink-0 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-teal-800">{result.type === "module" ? "Outil" : result.type === "product" ? "Produit" : "Catégorie"}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{result.title}</span><span className="block truncate text-xs text-slate-600">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-slate-600">Aucun outil ou fiche de cette boutique ne correspond. Essayez un autre terme.</p>}
-          <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Résultats privés de cette boutique uniquement. Entrée ouvre le premier résultat.</p>
+        <input ref={inputRef} id="owner-workspace-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded={Boolean(searchOpen && query.trim())} aria-controls="owner-workspace-results" aria-activedescendant={searchOpen && results.length ? `owner-workspace-result-${Math.min(activeResult, results.length - 1)}` : undefined} autoComplete="off" value={query} onChange={event => { setQuery(event.target.value); setActiveResult(0); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} onKeyDown={event => {
+          if (event.key === "Escape") { setSearchOpen(false); return; }
+          if ((event.key === "ArrowDown" || event.key === "ArrowUp") && results.length) {
+            event.preventDefault(); setSearchOpen(true);
+            const next = moveOwnerSearchSelection(activeResult, results.length, event.key === "ArrowDown" ? 1 : -1, searchOpen);
+            setActiveResult(next);
+            requestAnimationFrame(() => document.getElementById(`owner-workspace-result-${next}`)?.scrollIntoView({ block: "nearest" }));
+          }
+          if (event.key === "Enter" && searchOpen && results.length) { event.preventDefault(); choose(results[Math.min(activeResult, results.length - 1)].target); }
+        }} placeholder="Outil, catégorie, fiche produit…" className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-950 placeholder:text-slate-500 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-100" />
+        {searchOpen && query.trim() && <div id="owner-workspace-results" className="absolute left-0 right-0 top-full z-[60] mt-2 max-h-[55vh] overflow-y-auto rounded-xl border border-teal-100 bg-white p-2 shadow-xl" role="listbox" aria-label="Résultats de recherche de la boutique">
+          {results.length ? results.map((result, index) => <button key={`${result.type}-${result.target.module}-${result.target.productId || result.target.categoryId || index}`} id={`owner-workspace-result-${index}`} type="button" role="option" aria-selected={index === Math.min(activeResult, results.length - 1)} onMouseEnter={() => setActiveResult(index)} onClick={() => choose(result.target)} className={`flex min-h-12 w-full items-start gap-3 rounded-lg px-3 py-2 text-left text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 ${index === Math.min(activeResult, results.length - 1) ? "bg-teal-50" : "hover:bg-teal-50"}`}><span className="mt-0.5 shrink-0 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-teal-800">{result.type === "module" ? "Outil" : result.type === "product" ? "Produit" : "Catégorie"}</span><span className="min-w-0"><span className="block truncate text-sm font-semibold">{result.title}</span><span className="block truncate text-xs text-slate-600">{result.detail}</span></span></button>) : <p className="p-3 text-sm text-slate-600" role="status">Aucun outil ou fiche de cette boutique ne correspond. Essayez un autre terme.</p>}
+          <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500">Résultats privés de cette boutique uniquement. Utilisez les flèches puis Entrée pour choisir.</p>
         </div>}
       </div>
       <button type="button" onClick={() => choose({ module: "navigation" })} aria-label="Modifier le menu de la boutique" title="Modifier le menu" className="hidden min-h-11 min-w-11 place-items-center rounded-xl text-teal-800 hover:bg-teal-50 sm:grid"><Settings2 className="h-5 w-5" /></button>

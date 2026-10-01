@@ -4,6 +4,24 @@ export type OwnerMenuItem = { id: string; label: string; href: string; visible: 
 export type OwnerCatalogueItem = { id: number; name: string; slug: string; description?: string | null; catalogSection?: "standard" | "creations" | null };
 export type OwnerAdminTarget = { module: OwnerModule; categoryId?: number; productId?: number };
 
+const ownerModules: OwnerModule[] = [
+  "overview", "assistant", "readiness", "help", "simulation", "public_view", "team", "catalogue", "catalogue_pages", "shop_page", "stock", "themes", "vitrine", "navigation", "pages", "orders", "returns", "customers", "customer_relations", "marketing", "emails", "support", "markets", "operations", "algeria_payments", "legal", "seo", "integrations", "exports", "settings",
+];
+
+export function readOwnerPanelModule(search: string): OwnerModule {
+  const value = new URLSearchParams(search).get("panel");
+  return value && ownerModules.includes(value as OwnerModule) ? value as OwnerModule : "overview";
+}
+
+/** Preserve other query parameters, especially the private setup-store identifier. */
+export function ownerPanelSearch(search: string, module: OwnerModule): string {
+  const params = new URLSearchParams(search);
+  if (module === "overview") params.delete("panel");
+  else params.set("panel", module);
+  const next = params.toString();
+  return next ? `?${next}` : "";
+}
+
 const systemTargets: Record<string, OwnerModule> = {
   home: "vitrine", shop: "shop_page", categories: "catalogue", creations: "catalogue",
   new: "catalogue_pages", "best-sellers": "catalogue_pages", promos: "catalogue_pages", contact: "pages",
@@ -41,6 +59,12 @@ export function resolveOwnerMenuTarget(
 export type OwnerSearchEntry = { type: "module" | "category" | "product"; title: string; detail: string; target: OwnerAdminTarget };
 export function normalizeOwnerSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr").trim();
+}
+
+export function moveOwnerSearchSelection(index: number, count: number, direction: 1 | -1, isOpen: boolean): number {
+  if (count <= 0) return 0;
+  if (!isOpen) return direction === 1 ? 0 : count - 1;
+  return (index + direction + count) % count;
 }
 
 const moduleKeywords: Partial<Record<OwnerModule, string>> = {
