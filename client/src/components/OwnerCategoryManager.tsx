@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ImagePlus, Loader2, PencilLine, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -60,7 +60,7 @@ function fileToDataUrl(file: File) {
   });
 }
 
-export default function OwnerCategoryManager({ categories, products, onUpdated }: { categories: Category[]; products: Product[]; onUpdated: () => void | Promise<void> }) {
+export default function OwnerCategoryManager({ categories, products, onUpdated, editCategoryId, onCategoryOpened }: { categories: Category[]; products: Product[]; onUpdated: () => void | Promise<void>; editCategoryId?: number | null; onCategoryOpened?: () => void }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CategoryForm>(() => emptyCategory());
@@ -131,6 +131,14 @@ export default function OwnerCategoryManager({ categories, products, onUpdated }
     });
     setOpen(true);
   };
+  useEffect(() => {
+    if (!editCategoryId) return;
+    const category = categories.find(row => row.id === editCategoryId);
+    if (category) {
+      openEdit(category);
+      onCategoryOpened?.();
+    }
+  }, [editCategoryId, categories, onCategoryOpened]);
   const submit = () => {
     const displayOrder = Number(form.displayOrder);
     if (form.name.trim().length < 2 || form.slug.trim().length < 2) { toast.error("Indiquez un nom et un identifiant de catégorie."); return; }
