@@ -1,5 +1,5 @@
-import { ChangeEvent, useState } from "react";
-import { FileText, ImagePlus, RotateCcw, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ChangeEvent, useEffect, useState } from "react";
+import { FileText, ImagePlus, MessageSquare, MessageSquarePlus, RotateCcw, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,9 @@ function fileToDataUrl(file: File): Promise<string> {
 
 export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
+  const [conversationForDeletion, setConversationForDeletion] = useState<{ id: number; title: string } | null>(null);
+  const [conversationDeleteConfirmation, setConversationDeleteConfirmation] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageInstruction, setImageInstruction] = useState("Analyse ce visuel et prépare un brouillon de fiche produit.");
   const [imageAnswer, setImageAnswer] = useState("");
@@ -49,11 +52,34 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     onSuccess: async () => { setSelectedDocumentIds([]); await knowledgeDocuments.refetch(); toast.success("Document supprimé."); },
     onError: error => toast.error(error.message || "La suppression a échoué."),
   });
-  const chat = trpc.owner.assistant.chat.useMutation({
+  const conversations = trpc.owner.assistant.conversations.list.useQuery();
+  const activeConversation = trpc.owner.assistant.conversations.get.useQuery(
+    { conversationId: activeConversationId || 0 },
+    { enabled: Boolean(activeConversationId) },
+  );
+  const createConversation = trpc.owner.assistant.conversations.create.useMutation({
+    onSuccess: async conversation => {
+      setActiveConversationId(conversation.id);
+      setMessages(initialMessages);
+      await conversations.refetch();
+    },
+    onError: error => toast.error(error.message || "La conversation n’a pas pu être créée."),
+  });
+  const deleteConversation = trpc.owner.assistant.conversations.delete.useMutation({
+    onSuccess: async () => {
+      setActiveConversationId(null);
+      setMessages(initialMessages);
+      setConversationForDeletion(null);
+      await conversations.refetch();
+      toast.success("Conversation privée supprimée.");
+    },
+    onError: error => toast.error(error.message || "La suppression a échoué."),
+  });
+  const workspaceChat = trpc.owner.assistant.conversations.chat.useMutation({
     onSuccess: async response => {
       const sources = response.citations?.length ? `\n\nSources internes utilisées : ${response.citations.map(citation => `« ${citation.title} »`).join(", ")}.` : "";
       setMessages(current => [...current, { role: "assistant", content: `${response.answer}${sources}` }]);
-      await usageQuery.refetch();
+      await Promise.all([usageQuery.refetch(), conversations.refetch(), activeConversation.refetch()]);
     },
     onError: error => toast.error(error.message || "Le copilote IA est momentanément indisponible."),
   });
@@ -66,10 +92,23 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     onError: error => { setImageError(error.message || "L’analyse de l’image a échoué."); toast.error(error.message || "L’analyse de l’image a échoué."); },
   });
 
-  const sendMessage = (content: string) => {
-    const nextMessages: Message[] = [...messages, { role: "user", content }];
-    setMessages(nextMessages);
-    chat.mutate({ messages: nextMessages.filter((message): message is Message & { role: "user" | "assistant" } => message.role !== "system").map(message => ({ role: message.role, content: message.content })), ...(selectedDocumentIds.length ? { documentIds: selectedDocumentIds } : {}) });
+  useEffect(() => {
+    if (!activeConversation.data) return;
+    setMessages([initialMessages[0], ...activeConversation.data.messages.map(message => ({ role: message.role, content: message.content }))]);
+  }, [activeConversation.data]);
+  const startNewConversation = () => {
+    setActiveConversationId(null);
+    setMessages(initialMessages);
+  };
+  const sendMessage = async (content: string) => {
+    let conversationId = activeConversationId;
+    if (!conversationId) {
+      const title = content.replace(/\s+/g, " ").trim().slice(0, 76) || "Nouvelle conversation";
+      const conversation = await createConversation.mutateAsync({ title });
+      conversationId = conversation.id;
+    }
+    setMessages(current => [...current, { role: "user", content }]);
+    workspaceChat.mutate({ conversationId, content, ...(selectedDocumentIds.length ? { documentIds: selectedDocumentIds } : {}) });
   };
   const copyDraft = async (content: string) => {
     try {
@@ -108,9 +147,9 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
         <CardTitle className="flex items-center gap-2 text-violet-950"><Sparkles className="h-5 w-5 text-violet-700" /> Assistant IA de votre boutique</CardTitle>
         <CardDescription className="mt-2 max-w-3xl leading-6">Rédaction, SEO, traductions et analyse de visuels pour « {storeName} ». Les URL externes et les images téléversées restent des sources de brouillon.</CardDescription>
       </div><div className="flex flex-wrap gap-2"><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800"><ShieldCheck className="mr-1 h-3.5 w-3.5" /> Brouillon contrôlé</Badge>{usageQuery.data && <Badge variant="outline" className="border-violet-200 bg-white text-violet-900">IA ce mois : {usageQuery.data.used}/{usageQuery.data.limit}</Badge>}</div>
-      <button type="button" onClick={() => setMessages(initialMessages)} disabled={chat.isPending || messages.length <= 1} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" /> Nouvelle conversation</button>
+      <button type="button" onClick={startNewConversation} disabled={workspaceChat.isPending || (!activeConversationId && messages.length <= 1)} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" /> Nouvelle conversation</button>
       </div></CardHeader>
-      <CardContent><AIChatBox messages={messages} onSendMessage={sendMessage} onCopyAssistantMessage={copyDraft} isLoading={chat.isPending} placeholder="Demandez une idée, une fiche produit ou une amélioration…" height="min(620px, 68vh)" emptyStateMessage="Que souhaitez-vous préparer aujourd’hui ?" suggestedPrompts={["Rédige une fiche produit professionnelle pour mon meilleur produit.", "Propose trois textes de hero pour une boutique chaleureuse et moderne.", "Donne-moi une FAQ courte pour rassurer mes clients avant l’achat.", "Comment améliorer le référencement de ma boutique ?"]} /></CardContent>
+      <CardContent className="space-y-4"><div className="rounded-xl border border-violet-200 bg-white/80 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-violet-950">Workspace privé</p><p className="mt-1 text-xs text-violet-800">Chaque discussion est chiffrée, limitée à cette boutique et peut être supprimée avec confirmation.</p></div><Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-900">{conversations.data?.length || 0}/80 conversations</Badge></div><div className="mt-3 flex gap-2 overflow-x-auto pb-1"><button type="button" onClick={startNewConversation} className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold ${activeConversationId === null ? "border-violet-700 bg-violet-700 text-white" : "border-violet-200 bg-white text-violet-900"}`}><MessageSquarePlus className="h-3.5 w-3.5" /> Nouvelle</button>{conversations.data?.map(conversation => <div key={conversation.id} className="flex shrink-0 overflow-hidden rounded-md border border-violet-200 bg-white"><button type="button" onClick={() => setActiveConversationId(conversation.id)} className={`inline-flex min-h-10 max-w-52 items-center gap-2 px-3 text-left text-xs font-semibold ${activeConversationId === conversation.id ? "bg-violet-100 text-violet-950" : "text-violet-900"}`}><MessageSquare className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{conversation.title}</span></button><button type="button" aria-label={`Supprimer ${conversation.title}`} onClick={() => { setConversationDeleteConfirmation(""); setConversationForDeletion({ id: conversation.id, title: conversation.title }); }} className="border-l border-violet-100 px-2 text-rose-700 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div>{activeConversation.isLoading && <p className="mt-2 text-xs text-violet-800">Chargement de la conversation chiffrée…</p>}</div><AIChatBox messages={messages} onSendMessage={sendMessage} onCopyAssistantMessage={copyDraft} isLoading={workspaceChat.isPending || createConversation.isPending} placeholder="Demandez une idée, une fiche produit ou une amélioration…" height="min(620px, 68vh)" emptyStateMessage="Que souhaitez-vous préparer aujourd’hui ?" suggestedPrompts={["Rédige une fiche produit professionnelle pour mon meilleur produit.", "Propose trois textes de hero pour une boutique chaleureuse et moderne.", "Donne-moi une FAQ courte pour rassurer mes clients avant l’achat.", "Comment améliorer le référencement de ma boutique ?"]} /><AlertDialog open={Boolean(conversationForDeletion)} onOpenChange={open => { if (!open) setConversationForDeletion(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Supprimer cette conversation privée ?</AlertDialogTitle><AlertDialogDescription>Cette suppression est définitive. Saisissez exactement son titre pour confirmer : « {conversationForDeletion?.title} ».</AlertDialogDescription></AlertDialogHeader><Input value={conversationDeleteConfirmation} onChange={event => setConversationDeleteConfirmation(event.target.value)} placeholder="Titre exact de la conversation" /><AlertDialogFooter><AlertDialogCancel>Annuler</AlertDialogCancel><AlertDialogAction disabled={!conversationForDeletion || conversationDeleteConfirmation.trim() !== conversationForDeletion.title || deleteConversation.isPending} onClick={event => { if (!conversationForDeletion || conversationDeleteConfirmation.trim() !== conversationForDeletion.title) { event.preventDefault(); return; } deleteConversation.mutate({ conversationId: conversationForDeletion.id, confirmationTitle: conversationDeleteConfirmation }); }}>Supprimer définitivement</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></CardContent>
     </Card>
     {knowledgeDocuments.data !== undefined && <Card className="border-sky-200 bg-sky-50/40"><CardHeader><CardTitle className="flex items-center gap-2 text-sky-950"><FileText className="h-5 w-5 text-sky-700" /> Centre documentaire privé</CardTitle><CardDescription>Importez un PDF, DOCX, TXT ou CSV. Le texte est chiffré dans votre boutique ; sélectionnez au plus 6 documents pour les citer dans le prochain brouillon IA.</CardDescription></CardHeader><CardContent className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row"><Input value={knowledgeFolder} onChange={event => setKnowledgeFolder(event.target.value)} placeholder="Dossier (ex. Fournisseurs)" className="sm:max-w-xs" /><label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-900"><Upload className="h-4 w-4" /> {importKnowledge.isPending ? "Import…" : "Ajouter un document"}<input type="file" accept="application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,.pdf,.docx,.txt,.csv" className="sr-only" onChange={onKnowledgeUpload} disabled={importKnowledge.isPending} /></label></div>

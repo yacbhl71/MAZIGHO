@@ -70,6 +70,21 @@ function ownerKnowledgeDocumentError(error: unknown): never {
   throw error;
 }
 
+function ownerAiConversationError(error: unknown): never {
+  const code = error instanceof Error ? error.message : "";
+  const messages: Record<string, string> = {
+    OWNER_AI_CONVERSATION_NOT_FOUND: "Cette conversation privée n’est plus disponible dans votre boutique.",
+    OWNER_AI_CONVERSATION_LIMIT_REACHED: "La limite de 80 conversations privées est atteinte. Supprimez une ancienne conversation pour continuer.",
+    OWNER_AI_CONVERSATION_MESSAGE_LIMIT_REACHED: "Cette conversation a atteint sa limite de 200 messages. Créez une nouvelle conversation.",
+    OWNER_AI_CONVERSATION_TITLE_REQUIRED: "Donnez un titre à cette conversation.",
+    OWNER_AI_CONVERSATION_DELETE_CONFIRMATION_MISMATCH: "La confirmation ne correspond pas au titre de la conversation.",
+    OWNER_AI_CONVERSATION_ENCRYPTION_NOT_CONFIGURED: "Le chiffrement des conversations n’est pas disponible pour le moment.",
+    OWNER_AI_CONVERSATION_UNREADABLE: "Cette conversation privée ne peut pas être lue de manière sûre.",
+  };
+  if (messages[code]) throw new TRPCError({ code: code.includes("NOT_FOUND") ? "NOT_FOUND" : "BAD_REQUEST", message: messages[code] });
+  throw error;
+}
+
 async function assertDocumentContextOwner(ctx: { store?: { id: number; isPlatformStore: number | boolean } | null; user?: { id: number; role: string } | null }) {
   if (ctx.store?.isPlatformStore && ctx.user?.role === "admin") return;
   const membership = ctx.user && ctx.store ? await db.getStoreMembershipForUser(ctx.store.id, ctx.user.id) : null;
@@ -653,6 +668,107 @@ export const ownerRouter = router({
           return result;
         } catch (error) {
           return ownerKnowledgeDocumentError(error);
+        }
+      }),
+    }),
+    conversations: router({
+      list: storeOwnerProcedure.query(async ({ ctx }) => db.listOwnerAiConversations(ctx.store!.id)),
+      get: storeOwnerProcedure.input(z.object({ conversationId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+        try {
+          return await db.getOwnerAiConversation(ctx.store!.id, input.conversationId);
+        } catch (error) {
+          return ownerAiConversationError(error);
+        }
+      }),
+      create: storeOwnerProcedure.input(z.object({ title: z.string().trim().min(1).max(100) })).mutation(async ({ ctx, input }) => {
+        try {
+          const conversation = await db.createOwnerAiConversation({ storeId: ctx.store!.id, createdByUserId: ctx.user!.id, title: input.title });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: "owner.ai_conversation.create", entityType: "owner_ai_conversation", entityId: conversation.id, summary: "Conversation privée IA créée." });
+          return conversation;
+        } catch (error) {
+          return ownerAiConversationError(error);
+        }
+      }),
+      rename: storeOwnerProcedure.input(z.object({ conversationId: z.number().int().positive(), title: z.string().trim().min(1).max(100) })).mutation(async ({ ctx, input }) => {
+        try {
+          const result = await db.renameOwnerAiConversation({ storeId: ctx.store!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: "owner.ai_conversation.rename", entityType: "owner_ai_conversation", entityId: input.conversationId, summary: "Conversation privée IA renommée." });
+          return result;
+        } catch (error) {
+          return ownerAiConversationError(error);
+        }
+      }),
+      delete: storeOwnerProcedure.input(z.object({ conversationId: z.number().int().positive(), confirmationTitle: z.string().trim().min(1).max(100) })).mutation(async ({ ctx, input }) => {
+        try {
+          const result = await db.deleteOwnerAiConversation({ storeId: ctx.store!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: "owner.ai_conversation.delete", entityType: "owner_ai_conversation", entityId: input.conversationId, summary: "Conversation privée IA supprimée." });
+          return result;
+        } catch (error) {
+          return ownerAiConversationError(error);
+        }
+      }),
+      chat: storeOwnerProcedure.input(z.object({
+        conversationId: z.number().int().positive(),
+        content: z.string().trim().min(1).max(6000),
+        documentIds: z.array(z.number().int().positive()).max(6).optional(),
+      })).mutation(async ({ ctx, input }) => {
+        const storeId = ctx.store!.id;
+        try {
+          if (input.documentIds?.length) await assertDocumentContextOwner(ctx);
+          const existing = await db.getOwnerAiConversation(storeId, input.conversationId);
+          if (existing.conversation.messageCount > 198) throw new Error("OWNER_AI_CONVERSATION_MESSAGE_LIMIT_REACHED");
+          const [usage, products, categories, profile, knowledgeDocuments] = await Promise.all([
+            db.reserveStoreAiRequest(storeId),
+            db.getAllProductsAdmin(storeId),
+            db.getAllCategories(storeId),
+            db.getDesignProfile(storeId),
+            input.documentIds?.length ? db.getOwnerKnowledgeDocumentContext({ storeId, documentIds: input.documentIds }) : Promise.resolve([]),
+          ]);
+          const context = JSON.stringify({
+            boutique: ctx.store!.displayName,
+            marque: profile.brandName,
+            message: profile.brandMessage,
+            accueil: { surtitre: profile.highlightEyebrow, titre: profile.highlightTitle, texte: profile.highlightText },
+            categories: categories.slice(0, 30).map(category => category.name),
+            produits: products.slice(0, 40).map(product => ({ name: product.name, description: product.description || "", price: product.price, stock: product.stock, status: product.status })),
+          });
+          const documentContext = knowledgeDocuments.length
+            ? `\n\nDocuments privés explicitement sélectionnés par le propriétaire :\n${knowledgeDocuments.map(document => `[Document ${document.id} — ${document.title}, dossier ${document.folder}]\n${document.text}`).join("\n\n")}`
+            : "";
+          const history = existing.messages.slice(-11).map(message => ({ role: message.role, content: message.content }));
+          const result = await invokeLLM({
+            model: "gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: [
+                "Tu es le copilote professionnel de la boutique courante dans MAZIGHO.",
+                "Réponds en français, de façon concrète, claire et adaptée à une petite entreprise.",
+                "Utilise uniquement le contexte fourni pour parler des produits existants. Si une information manque, dis-le clairement et propose une option à vérifier.",
+                "Tu peux rédiger des brouillons de fiches produit, textes de vitrine, FAQ, SEO, traductions et idées marketing.",
+                "Ne donne pas de validation juridique ou fiscale. Ne prétends pas avoir modifié, publié, envoyé ou supprimé quoi que ce soit.",
+                `Contexte isolé de la boutique : ${context}${documentContext}`,
+              ].join("\n") },
+              ...history,
+              { role: "user", content: input.content },
+            ],
+          });
+          const answer = extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable.");
+          await db.appendOwnerAiConversationMessages({ storeId, conversationId: input.conversationId, userId: ctx.user!.id, messages: [{ role: "user", content: input.content }, { role: "assistant", content: answer }] });
+          await db.recordAuditLog({
+            storeId,
+            actorUserId: ctx.user!.id,
+            actorName: ctx.user!.name || ctx.user!.email,
+            actorRole: "owner",
+            action: "owner.ai_conversation.chat",
+            entityType: "owner_ai_conversation",
+            entityId: input.conversationId,
+            summary: "Brouillon IA ajouté à une conversation privée.",
+            metadata: { documentIds: knowledgeDocuments.map(document => document.id) },
+          });
+          return { answer, usage, citations: knowledgeDocuments.map(document => ({ documentId: document.id, title: document.title, folder: document.folder })) };
+        } catch (error) {
+          const message = ownerAiQuotaError(error);
+          if (message) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+          return ownerAiConversationError(error);
         }
       }),
     }),

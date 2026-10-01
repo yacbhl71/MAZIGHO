@@ -21,6 +21,7 @@ const migrations = [
   ["0038_store_relationship_indexes", "drizzle/0038_store_relationship_indexes.sql"],
   ["0039_catalog_section", "drizzle/0039_catalog_section.sql"],
   ["0040_categories_store_slug_index", "drizzle/0040_categories_store_slug_index.sql"],
+  ["0041_owner_ai_conversations", "drizzle/0041_owner_ai_conversations.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

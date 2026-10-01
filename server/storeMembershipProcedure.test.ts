@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const membershipState = vi.hoisted(() => ({ current: null as { role: string; status: string } | null }));
 const llmState = vi.hoisted(() => ({ answer: "Brouillon de réponse IA" }));
 const aiQuotaState = vi.hoisted(() => ({ exhausted: false }));
+const conversationState = vi.hoisted(() => ({ messages: [] as Array<{ id: number; role: "user" | "assistant"; content: string; createdAt: Date }> }));
 
 vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(async () => ({ choices: [{ message: { content: llmState.answer } }] })),
@@ -16,6 +17,13 @@ vi.mock("./db", () => ({
   getStoreAiUsageSummary: vi.fn(async () => ({ periodKey: "2026-10", planId: "free", limit: 40, used: 0, remaining: 40 })),
   listOwnerKnowledgeDocuments: vi.fn(async () => []),
   getOwnerKnowledgeDocumentContext: vi.fn(async () => []),
+  listOwnerAiConversations: vi.fn(async () => [{ id: 51, title: "Discussion privée", messageCount: conversationState.messages.length, createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") }]),
+  getOwnerAiConversation: vi.fn(async () => ({ conversation: { id: 51, title: "Discussion privée", messageCount: conversationState.messages.length, createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") }, messages: conversationState.messages })),
+  createOwnerAiConversation: vi.fn(async ({ title }: { title: string }) => ({ id: 51, title, messageCount: 0 })),
+  appendOwnerAiConversationMessages: vi.fn(async ({ messages }: { messages: Array<{ role: "user" | "assistant"; content: string }> }) => { conversationState.messages.push(...messages.map((message, index) => ({ id: conversationState.messages.length + index + 1, ...message, createdAt: new Date() }))); return { messageCount: conversationState.messages.length }; }),
+  renameOwnerAiConversation: vi.fn(async () => ({ success: true })),
+  deleteOwnerAiConversation: vi.fn(async () => ({ success: true })),
+  recordAuditLog: vi.fn(async () => undefined),
   reserveStoreAiRequest: vi.fn(async () => {
     if (aiQuotaState.exhausted) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
     return { periodKey: "2026-10", planId: "free", limit: 40, used: 1, remaining: 39 };
@@ -50,6 +58,7 @@ describe("store-scoped management procedure", () => {
   beforeEach(() => {
     membershipState.current = null;
     aiQuotaState.exhausted = false;
+    conversationState.messages = [];
     vi.clearAllMocks();
   });
 
@@ -85,6 +94,17 @@ describe("store-scoped management procedure", () => {
   it("allows the active owner to list only its private documents", async () => {
     membershipState.current = { role: "owner", status: "active" };
     await expect(callerFor().owner.assistant.knowledgeDocuments.list()).resolves.toEqual([]);
+  });
+  it("keeps Workspace conversations owner-only and persists an isolated exchange", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.conversations.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.conversations.list()).resolves.toMatchObject([{ id: 51, title: "Discussion privée" }]);
+    await expect(callerFor().owner.assistant.conversations.chat({ conversationId: 51, content: "Prépare une FAQ." })).resolves.toMatchObject({ answer: "Brouillon de réponse IA" });
+    expect(conversationState.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "user", content: "Prépare une FAQ." }),
+      expect.objectContaining({ role: "assistant", content: "Brouillon de réponse IA" }),
+    ]));
   });
   it("allows the platform administrator to operate the primary MAZIGHO store without a tenant membership", async () => {
     await expect(platformAdminCaller().owner.getWorkspace()).resolves.toMatchObject({

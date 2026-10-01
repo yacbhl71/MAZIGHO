@@ -133,6 +133,41 @@ export const ownerKnowledgeDocuments = mysqlTable("ownerKnowledgeDocuments", {
 export type OwnerKnowledgeDocument = typeof ownerKnowledgeDocuments.$inferSelect;
 export type InsertOwnerKnowledgeDocument = typeof ownerKnowledgeDocuments.$inferInsert;
 
+// Owner AI conversations stay private to one boutique. Titles and messages are
+// encrypted separately so the database only keeps structural metadata needed to
+// render a conversation list and enforce tenant isolation.
+export const ownerAiConversations = mysqlTable("ownerAiConversations", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  titleCiphertext: text("titleCiphertext").notNull(),
+  titleIv: varchar("titleIv", { length: 48 }).notNull(),
+  createdByUserId: int("createdByUserId").notNull(),
+  messageCount: int("messageCount").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  ownerAiConversationsStoreUpdatedIndex: index("owner_ai_conversations_store_updated_idx").on(table.storeId, table.updatedAt),
+}));
+export type OwnerAiConversation = typeof ownerAiConversations.$inferSelect;
+export type InsertOwnerAiConversation = typeof ownerAiConversations.$inferInsert;
+
+export const ownerAiConversationMessages = mysqlTable("ownerAiConversationMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  conversationId: int("conversationId").notNull(),
+  role: mysqlEnum("role", ["user", "assistant"]).notNull(),
+  contentCiphertext: mediumtext("contentCiphertext").notNull(),
+  contentIv: varchar("contentIv", { length: 48 }).notNull(),
+  characterCount: int("characterCount").notNull(),
+  createdByUserId: int("createdByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  ownerAiConversationMessagesConversationIndex: index("owner_ai_conversation_messages_conversation_idx").on(table.conversationId, table.id),
+  ownerAiConversationMessagesStoreIndex: index("owner_ai_conversation_messages_store_idx").on(table.storeId, table.createdAt),
+}));
+export type OwnerAiConversationMessage = typeof ownerAiConversationMessages.$inferSelect;
+export type InsertOwnerAiConversationMessage = typeof ownerAiConversationMessages.$inferInsert;
+
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.
 export const accountTokens = mysqlTable("accountTokens", {

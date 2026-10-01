@@ -78,7 +78,7 @@ import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -110,6 +110,7 @@ let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
 let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
 let _ownerKnowledgeDocumentSchemaReady: Promise<void> | null = null;
+let _ownerAiConversationSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3625,6 +3626,18 @@ async function ensureOwnerKnowledgeDocumentSchema() {
   return _ownerKnowledgeDocumentSchemaReady;
 }
 
+async function ensureOwnerAiConversationSchema() {
+  if (_ownerAiConversationSchemaReady) return _ownerAiConversationSchemaReady;
+  _ownerAiConversationSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerAiConversations` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `titleCiphertext` text NOT NULL, `titleIv` varchar(48) NOT NULL, `createdByUserId` int NOT NULL, `messageCount` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `owner_ai_conversations_store_updated_idx` (`storeId`,`updatedAt`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerAiConversationMessages` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `conversationId` int NOT NULL, `role` enum('user','assistant') NOT NULL, `contentCiphertext` mediumtext NOT NULL, `contentIv` varchar(48) NOT NULL, `characterCount` int NOT NULL, `createdByUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `owner_ai_conversation_messages_conversation_idx` (`conversationId`,`id`), INDEX `owner_ai_conversation_messages_store_idx` (`storeId`,`createdAt`))"));
+  })();
+  return _ownerAiConversationSchemaReady;
+}
+
 async function getPrimaryStoreId() {
   await ensureMultiStoreSchema();
   const db = await getDb();
@@ -3818,6 +3831,133 @@ export async function getOwnerKnowledgeDocumentContext(input: { storeId: number;
     remaining -= text.length;
     return { id: row.id, title: row.title, folder: row.folder, text };
   }).filter(document => document.text.length > 0);
+}
+
+const OWNER_AI_CONVERSATION_LIMIT = 80;
+const OWNER_AI_CONVERSATION_MESSAGE_LIMIT = 200;
+
+function ownerAiConversationCipherKey() {
+  if (!ENV.cookieSecret) throw new Error("OWNER_AI_CONVERSATION_ENCRYPTION_NOT_CONFIGURED");
+  return createHash("sha256").update(`mazigho-owner-ai-conversations:v1:${ENV.cookieSecret}`).digest();
+}
+
+function encryptOwnerAiConversationText(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", ownerAiConversationCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
+  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+}
+
+function decryptOwnerAiConversationText(ciphertext: string, ivValue: string) {
+  try {
+    const data = Buffer.from(ciphertext, "base64");
+    const iv = Buffer.from(ivValue, "base64");
+    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
+    const decipher = createDecipheriv("aes-256-gcm", ownerAiConversationCipherKey(), iv);
+    decipher.setAuthTag(data.subarray(-16));
+    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
+  } catch {
+    throw new Error("OWNER_AI_CONVERSATION_UNREADABLE");
+  }
+}
+
+function normalizeOwnerAiConversationTitle(value: string) {
+  const title = value.trim().replace(/\s+/g, " ").slice(0, 100);
+  if (!title) throw new Error("OWNER_AI_CONVERSATION_TITLE_REQUIRED");
+  return title;
+}
+
+export type OwnerAiConversationSummary = { id: number; title: string; messageCount: number; createdAt: Date; updatedAt: Date };
+export type OwnerAiConversationMessageView = { id: number; role: "user" | "assistant"; content: string; createdAt: Date };
+
+export async function listOwnerAiConversations(storeId: number): Promise<OwnerAiConversationSummary[]> {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select().from(ownerAiConversations).where(eq(ownerAiConversations.storeId, storeId)).orderBy(desc(ownerAiConversations.updatedAt)).limit(OWNER_AI_CONVERSATION_LIMIT);
+  return rows.map(row => ({ id: row.id, title: decryptOwnerAiConversationText(row.titleCiphertext, row.titleIv), messageCount: row.messageCount, createdAt: row.createdAt, updatedAt: row.updatedAt }));
+}
+
+export async function createOwnerAiConversation(input: { storeId: number; createdByUserId: number; title: string }) {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [existingCount] = await db.select({ value: count() }).from(ownerAiConversations).where(eq(ownerAiConversations.storeId, input.storeId));
+  if (Number(existingCount?.value ?? 0) >= OWNER_AI_CONVERSATION_LIMIT) throw new Error("OWNER_AI_CONVERSATION_LIMIT_REACHED");
+  const title = normalizeOwnerAiConversationTitle(input.title);
+  const encryptedTitle = encryptOwnerAiConversationText(title);
+  const result = await db.insert(ownerAiConversations).values({ storeId: input.storeId, createdByUserId: input.createdByUserId, titleCiphertext: encryptedTitle.ciphertext, titleIv: encryptedTitle.iv });
+  const id = Number((result as any)[0]?.insertId ?? (result as any).insertId);
+  return { id, title, messageCount: 0 };
+}
+
+export async function getOwnerAiConversation(storeId: number, conversationId: number) {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [conversation] = await db.select().from(ownerAiConversations).where(and(eq(ownerAiConversations.id, conversationId), eq(ownerAiConversations.storeId, storeId))).limit(1);
+  if (!conversation) throw new Error("OWNER_AI_CONVERSATION_NOT_FOUND");
+  const rows = await db.select().from(ownerAiConversationMessages).where(and(eq(ownerAiConversationMessages.storeId, storeId), eq(ownerAiConversationMessages.conversationId, conversationId))).orderBy(asc(ownerAiConversationMessages.id)).limit(OWNER_AI_CONVERSATION_MESSAGE_LIMIT);
+  return {
+    conversation: { id: conversation.id, title: decryptOwnerAiConversationText(conversation.titleCiphertext, conversation.titleIv), messageCount: conversation.messageCount, createdAt: conversation.createdAt, updatedAt: conversation.updatedAt },
+    messages: rows.map(row => ({ id: row.id, role: row.role as "user" | "assistant", content: decryptOwnerAiConversationText(row.contentCiphertext, row.contentIv), createdAt: row.createdAt })),
+  };
+}
+
+export async function appendOwnerAiConversationMessages(input: { storeId: number; conversationId: number; userId: number; messages: Array<{ role: "user" | "assistant"; content: string }> }) {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [conversation] = await db.select({ id: ownerAiConversations.id, messageCount: ownerAiConversations.messageCount }).from(ownerAiConversations)
+    .where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId))).limit(1);
+  if (!conversation) throw new Error("OWNER_AI_CONVERSATION_NOT_FOUND");
+  if (conversation.messageCount + input.messages.length > OWNER_AI_CONVERSATION_MESSAGE_LIMIT) throw new Error("OWNER_AI_CONVERSATION_MESSAGE_LIMIT_REACHED");
+  const normalized = input.messages.map(message => ({ role: message.role, content: message.content.trim().slice(0, 12_000) })).filter(message => message.content.length > 0);
+  if (!normalized.length) return { messageCount: conversation.messageCount };
+  await db.transaction(async tx => {
+    for (const message of normalized) {
+      const encrypted = encryptOwnerAiConversationText(message.content);
+      await tx.insert(ownerAiConversationMessages).values({
+        storeId: input.storeId,
+        conversationId: input.conversationId,
+        role: message.role,
+        contentCiphertext: encrypted.ciphertext,
+        contentIv: encrypted.iv,
+        characterCount: message.content.length,
+        createdByUserId: message.role === "user" ? input.userId : null,
+      });
+    }
+    await tx.update(ownerAiConversations).set({ messageCount: conversation.messageCount + normalized.length, updatedAt: new Date() })
+      .where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId)));
+  });
+  return { messageCount: conversation.messageCount + normalized.length };
+}
+
+export async function renameOwnerAiConversation(input: { storeId: number; conversationId: number; title: string }) {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const title = normalizeOwnerAiConversationTitle(input.title);
+  const encrypted = encryptOwnerAiConversationText(title);
+  const result = await db.update(ownerAiConversations).set({ titleCiphertext: encrypted.ciphertext, titleIv: encrypted.iv, updatedAt: new Date() })
+    .where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId)));
+  if (Number((result as any)[0]?.affectedRows ?? (result as any).affectedRows ?? 0) === 0) throw new Error("OWNER_AI_CONVERSATION_NOT_FOUND");
+  return { success: true, title } as const;
+}
+
+export async function deleteOwnerAiConversation(input: { storeId: number; conversationId: number; confirmationTitle: string }) {
+  await ensureOwnerAiConversationSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [conversation] = await db.select({ titleCiphertext: ownerAiConversations.titleCiphertext, titleIv: ownerAiConversations.titleIv }).from(ownerAiConversations)
+    .where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId))).limit(1);
+  if (!conversation) throw new Error("OWNER_AI_CONVERSATION_NOT_FOUND");
+  if (decryptOwnerAiConversationText(conversation.titleCiphertext, conversation.titleIv) !== input.confirmationTitle.trim()) throw new Error("OWNER_AI_CONVERSATION_DELETE_CONFIRMATION_MISMATCH");
+  await db.transaction(async tx => {
+    await tx.delete(ownerAiConversationMessages).where(and(eq(ownerAiConversationMessages.storeId, input.storeId), eq(ownerAiConversationMessages.conversationId, input.conversationId)));
+    await tx.delete(ownerAiConversations).where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId)));
+  });
+  return { success: true } as const;
 }
 
 export async function recordAuditLog(input: {
