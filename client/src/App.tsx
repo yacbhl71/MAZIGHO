@@ -32,7 +32,6 @@ const Promos = lazy(() => import("./pages/Promos"));
 const Account = lazy(() => import("./pages/Account"));
 const OwnerStorePanel = lazy(() => import("./pages/OwnerStorePanel"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const AdminAICopilot = lazy(() => import("./pages/admin/AdminAICopilot"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminStudioBranding = lazy(() => import("./pages/admin/AdminStudioBranding"));
 const AdminStudioSaasBilling = lazy(() => import("./pages/admin/AdminStudioSaasBilling"));
@@ -486,7 +485,6 @@ function Router() {
         <Route path={"/admin/studio/identite"} component={AdminStudioBranding} />
         <Route path={"/admin/studio/sante"} component={AdminSystemHealth} />
         <Route path={"/admin/studio"} component={AdminStudio} />
-        <Route path={"/admin/assistant-ia"} component={AdminAICopilot} />
         <Route path={"/admin/produits"} component={AdminProducts} />
         <Route path={"/admin/importation"} component={AdminDropshipping} />
         <Route path={"/admin/import-cj"} component={AdminCjImport} />
