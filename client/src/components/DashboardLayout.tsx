@@ -96,7 +96,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
     tone: "sky",
     items: [
       { icon: LayoutDashboard, label: "Tableau de bord", path: "/admin" },
-      { icon: Sparkles, label: "Assistant IA", path: "/gestion-boutique" },
+      { icon: Sparkles, label: "Assistant IA", path: "/admin/assistant-ia" },
       { icon: Users, label: "Équipe & accès", path: "/admin/utilisateurs" },
       { icon: ReceiptText, label: "Suivi administratif", path: "/admin/suivi-administratif" },
       { icon: FileSpreadsheet, label: "Export comptable & TVA", path: "/admin/comptabilite" },
