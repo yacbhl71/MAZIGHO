@@ -24,7 +24,10 @@ async function assertPublicHttpsUrl(value: string) {
 }
 
 function decodeHtml(value: string) {
-  return value.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  return value.replace(/&#(x[0-9a-f]+|\d+);/gi, (match, code: string) => {
+    const point = code.toLowerCase().startsWith("x") ? parseInt(code.slice(1), 16) : parseInt(code, 10);
+    return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : match;
+  }).replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
 }
 
 function htmlToText(html: string) {

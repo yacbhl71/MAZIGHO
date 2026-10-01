@@ -1,9 +1,10 @@
 import { and, desc, asc, count, eq, ne, gt, gte, lt, lte, isNull, inArray, sql, sum, avg } from "drizzle-orm";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import type { InsertUser } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { encryptOwnerAiText, decryptOwnerAiText } from "./services/ownerAiEncryption";
 import mysql from "mysql2/promise";
 import type { Pool } from "mysql2/promise";
 import { isCjSandboxQueueLineEligible } from "./services/cjOrderEligibility";
@@ -3699,30 +3700,12 @@ type OwnerKnowledgeDocumentInput = {
   createdByUserId: number;
 };
 
-function ownerKnowledgeCipherKey() {
-  if (!ENV.cookieSecret) throw new Error("OWNER_KNOWLEDGE_ENCRYPTION_NOT_CONFIGURED");
-  return createHash("sha256").update(`mazigho-owner-knowledge:v1:${ENV.cookieSecret}`).digest();
-}
-
 function encryptOwnerKnowledgeText(value: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", ownerKnowledgeCipherKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
-  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+  return encryptOwnerAiText("mazigho-owner-knowledge", value, "OWNER_KNOWLEDGE_ENCRYPTION_NOT_CONFIGURED");
 }
 
 function decryptOwnerKnowledgeText(ciphertext: string, ivValue: string) {
-  try {
-    const data = Buffer.from(ciphertext, "base64");
-    const iv = Buffer.from(ivValue, "base64");
-    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
-    const authTag = data.subarray(-16);
-    const decipher = createDecipheriv("aes-256-gcm", ownerKnowledgeCipherKey(), iv);
-    decipher.setAuthTag(authTag);
-    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
-  } catch {
-    throw new Error("OWNER_KNOWLEDGE_DOCUMENT_UNREADABLE");
-  }
+  return decryptOwnerAiText("mazigho-owner-knowledge", ciphertext, ivValue, "OWNER_KNOWLEDGE_ENCRYPTION_NOT_CONFIGURED", "OWNER_KNOWLEDGE_DOCUMENT_UNREADABLE");
 }
 
 function normalizeOwnerKnowledgeFolder(value: string) {
@@ -3849,29 +3832,12 @@ export async function getOwnerKnowledgeDocumentContext(input: { storeId: number;
 const OWNER_AI_CONVERSATION_LIMIT = 80;
 const OWNER_AI_CONVERSATION_MESSAGE_LIMIT = 200;
 
-function ownerAiConversationCipherKey() {
-  if (!ENV.cookieSecret) throw new Error("OWNER_AI_CONVERSATION_ENCRYPTION_NOT_CONFIGURED");
-  return createHash("sha256").update(`mazigho-owner-ai-conversations:v1:${ENV.cookieSecret}`).digest();
-}
-
 function encryptOwnerAiConversationText(value: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", ownerAiConversationCipherKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
-  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+  return encryptOwnerAiText("mazigho-owner-ai-conversations", value, "OWNER_AI_CONVERSATION_ENCRYPTION_NOT_CONFIGURED");
 }
 
 function decryptOwnerAiConversationText(ciphertext: string, ivValue: string) {
-  try {
-    const data = Buffer.from(ciphertext, "base64");
-    const iv = Buffer.from(ivValue, "base64");
-    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
-    const decipher = createDecipheriv("aes-256-gcm", ownerAiConversationCipherKey(), iv);
-    decipher.setAuthTag(data.subarray(-16));
-    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
-  } catch {
-    throw new Error("OWNER_AI_CONVERSATION_UNREADABLE");
-  }
+  return decryptOwnerAiText("mazigho-owner-ai-conversations", ciphertext, ivValue, "OWNER_AI_CONVERSATION_ENCRYPTION_NOT_CONFIGURED", "OWNER_AI_CONVERSATION_UNREADABLE");
 }
 
 function normalizeOwnerAiConversationTitle(value: string) {
@@ -3976,29 +3942,12 @@ export async function deleteOwnerAiConversation(input: { storeId: number; conver
 const OWNER_AI_WORKSPACE_DOCUMENT_LIMIT = 80;
 const OWNER_AI_WORKSPACE_TEMPLATE_LIMIT = 30;
 
-function ownerAiWorkspaceCipherKey() {
-  if (!ENV.cookieSecret) throw new Error("OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED");
-  return createHash("sha256").update(`mazigho-owner-ai-workspace:v1:${ENV.cookieSecret}`).digest();
-}
-
 function encryptOwnerAiWorkspaceText(value: string) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", ownerAiWorkspaceCipherKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
-  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+  return encryptOwnerAiText("mazigho-owner-ai-workspace", value, "OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED");
 }
 
 function decryptOwnerAiWorkspaceText(ciphertext: string, ivValue: string) {
-  try {
-    const data = Buffer.from(ciphertext, "base64");
-    const iv = Buffer.from(ivValue, "base64");
-    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
-    const decipher = createDecipheriv("aes-256-gcm", ownerAiWorkspaceCipherKey(), iv);
-    decipher.setAuthTag(data.subarray(-16));
-    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
-  } catch {
-    throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE");
-  }
+  return decryptOwnerAiText("mazigho-owner-ai-workspace", ciphertext, ivValue, "OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED", "OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE");
 }
 
 function normalizeOwnerAiWorkspaceKind(kind: "document" | "template") { return kind; }

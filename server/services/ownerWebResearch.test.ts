@@ -19,10 +19,10 @@ describe("owner web research source", () => {
   it("keeps public page content and the actual final citation URL", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: URL) => url.pathname === "/initial"
       ? new Response(null, { status: 302, headers: { location: "/produit" } })
-      : new Response(`<html><title>Test de produit</title><body>${"Information publique utile. ".repeat(8)}</body></html>`, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } })));
+      : new Response(`<html><title>Figured&#x27;Art Test de produit</title><body>${"Information publique utile. ".repeat(8)}</body></html>`, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } })));
     const source = await fetchOwnerWebResearchSource("https://example.com/initial");
     expect(source.url).toBe("https://example.com/produit");
-    expect(source.title).toBe("Test de produit");
+    expect(source.title).toBe("Figured'Art Test de produit");
     expect(source.text).toContain("Information publique utile.");
   });
 

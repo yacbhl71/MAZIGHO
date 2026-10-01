@@ -115,6 +115,8 @@ function ownerWebResearchError(error: unknown): never {
     WEB_RESEARCH_TEXT_EMPTY: "Cette page ne contient pas assez de texte exploitable.",
     WEB_RESEARCH_REDIRECT_LIMIT: "Cette source comporte trop de redirections.",
     WEB_RESEARCH_AI_EMPTY: "L’analyse IA n’a pas produit de réponse. Rien n’a été archivé ; réessayez.",
+    OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED: "Le chiffrement privé du Workspace n’est pas configuré. L’analyse n’a pas été archivée ; contactez MAZIGHO Studio.",
+    OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE: "Le Workspace ne peut pas relire un document chiffré. L’analyse n’a pas été archivée ; contactez MAZIGHO Studio.",
   };
   if (messages[code]) throw new TRPCError({ code: "BAD_REQUEST", message: messages[code] });
   throw error;
