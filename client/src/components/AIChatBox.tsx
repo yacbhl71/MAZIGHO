@@ -4,7 +4,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Copy, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { Streamdown } from "streamdown";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -266,8 +265,8 @@ export function AIChatBox({
                     >
                       {message.role === "assistant" ? (
                         <div>
-                          <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <Streamdown>{message.content}</Streamdown>
+                          <div className="max-w-none whitespace-pre-wrap text-sm leading-6 text-foreground">
+                            {message.content || "Aucune réponse texte n’a été reçue. Réessayez avec une demande plus courte."}
                           </div>
                           {onCopyAssistantMessage && (
                             <button

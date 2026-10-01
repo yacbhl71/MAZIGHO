@@ -26,6 +26,8 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [imageUrl, setImageUrl] = useState("");
   const [imageInstruction, setImageInstruction] = useState("Analyse ce visuel et prépare un brouillon de fiche produit.");
+  const [imageAnswer, setImageAnswer] = useState("");
+  const [imageError, setImageError] = useState("");
   const chat = trpc.owner.assistant.chat.useMutation({
     onSuccess: response => setMessages(current => [...current, { role: "assistant", content: response.answer }]),
     onError: error => toast.error(error.message || "Le copilote IA est momentanément indisponible."),
@@ -35,8 +37,8 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     onError: error => toast.error(error.message || "Le téléversement a échoué."),
   });
   const analyzeImage = trpc.owner.assistant.analyzeImage.useMutation({
-    onSuccess: response => setMessages(current => [...current, { role: "assistant", content: `Analyse du visuel\n\n${response.answer}` }]),
-    onError: error => toast.error(error.message || "L’analyse de l’image a échoué."),
+    onSuccess: response => { setImageAnswer(response.answer); setImageError(""); setMessages(current => [...current, { role: "assistant", content: `Analyse du visuel\n\n${response.answer}` }]); toast.success("Analyse terminée."); },
+    onError: error => { setImageError(error.message || "L’analyse de l’image a échoué."); toast.error(error.message || "L’analyse de l’image a échoué."); },
   });
 
   const sendMessage = (content: string) => {
@@ -45,8 +47,11 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     chat.mutate({ messages: nextMessages.filter((message): message is Message & { role: "user" | "assistant" } => message.role !== "system").map(message => ({ role: message.role, content: message.content })) });
   };
   const copyDraft = async (content: string) => {
-    try { await navigator.clipboard.writeText(content); toast.success("Brouillon copié."); }
-    catch { toast.error("La copie n’a pas pu être effectuée sur cet appareil."); }
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(content);
+      else { const area = document.createElement("textarea"); area.value = content; area.style.position = "fixed"; area.style.opacity = "0"; document.body.appendChild(area); area.focus(); area.select(); document.execCommand("copy"); area.remove(); }
+      toast.success("Brouillon copié.");
+    } catch { toast.error("La copie n’a pas pu être effectuée sur cet appareil. Sélectionnez le texte et utilisez Copier."); }
   };
   const onImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -72,7 +77,10 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     <Card className="border-fuchsia-200 bg-fuchsia-50/40"><CardHeader><CardTitle className="flex items-center gap-2 text-fuchsia-950"><ImagePlus className="h-5 w-5 text-fuchsia-700" /> Analyser un visuel</CardTitle><CardDescription>Collez une URL HTTPS d’image ou téléversez un fichier. L’IA prépare un brouillon avec texte alternatif, titre, description et catégories possibles.</CardDescription></CardHeader><CardContent className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row"><Input value={imageUrl} onChange={event => setImageUrl(event.target.value)} placeholder="https://… image publique" inputMode="url" /><label className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-fuchsia-200 bg-white px-3 text-sm font-semibold text-fuchsia-900"><Upload className="h-4 w-4" /> Téléverser<input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={onImageUpload} /></label></div>
       <Textarea value={imageInstruction} onChange={event => setImageInstruction(event.target.value)} rows={3} placeholder="Que voulez-vous obtenir de cette image ?" />
-      <div className="flex flex-wrap items-center gap-3"><Button type="button" className="min-h-11 bg-fuchsia-700 hover:bg-fuchsia-800" disabled={!/^https:\/\//i.test(imageUrl.trim()) || !imageInstruction.trim() || analyzeImage.isPending || uploadImage.isPending} onClick={() => analyzeImage.mutate({ imageUrl: imageUrl.trim(), instruction: imageInstruction.trim() })}>{analyzeImage.isPending ? "Analyse…" : "Analyser le visuel"}</Button>{imageUrl ? <span className="max-w-full truncate text-xs text-fuchsia-900">Source prête : {imageUrl}</span> : null}</div>
+      <div className="flex flex-wrap items-center gap-3"><Button type="button" className="min-h-11 bg-fuchsia-700 hover:bg-fuchsia-800" disabled={!/^https:\/\//i.test(imageUrl.trim()) || !imageInstruction.trim() || analyzeImage.isPending || uploadImage.isPending} onClick={() => { setImageAnswer(""); setImageError(""); analyzeImage.mutate({ imageUrl: imageUrl.trim(), instruction: imageInstruction.trim() }); }}>{analyzeImage.isPending ? "Analyse…" : "Analyser le visuel"}</Button>{imageUrl ? <span className="max-w-full truncate text-xs text-fuchsia-900">Source prête : {imageUrl}</span> : null}</div>
+      {analyzeImage.isPending && <div className="rounded-xl border border-fuchsia-200 bg-white p-4 text-sm text-fuchsia-900">L’IA examine le visuel et prépare le brouillon…</div>}
+      {imageError && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-900"><strong>Analyse impossible :</strong> {imageError}</div>}
+      {imageAnswer && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">Résultat de l’analyse</p><p className="mt-2 whitespace-pre-wrap">{imageAnswer}</p><button type="button" onClick={() => copyDraft(imageAnswer)} className="mt-3 inline-flex min-h-10 items-center rounded-md border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-900">Copier l’analyse</button></div>}
     </CardContent></Card>
     <Card className="border-dashed border-slate-300"><CardContent className="p-5 text-sm leading-6 text-slate-600"><p className="font-semibold text-slate-800">Principe de sécurité</p><p className="mt-2">Rien n’est publié, aucun prix n’est modifié et aucun e-mail n’est envoyé. Les téléversements passent par le stockage isolé de cette boutique et respectent son quota média.</p></CardContent></Card>
   </div>;

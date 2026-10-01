@@ -30,6 +30,19 @@ const ownerTransactionalEmailTemplate = z.object({
 const visualUrl = z.string().trim().max(1000).refine(value => value === "" || value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const storefrontLink = z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
 const requiredVisualUrl = z.string().trim().min(1).max(1000).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne commençant par /.");
+function extractLlmText(content: unknown, fallback: string) {
+  if (typeof content === "string" && content.trim()) return content.trim();
+  if (Array.isArray(content)) {
+    const text = content.map(part => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part && typeof part.text === "string") return part.text;
+      return "";
+    }).filter(Boolean).join("\n").trim();
+    if (text) return text;
+  }
+  if (content && typeof content === "object" && "text" in content && typeof content.text === "string" && content.text.trim()) return content.text.trim();
+  return fallback;
+}
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 const algeriaWilayaDeliverySettings = z.object({
@@ -566,13 +579,7 @@ export const ownerRouter = router({
           },
         ],
       });
-      const content = result.choices[0]?.message?.content;
-      const answer = typeof content === "string"
-        ? content.trim()
-        : Array.isArray(content)
-          ? content.filter(part => part.type === "text").map(part => part.text).join("\n").trim()
-          : "Je n’ai pas pu analyser cette image.";
-      return { answer: answer || "Je n’ai pas pu analyser cette image." };
+      return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu analyser cette image.") };
     }),
     chat: storeManagementProcedure.input(z.object({
       messages: z.array(z.object({
@@ -622,13 +629,7 @@ export const ownerRouter = router({
           ...input.messages.map(message => ({ role: message.role, content: message.content })),
         ],
       });
-      const content = result.choices[0]?.message?.content;
-      const answer = typeof content === "string"
-        ? content.trim()
-        : Array.isArray(content)
-          ? content.filter(part => part.type === "text").map(part => part.text).join("\n").trim()
-          : "Je n’ai pas pu préparer une réponse exploitable.";
-      return { answer: answer || "Je n’ai pas pu préparer une réponse exploitable." };
+      return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable.") };
     }),
   }),
   importCatalogueProducts: storeManagementProcedure.input(z.object({
