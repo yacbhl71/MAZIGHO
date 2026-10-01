@@ -19,6 +19,7 @@ import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 import { invokeLLM } from "./_core/llm";
 import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentImport";
+import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExport";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -826,6 +827,16 @@ export const ownerRouter = router({
           const result = await db.deleteOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, ...input });
           await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.${result.kind}.delete`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: "Document Workspace privé supprimé." });
           return result;
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      export: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), format: z.enum(["pdf", "docx"]) })).mutation(async ({ ctx, input }) => {
+        try {
+          const document = await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, documentId: input.documentId });
+          const exported = await exportOwnerAiWorkspaceDocument({ title: document.title, content: document.content, format: input.format });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.document.export_${input.format}`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: `Document Workspace exporté en ${input.format.toUpperCase()}.` });
+          return exported;
         } catch (error) {
           return ownerAiWorkspaceDocumentError(error);
         }
