@@ -14,6 +14,8 @@ vi.mock("./db", () => ({
   getAllCategories: vi.fn(async () => []),
   getDesignProfile: vi.fn(async () => ({ brandName: "Boutique test", navigationItems: [] })),
   getStoreAiUsageSummary: vi.fn(async () => ({ periodKey: "2026-10", planId: "free", limit: 40, used: 0, remaining: 40 })),
+  listOwnerKnowledgeDocuments: vi.fn(async () => []),
+  getOwnerKnowledgeDocumentContext: vi.fn(async () => []),
   reserveStoreAiRequest: vi.fn(async () => {
     if (aiQuotaState.exhausted) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
     return { periodKey: "2026-10", planId: "free", limit: 40, used: 1, remaining: 39 };
@@ -71,6 +73,18 @@ describe("store-scoped management procedure", () => {
     await expect(callerFor().owner.assistant.chat({
       messages: [{ role: "user", content: "Prépare une fiche produit." }],
     })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS", message: expect.stringMatching(/quota mensuel/i) });
+  });
+  it("keeps the private document center and document context owner-only", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.knowledgeDocuments.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(callerFor().owner.assistant.chat({
+      messages: [{ role: "user", content: "Utilise mon document privé." }],
+      documentIds: [12],
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("allows the active owner to list only its private documents", async () => {
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.knowledgeDocuments.list()).resolves.toEqual([]);
   });
   it("allows the platform administrator to operate the primary MAZIGHO store without a tenant membership", async () => {
     await expect(platformAdminCaller().owner.getWorkspace()).resolves.toMatchObject({

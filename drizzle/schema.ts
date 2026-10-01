@@ -1,4 +1,4 @@
-import { index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar, decimal } from "drizzle-orm/mysql-core";
+import { index, int, mysqlEnum, mysqlTable, text, timestamp, uniqueIndex, varchar, decimal, mediumtext } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -107,6 +107,31 @@ export const storeAiMonthlyUsage = mysqlTable("storeAiMonthlyUsage", {
 }));
 export type StoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferSelect;
 export type InsertStoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferInsert;
+
+// Private knowledge repository for a single store. The original upload is
+// intentionally not retained: normalized extracted text is AES-GCM encrypted
+// before being written, and only the owning store can read its metadata.
+export const ownerKnowledgeDocuments = mysqlTable("ownerKnowledgeDocuments", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  folder: varchar("folder", { length: 100 }).notNull().default("Général"),
+  title: varchar("title", { length: 180 }).notNull(),
+  sourceName: varchar("sourceName", { length: 255 }).notNull(),
+  sourceType: mysqlEnum("sourceType", ["pdf", "docx", "txt", "csv"]).notNull(),
+  contentCiphertext: mediumtext("contentCiphertext").notNull(),
+  contentIv: varchar("contentIv", { length: 48 }).notNull(),
+  contentHash: varchar("contentHash", { length: 64 }).notNull(),
+  characterCount: int("characterCount").notNull(),
+  createdByUserId: int("createdByUserId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  ownerKnowledgeDocumentsStoreUpdatedIndex: index("owner_knowledge_documents_store_updated_idx").on(table.storeId, table.updatedAt),
+  ownerKnowledgeDocumentsStoreFolderIndex: index("owner_knowledge_documents_store_folder_idx").on(table.storeId, table.folder),
+  ownerKnowledgeDocumentsStoreHashUnique: uniqueIndex("owner_knowledge_documents_store_hash_unique").on(table.storeId, table.contentHash),
+}));
+export type OwnerKnowledgeDocument = typeof ownerKnowledgeDocuments.$inferSelect;
+export type InsertOwnerKnowledgeDocument = typeof ownerKnowledgeDocuments.$inferInsert;
 
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.

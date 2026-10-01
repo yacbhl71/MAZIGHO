@@ -1,5 +1,5 @@
 import { and, desc, asc, count, eq, ne, gt, gte, lt, lte, isNull, inArray, sql, sum, avg } from "drizzle-orm";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "../drizzle/schema";
 import type { InsertUser } from "../drizzle/schema";
@@ -78,7 +78,7 @@ import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -109,6 +109,7 @@ let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
 let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
+let _ownerKnowledgeDocumentSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3613,6 +3614,17 @@ async function ensureStoreAiMonthlyUsageSchema() {
   return _storeAiMonthlyUsageSchemaReady;
 }
 
+async function ensureOwnerKnowledgeDocumentSchema() {
+  if (_ownerKnowledgeDocumentSchemaReady) return _ownerKnowledgeDocumentSchemaReady;
+  _ownerKnowledgeDocumentSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerKnowledgeDocuments` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `folder` varchar(100) NOT NULL DEFAULT 'Général', `title` varchar(180) NOT NULL, `sourceName` varchar(255) NOT NULL, `sourceType` enum('pdf','docx','txt','csv') NOT NULL, `contentCiphertext` mediumtext NOT NULL, `contentIv` varchar(48) NOT NULL, `contentHash` varchar(64) NOT NULL, `characterCount` int NOT NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `owner_knowledge_documents_store_hash_unique` (`storeId`,`contentHash`), INDEX `owner_knowledge_documents_store_updated_idx` (`storeId`,`updatedAt`), INDEX `owner_knowledge_documents_store_folder_idx` (`storeId`,`folder`))"));
+  })();
+  return _ownerKnowledgeDocumentSchemaReady;
+}
+
 async function getPrimaryStoreId() {
   await ensureMultiStoreSchema();
   const db = await getDb();
@@ -3645,6 +3657,167 @@ async function setStoreSettingValue(storeId: number | undefined, key: string, va
     await db.insert(storeSettings).values({ storeId: effectiveStoreId, key, value, description: description ?? null });
   }
   return { success: true } as const;
+}
+
+const OWNER_KNOWLEDGE_DOCUMENT_LIMIT = 100;
+const OWNER_KNOWLEDGE_CONTEXT_MAX_CHARS = 24_000;
+
+type OwnerKnowledgeDocumentSourceType = "pdf" | "docx" | "txt" | "csv";
+type OwnerKnowledgeDocumentInput = {
+  storeId: number;
+  folder: string;
+  title: string;
+  sourceName: string;
+  sourceType: OwnerKnowledgeDocumentSourceType;
+  text: string;
+  createdByUserId: number;
+};
+
+function ownerKnowledgeCipherKey() {
+  if (!ENV.cookieSecret) throw new Error("OWNER_KNOWLEDGE_ENCRYPTION_NOT_CONFIGURED");
+  return createHash("sha256").update(`mazigho-owner-knowledge:v1:${ENV.cookieSecret}`).digest();
+}
+
+function encryptOwnerKnowledgeText(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", ownerKnowledgeCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
+  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+}
+
+function decryptOwnerKnowledgeText(ciphertext: string, ivValue: string) {
+  try {
+    const data = Buffer.from(ciphertext, "base64");
+    const iv = Buffer.from(ivValue, "base64");
+    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
+    const authTag = data.subarray(-16);
+    const decipher = createDecipheriv("aes-256-gcm", ownerKnowledgeCipherKey(), iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
+  } catch {
+    throw new Error("OWNER_KNOWLEDGE_DOCUMENT_UNREADABLE");
+  }
+}
+
+function normalizeOwnerKnowledgeFolder(value: string) {
+  return value.trim().replace(/\s+/g, " ").slice(0, 100) || "Général";
+}
+
+function normalizeOwnerKnowledgeTitle(value: string) {
+  const title = value.trim().replace(/\s+/g, " ").slice(0, 180);
+  if (!title) throw new Error("OWNER_KNOWLEDGE_TITLE_REQUIRED");
+  return title;
+}
+
+function ownerKnowledgeExcerpt(text: string, terms: string[]) {
+  const lower = text.toLocaleLowerCase("fr");
+  const index = terms.map(term => lower.indexOf(term)).filter(position => position >= 0).sort((a, b) => a - b)[0] ?? 0;
+  const start = Math.max(0, index - 110);
+  const end = Math.min(text.length, index + 310);
+  return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
+}
+
+export type OwnerKnowledgeDocumentSummary = {
+  id: number;
+  folder: string;
+  title: string;
+  sourceName: string;
+  sourceType: OwnerKnowledgeDocumentSourceType;
+  characterCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export async function listOwnerKnowledgeDocuments(storeId: number): Promise<OwnerKnowledgeDocumentSummary[]> {
+  await ensureOwnerKnowledgeDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  return await db.select({
+    id: ownerKnowledgeDocuments.id,
+    folder: ownerKnowledgeDocuments.folder,
+    title: ownerKnowledgeDocuments.title,
+    sourceName: ownerKnowledgeDocuments.sourceName,
+    sourceType: ownerKnowledgeDocuments.sourceType,
+    characterCount: ownerKnowledgeDocuments.characterCount,
+    createdAt: ownerKnowledgeDocuments.createdAt,
+    updatedAt: ownerKnowledgeDocuments.updatedAt,
+  }).from(ownerKnowledgeDocuments).where(eq(ownerKnowledgeDocuments.storeId, storeId)).orderBy(desc(ownerKnowledgeDocuments.updatedAt)).limit(OWNER_KNOWLEDGE_DOCUMENT_LIMIT);
+}
+
+export async function createOwnerKnowledgeDocument(input: OwnerKnowledgeDocumentInput) {
+  await ensureOwnerKnowledgeDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const text = input.text.trim();
+  if (!text) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_EMPTY");
+  const [existingCount] = await db.select({ value: count() }).from(ownerKnowledgeDocuments).where(eq(ownerKnowledgeDocuments.storeId, input.storeId));
+  if (Number(existingCount?.value ?? 0) >= OWNER_KNOWLEDGE_DOCUMENT_LIMIT) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_LIMIT_REACHED");
+  const contentHash = createHash("sha256").update(text).digest("hex");
+  const existing = await db.select({ id: ownerKnowledgeDocuments.id }).from(ownerKnowledgeDocuments)
+    .where(and(eq(ownerKnowledgeDocuments.storeId, input.storeId), eq(ownerKnowledgeDocuments.contentHash, contentHash))).limit(1);
+  if (existing[0]) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_DUPLICATE");
+  const encrypted = encryptOwnerKnowledgeText(text);
+  const result = await db.insert(ownerKnowledgeDocuments).values({
+    storeId: input.storeId,
+    folder: normalizeOwnerKnowledgeFolder(input.folder),
+    title: normalizeOwnerKnowledgeTitle(input.title),
+    sourceName: input.sourceName.trim().slice(0, 255) || "document",
+    sourceType: input.sourceType,
+    contentCiphertext: encrypted.ciphertext,
+    contentIv: encrypted.iv,
+    contentHash,
+    characterCount: text.length,
+    createdByUserId: input.createdByUserId,
+  });
+  const id = Number((result as any)[0]?.insertId ?? (result as any).insertId);
+  return { id, title: normalizeOwnerKnowledgeTitle(input.title), folder: normalizeOwnerKnowledgeFolder(input.folder), characterCount: text.length };
+}
+
+export async function deleteOwnerKnowledgeDocument(input: { storeId: number; documentId: number; confirmationTitle: string }) {
+  await ensureOwnerKnowledgeDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [document] = await db.select({ title: ownerKnowledgeDocuments.title }).from(ownerKnowledgeDocuments)
+    .where(and(eq(ownerKnowledgeDocuments.id, input.documentId), eq(ownerKnowledgeDocuments.storeId, input.storeId))).limit(1);
+  if (!document) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_NOT_FOUND");
+  if (document.title !== input.confirmationTitle.trim()) throw new Error("OWNER_KNOWLEDGE_DELETE_CONFIRMATION_MISMATCH");
+  const result = await db.delete(ownerKnowledgeDocuments).where(and(eq(ownerKnowledgeDocuments.id, input.documentId), eq(ownerKnowledgeDocuments.storeId, input.storeId)));
+  if (Number((result as any)[0]?.affectedRows ?? (result as any).affectedRows ?? 0) === 0) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_NOT_FOUND");
+  return { success: true } as const;
+}
+
+export async function searchOwnerKnowledgeDocuments(input: { storeId: number; query: string; limit?: number }) {
+  await ensureOwnerKnowledgeDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const query = input.query.trim().slice(0, 160);
+  const rawTerms = query.toLocaleLowerCase("fr").split(/[^a-z0-9àâçéèêëîïôùûüÿñæœ]+/i).filter(term => term.length >= 2);
+  const terms = rawTerms.filter((term, index) => rawTerms.indexOf(term) === index).slice(0, 8);
+  if (!terms.length) return [];
+  const rows = await db.select().from(ownerKnowledgeDocuments).where(eq(ownerKnowledgeDocuments.storeId, input.storeId)).orderBy(desc(ownerKnowledgeDocuments.updatedAt)).limit(OWNER_KNOWLEDGE_DOCUMENT_LIMIT);
+  return rows.map(row => {
+    const text = decryptOwnerKnowledgeText(row.contentCiphertext, row.contentIv);
+    const haystack = `${row.title}\n${row.folder}\n${text}`.toLocaleLowerCase("fr");
+    const score = terms.reduce((total, term) => total + (haystack.split(term).length - 1), 0);
+    return score ? { id: row.id, title: row.title, folder: row.folder, sourceType: row.sourceType as OwnerKnowledgeDocumentSourceType, score, excerpt: ownerKnowledgeExcerpt(text, terms) } : null;
+  }).filter((result): result is NonNullable<typeof result> => Boolean(result)).sort((a, b) => b.score - a.score).slice(0, Math.min(input.limit ?? 8, 15));
+}
+
+export async function getOwnerKnowledgeDocumentContext(input: { storeId: number; documentIds: number[]; maxChars?: number }) {
+  await ensureOwnerKnowledgeDocumentSchema();
+  if (!input.documentIds.length) return [];
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const ids = Array.from(new Set(input.documentIds)).slice(0, 6);
+  const rows = await db.select().from(ownerKnowledgeDocuments)
+    .where(and(eq(ownerKnowledgeDocuments.storeId, input.storeId), inArray(ownerKnowledgeDocuments.id, ids)));
+  if (rows.length !== ids.length) throw new Error("OWNER_KNOWLEDGE_DOCUMENT_NOT_FOUND");
+  let remaining = Math.min(input.maxChars ?? OWNER_KNOWLEDGE_CONTEXT_MAX_CHARS, OWNER_KNOWLEDGE_CONTEXT_MAX_CHARS);
+  return rows.map(row => {
+    const text = decryptOwnerKnowledgeText(row.contentCiphertext, row.contentIv).slice(0, Math.max(0, remaining));
+    remaining -= text.length;
+    return { id: row.id, title: row.title, folder: row.folder, text };
+  }).filter(document => document.text.length > 0);
 }
 
 export async function recordAuditLog(input: {

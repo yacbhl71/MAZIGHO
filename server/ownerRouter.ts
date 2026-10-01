@@ -18,6 +18,7 @@ import { getStripeConnectCredentials, type StripeConnectMode } from "./services/
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 import { invokeLLM } from "./_core/llm";
+import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentImport";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -48,6 +49,32 @@ function ownerAiQuotaError(error: unknown) {
   return error instanceof Error && error.message === "AI_MONTHLY_REQUEST_LIMIT_REACHED"
     ? "Le quota mensuel de l’Assistant IA de cette boutique est atteint. Il se renouvellera automatiquement au début du mois prochain."
     : null;
+}
+
+function ownerKnowledgeDocumentError(error: unknown): never {
+  const code = error instanceof Error ? error.message : "";
+  const messages: Record<string, string> = {
+    DOCUMENT_DATA_INVALID: "Le fichier transmis est invalide.",
+    DOCUMENT_TYPE_INVALID: "Seuls les formats PDF, DOCX, TXT et CSV sont acceptés.",
+    DOCUMENT_SIZE_INVALID: "Le document dépasse la limite de 5 Mo.",
+    DOCUMENT_TEXT_EMPTY: "Aucun texte exploitable n’a été trouvé dans ce document.",
+    OWNER_KNOWLEDGE_DOCUMENT_DUPLICATE: "Ce document est déjà présent dans votre centre documentaire.",
+    OWNER_KNOWLEDGE_DOCUMENT_LIMIT_REACHED: "La limite de 100 documents privés est atteinte pour cette boutique.",
+    OWNER_KNOWLEDGE_DOCUMENT_NOT_FOUND: "Ce document n’est pas disponible dans votre boutique.",
+    OWNER_KNOWLEDGE_DELETE_CONFIRMATION_MISMATCH: "La confirmation ne correspond pas au titre du document.",
+    OWNER_KNOWLEDGE_ENCRYPTION_NOT_CONFIGURED: "Le chiffrement des documents n’est pas disponible pour le moment.",
+    OWNER_KNOWLEDGE_DOCUMENT_UNREADABLE: "Ce document privé ne peut pas être lu de manière sûre.",
+  };
+  if (messages[code]) throw new TRPCError({ code: code.includes("NOT_FOUND") ? "NOT_FOUND" : "BAD_REQUEST", message: messages[code] });
+  throw error;
+}
+
+async function assertDocumentContextOwner(ctx: { store?: { id: number; isPlatformStore: number | boolean } | null; user?: { id: number; role: string } | null }) {
+  if (ctx.store?.isPlatformStore && ctx.user?.role === "admin") return;
+  const membership = ctx.user && ctx.store ? await db.getStoreMembershipForUser(ctx.store.id, ctx.user.id) : null;
+  if (!membership || membership.status !== "active" || membership.role !== "owner") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Seul le propriétaire de la boutique peut utiliser un document privé dans l’Assistant IA." });
+  }
 }
 
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
@@ -557,6 +584,77 @@ export const ownerRouter = router({
   }),
   assistant: router({
     getUsage: storeManagementProcedure.query(async ({ ctx }) => db.getStoreAiUsageSummary(ctx.store!.id)),
+    knowledgeDocuments: router({
+      list: storeOwnerProcedure.query(async ({ ctx }) => db.listOwnerKnowledgeDocuments(ctx.store!.id)),
+      importDocument: storeOwnerProcedure.input(z.object({
+        dataUrl: z.string().min(16).max(7_100_000),
+        sourceName: z.string().trim().min(1).max(255),
+        folder: z.string().trim().max(100).default("Général"),
+      })).mutation(async ({ ctx, input }) => {
+        try {
+          const imported = await importOwnerKnowledgeDocument(input);
+          const document = await db.createOwnerKnowledgeDocument({
+            storeId: ctx.store!.id,
+            folder: input.folder,
+            title: imported.title,
+            sourceName: imported.sourceName,
+            sourceType: imported.sourceType,
+            text: imported.text,
+            createdByUserId: ctx.user!.id,
+          });
+          await db.recordAuditLog({
+            storeId: ctx.store!.id,
+            actorUserId: ctx.user!.id,
+            actorName: ctx.user!.name || ctx.user!.email,
+            actorRole: "owner",
+            action: "owner.knowledge_document.import",
+            entityType: "owner_knowledge_document",
+            entityId: document.id,
+            summary: "Document privé importé dans le centre de connaissances.",
+            metadata: { sourceType: imported.sourceType, characterCount: document.characterCount },
+          });
+          return document;
+        } catch (error) {
+          return ownerKnowledgeDocumentError(error);
+        }
+      }),
+      search: storeOwnerProcedure.input(z.object({ query: z.string().trim().min(2).max(160) })).query(async ({ ctx, input }) => {
+        try {
+          const results = await db.searchOwnerKnowledgeDocuments({ storeId: ctx.store!.id, query: input.query });
+          await db.recordAuditLog({
+            storeId: ctx.store!.id,
+            actorUserId: ctx.user!.id,
+            actorName: ctx.user!.name || ctx.user!.email,
+            actorRole: "owner",
+            action: "owner.knowledge_document.search",
+            entityType: "owner_knowledge_document",
+            summary: "Recherche dans le centre documentaire privé.",
+            metadata: { resultCount: results.length },
+          });
+          return results;
+        } catch (error) {
+          return ownerKnowledgeDocumentError(error);
+        }
+      }),
+      delete: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), confirmationTitle: z.string().trim().min(1).max(180) })).mutation(async ({ ctx, input }) => {
+        try {
+          const result = await db.deleteOwnerKnowledgeDocument({ storeId: ctx.store!.id, ...input });
+          await db.recordAuditLog({
+            storeId: ctx.store!.id,
+            actorUserId: ctx.user!.id,
+            actorName: ctx.user!.name || ctx.user!.email,
+            actorRole: "owner",
+            action: "owner.knowledge_document.delete",
+            entityType: "owner_knowledge_document",
+            entityId: input.documentId,
+            summary: "Document privé supprimé du centre de connaissances.",
+          });
+          return result;
+        } catch (error) {
+          return ownerKnowledgeDocumentError(error);
+        }
+      }),
+    }),
     analyzeImage: storeManagementProcedure.input(z.object({
       imageUrl: z.string().trim().url().max(2000).refine(value => /^https:\/\//i.test(value), "Utilisez une URL image https://."),
       instruction: z.string().trim().min(3).max(1200),
@@ -602,14 +700,17 @@ export const ownerRouter = router({
         role: z.enum(["user", "assistant"]),
         content: z.string().trim().min(1).max(6000),
       })).min(1).max(12),
+      documentIds: z.array(z.number().int().positive()).max(6).optional(),
     })).mutation(async ({ ctx, input }) => {
       const storeId = ctx.store!.id;
       try {
-        const [usage, products, categories, profile] = await Promise.all([
+        if (input.documentIds?.length) await assertDocumentContextOwner(ctx);
+        const [usage, products, categories, profile, knowledgeDocuments] = await Promise.all([
           db.reserveStoreAiRequest(storeId),
           db.getAllProductsAdmin(storeId),
           db.getAllCategories(storeId),
           db.getDesignProfile(storeId),
+          input.documentIds?.length ? db.getOwnerKnowledgeDocumentContext({ storeId, documentIds: input.documentIds }) : Promise.resolve([]),
         ]);
         const productContext = products.slice(0, 40).map(product => ({
           name: product.name,
@@ -630,6 +731,9 @@ export const ownerRouter = router({
           categories: categories.slice(0, 30).map(category => category.name),
           produits: productContext,
         });
+        const documentContext = knowledgeDocuments.length
+          ? `\n\nDocuments privés explicitement sélectionnés par le propriétaire :\n${knowledgeDocuments.map(document => `[Document ${document.id} — ${document.title}, dossier ${document.folder}]\n${document.text}`).join("\n\n")}`
+          : "";
         const result = await invokeLLM({
           model: "gemini-3-flash-preview",
           messages: [
@@ -641,13 +745,27 @@ export const ownerRouter = router({
                 "Utilise uniquement le contexte fourni pour parler des produits existants. Si une information manque, dis-le clairement et propose une option à vérifier.",
                 "Tu peux rédiger des brouillons de fiches produit, textes de vitrine, FAQ, SEO, traductions et idées marketing.",
                 "Ne donne pas de validation juridique ou fiscale. Ne prétends pas avoir modifié, publié, envoyé ou supprimé quoi que ce soit.",
-                `Contexte isolé de la boutique : ${context}`,
+                `Contexte isolé de la boutique : ${context}${documentContext}`,
               ].join("\n"),
             },
             ...input.messages.map(message => ({ role: message.role, content: message.content })),
           ],
         });
-        return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable."), usage };
+        if (knowledgeDocuments.length) await db.recordAuditLog({
+          storeId,
+          actorUserId: ctx.user!.id,
+          actorName: ctx.user!.name || ctx.user!.email,
+          actorRole: "owner",
+          action: "owner.ai_document_context.use",
+          entityType: "owner_knowledge_document",
+          summary: "Document privé utilisé comme contexte de brouillon IA.",
+          metadata: { documentIds: knowledgeDocuments.map(document => document.id) },
+        });
+        return {
+          answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable."),
+          usage,
+          citations: knowledgeDocuments.map(document => ({ documentId: document.id, title: document.title, folder: document.folder })),
+        };
       } catch (error) {
         const message = ownerAiQuotaError(error);
         if (message) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
