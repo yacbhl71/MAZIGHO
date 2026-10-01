@@ -31,6 +31,13 @@ function callerFor(role: string = "user", status: "setup" | "active" = "active",
   } as any);
 }
 
+function platformAdminCaller() {
+  return appRouter.createCaller({
+    user: { id: 1, role: "admin", name: "Administrateur plateforme", email: "admin@example.test" },
+    store: { id: 1, slug: "primary-store", displayName: "MAZIGHO", primaryDomain: "mazigho.ch", status: "active", isPlatformStore: 1 },
+  } as any);
+}
+
 describe("store-scoped management procedure", () => {
   beforeEach(() => {
     membershipState.current = null;
@@ -49,6 +56,15 @@ describe("store-scoped management procedure", () => {
     membershipState.current = { role: "manager", status: "active" };
     await expect(callerFor().owner.assistant.chat({
       messages: [{ role: "user", content: "Améliore mon texte d’accueil." }],
+    })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
+  });
+  it("allows the platform administrator to operate the primary MAZIGHO store without a tenant membership", async () => {
+    await expect(platformAdminCaller().owner.getWorkspace()).resolves.toMatchObject({
+      store: { id: 1, displayName: "MAZIGHO" },
+      membership: { role: "owner", status: "active" },
+    });
+    await expect(platformAdminCaller().owner.assistant.chat({
+      messages: [{ role: "user", content: "Prépare une idée de page d’accueil." }],
     })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
   });
 

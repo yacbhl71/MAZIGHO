@@ -533,6 +533,7 @@ const ownerPrivateCartSimulation = z.object({
 export const ownerRouter = router({
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
+    const isPrimaryPlatformAdmin = Boolean(ctx.store!.isPlatformStore && ctx.user.role === "admin");
     const [products, categories, profile, membership] = await Promise.all([
       db.getAllProductsAdmin(storeId),
       db.getAllCategories(storeId),
@@ -541,7 +542,7 @@ export const ownerRouter = router({
     ]);
     return {
       store: { id: ctx.store!.id, displayName: ctx.store!.displayName, primaryDomain: ctx.store!.primaryDomain, status: ctx.store!.status },
-      membership: membership ? { role: membership.role, status: membership.status } : null,
+      membership: isPrimaryPlatformAdmin ? { role: "owner" as const, status: "active" as const } : membership ? { role: membership.role, status: membership.status } : null,
       products,
       categories,
       profile,
