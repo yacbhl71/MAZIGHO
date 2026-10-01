@@ -78,7 +78,7 @@ import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -108,6 +108,7 @@ let _multiStoreSchemaReady: Promise<void> | null = null;
 let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
+let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3574,7 +3575,6 @@ async function ensurePromotionAdvancedSchema() {
 
 async function ensureAuditLogSchema() {
   if (_auditLogSchemaReady) return _auditLogSchemaReady;
-
   _auditLogSchemaReady = (async () => {
     await ensureMultiStoreSchema();
     const db = await getDb();
@@ -3600,6 +3600,17 @@ async function ensureAuditLogSchema() {
   })();
 
   return _auditLogSchemaReady;
+}
+
+async function ensureStoreAiMonthlyUsageSchema() {
+  if (_storeAiMonthlyUsageSchemaReady) return _storeAiMonthlyUsageSchemaReady;
+  _storeAiMonthlyUsageSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeAiMonthlyUsage` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `periodKey` varchar(7) NOT NULL, `requestCount` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `store_ai_monthly_usage_store_period_unique` (`storeId`, `periodKey`), INDEX `store_ai_monthly_usage_store_period_idx` (`storeId`, `periodKey`))"));
+  })();
+  return _storeAiMonthlyUsageSchemaReady;
 }
 
 async function getPrimaryStoreId() {
@@ -6819,6 +6830,69 @@ export async function getStoreSaasEntitlements(storeId: number): Promise<SaasPla
   return studioGrantEnabled && !entitlements.dropshippingEnabled
     ? { ...entitlements, dropshippingEnabled: true }
     : entitlements;
+}
+
+export type StoreAiUsageSummary = {
+  periodKey: string;
+  planId: MazighoSaasPlanId;
+  limit: number;
+  used: number;
+  remaining: number;
+};
+
+function getAiUsagePeriodKey(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function makeStoreAiUsageSummary(input: { periodKey: string; planId: MazighoSaasPlanId; limit: number; used: number }): StoreAiUsageSummary {
+  return {
+    periodKey: input.periodKey,
+    planId: input.planId,
+    limit: input.limit,
+    used: Math.max(0, input.used),
+    remaining: Math.max(0, input.limit - Math.max(0, input.used)),
+  };
+}
+
+/** Returns only aggregate AI consumption for the current store and calendar month. */
+export async function getStoreAiUsageSummary(storeId: number, date = new Date()): Promise<StoreAiUsageSummary> {
+  await ensureStoreAiMonthlyUsageSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const periodKey = getAiUsagePeriodKey(date);
+  const [entitlements, rows] = await Promise.all([
+    getStoreSaasEntitlements(storeId),
+    db.select({ requestCount: storeAiMonthlyUsage.requestCount })
+      .from(storeAiMonthlyUsage)
+      .where(and(eq(storeAiMonthlyUsage.storeId, storeId), eq(storeAiMonthlyUsage.periodKey, periodKey)))
+      .limit(1),
+  ]);
+  return makeStoreAiUsageSummary({
+    periodKey,
+    planId: entitlements.planId,
+    limit: entitlements.monthlyAiRequests,
+    used: Number(rows[0]?.requestCount ?? 0),
+  });
+}
+
+/**
+ * Reserves a single assistant request before calling the model. The SQL update
+ * is conditional, so two simultaneous browser requests cannot exceed the
+ * current store's monthly allowance.
+ */
+export async function reserveStoreAiRequest(storeId: number, date = new Date()): Promise<StoreAiUsageSummary> {
+  await ensureStoreAiMonthlyUsageSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const entitlements = await getStoreSaasEntitlements(storeId);
+  const periodKey = getAiUsagePeriodKey(date);
+  const [result] = await db.execute(sql`
+    INSERT INTO \`storeAiMonthlyUsage\` (\`storeId\`, \`periodKey\`, \`requestCount\`)
+    VALUES (${storeId}, ${periodKey}, 1)
+    ON DUPLICATE KEY UPDATE \`requestCount\` = IF(\`requestCount\` < ${entitlements.monthlyAiRequests}, \`requestCount\` + 1, \`requestCount\`)
+  `) as unknown as Array<{ affectedRows?: number }>;
+  if (Number(result?.affectedRows ?? 0) === 0) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
+  return getStoreAiUsageSummary(storeId, date);
 }
 
 export type StoreDropshippingAccess = {

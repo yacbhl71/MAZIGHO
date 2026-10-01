@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const membershipState = vi.hoisted(() => ({ current: null as { role: string; status: string } | null }));
 const llmState = vi.hoisted(() => ({ answer: "Brouillon de réponse IA" }));
+const aiQuotaState = vi.hoisted(() => ({ exhausted: false }));
 
 vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(async () => ({ choices: [{ message: { content: llmState.answer } }] })),
@@ -12,6 +13,11 @@ vi.mock("./db", () => ({
   getAllProductsAdmin: vi.fn(async () => []),
   getAllCategories: vi.fn(async () => []),
   getDesignProfile: vi.fn(async () => ({ brandName: "Boutique test", navigationItems: [] })),
+  getStoreAiUsageSummary: vi.fn(async () => ({ periodKey: "2026-10", planId: "free", limit: 40, used: 0, remaining: 40 })),
+  reserveStoreAiRequest: vi.fn(async () => {
+    if (aiQuotaState.exhausted) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
+    return { periodKey: "2026-10", planId: "free", limit: 40, used: 1, remaining: 39 };
+  }),
   getOwnerOrderSummaries: vi.fn(async () => []),
   getOwnerCustomerSummaries: vi.fn(async () => []),
   getOwnerStoreSettingsSummary: vi.fn(async () => ({ currencyCode: "CHF" })),
@@ -41,6 +47,7 @@ function platformAdminCaller() {
 describe("store-scoped management procedure", () => {
   beforeEach(() => {
     membershipState.current = null;
+    aiQuotaState.exhausted = false;
     vi.clearAllMocks();
   });
 
@@ -56,7 +63,14 @@ describe("store-scoped management procedure", () => {
     membershipState.current = { role: "manager", status: "active" };
     await expect(callerFor().owner.assistant.chat({
       messages: [{ role: "user", content: "Améliore mon texte d’accueil." }],
-    })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
+    })).resolves.toMatchObject({ answer: "Brouillon de réponse IA", usage: { planId: "free", used: 1, remaining: 39 } });
+  });
+  it("refuses an exhausted quota before calling the assistant model", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    aiQuotaState.exhausted = true;
+    await expect(callerFor().owner.assistant.chat({
+      messages: [{ role: "user", content: "Prépare une fiche produit." }],
+    })).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS", message: expect.stringMatching(/quota mensuel/i) });
   });
   it("allows the platform administrator to operate the primary MAZIGHO store without a tenant membership", async () => {
     await expect(platformAdminCaller().owner.getWorkspace()).resolves.toMatchObject({
@@ -65,7 +79,7 @@ describe("store-scoped management procedure", () => {
     });
     await expect(platformAdminCaller().owner.assistant.chat({
       messages: [{ role: "user", content: "Prépare une idée de page d’accueil." }],
-    })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
+    })).resolves.toMatchObject({ answer: "Brouillon de réponse IA", usage: { planId: "free" } });
   });
 
   it("refuses a catalog role from the management workspace", async () => {

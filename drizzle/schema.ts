@@ -92,6 +92,22 @@ export const storeSettings = mysqlTable("storeSettings", {
 export type StoreSetting = typeof storeSettings.$inferSelect;
 export type InsertStoreSetting = typeof storeSettings.$inferInsert;
 
+// Server-side monthly AI usage counter. It is scoped to one store and keeps no
+// prompt, output, customer data or document content.
+export const storeAiMonthlyUsage = mysqlTable("storeAiMonthlyUsage", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  periodKey: varchar("periodKey", { length: 7 }).notNull(),
+  requestCount: int("requestCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeAiMonthlyUsageScopeUnique: uniqueIndex("store_ai_monthly_usage_store_period_unique").on(table.storeId, table.periodKey),
+  storeAiMonthlyUsageStorePeriodIndex: index("store_ai_monthly_usage_store_period_idx").on(table.storeId, table.periodKey),
+}));
+export type StoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferSelect;
+export type InsertStoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferInsert;
+
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.
 export const accountTokens = mysqlTable("accountTokens", {

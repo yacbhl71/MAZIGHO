@@ -43,6 +43,13 @@ function extractLlmText(content: unknown, fallback: string) {
   if (content && typeof content === "object" && "text" in content && typeof content.text === "string" && content.text.trim()) return content.text.trim();
   return fallback;
 }
+
+function ownerAiQuotaError(error: unknown) {
+  return error instanceof Error && error.message === "AI_MONTHLY_REQUEST_LIMIT_REACHED"
+    ? "Le quota mensuel de l’Assistant IA de cette boutique est atteint. Il se renouvellera automatiquement au début du mois prochain."
+    : null;
+}
+
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 const algeriaWilayaDeliverySettings = z.object({
@@ -549,38 +556,46 @@ export const ownerRouter = router({
     };
   }),
   assistant: router({
+    getUsage: storeManagementProcedure.query(async ({ ctx }) => db.getStoreAiUsageSummary(ctx.store!.id)),
     analyzeImage: storeManagementProcedure.input(z.object({
       imageUrl: z.string().trim().url().max(2000).refine(value => /^https:\/\//i.test(value), "Utilisez une URL image https://."),
       instruction: z.string().trim().min(3).max(1200),
     })).mutation(async ({ ctx, input }) => {
-      const [profile, categories] = await Promise.all([
-        db.getDesignProfile(ctx.store!.id),
-        db.getAllCategories(ctx.store!.id),
-      ]);
-      const result = await invokeLLM({
-        model: "gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: [
-              "Tu es l’assistant visuel de la boutique courante dans MAZIGHO.",
-              "Réponds en français et prépare uniquement un brouillon exploitable.",
-              "Décris précisément le visuel, propose un texte alternatif accessible, un titre produit, une description courte et des idées de catégorie.",
-              "Ne déduis pas une marque, une composition, une taille, une origine, un prix ou une conformité si ce n’est pas lisible dans l’image.",
-              "Ne publie rien et ne prétends pas avoir modifié la boutique.",
-              `Boutique isolée : ${ctx.store!.displayName}. Marque : ${profile.brandName || "non précisée"}. Catégories : ${categories.slice(0, 30).map(category => category.name).join(", ") || "aucune"}.`,
-            ].join("\n"),
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: input.instruction },
-              { type: "image_url", image_url: { url: input.imageUrl, detail: "auto" } },
-            ],
-          },
-        ],
-      });
-      return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu analyser cette image.") };
+      try {
+        const [usage, profile, categories] = await Promise.all([
+          db.reserveStoreAiRequest(ctx.store!.id),
+          db.getDesignProfile(ctx.store!.id),
+          db.getAllCategories(ctx.store!.id),
+        ]);
+        const result = await invokeLLM({
+          model: "gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: [
+                "Tu es l’assistant visuel de la boutique courante dans MAZIGHO.",
+                "Réponds en français et prépare uniquement un brouillon exploitable.",
+                "Décris précisément le visuel, propose un texte alternatif accessible, un titre produit, une description courte et des idées de catégorie.",
+                "Ne déduis pas une marque, une composition, une taille, une origine, un prix ou une conformité si ce n’est pas lisible dans l’image.",
+                "Ne publie rien et ne prétends pas avoir modifié la boutique.",
+                `Boutique isolée : ${ctx.store!.displayName}. Marque : ${profile.brandName || "non précisée"}. Catégories : ${categories.slice(0, 30).map(category => category.name).join(", ") || "aucune"}.`,
+              ].join("\n"),
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: input.instruction },
+                { type: "image_url", image_url: { url: input.imageUrl, detail: "auto" } },
+              ],
+            },
+          ],
+        });
+        return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu analyser cette image."), usage };
+      } catch (error) {
+        const message = ownerAiQuotaError(error);
+        if (message) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+        throw error;
+      }
     }),
     chat: storeManagementProcedure.input(z.object({
       messages: z.array(z.object({
@@ -589,48 +604,55 @@ export const ownerRouter = router({
       })).min(1).max(12),
     })).mutation(async ({ ctx, input }) => {
       const storeId = ctx.store!.id;
-      const [products, categories, profile] = await Promise.all([
-        db.getAllProductsAdmin(storeId),
-        db.getAllCategories(storeId),
-        db.getDesignProfile(storeId),
-      ]);
-      const productContext = products.slice(0, 40).map(product => ({
-        name: product.name,
-        description: product.description || "",
-        price: product.price,
-        stock: product.stock,
-        status: product.status,
-      }));
-      const context = JSON.stringify({
-        boutique: ctx.store!.displayName,
-        marque: profile.brandName,
-        message: profile.brandMessage,
-        accueil: {
-          surtitre: profile.highlightEyebrow,
-          titre: profile.highlightTitle,
-          texte: profile.highlightText,
-        },
-        categories: categories.slice(0, 30).map(category => category.name),
-        produits: productContext,
-      });
-      const result = await invokeLLM({
-        model: "gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: [
-              "Tu es le copilote professionnel de la boutique courante dans MAZIGHO.",
-              "Réponds en français, de façon concrète, claire et adaptée à une petite entreprise.",
-              "Utilise uniquement le contexte fourni pour parler des produits existants. Si une information manque, dis-le clairement et propose une option à vérifier.",
-              "Tu peux rédiger des brouillons de fiches produit, textes de vitrine, FAQ, SEO, traductions et idées marketing.",
-              "Ne donne pas de validation juridique ou fiscale. Ne prétends pas avoir modifié, publié, envoyé ou supprimé quoi que ce soit.",
-              `Contexte isolé de la boutique : ${context}`,
-            ].join("\n"),
+      try {
+        const [usage, products, categories, profile] = await Promise.all([
+          db.reserveStoreAiRequest(storeId),
+          db.getAllProductsAdmin(storeId),
+          db.getAllCategories(storeId),
+          db.getDesignProfile(storeId),
+        ]);
+        const productContext = products.slice(0, 40).map(product => ({
+          name: product.name,
+          description: product.description || "",
+          price: product.price,
+          stock: product.stock,
+          status: product.status,
+        }));
+        const context = JSON.stringify({
+          boutique: ctx.store!.displayName,
+          marque: profile.brandName,
+          message: profile.brandMessage,
+          accueil: {
+            surtitre: profile.highlightEyebrow,
+            titre: profile.highlightTitle,
+            texte: profile.highlightText,
           },
-          ...input.messages.map(message => ({ role: message.role, content: message.content })),
-        ],
-      });
-      return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable.") };
+          categories: categories.slice(0, 30).map(category => category.name),
+          produits: productContext,
+        });
+        const result = await invokeLLM({
+          model: "gemini-3-flash-preview",
+          messages: [
+            {
+              role: "system",
+              content: [
+                "Tu es le copilote professionnel de la boutique courante dans MAZIGHO.",
+                "Réponds en français, de façon concrète, claire et adaptée à une petite entreprise.",
+                "Utilise uniquement le contexte fourni pour parler des produits existants. Si une information manque, dis-le clairement et propose une option à vérifier.",
+                "Tu peux rédiger des brouillons de fiches produit, textes de vitrine, FAQ, SEO, traductions et idées marketing.",
+                "Ne donne pas de validation juridique ou fiscale. Ne prétends pas avoir modifié, publié, envoyé ou supprimé quoi que ce soit.",
+                `Contexte isolé de la boutique : ${context}`,
+              ].join("\n"),
+            },
+            ...input.messages.map(message => ({ role: message.role, content: message.content })),
+          ],
+        });
+        return { answer: extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu préparer une réponse exploitable."), usage };
+      } catch (error) {
+        const message = ownerAiQuotaError(error);
+        if (message) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
+        throw error;
+      }
     }),
   }),
   importCatalogueProducts: storeManagementProcedure.input(z.object({

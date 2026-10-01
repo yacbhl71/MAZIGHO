@@ -10,6 +10,8 @@ export type SaasPlanEntitlements = {
   maxTeamMembers: number | null;
   /** Shared MAZIGHO Blob allowance for storefront and catalogue media. */
   mediaQuotaBytes: number;
+  /** Server-enforced assistant calls per calendar month, across text and vision. */
+  monthlyAiRequests: number;
   /** Supplier import space. A Studio grant can extend this to one chosen store. */
   dropshippingEnabled: boolean;
 };
@@ -24,6 +26,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxActiveProducts: 50,
     maxTeamMembers: 1,
     mediaQuotaBytes: 500 * MEBIBYTE,
+    monthlyAiRequests: 40,
     dropshippingEnabled: false,
   },
   basic: {
@@ -31,6 +34,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxActiveProducts: null,
     maxTeamMembers: 5,
     mediaQuotaBytes: 1024 * MEBIBYTE,
+    monthlyAiRequests: 400,
     dropshippingEnabled: false,
   },
   pro: {
@@ -38,6 +42,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxActiveProducts: null,
     maxTeamMembers: 8,
     mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
+    monthlyAiRequests: 1200,
     dropshippingEnabled: true,
   },
   lifetime: {
@@ -45,6 +50,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxActiveProducts: null,
     maxTeamMembers: 10,
     mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
+    monthlyAiRequests: 400,
     dropshippingEnabled: false,
   },
 };
