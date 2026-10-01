@@ -85,6 +85,22 @@ function ownerAiConversationError(error: unknown): never {
   throw error;
 }
 
+function ownerAiWorkspaceDocumentError(error: unknown): never {
+  const code = error instanceof Error ? error.message : "";
+  const messages: Record<string, string> = {
+    OWNER_AI_WORKSPACE_DOCUMENT_NOT_FOUND: "Ce document Workspace n’est plus disponible dans votre boutique.",
+    OWNER_AI_WORKSPACE_DOCUMENT_LIMIT_REACHED: "La limite de 80 documents Workspace est atteinte. Supprimez un document avant d’en créer un autre.",
+    OWNER_AI_WORKSPACE_TEMPLATE_LIMIT_REACHED: "La limite de 30 modèles est atteinte. Supprimez un ancien modèle avant d’en créer un autre.",
+    OWNER_AI_WORKSPACE_TITLE_REQUIRED: "Donnez un titre à ce document.",
+    OWNER_AI_WORKSPACE_CONTENT_REQUIRED: "Ajoutez du contenu avant d’enregistrer le document.",
+    OWNER_AI_WORKSPACE_DELETE_CONFIRMATION_MISMATCH: "La confirmation ne correspond pas au titre du document.",
+    OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED: "Le chiffrement du Workspace n’est pas disponible pour le moment.",
+    OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE: "Ce document Workspace ne peut pas être lu de manière sûre.",
+  };
+  if (messages[code]) throw new TRPCError({ code: code.includes("NOT_FOUND") ? "NOT_FOUND" : "BAD_REQUEST", message: messages[code] });
+  throw error;
+}
+
 async function assertDocumentContextOwner(ctx: { store?: { id: number; isPlatformStore: number | boolean } | null; user?: { id: number; role: string } | null }) {
   if (ctx.store?.isPlatformStore && ctx.user?.role === "admin") return;
   const membership = ctx.user && ctx.store ? await db.getStoreMembershipForUser(ctx.store.id, ctx.user.id) : null;
@@ -769,6 +785,49 @@ export const ownerRouter = router({
           const message = ownerAiQuotaError(error);
           if (message) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message });
           return ownerAiConversationError(error);
+        }
+      }),
+    }),
+    workspaceDocuments: router({
+      list: storeOwnerProcedure.input(z.object({ kind: z.enum(["document", "template"]) })).query(async ({ ctx, input }) => {
+        try {
+          return await db.listOwnerAiWorkspaceDocuments({ storeId: ctx.store!.id, kind: input.kind });
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      get: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), kind: z.enum(["document", "template"]).optional() })).query(async ({ ctx, input }) => {
+        try {
+          return await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, ...input });
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      create: storeOwnerProcedure.input(z.object({ kind: z.enum(["document", "template"]), title: z.string().trim().min(1).max(140), content: z.string().trim().min(1).max(40_000) })).mutation(async ({ ctx, input }) => {
+        try {
+          const document = await db.createOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, userId: ctx.user!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.${input.kind}.create`, entityType: "owner_ai_workspace_document", entityId: document.id, summary: `Document Workspace privé créé (${input.kind}).` });
+          return document;
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      update: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), title: z.string().trim().min(1).max(140), content: z.string().trim().min(1).max(40_000) })).mutation(async ({ ctx, input }) => {
+        try {
+          const result = await db.updateOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, userId: ctx.user!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: "owner.ai_workspace.document.update", entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: "Document Workspace privé mis à jour." });
+          return result;
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      delete: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), confirmationTitle: z.string().trim().min(1).max(140) })).mutation(async ({ ctx, input }) => {
+        try {
+          const result = await db.deleteOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.${result.kind}.delete`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: "Document Workspace privé supprimé." });
+          return result;
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
         }
       }),
     }),

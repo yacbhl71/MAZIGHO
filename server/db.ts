@@ -78,7 +78,7 @@ import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -111,6 +111,7 @@ let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
 let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
 let _ownerKnowledgeDocumentSchemaReady: Promise<void> | null = null;
 let _ownerAiConversationSchemaReady: Promise<void> | null = null;
+let _ownerAiWorkspaceDocumentSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3638,6 +3639,17 @@ async function ensureOwnerAiConversationSchema() {
   return _ownerAiConversationSchemaReady;
 }
 
+async function ensureOwnerAiWorkspaceDocumentSchema() {
+  if (_ownerAiWorkspaceDocumentSchemaReady) return _ownerAiWorkspaceDocumentSchemaReady;
+  _ownerAiWorkspaceDocumentSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerAiWorkspaceDocuments` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `kind` enum('document','template') NOT NULL DEFAULT 'document', `titleCiphertext` text NOT NULL, `titleIv` varchar(48) NOT NULL, `contentCiphertext` mediumtext NOT NULL, `contentIv` varchar(48) NOT NULL, `createdByUserId` int NOT NULL, `updatedByUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `owner_ai_workspace_documents_store_kind_updated_idx` (`storeId`,`kind`,`updatedAt`))"));
+  })();
+  return _ownerAiWorkspaceDocumentSchemaReady;
+}
+
 async function getPrimaryStoreId() {
   await ensureMultiStoreSchema();
   const db = await getDb();
@@ -3958,6 +3970,106 @@ export async function deleteOwnerAiConversation(input: { storeId: number; conver
     await tx.delete(ownerAiConversations).where(and(eq(ownerAiConversations.id, input.conversationId), eq(ownerAiConversations.storeId, input.storeId)));
   });
   return { success: true } as const;
+}
+
+const OWNER_AI_WORKSPACE_DOCUMENT_LIMIT = 80;
+const OWNER_AI_WORKSPACE_TEMPLATE_LIMIT = 30;
+
+function ownerAiWorkspaceCipherKey() {
+  if (!ENV.cookieSecret) throw new Error("OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED");
+  return createHash("sha256").update(`mazigho-owner-ai-workspace:v1:${ENV.cookieSecret}`).digest();
+}
+
+function encryptOwnerAiWorkspaceText(value: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", ownerAiWorkspaceCipherKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
+  return { ciphertext: encrypted.toString("base64"), iv: iv.toString("base64") };
+}
+
+function decryptOwnerAiWorkspaceText(ciphertext: string, ivValue: string) {
+  try {
+    const data = Buffer.from(ciphertext, "base64");
+    const iv = Buffer.from(ivValue, "base64");
+    if (data.length < 17 || iv.length !== 12) throw new Error("INVALID_CIPHER");
+    const decipher = createDecipheriv("aes-256-gcm", ownerAiWorkspaceCipherKey(), iv);
+    decipher.setAuthTag(data.subarray(-16));
+    return Buffer.concat([decipher.update(data.subarray(0, -16)), decipher.final()]).toString("utf8");
+  } catch {
+    throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE");
+  }
+}
+
+function normalizeOwnerAiWorkspaceKind(kind: "document" | "template") { return kind; }
+function normalizeOwnerAiWorkspaceTitle(value: string) {
+  const title = value.trim().replace(/\s+/g, " ").slice(0, 140);
+  if (!title) throw new Error("OWNER_AI_WORKSPACE_TITLE_REQUIRED");
+  return title;
+}
+function normalizeOwnerAiWorkspaceContent(value: string) {
+  const content = value.trim().slice(0, 40_000);
+  if (!content) throw new Error("OWNER_AI_WORKSPACE_CONTENT_REQUIRED");
+  return content;
+}
+
+export type OwnerAiWorkspaceDocumentSummary = { id: number; kind: "document" | "template"; title: string; createdAt: Date; updatedAt: Date };
+
+export async function listOwnerAiWorkspaceDocuments(input: { storeId: number; kind: "document" | "template" }): Promise<OwnerAiWorkspaceDocumentSummary[]> {
+  await ensureOwnerAiWorkspaceDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const rows = await db.select().from(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.kind, normalizeOwnerAiWorkspaceKind(input.kind)))).orderBy(desc(ownerAiWorkspaceDocuments.updatedAt)).limit(input.kind === "template" ? OWNER_AI_WORKSPACE_TEMPLATE_LIMIT : OWNER_AI_WORKSPACE_DOCUMENT_LIMIT);
+  return rows.map(row => ({ id: row.id, kind: row.kind as "document" | "template", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), createdAt: row.createdAt, updatedAt: row.updatedAt }));
+}
+
+export async function getOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; kind?: "document" | "template" }) {
+  await ensureOwnerAiWorkspaceDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const clauses = [eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.id, input.documentId)];
+  if (input.kind) clauses.push(eq(ownerAiWorkspaceDocuments.kind, normalizeOwnerAiWorkspaceKind(input.kind)));
+  const [row] = await db.select().from(ownerAiWorkspaceDocuments).where(and(...clauses)).limit(1);
+  if (!row) throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_NOT_FOUND");
+  return { id: row.id, kind: row.kind as "document" | "template", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), content: decryptOwnerAiWorkspaceText(row.contentCiphertext, row.contentIv), createdAt: row.createdAt, updatedAt: row.updatedAt };
+}
+
+export async function createOwnerAiWorkspaceDocument(input: { storeId: number; kind: "document" | "template"; title: string; content: string; userId: number }) {
+  await ensureOwnerAiWorkspaceDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const kind = normalizeOwnerAiWorkspaceKind(input.kind);
+  const limit = kind === "template" ? OWNER_AI_WORKSPACE_TEMPLATE_LIMIT : OWNER_AI_WORKSPACE_DOCUMENT_LIMIT;
+  const [existingCount] = await db.select({ value: count() }).from(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.kind, kind)));
+  if (Number(existingCount?.value ?? 0) >= limit) throw new Error(kind === "template" ? "OWNER_AI_WORKSPACE_TEMPLATE_LIMIT_REACHED" : "OWNER_AI_WORKSPACE_DOCUMENT_LIMIT_REACHED");
+  const title = normalizeOwnerAiWorkspaceTitle(input.title);
+  const content = normalizeOwnerAiWorkspaceContent(input.content);
+  const encryptedTitle = encryptOwnerAiWorkspaceText(title);
+  const encryptedContent = encryptOwnerAiWorkspaceText(content);
+  const result = await db.insert(ownerAiWorkspaceDocuments).values({ storeId: input.storeId, kind, titleCiphertext: encryptedTitle.ciphertext, titleIv: encryptedTitle.iv, contentCiphertext: encryptedContent.ciphertext, contentIv: encryptedContent.iv, createdByUserId: input.userId, updatedByUserId: input.userId });
+  const id = Number((result as any)[0]?.insertId ?? (result as any).insertId);
+  return { id, kind, title, content };
+}
+
+export async function updateOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; title: string; content: string; userId: number }) {
+  await ensureOwnerAiWorkspaceDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const title = normalizeOwnerAiWorkspaceTitle(input.title);
+  const content = normalizeOwnerAiWorkspaceContent(input.content);
+  const encryptedTitle = encryptOwnerAiWorkspaceText(title);
+  const encryptedContent = encryptOwnerAiWorkspaceText(content);
+  const result = await db.update(ownerAiWorkspaceDocuments).set({ titleCiphertext: encryptedTitle.ciphertext, titleIv: encryptedTitle.iv, contentCiphertext: encryptedContent.ciphertext, contentIv: encryptedContent.iv, updatedByUserId: input.userId, updatedAt: new Date() }).where(and(eq(ownerAiWorkspaceDocuments.id, input.documentId), eq(ownerAiWorkspaceDocuments.storeId, input.storeId)));
+  if (Number((result as any)[0]?.affectedRows ?? (result as any).affectedRows ?? 0) === 0) throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_NOT_FOUND");
+  return { success: true, title } as const;
+}
+
+export async function deleteOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; confirmationTitle: string }) {
+  const document = await getOwnerAiWorkspaceDocument({ storeId: input.storeId, documentId: input.documentId });
+  if (document.title !== input.confirmationTitle.trim()) throw new Error("OWNER_AI_WORKSPACE_DELETE_CONFIRMATION_MISMATCH");
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  await db.delete(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.id, input.documentId), eq(ownerAiWorkspaceDocuments.storeId, input.storeId)));
+  return { success: true, kind: document.kind } as const;
 }
 
 export async function recordAuditLog(input: {

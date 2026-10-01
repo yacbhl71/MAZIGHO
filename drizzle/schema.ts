@@ -168,6 +168,27 @@ export const ownerAiConversationMessages = mysqlTable("ownerAiConversationMessag
 export type OwnerAiConversationMessage = typeof ownerAiConversationMessages.$inferSelect;
 export type InsertOwnerAiConversationMessage = typeof ownerAiConversationMessages.$inferInsert;
 
+// Private Workspace documents and reusable templates. Names and contents are
+// encrypted independently; only the tenant, document kind and timestamps stay
+// available as operational metadata.
+export const ownerAiWorkspaceDocuments = mysqlTable("ownerAiWorkspaceDocuments", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  kind: mysqlEnum("kind", ["document", "template"]).notNull().default("document"),
+  titleCiphertext: text("titleCiphertext").notNull(),
+  titleIv: varchar("titleIv", { length: 48 }).notNull(),
+  contentCiphertext: mediumtext("contentCiphertext").notNull(),
+  contentIv: varchar("contentIv", { length: 48 }).notNull(),
+  createdByUserId: int("createdByUserId").notNull(),
+  updatedByUserId: int("updatedByUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  ownerAiWorkspaceDocumentsStoreKindUpdatedIndex: index("owner_ai_workspace_documents_store_kind_updated_idx").on(table.storeId, table.kind, table.updatedAt),
+}));
+export type OwnerAiWorkspaceDocument = typeof ownerAiWorkspaceDocuments.$inferSelect;
+export type InsertOwnerAiWorkspaceDocument = typeof ownerAiWorkspaceDocuments.$inferInsert;
+
 // One-time tokens are stored only as SHA-256 hashes. The original token appears
 // only in the e-mail link and is invalidated as soon as it is used.
 export const accountTokens = mysqlTable("accountTokens", {

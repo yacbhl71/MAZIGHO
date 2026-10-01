@@ -23,6 +23,11 @@ vi.mock("./db", () => ({
   appendOwnerAiConversationMessages: vi.fn(async ({ messages }: { messages: Array<{ role: "user" | "assistant"; content: string }> }) => { conversationState.messages.push(...messages.map((message, index) => ({ id: conversationState.messages.length + index + 1, ...message, createdAt: new Date() }))); return { messageCount: conversationState.messages.length }; }),
   renameOwnerAiConversation: vi.fn(async () => ({ success: true })),
   deleteOwnerAiConversation: vi.fn(async () => ({ success: true })),
+  listOwnerAiWorkspaceDocuments: vi.fn(async () => [{ id: 91, kind: "document", title: "Brief privé", createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") }]),
+  getOwnerAiWorkspaceDocument: vi.fn(async () => ({ id: 91, kind: "document", title: "Brief privé", content: "Contenu privé", createdAt: new Date("2026-10-01T00:00:00Z"), updatedAt: new Date("2026-10-01T00:00:00Z") })),
+  createOwnerAiWorkspaceDocument: vi.fn(async () => ({ id: 91, kind: "document", title: "Brief privé", content: "Contenu privé" })),
+  updateOwnerAiWorkspaceDocument: vi.fn(async () => ({ success: true })),
+  deleteOwnerAiWorkspaceDocument: vi.fn(async () => ({ success: true, kind: "document" })),
   recordAuditLog: vi.fn(async () => undefined),
   reserveStoreAiRequest: vi.fn(async () => {
     if (aiQuotaState.exhausted) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
@@ -105,6 +110,13 @@ describe("store-scoped management procedure", () => {
       expect.objectContaining({ role: "user", content: "Prépare une FAQ." }),
       expect.objectContaining({ role: "assistant", content: "Brouillon de réponse IA" }),
     ]));
+  });
+  it("keeps Workspace documents owner-only", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.workspaceDocuments.list({ kind: "document" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.workspaceDocuments.list({ kind: "document" })).resolves.toMatchObject([{ id: 91, title: "Brief privé" }]);
+    await expect(callerFor().owner.assistant.workspaceDocuments.get({ documentId: 91 })).resolves.toMatchObject({ id: 91, content: "Contenu privé" });
   });
   it("allows the platform administrator to operate the primary MAZIGHO store without a tenant membership", async () => {
     await expect(platformAdminCaller().owner.getWorkspace()).resolves.toMatchObject({
