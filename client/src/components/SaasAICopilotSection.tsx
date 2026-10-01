@@ -40,6 +40,7 @@ export default function SaasAICopilotSection({ registerHref }: { registerHref: s
             return <article key={item.title} className="rounded-2xl border border-[#e5e6d8] bg-white p-5 shadow-[0_18px_40px_-34px_rgba(29,37,17,.38)]"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#e8eed5] text-[#5b6a32]"><Icon className="h-5 w-5" /></span><h3 className="mt-5 text-lg font-bold text-[#26301b]">{item.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p></article>;
           })}
         </div>
+        <p className="mt-5 max-w-4xl text-xs leading-5 text-slate-500">L’assistant IA propose, vous gardez le contrôle : aucune publication ni modification n’est automatisée sans validation humaine. Quotas mensuels appliqués selon votre plan (40 en FREE, 400 en BASIC, 1 200 en PRO).</p>
         <div className="mt-7 flex flex-col gap-4 rounded-2xl border border-[#dce3c3] bg-white p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
             <p className="flex items-center gap-2 text-sm font-bold text-[#46572b]"><LockKeyhole className="h-4 w-4" /> Privé, contrôlé, par boutique</p>
