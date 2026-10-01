@@ -1,6 +1,3 @@
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
-
 export const OWNER_KNOWLEDGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const OWNER_KNOWLEDGE_MAX_TEXT_CHARS = 250_000;
 
@@ -53,15 +50,25 @@ function parseDataUrl(dataUrl: string) {
 async function extractDocumentText(sourceType: OwnerKnowledgeSourceType, buffer: Buffer) {
   if (sourceType === "txt" || sourceType === "csv") return buffer.toString("utf8");
   if (sourceType === "docx") {
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
+    try {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.default.extractRawText({ buffer });
+      return result.value;
+    } catch {
+      throw new Error("DOCUMENT_EXTRACTION_FAILED");
+    }
   }
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {
-    const result = await parser.getText();
-    return result.text;
-  } finally {
-    await parser.destroy();
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    try {
+      const result = await parser.getText();
+      return result.text;
+    } finally {
+      await parser.destroy();
+    }
+  } catch {
+    throw new Error("DOCUMENT_EXTRACTION_FAILED");
   }
 }
 

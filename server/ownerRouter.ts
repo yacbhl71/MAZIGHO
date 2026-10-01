@@ -58,6 +58,7 @@ function ownerKnowledgeDocumentError(error: unknown): never {
     DOCUMENT_TYPE_INVALID: "Seuls les formats PDF, DOCX, TXT et CSV sont acceptés.",
     DOCUMENT_SIZE_INVALID: "Le document dépasse la limite de 5 Mo.",
     DOCUMENT_TEXT_EMPTY: "Aucun texte exploitable n’a été trouvé dans ce document.",
+    DOCUMENT_EXTRACTION_FAILED: "Le texte de ce document n’a pas pu être extrait. Essayez une version PDF, DOCX, TXT ou CSV lisible.",
     OWNER_KNOWLEDGE_DOCUMENT_DUPLICATE: "Ce document est déjà présent dans votre centre documentaire.",
     OWNER_KNOWLEDGE_DOCUMENT_LIMIT_REACHED: "La limite de 100 documents privés est atteinte pour cette boutique.",
     OWNER_KNOWLEDGE_DOCUMENT_NOT_FOUND: "Ce document n’est pas disponible dans votre boutique.",
