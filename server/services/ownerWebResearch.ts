@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 
 const MAX_HTML_BYTES = 900_000;
 const MAX_TEXT_CHARS = 24_000;
@@ -16,7 +17,7 @@ async function assertPublicHttpsUrl(value: string) {
   const url = new URL(value);
   if (url.protocol !== "https:" || url.username || url.password || url.port) throw new Error("WEB_RESEARCH_URL_INVALID");
   const host = url.hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) throw new Error("WEB_RESEARCH_URL_BLOCKED");
+  if (isIP(host.replace(/^\[|\]$/g, "")) || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) throw new Error("WEB_RESEARCH_URL_BLOCKED");
   const resolved = await lookup(host, { all: true, verbatim: true });
   if (!resolved.length || resolved.some(item => isBlockedAddress(item.address))) throw new Error("WEB_RESEARCH_URL_BLOCKED");
   return url;
@@ -49,13 +50,20 @@ export type OwnerWebResearchSource = { url: string; title: string; text: string 
 export async function fetchOwnerWebResearchSource(rawUrl: string): Promise<OwnerWebResearchSource> {
   let url = await assertPublicHttpsUrl(rawUrl.trim());
   for (let hop = 0; hop < 3; hop += 1) {
-    const response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: { Accept: "text/html,application/xhtml+xml" } });
+    let response: Response;
+    try {
+      response = await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), headers: { Accept: "text/html,application/xhtml+xml" } });
+    } catch {
+      throw new Error("WEB_RESEARCH_FETCH_FAILED");
+    }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
       if (!location) throw new Error("WEB_RESEARCH_FETCH_FAILED");
       url = await assertPublicHttpsUrl(new URL(location, url).toString());
       continue;
     }
+    if (response.status === 404 || response.status === 410) throw new Error("WEB_RESEARCH_PAGE_NOT_FOUND");
+    if (response.status === 401 || response.status === 403 || response.status === 429) throw new Error("WEB_RESEARCH_ACCESS_DENIED");
     if (!response.ok) throw new Error("WEB_RESEARCH_FETCH_FAILED");
     const type = response.headers.get("content-type") || "";
     const length = Number(response.headers.get("content-length") || 0);

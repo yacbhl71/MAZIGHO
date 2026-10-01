@@ -9,6 +9,10 @@ vi.mock("./_core/llm", () => ({
   invokeLLM: vi.fn(async () => ({ choices: [{ message: { content: llmState.answer } }] })),
 }));
 
+vi.mock("./services/ownerWebResearch", () => ({
+  fetchOwnerWebResearchSource: vi.fn(async () => { throw new Error("WEB_RESEARCH_PAGE_NOT_FOUND"); }),
+}));
+
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => membershipState.current),
   getAllProductsAdmin: vi.fn(async () => []),
@@ -44,6 +48,7 @@ vi.mock("./db", () => ({
 }));
 
 import { appRouter } from "./routers";
+import * as db from "./db";
 
 function callerFor(role: string = "user", status: "setup" | "active" = "active", setupOwnerPanel = false) {
   return appRouter.createCaller({
@@ -96,6 +101,18 @@ describe("store-scoped management procedure", () => {
       messages: [{ role: "user", content: "Utilise mon document privé." }],
       documentIds: [12],
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+  it("keeps manual web analysis owner-only and identifies the unverified input", async () => {
+    const input = { sourceText: "Nom du produit : kit créatif, prix affiché 19.90 CHF.", instruction: "Résume ce produit." };
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.webResearch.analyzeText(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.webResearch.analyzeText(input)).resolves.toMatchObject({ answer: "Brouillon de réponse IA", citation: null, historySaved: true });
+  });
+  it("does not consume an AI request when the merchant URL returns 404", async () => {
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.webResearch.analyzeUrl({ url: "https://www.manor.ch/fr/p/1000264021", instruction: "Résume ce produit." })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringMatching(/404/) });
+    expect(db.reserveStoreAiRequest).not.toHaveBeenCalled();
   });
   it("allows the active owner to list only its private documents", async () => {
     membershipState.current = { role: "owner", status: "active" };
