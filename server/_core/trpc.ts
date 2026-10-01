@@ -68,12 +68,6 @@ function storeMembershipProcedureFor(...allowedRoles: StoreMembershipRole[]) {
       if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
       rejectSupportMutation(ctx, opts.type, opts.path);
       requireOpenStoreForPanels(ctx);
-      // The platform administrator may operate the primary MAZIGHO store from
-      // its owner panel without requiring a separate tenant-membership row.
-      // Client boutiques remain strictly membership-scoped below.
-      if (ctx.store?.isPlatformStore && ctx.user.role === "admin") {
-        return next({ ctx: { ...ctx, user: ctx.user } });
-      }
       if (!ctx.store || ctx.store.isPlatformStore) throw new TRPCError({ code: "FORBIDDEN", message: "Cet espace est réservé aux membres actifs de leur boutique." });
       const membership = await getActiveClientStoreMembership(ctx);
       if (!membership || !allowedRoles.includes(membership.role as StoreMembershipRole)) {

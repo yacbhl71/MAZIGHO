@@ -18,7 +18,6 @@ import { getStripeConnectCredentials, type StripeConnectMode } from "./services/
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 import { invokeLLM } from "./_core/llm";
-import { createKnowledgeNote, importKnowledgeDocument, importKnowledgeUrl } from "./services/ownerAiKnowledgeImport";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -43,22 +42,6 @@ function extractLlmText(content: unknown, fallback: string) {
   }
   if (content && typeof content === "object" && "text" in content && typeof content.text === "string" && content.text.trim()) return content.text.trim();
   return fallback;
-}
-function ownerAiKnowledgeError(error: unknown) {
-  const code = error instanceof Error ? error.message : "";
-  const messages: Record<string, string> = {
-    AI_KNOWLEDGE_SOURCE_LIMIT_REACHED: "Cette boutique a atteint la limite de 8 sources IA. Retirez une source avant d’en ajouter une autre.",
-    AI_KNOWLEDGE_SOURCE_NOT_FOUND: "Cette source n’existe plus ou a déjà été retirée.",
-    AI_KNOWLEDGE_URL_INVALID: "Utilisez une URL HTTPS complète.",
-    AI_KNOWLEDGE_URL_UNSAFE: "Cette adresse ne peut pas être consultée par le copilote.",
-    AI_KNOWLEDGE_URL_UNREACHABLE: "La page n’a pas pu être consultée. Vérifiez qu’elle est publique et accessible.",
-    AI_KNOWLEDGE_URL_CONTENT_TYPE: "Cette URL ne pointe pas vers une page texte exploitable.",
-    AI_KNOWLEDGE_SOURCE_TOO_LARGE: "Cette source dépasse la limite de 5 Mo.",
-    AI_KNOWLEDGE_SOURCE_EMPTY: "Aucun texte exploitable n’a été trouvé dans cette source.",
-    AI_KNOWLEDGE_DOCUMENT_FORMAT_INVALID: "Importez un fichier PDF, Word (.docx) ou texte (.txt).",
-    AI_KNOWLEDGE_DOCUMENT_UNREADABLE: "Ce document n’a pas pu être lu. Essayez un PDF, Word ou texte non protégé.",
-  };
-  return messages[code] || "La source IA n’a pas pu être ajoutée.";
 }
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
@@ -565,46 +548,6 @@ export const ownerRouter = router({
     };
   }),
   assistant: router({
-    getKnowledgeSources: storeManagementProcedure.query(async ({ ctx }) => db.getOwnerAiKnowledgeSources(ctx.store!.id)),
-    importKnowledgeUrl: storeManagementProcedure.input(z.object({
-      url: z.string().trim().min(12).max(2_000),
-    })).mutation(async ({ ctx, input }) => {
-      try {
-        const source = await db.addOwnerAiKnowledgeSource({ storeId: ctx.store!.id, ...await importKnowledgeUrl(input.url) });
-        return { source, sources: await db.getOwnerAiKnowledgeSources(ctx.store!.id) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
-    importKnowledgeDocument: storeManagementProcedure.input(z.object({
-      dataUrl: z.string().max(7_100_000),
-      fileName: z.string().trim().min(1).max(160),
-    })).mutation(async ({ ctx, input }) => {
-      try {
-        const source = await db.addOwnerAiKnowledgeSource({ storeId: ctx.store!.id, ...await importKnowledgeDocument(input) });
-        return { source, sources: await db.getOwnerAiKnowledgeSources(ctx.store!.id) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
-    addKnowledgeNote: storeManagementProcedure.input(z.object({
-      title: z.string().trim().max(160),
-      content: z.string().trim().min(20).max(12_000),
-    })).mutation(async ({ ctx, input }) => {
-      try {
-        const source = await db.addOwnerAiKnowledgeSource({ storeId: ctx.store!.id, ...createKnowledgeNote(input) });
-        return { source, sources: await db.getOwnerAiKnowledgeSources(ctx.store!.id) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
-    removeKnowledgeSource: storeManagementProcedure.input(z.object({ sourceId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-      try {
-        return { sources: await db.removeOwnerAiKnowledgeSource({ storeId: ctx.store!.id, sourceId: input.sourceId }) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
     analyzeImage: storeManagementProcedure.input(z.object({
       imageUrl: z.string().trim().url().max(2000).refine(value => /^https:\/\//i.test(value), "Utilisez une URL image https://."),
       instruction: z.string().trim().min(3).max(1200),
@@ -645,11 +588,10 @@ export const ownerRouter = router({
       })).min(1).max(12),
     })).mutation(async ({ ctx, input }) => {
       const storeId = ctx.store!.id;
-      const [products, categories, profile, knowledgeSources] = await Promise.all([
+      const [products, categories, profile] = await Promise.all([
         db.getAllProductsAdmin(storeId),
         db.getAllCategories(storeId),
         db.getDesignProfile(storeId),
-        db.getOwnerAiKnowledgeSources(storeId),
       ]);
       const productContext = products.slice(0, 40).map(product => ({
         name: product.name,
@@ -669,7 +611,6 @@ export const ownerRouter = router({
         },
         categories: categories.slice(0, 30).map(category => category.name),
         produits: productContext,
-        sources_privees: knowledgeSources.slice(0, 4).map(source => ({ titre: source.title, type: source.kind, resume: source.summary, extrait: source.excerpt.slice(0, 3_000) })),
       });
       const result = await invokeLLM({
         model: "gemini-3-flash-preview",
@@ -681,7 +622,6 @@ export const ownerRouter = router({
               "Réponds en français, de façon concrète, claire et adaptée à une petite entreprise.",
               "Utilise uniquement le contexte fourni pour parler des produits existants. Si une information manque, dis-le clairement et propose une option à vérifier.",
               "Tu peux rédiger des brouillons de fiches produit, textes de vitrine, FAQ, SEO, traductions et idées marketing.",
-              "Les éventuelles sources privées importées appartiennent uniquement à cette boutique. Utilise-les comme référence de brouillon, cite leur titre lorsque tu t’y appuies et signale toute information absente ou contradictoire.",
               "Ne donne pas de validation juridique ou fiscale. Ne prétends pas avoir modifié, publié, envoyé ou supprimé quoi que ce soit.",
               `Contexte isolé de la boutique : ${context}`,
             ].join("\n"),

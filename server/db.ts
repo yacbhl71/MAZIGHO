@@ -3636,58 +3636,6 @@ async function setStoreSettingValue(storeId: number | undefined, key: string, va
   return { success: true } as const;
 }
 
-export type OwnerAiKnowledgeSource = {
-  id: string;
-  kind: "url" | "document" | "note";
-  title: string;
-  origin: string;
-  summary: string;
-  excerpt: string;
-  createdAt: string;
-};
-
-const ownerAiKnowledgeSettingKey = "owner_ai_knowledge_sources";
-const ownerAiKnowledgeKinds = new Set<OwnerAiKnowledgeSource["kind"]>(["url", "document", "note"]);
-
-function parseOwnerAiKnowledgeSources(raw: string | null): OwnerAiKnowledgeSource[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap(item => {
-      if (!item || typeof item !== "object") return [];
-      const source = item as Partial<OwnerAiKnowledgeSource>;
-      if (typeof source.id !== "string" || !source.id || typeof source.kind !== "string" || !ownerAiKnowledgeKinds.has(source.kind as OwnerAiKnowledgeSource["kind"])) return [];
-      if (typeof source.title !== "string" || typeof source.origin !== "string" || typeof source.summary !== "string" || typeof source.excerpt !== "string" || typeof source.createdAt !== "string") return [];
-      return [{ id: source.id.slice(0, 80), kind: source.kind as OwnerAiKnowledgeSource["kind"], title: source.title.slice(0, 160), origin: source.origin.slice(0, 2_000), summary: source.summary.slice(0, 2_000), excerpt: source.excerpt.slice(0, 6_000), createdAt: source.createdAt }];
-    }).slice(0, 8);
-  } catch {
-    return [];
-  }
-}
-
-export async function getOwnerAiKnowledgeSources(storeId: number) {
-  return parseOwnerAiKnowledgeSources(await getStoreSettingValue(storeId, ownerAiKnowledgeSettingKey));
-}
-
-export async function addOwnerAiKnowledgeSource(input: Omit<OwnerAiKnowledgeSource, "id" | "createdAt"> & { storeId: number }) {
-  const sources = await getOwnerAiKnowledgeSources(input.storeId);
-  if (sources.length >= 8) throw new Error("AI_KNOWLEDGE_SOURCE_LIMIT_REACHED");
-  const source: OwnerAiKnowledgeSource = {
-    id: randomUUID(), kind: input.kind, title: input.title.trim().slice(0, 160), origin: input.origin.trim().slice(0, 2_000), summary: input.summary.trim().slice(0, 2_000), excerpt: input.excerpt.trim().slice(0, 6_000), createdAt: new Date().toISOString(),
-  };
-  await setStoreSettingValue(input.storeId, ownerAiKnowledgeSettingKey, JSON.stringify([source, ...sources]), "Références privées du copilote IA, isolées par boutique et sans publication storefront.");
-  return source;
-}
-
-export async function removeOwnerAiKnowledgeSource(input: { storeId: number; sourceId: string }) {
-  const sources = await getOwnerAiKnowledgeSources(input.storeId);
-  const nextSources = sources.filter(source => source.id !== input.sourceId);
-  if (nextSources.length === sources.length) throw new Error("AI_KNOWLEDGE_SOURCE_NOT_FOUND");
-  await setStoreSettingValue(input.storeId, ownerAiKnowledgeSettingKey, JSON.stringify(nextSources), "Références privées du copilote IA, isolées par boutique et sans publication storefront.");
-  return nextSources;
-}
-
 export async function recordAuditLog(input: {
   storeId?: number | null;
   actorUserId?: number | null;
