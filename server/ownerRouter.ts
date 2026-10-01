@@ -57,8 +57,6 @@ function ownerAiKnowledgeError(error: unknown) {
     AI_KNOWLEDGE_SOURCE_EMPTY: "Aucun texte exploitable n’a été trouvé dans cette source.",
     AI_KNOWLEDGE_DOCUMENT_FORMAT_INVALID: "Importez un fichier PDF, Word (.docx) ou texte (.txt).",
     AI_KNOWLEDGE_DOCUMENT_UNREADABLE: "Ce document n’a pas pu être lu. Essayez un PDF, Word ou texte non protégé.",
-    AI_SAVED_DRAFT_LIMIT_REACHED: "Cette boutique conserve déjà 30 brouillons IA. Retirez un ancien brouillon avant d’en ajouter un autre.",
-    AI_SAVED_DRAFT_NOT_FOUND: "Ce brouillon n’existe plus ou a déjà été retiré.",
   };
   return messages[code] || "La source IA n’a pas pu être ajoutée.";
 }
@@ -568,7 +566,6 @@ export const ownerRouter = router({
   }),
   assistant: router({
     getKnowledgeSources: storeManagementProcedure.query(async ({ ctx }) => db.getOwnerAiKnowledgeSources(ctx.store!.id)),
-    getSavedDrafts: storeManagementProcedure.query(async ({ ctx }) => db.getOwnerAiSavedDrafts(ctx.store!.id)),
     importKnowledgeUrl: storeManagementProcedure.input(z.object({
       url: z.string().trim().min(12).max(2_000),
     })).mutation(async ({ ctx, input }) => {
@@ -604,24 +601,6 @@ export const ownerRouter = router({
     removeKnowledgeSource: storeManagementProcedure.input(z.object({ sourceId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
       try {
         return { sources: await db.removeOwnerAiKnowledgeSource({ storeId: ctx.store!.id, sourceId: input.sourceId }) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
-    saveDraft: storeManagementProcedure.input(z.object({
-      title: z.string().trim().min(2).max(160),
-      content: z.string().trim().min(2).max(12_000),
-    })).mutation(async ({ ctx, input }) => {
-      try {
-        const draft = await db.saveOwnerAiDraft({ storeId: ctx.store!.id, ...input });
-        return { draft, drafts: await db.getOwnerAiSavedDrafts(ctx.store!.id) };
-      } catch (error) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
-      }
-    }),
-    removeSavedDraft: storeManagementProcedure.input(z.object({ draftId: z.string().uuid() })).mutation(async ({ ctx, input }) => {
-      try {
-        return { drafts: await db.removeOwnerAiSavedDraft({ storeId: ctx.store!.id, draftId: input.draftId }) };
       } catch (error) {
         throw new TRPCError({ code: "BAD_REQUEST", message: ownerAiKnowledgeError(error) });
       }

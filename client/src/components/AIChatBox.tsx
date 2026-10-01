@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { BookmarkPlus, Copy, Download, Loader2, Send, User, Sparkles } from "lucide-react";
+import { Copy, Download, Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
 /**
@@ -28,9 +28,6 @@ export type AIChatBoxProps = {
 
   /** Optional action shown below assistant messages, for example copying a draft. */
   onCopyAssistantMessage?: (content: string) => void;
-
-  /** Optional action for saving an assistant answer in the current workspace. */
-  onSaveAssistantMessage?: (content: string) => void;
 
   /**
    * Whether the AI is currently generating a response
@@ -119,7 +116,6 @@ export function AIChatBox({
   messages,
   onSendMessage,
   onCopyAssistantMessage,
-  onSaveAssistantMessage,
   isLoading = false,
   placeholder = "Type your message...",
   className,
@@ -288,7 +284,6 @@ export function AIChatBox({
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {onCopyAssistantMessage && <button type="button" onClick={() => onCopyAssistantMessage(message.content)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"><Copy className="size-3.5" /> Copier le brouillon</button>}
-                            {onSaveAssistantMessage && <button type="button" onClick={() => onSaveAssistantMessage(message.content)} disabled={!message.content.trim()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-2.5 text-xs font-medium text-violet-800 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"><BookmarkPlus className="size-3.5" /> Enregistrer</button>}
                             <button type="button" onClick={() => downloadAssistantDraft(message.content)} disabled={!message.content.trim()} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-3.5" /> Télécharger (.txt)</button>
                           </div>
                         </div>

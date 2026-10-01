@@ -3688,56 +3688,6 @@ export async function removeOwnerAiKnowledgeSource(input: { storeId: number; sou
   return nextSources;
 }
 
-export type OwnerAiSavedDraft = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-};
-
-const ownerAiSavedDraftsSettingKey = "owner_ai_saved_drafts";
-
-function parseOwnerAiSavedDrafts(raw: string | null): OwnerAiSavedDraft[] {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.flatMap(item => {
-      if (!item || typeof item !== "object") return [];
-      const draft = item as Partial<OwnerAiSavedDraft>;
-      if (typeof draft.id !== "string" || !draft.id || typeof draft.title !== "string" || typeof draft.content !== "string" || typeof draft.createdAt !== "string") return [];
-      return [{ id: draft.id.slice(0, 80), title: draft.title.slice(0, 160), content: draft.content.slice(0, 12_000), createdAt: draft.createdAt }];
-    }).slice(0, 30);
-  } catch {
-    return [];
-  }
-}
-
-export async function getOwnerAiSavedDrafts(storeId: number) {
-  return parseOwnerAiSavedDrafts(await getStoreSettingValue(storeId, ownerAiSavedDraftsSettingKey));
-}
-
-export async function saveOwnerAiDraft(input: { storeId: number; title: string; content: string }) {
-  const drafts = await getOwnerAiSavedDrafts(input.storeId);
-  if (drafts.length >= 30) throw new Error("AI_SAVED_DRAFT_LIMIT_REACHED");
-  const draft: OwnerAiSavedDraft = {
-    id: randomUUID(),
-    title: input.title.trim().slice(0, 160),
-    content: input.content.trim().slice(0, 12_000),
-    createdAt: new Date().toISOString(),
-  };
-  await setStoreSettingValue(input.storeId, ownerAiSavedDraftsSettingKey, JSON.stringify([draft, ...drafts]), "Brouillons IA privés, isolés par boutique et non publiés.");
-  return draft;
-}
-
-export async function removeOwnerAiSavedDraft(input: { storeId: number; draftId: string }) {
-  const drafts = await getOwnerAiSavedDrafts(input.storeId);
-  const nextDrafts = drafts.filter(draft => draft.id !== input.draftId);
-  if (nextDrafts.length === drafts.length) throw new Error("AI_SAVED_DRAFT_NOT_FOUND");
-  await setStoreSettingValue(input.storeId, ownerAiSavedDraftsSettingKey, JSON.stringify(nextDrafts), "Brouillons IA privés, isolés par boutique et non publiés.");
-  return nextDrafts;
-}
-
 export async function recordAuditLog(input: {
   storeId?: number | null;
   actorUserId?: number | null;
