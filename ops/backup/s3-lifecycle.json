@@ -1,0 +1,19 @@
+{
+  "Rules": [
+    {
+      "ID": "database-daily-expire-after-30-days",
+      "Filter": { "Prefix": "database/daily/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 30 },
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 1 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    },
+    {
+      "ID": "media-keep-current-retain-replaced-versions-30-days",
+      "Filter": { "Prefix": "media/objects/" },
+      "Status": "Enabled",
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 30 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    }
+  ]
+}

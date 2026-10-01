@@ -1,0 +1,46 @@
+name: MAZIGHO isolated restore drill
+on:
+  schedule:
+    - cron: '43 3 * * 0' # Sunday UTC; NOT native TiDB PITR
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mazigho-restore-drill
+  cancel-in-progress: false
+jobs:
+  verify-restoration:
+    if: ${{ vars.MAZIGHO_OPS_ENABLED == 'true' && vars.MAZIGHO_RESTORE_DRILL_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age mysql-client
+          aws --version
+      - name: Restore most recent snapshot to isolated cluster and verify
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DRILL_DATABASE_URL }}
+          BACKUP_AGE_IDENTITY_VALUE: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+        run: |
+          set -euo pipefail
+          umask 077
+          identity="$(mktemp)"
+          trap 'rm -f "$identity"' EXIT
+          printf '%s\n' "$BACKUP_AGE_IDENTITY_VALUE" > "$identity"
+          unset BACKUP_AGE_IDENTITY_VALUE
+          export BACKUP_AGE_IDENTITY="$identity"
+          python3 scripts/ops/restore_drill.py
+      - name: Notify restore failure
+        if: ${{ failure() }}
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -n "$OPS_ALERT_WEBHOOK_URL" ]; then python3 scripts/ops/notify.py critical restore-drill; fi

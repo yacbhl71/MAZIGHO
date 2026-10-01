@@ -1,0 +1,72 @@
+name: MAZIGHO backup and DNS monitoring
+on:
+  schedule:
+    - cron: '13 2 * * *' # UTC; daily encrypted DB + media archive
+    - cron: '17,47 * * * *' # UTC; DNS/TLS check, secondary
+  workflow_dispatch:
+    inputs:
+      task:
+        type: choice
+        required: true
+        options: [backup, dns]
+        default: backup
+permissions:
+  contents: read
+concurrency:
+  group: mazigho-ops-${{ github.event.schedule || inputs.task || 'manual' }}
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: ${{ vars.MAZIGHO_OPS_ENABLED == 'true' && (github.event.schedule == '13 2 * * *' || inputs.task == 'backup') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install tools and locked dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age mysql-client
+          aws --version
+          npm ci --ignore-scripts
+      - name: Encrypted SQL snapshot and Blob media mirror
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.BACKUP_AWS_REGION }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BACKUP_BLOB_READ_WRITE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ops/verify_bucket.py
+          python3 scripts/ops/backup_db.py
+          node scripts/ops/backup_blob.mjs
+      - name: Notify backup failure
+        if: ${{ failure() }}
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -n "$OPS_ALERT_WEBHOOK_URL" ]; then python3 scripts/ops/notify.py critical backup; fi
+  dns:
+    if: ${{ vars.MAZIGHO_OPS_ENABLED == 'true' && (github.event.schedule == '17,47 * * * *' || inputs.task == 'dns') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MySQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends mysql-client
+      - name: Check custom domains (workflow failure sends GitHub notifications when enabled)
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: python3 scripts/ops/check_domains.py
+      - name: Notify DNS failure
+        if: ${{ failure() }}
+        env:
+          OPS_ALERT_WEBHOOK_URL: ${{ secrets.OPS_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -n "$OPS_ALERT_WEBHOOK_URL" ]; then python3 scripts/ops/notify.py warning dns; fi

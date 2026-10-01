@@ -1,0 +1,55 @@
+groups:
+  - name: mazigho-commerce-critical
+    interval: 1m
+    rules:
+      # Requires UNSAMPLED edge request counters from Vercel Drains; do not replace with uptime probes.
+      - alert: MazighoHttp5xxOverTwoPercent
+        expr: |
+          (sum by (host) (increase(mazigho_http_requests_total{host=~"(www\\.)?mazigho\\.ch|studio\\.mazigho\\.ch",status=~"5.."}[5m]))
+           / sum by (host) (increase(mazigho_http_requests_total{host=~"(www\\.)?mazigho\\.ch|studio\\.mazigho\\.ch"}[5m]))) > 0.02
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Erreurs HTTP 5xx > 2 % sur {{ $labels.host }} (fenêtre glissante 5 min)"
+      # Export this gauge from a DURABLE Stripe delivery aggregator, not from per-invocation Vercel memory.
+      # Reset to zero only on a successful verified, processed Stripe webhook (2xx).
+      - alert: MazighoStripeWebhookThreeConsecutiveFailures
+        expr: mazigho_stripe_webhook_consecutive_failures{provider="stripe"} >= 3
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Trois livraisons Stripe échouées consécutivement"
+      # Ratio 0..1; provider exporter required (TiDB managed nodes or persistent VM).
+      - alert: MazighoCpuOver85PercentTenMinutes
+        expr: mazigho_infra_cpu_usage_ratio > 0.85
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU > 85 % pendant 10 min sur {{ $labels.service }}"
+      - alert: MazighoMemoryOver85PercentTenMinutes
+        expr: mazigho_infra_memory_usage_ratio > 0.85
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Mémoire > 85 % pendant 10 min sur {{ $labels.service }}"
+  - name: mazigho-secondary
+    interval: 5m
+    rules:
+      - alert: MazighoBackupOlderThan26Hours
+        expr: time() - mazigho_backup_last_success_timestamp_seconds > 93600
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "La sauvegarde quotidienne n’a pas été confirmée depuis plus de 26 h"
+      - alert: MazighoCustomDomainAnomaly
+        expr: mazigho_custom_domain_valid == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Domaine personnalisé en anomalie DNS/TLS : {{ $labels.host }}"
