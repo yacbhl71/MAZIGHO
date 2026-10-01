@@ -20,6 +20,7 @@ import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternal
 import { invokeLLM } from "./_core/llm";
 import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentImport";
 import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExport";
+import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -99,6 +100,20 @@ function ownerAiWorkspaceDocumentError(error: unknown): never {
     OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE: "Ce document Workspace ne peut pas être lu de manière sûre.",
   };
   if (messages[code]) throw new TRPCError({ code: code.includes("NOT_FOUND") ? "NOT_FOUND" : "BAD_REQUEST", message: messages[code] });
+  throw error;
+}
+
+function ownerWebResearchError(error: unknown): never {
+  const code = error instanceof Error ? error.message : "";
+  const messages: Record<string, string> = {
+    WEB_RESEARCH_URL_INVALID: "Utilisez une URL HTTPS publique, sans identifiant, port ni adresse locale.",
+    WEB_RESEARCH_URL_BLOCKED: "Cette adresse ne peut pas être consultée depuis l’Assistant IA.",
+    WEB_RESEARCH_FETCH_FAILED: "Cette source web est momentanément inaccessible.",
+    WEB_RESEARCH_CONTENT_UNSUPPORTED: "Cette source ne fournit pas une page HTML exploitable.",
+    WEB_RESEARCH_TEXT_EMPTY: "Cette page ne contient pas assez de texte exploitable.",
+    WEB_RESEARCH_REDIRECT_LIMIT: "Cette source comporte trop de redirections.",
+  };
+  if (messages[code]) throw new TRPCError({ code: "BAD_REQUEST", message: messages[code] });
   throw error;
 }
 
@@ -859,6 +874,44 @@ export const ownerRouter = router({
           return exported;
         } catch (error) {
           return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+    }),
+    webResearch: router({
+      analyzeUrl: storeOwnerProcedure.input(z.object({
+        url: z.string().trim().url().max(2000).refine(value => /^https:\/\//i.test(value), "Utilisez une URL https://."),
+        instruction: z.string().trim().min(3).max(1200),
+      })).mutation(async ({ ctx, input }) => {
+        try {
+          const source = await fetchOwnerWebResearchSource(input.url);
+          const usage = await db.reserveStoreAiRequest(ctx.store!.id);
+          const result = await invokeLLM({
+            model: "gemini-3-flash-preview",
+            messages: [
+              { role: "system", content: "Tu es un assistant de recherche e-commerce. Réponds en français, uniquement à partir de la source fournie. Distingue clairement les faits cités, les suggestions et les éléments à vérifier. Ne publie rien, ne contacte personne et ne présente aucune information comme une garantie commerciale." },
+              { role: "user", content: `Question explicite du propriétaire : ${input.instruction}\n\nSource consultée : ${source.title}\nURL : ${source.url}\n\nExtrait de la source :\n${source.text}` },
+            ],
+          });
+          const answer = extractLlmText(result.choices[0]?.message?.content, "Je n’ai pas pu synthétiser cette source.");
+          let historySaved = false;
+          try {
+            await db.createOwnerAiWorkspaceDocument({
+              storeId: ctx.store!.id,
+              userId: ctx.user!.id,
+              kind: "document",
+              title: `Recherche web — ${source.title}`.slice(0, 140),
+              content: `${answer}\n\n---\nSource consultée : ${source.title}\n${source.url}\nConsultée le : ${new Date().toLocaleString("fr-CH")}`,
+            });
+            historySaved = true;
+          } catch (error) {
+            if (!(error instanceof Error) || error.message !== "OWNER_AI_WORKSPACE_DOCUMENT_LIMIT_REACHED") throw error;
+          }
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: "owner.ai.web_research.url", entityType: "owner_ai_web_research", entityId: null, summary: `Source web explicitement consultée : ${source.title}.`, metadata: { sourceUrl: source.url, historySaved } });
+          return { answer, citation: { title: source.title, url: source.url }, usage, historySaved };
+        } catch (error) {
+          const quotaMessage = ownerAiQuotaError(error);
+          if (quotaMessage) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: quotaMessage });
+          return ownerWebResearchError(error);
         }
       }),
     }),
