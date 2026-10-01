@@ -697,7 +697,7 @@ export default function AdminStudio() {
             </div>
             <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-800">Aucun outil supprimé</Badge>
           </div>
-          <nav className="mt-5 grid gap-3 lg:grid-cols-3" aria-label="Priorités MAZIGHO Studio">
+          <nav className="mt-5 grid gap-3 lg:grid-cols-4" aria-label="Priorités MAZIGHO Studio">
             <a href="#studio-inventory" className="group rounded-2xl border border-slate-900 bg-slate-950 p-4 text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
               <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-300">1. Aujourd’hui</p><p className="mt-1 text-lg font-semibold">Gérer les boutiques</p></div><Store className="h-5 w-5 text-orange-300" /></div>
               <p className="mt-3 text-sm leading-6 text-slate-300">MAZIGHO principal, boutiques actives et préparations en cours : chaque ligne ouvre le bon parcours.</p>
@@ -712,6 +712,11 @@ export default function AdminStudio() {
               <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-800">3. Pour la suite</p><p className="mt-1 text-lg font-semibold">Construire le SaaS</p></div><Layers3 className="h-5 w-5 text-violet-800" /></div>
               <p className="mt-3 text-sm leading-6 text-violet-900">Kits métier, aperçus, prévols et principes de séparation plateforme / boutique, conservés pour vos futures offres.</p>
               <p className="mt-4 inline-flex items-center text-sm font-semibold text-violet-900">Voir la feuille de route <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-ai" className="group rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4 text-fuchsia-950 transition-colors hover:bg-fuchsia-100 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-fuchsia-800">4. Nouveau</p><p className="mt-1 text-lg font-semibold">Copilote IA Studio</p></div><Sparkles className="h-5 w-5 text-fuchsia-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-fuchsia-900">Résumer le parc, repérer les priorités et préparer les prochaines actions opérateur.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-fuchsia-900">Ouvrir le copilote <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
             </a>
           </nav>
         </section>
@@ -731,7 +736,7 @@ export default function AdminStudio() {
           })}</div>}
         </section>
 
-        <StudioAICopilot />
+        <section id="studio-ai" className="scroll-mt-6"><StudioAICopilot /></section>
         <section id="studio-health" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>

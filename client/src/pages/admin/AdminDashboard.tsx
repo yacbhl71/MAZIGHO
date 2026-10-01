@@ -30,6 +30,7 @@ import {
   PieChart as PieChartIcon,
   ReceiptText,
   ShoppingCart,
+  Sparkles,
   Trophy,
 } from "lucide-react";
 
@@ -474,6 +475,7 @@ export default function AdminDashboard() {
               <QuickAction href="/admin/importation" title="Importer depuis un fournisseur" detail="Préparer un produit depuis un lien fournisseur." icon={Boxes} />
               <QuickAction href="/admin/commandes" title="Traiter les commandes" detail={`${stats?.pendingOrders ?? 0} commande(s) actuellement en attente.`} icon={ShoppingBag} />
               <QuickAction href="/admin/promotions" title="Créer une offre" detail="Gérer les codes promotionnels et les réductions." icon={Tags} />
+              <QuickAction href="/gestion-boutique" title="Assistant IA de la boutique" detail="Rédiger, traduire et analyser vos visuels sans publication automatique." icon={Sparkles} />
             </CardContent>
           </Card>
 
