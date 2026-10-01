@@ -12,6 +12,7 @@ vi.mock("./db", () => ({
   getAllProductsAdmin: vi.fn(async () => []),
   getAllCategories: vi.fn(async () => []),
   getDesignProfile: vi.fn(async () => ({ brandName: "Boutique test", navigationItems: [] })),
+  getOwnerAiKnowledgeSources: vi.fn(async () => []),
   getOwnerOrderSummaries: vi.fn(async () => []),
   getOwnerCustomerSummaries: vi.fn(async () => []),
   getOwnerStoreSettingsSummary: vi.fn(async () => ({ currencyCode: "CHF" })),
@@ -28,6 +29,13 @@ function callerFor(role: string = "user", status: "setup" | "active" = "active",
     user: { id: 7, role, name: "Membre test", email: "member@example.test" },
     store: { id: 77, slug: "boutique-test", displayName: "Boutique test", primaryDomain: "boutique.test", status, isPlatformStore: 0 },
     setupOwnerPanel,
+  } as any);
+}
+
+function platformAdminCaller() {
+  return appRouter.createCaller({
+    user: { id: 1, role: "admin", name: "Administrateur plateforme", email: "admin@example.test" },
+    store: { id: 1, slug: "primary-store", displayName: "MAZIGHO", primaryDomain: "mazigho.ch", status: "active", isPlatformStore: 1 },
   } as any);
 }
 
@@ -49,6 +57,12 @@ describe("store-scoped management procedure", () => {
     membershipState.current = { role: "manager", status: "active" };
     await expect(callerFor().owner.assistant.chat({
       messages: [{ role: "user", content: "Améliore mon texte d’accueil." }],
+    })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
+  });
+
+  it("allows the platform administrator to access the primary-store assistant", async () => {
+    await expect(platformAdminCaller().owner.assistant.chat({
+      messages: [{ role: "user", content: "Prépare une idée de page d’accueil." }],
     })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
   });
 
