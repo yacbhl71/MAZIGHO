@@ -52,6 +52,7 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const sourcesQuery = trpc.owner.assistant.getKnowledgeSources.useQuery();
+  const savedDraftsQuery = trpc.owner.assistant.getSavedDrafts.useQuery();
   const chat = trpc.owner.assistant.chat.useMutation({
     onSuccess: response => setMessages(current => [...current, { role: "assistant", content: response.answer }]),
     onError: error => toast.error(error.message || "Le copilote IA est momentanément indisponible."),
@@ -80,6 +81,14 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
     onSuccess: async () => { await sourcesQuery.refetch(); toast.success("Source retirée du copilote."); },
     onError: error => toast.error(error.message || "La source n’a pas pu être retirée."),
   });
+  const saveDraft = trpc.owner.assistant.saveDraft.useMutation({
+    onSuccess: async result => { await savedDraftsQuery.refetch(); toast.success(`Brouillon « ${result.draft.title} » enregistré.`); },
+    onError: error => toast.error(error.message || "Le brouillon n’a pas pu être enregistré."),
+  });
+  const removeSavedDraft = trpc.owner.assistant.removeSavedDraft.useMutation({
+    onSuccess: async () => { await savedDraftsQuery.refetch(); toast.success("Brouillon retiré de votre bibliothèque."); },
+    onError: error => toast.error(error.message || "Le brouillon n’a pas pu être retiré."),
+  });
 
   const sendMessage = (content: string) => {
     const nextMessages: Message[] = [...messages, { role: "user", content }];
@@ -92,6 +101,23 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
       else { const area = document.createElement("textarea"); area.value = content; area.style.position = "fixed"; area.style.opacity = "0"; document.body.appendChild(area); area.focus(); area.select(); document.execCommand("copy"); area.remove(); }
       toast.success("Brouillon copié.");
     } catch { toast.error("La copie n’a pas pu être effectuée sur cet appareil. Sélectionnez le texte et utilisez Copier."); }
+  };
+  const saveAssistantDraft = (content: string) => {
+    const clean = content.trim();
+    if (!clean) return;
+    const firstLine = clean.split("\n").map(line => line.replace(/^#+\s*/, "").trim()).find(line => line.length >= 3) || "Brouillon IA";
+    saveDraft.mutate({ title: firstLine.slice(0, 160), content: clean });
+  };
+  const downloadStoredDraft = (content: string, title: string) => {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${title.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "mazigho-brouillon"}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
   const onImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -118,6 +144,7 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
   };
   const isSourceBusy = importKnowledgeUrl.isPending || importKnowledgeDocument.isPending || addKnowledgeNote.isPending || removeKnowledgeSource.isPending;
   const sources = sourcesQuery.data ?? [];
+  const savedDrafts = savedDraftsQuery.data ?? [];
 
   return <div className="space-y-5">
     <Card className="overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50">
@@ -127,8 +154,10 @@ export default function OwnerAICopilot({ storeName }: OwnerAICopilotProps) {
       </div><Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800"><ShieldCheck className="mr-1 h-3.5 w-3.5" /> Brouillon contrôlé</Badge>
       <button type="button" onClick={() => setMessages(initialMessages)} disabled={chat.isPending || messages.length <= 1} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" /> Nouvelle conversation</button>
       </div></CardHeader>
-      <CardContent><AIChatBox messages={messages} onSendMessage={sendMessage} onCopyAssistantMessage={copyDraft} isLoading={chat.isPending} placeholder="Demandez une idée, une fiche produit ou une amélioration…" height="min(620px, 68vh)" emptyStateMessage="Que souhaitez-vous préparer aujourd’hui ?" suggestedPrompts={["Rédige une fiche produit professionnelle pour mon meilleur produit.", "À partir de mes sources, propose une fiche produit fidèle et claire.", "Propose trois textes de hero pour une boutique chaleureuse et moderne.", "Donne-moi une FAQ courte pour rassurer mes clients avant l’achat."]} /></CardContent>
+      <CardContent><AIChatBox messages={messages} onSendMessage={sendMessage} onCopyAssistantMessage={copyDraft} onSaveAssistantMessage={saveAssistantDraft} isLoading={chat.isPending} placeholder="Demandez une idée, une fiche produit ou une amélioration…" height="min(620px, 68vh)" emptyStateMessage="Que souhaitez-vous préparer aujourd’hui ?" suggestedPrompts={["Rédige une fiche produit professionnelle pour mon meilleur produit.", "À partir de mes sources, propose une fiche produit fidèle et claire.", "Propose trois textes de hero pour une boutique chaleureuse et moderne.", "Donne-moi une FAQ courte pour rassurer mes clients avant l’achat."]} /></CardContent>
     </Card>
+
+    <Card className="border-violet-200 bg-violet-50/40"><CardHeader><CardTitle className="flex items-center gap-2 text-violet-950"><FileText className="h-5 w-5 text-violet-700" /> Mes brouillons enregistrés</CardTitle><CardDescription>Conservez les réponses utiles de l’IA comme documents de travail privés. Ils ne sont pas publiés et restent isolés dans « {storeName} ».</CardDescription></CardHeader><CardContent className="space-y-3"><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-slate-900">Bibliothèque ({savedDrafts.length}/30)</p><Button type="button" size="sm" variant="ghost" className="min-h-10 text-violet-800" onClick={() => void savedDraftsQuery.refetch()} disabled={savedDraftsQuery.isFetching}>Actualiser</Button></div>{savedDraftsQuery.isLoading ? <div className="h-24 animate-pulse rounded-xl bg-violet-100" /> : savedDrafts.length === 0 ? <div className="rounded-xl border border-dashed border-violet-200 bg-white p-4 text-sm text-slate-600">Enregistrez une réponse de l’assistant pour la retrouver ici. Vous pouvez aussi la copier ou la télécharger immédiatement.</div> : <div className="space-y-2">{savedDrafts.map(draft => <article key={draft.id} className="rounded-xl border border-violet-100 bg-white p-3"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><p className="truncate font-semibold text-slate-900">{draft.title}</p><p className="mt-1 text-xs text-slate-500">Enregistré le {new Date(draft.createdAt).toLocaleString("fr-CH", { dateStyle: "medium", timeStyle: "short" })}</p></div><div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" className="min-h-10 border-violet-200 text-violet-900 hover:bg-violet-50" onClick={() => copyDraft(draft.content)}>Copier</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-slate-200 text-slate-700" onClick={() => downloadStoredDraft(draft.content, draft.title)}>Télécharger</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-rose-200 text-rose-700 hover:bg-rose-50" disabled={removeSavedDraft.isPending} onClick={() => removeSavedDraft.mutate({ draftId: draft.id })}><Trash2 className="h-3.5 w-3.5" /><span className="sr-only">Retirer</span></Button></div></div><details className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"><summary className="cursor-pointer text-sm font-medium text-violet-900">Lire le brouillon</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{draft.content}</p></details></article>)}</div>}</CardContent></Card>
 
     <Card className="border-sky-200 bg-sky-50/40"><CardHeader><CardTitle className="flex items-center gap-2 text-sky-950"><NotebookPen className="h-5 w-5 text-sky-700" /> Sources de connaissances</CardTitle><CardDescription>Ajoutez une page web publique, un PDF, un document Word ou une note. Le copilote mémorise seulement un extrait de travail privé à cette boutique — jamais une publication automatique.</CardDescription></CardHeader><CardContent className="space-y-5">
       <div className="grid gap-3 rounded-xl border border-sky-100 bg-white p-4 lg:grid-cols-[minmax(0,1fr)_auto]"><div><label className="text-sm font-semibold text-slate-900">Page web publique</label><Input value={knowledgeUrl} onChange={event => setKnowledgeUrl(event.target.value)} placeholder="https://… page fournisseur, guide ou article" inputMode="url" className="mt-2" /></div><Button type="button" variant="outline" className="min-h-11 self-end border-sky-200 text-sky-900 hover:bg-sky-50" disabled={!/^https:\/\//i.test(knowledgeUrl.trim()) || isSourceBusy} onClick={() => importKnowledgeUrl.mutate({ url: knowledgeUrl.trim() })}><Link2 className="mr-2 h-4 w-4" /> {importKnowledgeUrl.isPending ? "Lecture…" : "Ajouter la page"}</Button></div>

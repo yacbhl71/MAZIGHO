@@ -13,6 +13,7 @@ vi.mock("./db", () => ({
   getAllCategories: vi.fn(async () => []),
   getDesignProfile: vi.fn(async () => ({ brandName: "Boutique test", navigationItems: [] })),
   getOwnerAiKnowledgeSources: vi.fn(async () => []),
+  getOwnerAiSavedDrafts: vi.fn(async () => []),
   getOwnerOrderSummaries: vi.fn(async () => []),
   getOwnerCustomerSummaries: vi.fn(async () => []),
   getOwnerStoreSettingsSummary: vi.fn(async () => ({ currencyCode: "CHF" })),
@@ -64,6 +65,7 @@ describe("store-scoped management procedure", () => {
     await expect(platformAdminCaller().owner.assistant.chat({
       messages: [{ role: "user", content: "Prépare une idée de page d’accueil." }],
     })).resolves.toEqual({ answer: "Brouillon de réponse IA" });
+    await expect(platformAdminCaller().owner.assistant.getSavedDrafts()).resolves.toEqual([]);
   });
 
   it("refuses a catalog role from the management workspace", async () => {
