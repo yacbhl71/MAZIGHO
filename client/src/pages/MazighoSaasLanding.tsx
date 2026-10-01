@@ -22,10 +22,12 @@ import { useEffect, useState } from "react";
 import { APP_LOGO } from "@/const";
 import { storefrontThemeCatalog, type StorefrontThemeId } from "@shared/storefrontThemeCatalog";
 import { trpc } from "@/lib/trpc";
+import SaasAICopilotSection from "@/components/SaasAICopilotSection";
 
 const navigation = [
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
   { label: "Votre espace", href: "#espace" },
+  { label: "Assistant IA", href: "#assistant-ia" },
   { label: "12 thèmes", href: "#themes" },
   { label: "Tarifs", href: "#tarifs" },
 ];
@@ -227,6 +229,7 @@ export default function MazighoSaasLanding() {
               <div className="inline-flex items-center gap-2 rounded-full border border-[#dbe3b3] bg-[#f4f7e6] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#617037]"><Sparkles className="h-3.5 w-3.5" /> E-commerce indépendant, bien accompagné</div>
               <h1 className="mt-6 font-serif text-[2.8rem] font-bold leading-[.98] tracking-[-0.04em] text-[#243019] sm:text-6xl lg:text-[4.15rem]">Votre boutique mérite <span className="text-[#7f9142]">un vrai espace</span> à elle.</h1>
               <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">MAZIGHO réunit la vitrine, le catalogue, le stock et le pilotage de votre boutique dans un espace clair, personnalisable et pensé pour durer.</p>
+              <p className="mt-5 inline-flex items-start gap-2 rounded-xl border border-[#dde4bd] bg-[#f5f7e9] px-3.5 py-2.5 text-sm font-semibold leading-5 text-[#46532a]"><Sparkles className="mt-0.5 h-4 w-4 shrink-0" /> Un assistant IA pour préparer vos contenus — avec votre validation avant publication.</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row"><a href={platformHref("/register")} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-[#5a6834] px-5 text-sm font-bold text-white shadow-[0_16px_30px_-16px_rgba(71,83,39,.85)] transition hover:-translate-y-0.5 hover:bg-[#4b582d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a><a href="#espace" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#dcd8c7] bg-white px-5 text-sm font-bold text-slate-800 transition hover:border-[#92a052] hover:bg-[#fcfdf7]">Découvrir votre espace <ChevronRight className="ml-1 h-4 w-4" /></a></div>
               <div className="mt-8 grid max-w-lg grid-cols-3 gap-3 border-t border-[#e9e5d8] pt-6"><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">100 %</p><p className="mt-1 text-xs leading-4 text-slate-500">univers de vitrine modifiable</p></div><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">CHF</p><p className="mt-1 text-xs leading-4 text-slate-500">tarifs simples et lisibles</p></div><div><p className="text-xl font-bold tracking-tight text-[#4d5b2e]">1</p><p className="mt-1 text-xs leading-4 text-slate-500">espace isolé par boutique</p></div></div>
             </div>
@@ -241,6 +244,8 @@ export default function MazighoSaasLanding() {
         <section id="espace" className="bg-[#26301b] py-16 text-white sm:py-24">
           <div className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:px-8"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-[#d5e08e]">Votre espace MAZIGHO</p><h2 className="mt-4 font-serif text-4xl font-bold leading-[1.02] tracking-[-0.035em] sm:text-5xl">Votre boutique, sans vous perdre dans les réglages.</h2><p className="mt-6 max-w-xl text-base leading-7 text-white/72">Retrouvez votre vitrine, votre catalogue, vos commandes et vos réglages dans un seul panneau clair. Vous gardez la main sur votre contenu, vos images et la présentation de votre boutique.</p><div className="mt-8 space-y-3">{["Thèmes et vitrine entièrement personnalisables", "Produits, variantes, stock et import CSV", "Équipe, accès, pages, SEO et marchés", "Domaine personnalisé quand vous êtes prêt"].map((item) => <div key={item} className="flex items-start gap-3 text-sm leading-6 text-white/85"><span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dbe6a6] text-[#35421f]"><Check className="h-3.5 w-3.5" /></span>{item}</div>)}</div></div><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><Layers3 className="h-5 w-5 text-[#d5e08e]" /><p className="mt-6 text-sm font-bold">Un espace à votre image</p><p className="mt-2 text-xs leading-5 text-white/60">Votre boutique, vos produits, vos contenus et vos réglages restent séparés et vous appartiennent.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5"><FileSpreadsheet className="h-5 w-5 text-[#f6c76e]" /><p className="mt-6 text-sm font-bold">Importer sans repartir de zéro</p><p className="mt-2 text-xs leading-5 text-white/60">Préparez les produits et les variantes par fichier, puis reprenez la main dans l’éditeur.</p></div><div className="rounded-2xl border border-white/10 bg-white/[.075] p-5 sm:col-span-2"><div className="flex items-start gap-4"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#718348] text-white"><Clock3 className="h-5 w-5" /></div><div><p className="text-sm font-bold">Une ouverture à votre rythme</p><p className="mt-1 text-xs leading-5 text-white/60">Votre boutique peut être préparée avant le domaine ou l’ouverture publique. Rien ne vous force à aller trop vite.</p></div></div></div></div></div>
         </section>
+
+        <SaasAICopilotSection registerHref={platformHref("/register")} />
 
         <ThemeLivePreview onCreateSpace={() => { window.location.href = platformHref("/register"); }} />
 
