@@ -110,6 +110,12 @@ async function assertDocumentContextOwner(ctx: { store?: { id: number; isPlatfor
   }
 }
 
+async function canEditOwnerAiWorkspace(ctx: { store?: { id: number; isPlatformStore: number | boolean } | null; user?: { id: number; role: string } | null }) {
+  if (ctx.store?.isPlatformStore && ctx.user?.role === "admin") return true;
+  const membership = ctx.user && ctx.store ? await db.getStoreMembershipForUser(ctx.store.id, ctx.user.id) : null;
+  return Boolean(membership && membership.status === "active" && membership.role === "owner");
+}
+
 const ownerCustomDomainRequest = z.object({ domain: z.string().trim().min(4).max(253) });
 const ownerIntegrationRequests = z.object({ integrationIds: z.array(z.enum(storeIntegrationIds)).max(storeIntegrationIds.length) });
 const algeriaWilayaDeliverySettings = z.object({
@@ -790,16 +796,20 @@ export const ownerRouter = router({
       }),
     }),
     workspaceDocuments: router({
-      list: storeOwnerProcedure.input(z.object({ kind: z.enum(["document", "template"]) })).query(async ({ ctx, input }) => {
+      access: storeManagementProcedure.query(async ({ ctx }) => {
+        const entitlements = await db.getStoreSaasEntitlements(ctx.store!.id);
+        return { canEdit: await canEditOwnerAiWorkspace(ctx), planId: entitlements.planId, maxDocuments: entitlements.maxWorkspaceDocuments, maxTemplates: entitlements.maxWorkspaceTemplates };
+      }),
+      list: storeManagementProcedure.input(z.object({ kind: z.enum(["document", "template"]) })).query(async ({ ctx, input }) => {
         try {
-          return await db.listOwnerAiWorkspaceDocuments({ storeId: ctx.store!.id, kind: input.kind });
+          return await db.listOwnerAiWorkspaceDocuments({ storeId: ctx.store!.id, kind: input.kind, includePrivate: await canEditOwnerAiWorkspace(ctx) });
         } catch (error) {
           return ownerAiWorkspaceDocumentError(error);
         }
       }),
-      get: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), kind: z.enum(["document", "template"]).optional() })).query(async ({ ctx, input }) => {
+      get: storeManagementProcedure.input(z.object({ documentId: z.number().int().positive(), kind: z.enum(["document", "template"]).optional() })).query(async ({ ctx, input }) => {
         try {
-          return await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, ...input });
+          return await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, includePrivate: await canEditOwnerAiWorkspace(ctx), ...input });
         } catch (error) {
           return ownerAiWorkspaceDocumentError(error);
         }
@@ -831,11 +841,21 @@ export const ownerRouter = router({
           return ownerAiWorkspaceDocumentError(error);
         }
       }),
-      export: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), format: z.enum(["pdf", "docx"]) })).mutation(async ({ ctx, input }) => {
+      setVisibility: storeOwnerProcedure.input(z.object({ documentId: z.number().int().positive(), visibility: z.enum(["private", "team"]) })).mutation(async ({ ctx, input }) => {
         try {
-          const document = await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, documentId: input.documentId });
+          const result = await db.setOwnerAiWorkspaceDocumentVisibility({ storeId: ctx.store!.id, ...input });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.document.visibility_${input.visibility}`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: input.visibility === "team" ? "Document Workspace partagé en lecture seule avec l’équipe." : "Document Workspace retiré du partage équipe." });
+          return result;
+        } catch (error) {
+          return ownerAiWorkspaceDocumentError(error);
+        }
+      }),
+      export: storeManagementProcedure.input(z.object({ documentId: z.number().int().positive(), format: z.enum(["pdf", "docx"]) })).mutation(async ({ ctx, input }) => {
+        try {
+          const canEdit = await canEditOwnerAiWorkspace(ctx);
+          const document = await db.getOwnerAiWorkspaceDocument({ storeId: ctx.store!.id, documentId: input.documentId, includePrivate: canEdit });
           const exported = await exportOwnerAiWorkspaceDocument({ title: document.title, content: document.content, format: input.format });
-          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: "owner", action: `owner.ai_workspace.document.export_${input.format}`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: `Document Workspace exporté en ${input.format.toUpperCase()}.` });
+          await db.recordAuditLog({ storeId: ctx.store!.id, actorUserId: ctx.user!.id, actorName: ctx.user!.name || ctx.user!.email, actorRole: canEdit ? "owner" : "manager", action: `owner.ai_workspace.document.export_${input.format}`, entityType: "owner_ai_workspace_document", entityId: input.documentId, summary: `Document Workspace exporté en ${input.format.toUpperCase()}.` });
           return exported;
         } catch (error) {
           return ownerAiWorkspaceDocumentError(error);

@@ -3645,7 +3645,8 @@ async function ensureOwnerAiWorkspaceDocumentSchema() {
     await ensureMultiStoreSchema();
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerAiWorkspaceDocuments` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `kind` enum('document','template') NOT NULL DEFAULT 'document', `titleCiphertext` text NOT NULL, `titleIv` varchar(48) NOT NULL, `contentCiphertext` mediumtext NOT NULL, `contentIv` varchar(48) NOT NULL, `createdByUserId` int NOT NULL, `updatedByUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `owner_ai_workspace_documents_store_kind_updated_idx` (`storeId`,`kind`,`updatedAt`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerAiWorkspaceDocuments` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `kind` enum('document','template') NOT NULL DEFAULT 'document', `visibility` enum('private','team') NOT NULL DEFAULT 'private', `titleCiphertext` text NOT NULL, `titleIv` varchar(48) NOT NULL, `contentCiphertext` mediumtext NOT NULL, `contentIv` varchar(48) NOT NULL, `createdByUserId` int NOT NULL, `updatedByUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `owner_ai_workspace_documents_store_kind_updated_idx` (`storeId`,`kind`,`updatedAt`))"));
+    await db.execute(sql.raw("ALTER TABLE `ownerAiWorkspaceDocuments` ADD COLUMN IF NOT EXISTS `visibility` enum('private','team') NOT NULL DEFAULT 'private'"));
   })();
   return _ownerAiWorkspaceDocumentSchemaReady;
 }
@@ -4012,42 +4013,47 @@ function normalizeOwnerAiWorkspaceContent(value: string) {
   return content;
 }
 
-export type OwnerAiWorkspaceDocumentSummary = { id: number; kind: "document" | "template"; title: string; createdAt: Date; updatedAt: Date };
+export type OwnerAiWorkspaceDocumentSummary = { id: number; kind: "document" | "template"; visibility: "private" | "team"; title: string; createdAt: Date; updatedAt: Date };
 
-export async function listOwnerAiWorkspaceDocuments(input: { storeId: number; kind: "document" | "template" }): Promise<OwnerAiWorkspaceDocumentSummary[]> {
+export async function listOwnerAiWorkspaceDocuments(input: { storeId: number; kind: "document" | "template"; includePrivate?: boolean }): Promise<OwnerAiWorkspaceDocumentSummary[]> {
   await ensureOwnerAiWorkspaceDocumentSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const rows = await db.select().from(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.kind, normalizeOwnerAiWorkspaceKind(input.kind)))).orderBy(desc(ownerAiWorkspaceDocuments.updatedAt)).limit(input.kind === "template" ? OWNER_AI_WORKSPACE_TEMPLATE_LIMIT : OWNER_AI_WORKSPACE_DOCUMENT_LIMIT);
-  return rows.map(row => ({ id: row.id, kind: row.kind as "document" | "template", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), createdAt: row.createdAt, updatedAt: row.updatedAt }));
+  const clauses = [eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.kind, normalizeOwnerAiWorkspaceKind(input.kind))];
+  if (!input.includePrivate) clauses.push(eq(ownerAiWorkspaceDocuments.visibility, "team"));
+  const rows = await db.select().from(ownerAiWorkspaceDocuments).where(and(...clauses)).orderBy(desc(ownerAiWorkspaceDocuments.updatedAt)).limit(input.kind === "template" ? OWNER_AI_WORKSPACE_TEMPLATE_LIMIT : OWNER_AI_WORKSPACE_DOCUMENT_LIMIT);
+  return rows.map(row => ({ id: row.id, kind: row.kind as "document" | "template", visibility: row.visibility as "private" | "team", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), createdAt: row.createdAt, updatedAt: row.updatedAt }));
 }
 
-export async function getOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; kind?: "document" | "template" }) {
+export async function getOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; kind?: "document" | "template"; includePrivate?: boolean }) {
   await ensureOwnerAiWorkspaceDocumentSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const clauses = [eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.id, input.documentId)];
   if (input.kind) clauses.push(eq(ownerAiWorkspaceDocuments.kind, normalizeOwnerAiWorkspaceKind(input.kind)));
+  if (!input.includePrivate) clauses.push(eq(ownerAiWorkspaceDocuments.visibility, "team"));
   const [row] = await db.select().from(ownerAiWorkspaceDocuments).where(and(...clauses)).limit(1);
   if (!row) throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_NOT_FOUND");
-  return { id: row.id, kind: row.kind as "document" | "template", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), content: decryptOwnerAiWorkspaceText(row.contentCiphertext, row.contentIv), createdAt: row.createdAt, updatedAt: row.updatedAt };
+  return { id: row.id, kind: row.kind as "document" | "template", visibility: row.visibility as "private" | "team", title: decryptOwnerAiWorkspaceText(row.titleCiphertext, row.titleIv), content: decryptOwnerAiWorkspaceText(row.contentCiphertext, row.contentIv), createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 
-export async function createOwnerAiWorkspaceDocument(input: { storeId: number; kind: "document" | "template"; title: string; content: string; userId: number }) {
+export async function createOwnerAiWorkspaceDocument(input: { storeId: number; kind: "document" | "template"; visibility?: "private" | "team"; title: string; content: string; userId: number }) {
   await ensureOwnerAiWorkspaceDocumentSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const kind = normalizeOwnerAiWorkspaceKind(input.kind);
-  const limit = kind === "template" ? OWNER_AI_WORKSPACE_TEMPLATE_LIMIT : OWNER_AI_WORKSPACE_DOCUMENT_LIMIT;
+  const entitlements = await getStoreSaasEntitlements(input.storeId);
+  const limit = kind === "template" ? entitlements.maxWorkspaceTemplates : entitlements.maxWorkspaceDocuments;
   const [existingCount] = await db.select({ value: count() }).from(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.storeId, input.storeId), eq(ownerAiWorkspaceDocuments.kind, kind)));
   if (Number(existingCount?.value ?? 0) >= limit) throw new Error(kind === "template" ? "OWNER_AI_WORKSPACE_TEMPLATE_LIMIT_REACHED" : "OWNER_AI_WORKSPACE_DOCUMENT_LIMIT_REACHED");
   const title = normalizeOwnerAiWorkspaceTitle(input.title);
   const content = normalizeOwnerAiWorkspaceContent(input.content);
   const encryptedTitle = encryptOwnerAiWorkspaceText(title);
   const encryptedContent = encryptOwnerAiWorkspaceText(content);
-  const result = await db.insert(ownerAiWorkspaceDocuments).values({ storeId: input.storeId, kind, titleCiphertext: encryptedTitle.ciphertext, titleIv: encryptedTitle.iv, contentCiphertext: encryptedContent.ciphertext, contentIv: encryptedContent.iv, createdByUserId: input.userId, updatedByUserId: input.userId });
+  const visibility = input.visibility === "team" ? "team" : "private";
+  const result = await db.insert(ownerAiWorkspaceDocuments).values({ storeId: input.storeId, kind, visibility, titleCiphertext: encryptedTitle.ciphertext, titleIv: encryptedTitle.iv, contentCiphertext: encryptedContent.ciphertext, contentIv: encryptedContent.iv, createdByUserId: input.userId, updatedByUserId: input.userId });
   const id = Number((result as any)[0]?.insertId ?? (result as any).insertId);
-  return { id, kind, title, content };
+  return { id, kind, visibility, title, content };
 }
 
 export async function updateOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; title: string; content: string; userId: number }) {
@@ -4064,12 +4070,21 @@ export async function updateOwnerAiWorkspaceDocument(input: { storeId: number; d
 }
 
 export async function deleteOwnerAiWorkspaceDocument(input: { storeId: number; documentId: number; confirmationTitle: string }) {
-  const document = await getOwnerAiWorkspaceDocument({ storeId: input.storeId, documentId: input.documentId });
+  const document = await getOwnerAiWorkspaceDocument({ storeId: input.storeId, documentId: input.documentId, includePrivate: true });
   if (document.title !== input.confirmationTitle.trim()) throw new Error("OWNER_AI_WORKSPACE_DELETE_CONFIRMATION_MISMATCH");
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   await db.delete(ownerAiWorkspaceDocuments).where(and(eq(ownerAiWorkspaceDocuments.id, input.documentId), eq(ownerAiWorkspaceDocuments.storeId, input.storeId)));
   return { success: true, kind: document.kind } as const;
+}
+
+export async function setOwnerAiWorkspaceDocumentVisibility(input: { storeId: number; documentId: number; visibility: "private" | "team" }) {
+  await ensureOwnerAiWorkspaceDocumentSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const result = await db.update(ownerAiWorkspaceDocuments).set({ visibility: input.visibility, updatedAt: new Date() }).where(and(eq(ownerAiWorkspaceDocuments.id, input.documentId), eq(ownerAiWorkspaceDocuments.storeId, input.storeId)));
+  if (Number((result as any)[0]?.affectedRows ?? (result as any).affectedRows ?? 0) === 0) throw new Error("OWNER_AI_WORKSPACE_DOCUMENT_NOT_FOUND");
+  return { success: true, visibility: input.visibility } as const;
 }
 
 export async function recordAuditLog(input: {

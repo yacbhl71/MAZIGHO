@@ -12,6 +12,10 @@ export type SaasPlanEntitlements = {
   mediaQuotaBytes: number;
   /** Server-enforced assistant calls per calendar month, across text and vision. */
   monthlyAiRequests: number;
+  /** Private Workspace documents retained per boutique. */
+  maxWorkspaceDocuments: number;
+  /** Reusable private Workspace templates retained per boutique. */
+  maxWorkspaceTemplates: number;
   /** Supplier import space. A Studio grant can extend this to one chosen store. */
   dropshippingEnabled: boolean;
 };
@@ -27,6 +31,8 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxTeamMembers: 1,
     mediaQuotaBytes: 500 * MEBIBYTE,
     monthlyAiRequests: 40,
+    maxWorkspaceDocuments: 10,
+    maxWorkspaceTemplates: 5,
     dropshippingEnabled: false,
   },
   basic: {
@@ -35,6 +41,8 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxTeamMembers: 5,
     mediaQuotaBytes: 1024 * MEBIBYTE,
     monthlyAiRequests: 400,
+    maxWorkspaceDocuments: 40,
+    maxWorkspaceTemplates: 15,
     dropshippingEnabled: false,
   },
   pro: {
@@ -43,6 +51,8 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxTeamMembers: 8,
     mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
     monthlyAiRequests: 1200,
+    maxWorkspaceDocuments: 80,
+    maxWorkspaceTemplates: 30,
     dropshippingEnabled: true,
   },
   lifetime: {
@@ -51,6 +61,8 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxTeamMembers: 10,
     mediaQuotaBytes: 2 * 1024 * MEBIBYTE,
     monthlyAiRequests: 400,
+    maxWorkspaceDocuments: 40,
+    maxWorkspaceTemplates: 15,
     dropshippingEnabled: false,
   },
 };
