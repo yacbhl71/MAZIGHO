@@ -95,7 +95,7 @@ export default function Header() {
     contact: t(locale, "contact"),
   };
 
-  const navigationItems = (profile.navigationItems || []).filter(item => item.visible);
+  const navigationItems = (profile.navigationItems || []).filter(item => item.visible && (!limitedShowcase || !["new", "best-sellers", "promos"].includes(item.id)));
   const getNavigationItem = (id: string) => navigationItems.find(item => item.id === id);
   const navigationLabel = (id: string, fallback: string) => getNavigationItem(id)?.label?.trim() || fallback;
   const isNavigationVisible = (id: string) => Boolean(getNavigationItem(id));
@@ -222,7 +222,7 @@ export default function Header() {
         {usesSplitHeader && <div className={`hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:gap-1 xl:pb-0.5 ${usesMarketHeader ? "xl:justify-between" : "xl:justify-center"}`}>
           {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Sélection en ligne</span>}
           <div className="flex items-center gap-1">{rootNavigationItems.map(renderDesktopNavigationItem)}</div>
-          {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: palette.accent }}>Nouveautés & offres</span>}
+          {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: palette.accent }}>{limitedShowcase ? getLimitedStorefrontCopy(locale).shopEyebrow : "Nouveautés & offres"}</span>}
         </div>}
 
         {/* Mobile Search Bar */}
