@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, LockKeyhole, LogIn, MapPin, Sparkles, Store, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -11,19 +11,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { storefrontThemeCatalog, type StorefrontThemeId } from "@shared/storefrontThemeCatalog";
-import { acquisitionPlanId, getPublicStoreAcquisitionPlan, isPublicStoreAcquisitionPlanId, publicStoreAcquisitionPlanIds, type PublicStoreAcquisitionPlanId } from "@shared/storeAcquisition";
+import { acquisitionPlanId, getPublicStoreAcquisitionPlan, publicStoreAcquisitionPlanFromSearch, publicStoreAcquisitionPlanIds, type PublicStoreAcquisitionPlanId } from "@shared/storeAcquisition";
 
 const planCtas: Record<PublicStoreAcquisitionPlanId, { price: string; commission: string; caption: string }> = {
   free: { price: "0 CHF / mois", commission: "2,5 % de commission", caption: "Pour commencer avec une base boutique claire." },
   basic: { price: "7,90 CHF / mois", commission: "1,0 % de commission", caption: "Pour développer sans plafond de catalogue." },
   pro: { price: "12,90 CHF / mois", commission: "1,0 % de commission", caption: "Pour développer avec le dropshipping contrôlé." },
 };
-
-function readPlanFromLocation(location: string): PublicStoreAcquisitionPlanId {
-  const query = location.split("?")[1]?.split("#")[0] || "";
-  const candidate = new URLSearchParams(query).get("plan")?.toLowerCase();
-  return isPublicStoreAcquisitionPlanId(candidate) ? candidate : "free";
-}
 
 function slugifySubdomain(value: string) {
   return value
@@ -36,8 +30,11 @@ function slugifySubdomain(value: string) {
 }
 
 export default function StoreAcquisitionWizard() {
-  const [location, setLocation] = useLocation();
-  const selectedFromUrl = useMemo(() => readPlanFromLocation(location), [location]);
+  const [, setLocation] = useLocation();
+  // Wouter's location hook deliberately exposes the path. The offer lives in
+  // the query string, so read it from the browser URL to retain FREE/BASIC/PRO
+  // when arriving from the pricing landing.
+  const selectedFromUrl = publicStoreAcquisitionPlanFromSearch(window.location.search);
   const [step, setStep] = useState(1);
   const [planId, setPlanId] = useState<PublicStoreAcquisitionPlanId>(selectedFromUrl);
   const [displayName, setDisplayName] = useState("");

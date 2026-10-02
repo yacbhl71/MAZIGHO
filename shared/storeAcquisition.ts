@@ -11,6 +11,13 @@ export function isPublicStoreAcquisitionPlanId(value: unknown): value is PublicS
   return typeof value === "string" && (publicStoreAcquisitionPlanIds as readonly string[]).includes(value.toLowerCase());
 }
 
+/** Reads only the public FREE/BASIC/PRO identifiers passed by the pricing landing. */
+export function publicStoreAcquisitionPlanFromSearch(search: string): PublicStoreAcquisitionPlanId {
+  const query = search.startsWith("?") ? search.slice(1) : search;
+  const candidate = new URLSearchParams(query).get("plan")?.toLowerCase();
+  return isPublicStoreAcquisitionPlanId(candidate) ? candidate : "free";
+}
+
 export function getPublicStoreAcquisitionPlan(value: unknown) {
   const id = isPublicStoreAcquisitionPlanId(value) ? value.toLowerCase() as PublicStoreAcquisitionPlanId : "free";
   return getMazighoSaasPlan(id)!;

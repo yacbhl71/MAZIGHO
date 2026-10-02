@@ -3,6 +3,7 @@ import {
   acquisitionPlanId,
   getPublicStoreAcquisitionPlan,
   isPublicStoreAcquisitionPlanId,
+  publicStoreAcquisitionPlanFromSearch,
   publicStoreAcquisitionPlanIds,
 } from "../shared/storeAcquisition";
 import { storeAcquisitionRequestSchema } from "./storeAcquisitionRouter";
@@ -25,6 +26,13 @@ describe("public store acquisition offers", () => {
     expect(acquisitionPlanId("FREE")).toBe("free");
     expect(acquisitionPlanId("BASIC")).toBe("basic");
     expect(acquisitionPlanId("PRO")).toBe("pro");
+  });
+
+  it("retains the plan selected on the pricing landing in the owner wizard", () => {
+    expect(publicStoreAcquisitionPlanFromSearch("?plan=free")).toBe("free");
+    expect(publicStoreAcquisitionPlanFromSearch("?plan=basic")).toBe("basic");
+    expect(publicStoreAcquisitionPlanFromSearch("?plan=pro")).toBe("pro");
+    expect(publicStoreAcquisitionPlanFromSearch("?plan=lifetime")).toBe("free");
   });
 
   it("rejects Studio-only offers and malformed public subdomains before writing a draft", () => {
