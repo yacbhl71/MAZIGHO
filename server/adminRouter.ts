@@ -1465,6 +1465,54 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    setStoreCommissionOverride: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      commissionRateBps: z.number().int().min(0).max(10_000),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.setStudioStoreCommissionOverride(input);
+        logAudit(ctx, {
+          action: "studio.store.commission_override.save",
+          entityType: "store",
+          entityId: result.store.id,
+          summary: `Dérogation de commission Stripe Connect définie à ${(result.commissionOverride.commissionRateBps / 100).toFixed(2)} % pour les futurs encaissements.`,
+          metadata: { commissionRateBps: result.commissionOverride.commissionRateBps, officialPlanChanged: false, paymentCreated: false, existingOrdersChanged: false, emailSent: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "COMMISSION_OVERRIDE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier sa commission." });
+        if (code === "STORE_COMMISSION_OVERRIDE_RATE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Le taux de commission doit être compris entre 0 % et 100 %." });
+        throw error;
+      }
+    }),
+    clearStoreCommissionOverride: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.clearStudioStoreCommissionOverride(input);
+        logAudit(ctx, {
+          action: "studio.store.commission_override.clear",
+          entityType: "store",
+          entityId: result.store.id,
+          summary: "Dérogation de commission Stripe Connect retirée ; les futurs encaissements suivent à nouveau le taux officiel du plan.",
+          metadata: { commissionOverrideRemoved: true, officialPlanChanged: false, paymentCreated: false, existingOrdersChanged: false, emailSent: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "COMMISSION_OVERRIDE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de retirer sa dérogation de commission." });
+        throw error;
+      }
+    }),
     clearStoreSaasPlanAssignment: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

@@ -60,6 +60,7 @@ import { getStoreSaasBillingDraftReadiness, makeDraftInvoice, normalizeSaasBilli
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
+import { createStoreCommissionOverride, parseStoreCommissionOverride, type StoreCommissionOverride } from "../shared/storeCommissionOverride";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
@@ -3223,7 +3224,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
   };
   const [settingRows, checkoutResult, subscriptionResult] = await Promise.all([
     db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment", "saas_dropshipping_exception"]))),
+      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment", "saas_dropshipping_exception", "saas_commission_override"]))),
     readLemonCheckouts(),
     readLemonSubscriptions(),
   ]);
@@ -3247,6 +3248,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
     const values = settingsByStore.get(store.id);
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
     const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
+    const commissionOverride = parseStoreCommissionOverride(values?.get("saas_commission_override"));
     const commercialOfferMode = normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode"));
     const officialPlan = getMazighoSaasPlan(planAssignment?.planId);
     const dropshippingAccess = officialPlan?.id === "pro"
@@ -3272,6 +3274,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
       commercialOfferMode,
       billing,
       planAssignment,
+      commissionOverride,
       dropshippingAccess,
       operatorReadiness: getStoreSaasBillingDraftReadiness({ commercialOfferMode, billing }),
       lemonSqueezy: {
@@ -3368,6 +3371,37 @@ export async function clearStudioStoreSaasPlanAssignment(input: { storeId: numbe
     "Attribution de plan SaaS brouillon retirée ; aucune fonctionnalité, souscription, paiement, facture, e-mail ou automatisation n’est modifié.",
   );
   return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, assignment: null, featureFlagsApplied: false as const };
+}
+
+/**
+ * Applies a named, Studio-only Stripe commission exception to one client store.
+ * The official public plan stays unchanged; only future Direct Charges for this
+ * tenant use the stored rate. Existing paid orders keep their recorded fee.
+ */
+export async function setStudioStoreCommissionOverride(input: { storeId: number; confirmationName: string; commissionRateBps: number }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("COMMISSION_OVERRIDE_CONFIRMATION_MISMATCH");
+  const commissionOverride = createStoreCommissionOverride(input.commissionRateBps);
+  await setStoreSettingValue(
+    store.id,
+    "saas_commission_override",
+    JSON.stringify(commissionOverride),
+    "Dérogation de commission Stripe Connect attribuée manuellement par MAZIGHO Studio ; tarif public et plan SaaS inchangés, sans paiement, facture, e-mail ou modification des commandes existantes.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, commissionOverride };
+}
+
+/** Removes a Studio commission exception so future charges return to the official plan rate. */
+export async function clearStudioStoreCommissionOverride(input: { storeId: number; confirmationName: string }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("COMMISSION_OVERRIDE_CONFIRMATION_MISMATCH");
+  await setStoreSettingValue(
+    store.id,
+    "saas_commission_override",
+    "",
+    "Dérogation de commission Stripe Connect retirée par MAZIGHO Studio ; les futurs encaissements reviendront au taux officiel du plan, sans modifier les commandes existantes.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, commissionOverride: null };
 }
 
 /** Stores a non-binding SaaS plan draft after the commercial offer was explicitly selected. */
@@ -7355,7 +7389,15 @@ export type StoreStripeConnectSetup = {
     detailsSubmitted: boolean;
     lastCheckedAt: Date | null;
   } | null;
-  plan: { id: MazighoSaasPlanId; name: string; commissionRateBps: number } | null;
+  plan: {
+    id: MazighoSaasPlanId;
+    name: string;
+    /** Effective rate used for future tenant-bound Stripe Direct Charges. */
+    commissionRateBps: number;
+    /** Immutable public rate of the assigned official plan. */
+    officialCommissionRateBps: number;
+    commissionOverride: StoreCommissionOverride | null;
+  } | null;
   schemaReady: boolean;
   paymentReadiness: ReturnType<typeof getStripeConnectPaymentReadiness>;
 };
@@ -7380,8 +7422,20 @@ function asStripeConnectAccountState(row: StripeConnectAccountRow | undefined): 
 export async function getStoreStripeConnectSetup(storeId: number, mode: StripeConnectMode = "test"): Promise<StoreStripeConnectSetup> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const planAssignment = await getOwnerSaasPlanAssignment(storeId);
+  const [planAssignment, rawCommissionOverride] = await Promise.all([
+    getOwnerSaasPlanAssignment(storeId),
+    getStoreSettingValue(storeId, "saas_commission_override"),
+  ]);
   const plan = getMazighoSaasPlan(planAssignment?.planId);
+  const commissionOverride = parseStoreCommissionOverride(rawCommissionOverride);
+  const effectiveCommissionRateBps = commissionOverride?.commissionRateBps ?? plan?.commissionRateBps;
+  const planSummary = plan ? {
+    id: plan.id,
+    name: plan.name,
+    commissionRateBps: effectiveCommissionRateBps!,
+    officialCommissionRateBps: plan.commissionRateBps,
+    commissionOverride,
+  } : null;
   try {
     const rows = mode === "live"
       ? await db.select().from(stripeLiveConnectedAccounts).where(eq(stripeLiveConnectedAccounts.storeId, storeId)).limit(1)
@@ -7399,9 +7453,9 @@ export async function getStoreStripeConnectSetup(storeId: number, mode: StripeCo
         detailsSubmitted: Boolean(row.detailsSubmitted),
         lastCheckedAt: row.lastCheckedAt,
       } : null,
-      plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
+      plan: planSummary,
       schemaReady: true,
-      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, account: accountState }),
+      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, commissionRateBps: effectiveCommissionRateBps, account: accountState }),
     };
   } catch (error) {
     const message = String(error).toLowerCase();
@@ -7410,9 +7464,9 @@ export async function getStoreStripeConnectSetup(storeId: number, mode: StripeCo
     return {
       mode,
       account: null,
-      plan: plan ? { id: plan.id, name: plan.name, commissionRateBps: plan.commissionRateBps } : null,
+      plan: planSummary,
       schemaReady: false,
-      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, account: null }),
+      paymentReadiness: getStripeConnectPaymentReadiness({ mode, planId: planAssignment?.planId, commissionRateBps: effectiveCommissionRateBps, account: null }),
     };
   }
 }

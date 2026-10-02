@@ -19,6 +19,15 @@ describe("Stripe Connect direct charge policy", () => {
     expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "lifetime", account: readyAccount })).toMatchObject({ enabled: true, commissionRateBps: 0, planId: "lifetime" });
   });
 
+  it("uses a validated Studio exception only for the selected store checkout", () => {
+    expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "pro", commissionRateBps: 0, account: readyAccount }))
+      .toMatchObject({ enabled: true, commissionRateBps: 0, planId: "pro" });
+    expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "basic", commissionRateBps: 375, account: readyAccount }))
+      .toMatchObject({ enabled: true, commissionRateBps: 375, planId: "basic" });
+    expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "basic", commissionRateBps: 10_001, account: readyAccount }))
+      .toEqual({ enabled: false, reason: "store_commission_invalid" });
+  });
+
   it("keeps checkout closed for absent plan, incomplete account or a live key", () => {
     expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: null, account: readyAccount })).toEqual({ enabled: false, reason: "store_plan_missing" });
     expect(getStripeConnectPaymentReadiness({ environment: enabledEnvironment, planId: "basic", account: { ...readyAccount, chargesEnabled: false } })).toEqual({ enabled: false, reason: "connect_onboarding_incomplete" });

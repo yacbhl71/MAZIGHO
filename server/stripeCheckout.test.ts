@@ -102,6 +102,22 @@ describe("Stripe Connect Test checkout route", () => {
     expect(result).toEqual({ sessionId: "cs_test_123", orderId: 91, url: "https://checkout.stripe.test/session" });
   });
 
+  it("records a Studio-granted zero-percent commission for the selected store only", async () => {
+    dbMocks.getStoreStripeConnectCheckoutContext.mockResolvedValueOnce({ ready: true, accountId: "acct_testBoutique", commissionRateBps: 0, planId: "pro" });
+
+    await callerFor(72).createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] });
+
+    expect(stripeMocks.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      payment_intent_data: { application_fee_amount: 0 },
+      metadata: expect.objectContaining({ store_id: "72", commission_rate_bps: "0" }),
+    }), { stripeAccount: "acct_testBoutique" });
+    expect(dbMocks.bindStripeConnectSessionToPendingOrder).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 72,
+      applicationFeeAmount: 0,
+      commissionRateBps: 0,
+    }));
+  });
+
   it("refuses checkout while the resolved boutique is in maintenance", async () => {
     dbMocks.getStoreMaintenanceMode.mockResolvedValueOnce({ enabled: true, title: "Mise à jour", message: "Revenez bientôt." });
     await expect(callerFor().createSession({ countryCode: "CH", legalAcceptanceVersion, legalAccepted: true, items: [{ productId: 41, quantity: 1 }] }))
