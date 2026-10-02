@@ -26,8 +26,8 @@ export const storeIntegrationCatalog: ReadonlyArray<{
     id: "stripe",
     title: "Stripe",
     category: "payment",
-    description: "Préparer une demande de paiement par carte pour étude par MAZIGHO Studio.",
-    safetyNote: "Aucun compte, clé, paiement réel, abonnement ou encaissement n’est connecté.",
+    description: "Stripe Connect de la boutique se configure dans le module Encaissement dédié ; cette demande signale seulement un besoin Stripe complémentaire à étudier.",
+    safetyNote: "Cette carte ne crée pas de compte Stripe Connect, ne reçoit aucune clé et n’active aucun encaissement.",
   },
   {
     id: "paypal",
