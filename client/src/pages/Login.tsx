@@ -15,12 +15,16 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const { locale } = useLocale();
   const { profile, palette } = useDesignProfile(locale);
   const brandName = getStorefrontBrandName(profile);
   const copy = withStorefrontBrand( getAuthCopy(locale), brandName);
+  const params = new URLSearchParams(location.split("?")[1] || "");
+  const storeProjectIntent = params.get("intent") === "boutique";
+  const candidateReturn = params.get("returnTo") || "";
+  const returnTo = candidateReturn.startsWith("/demarrer-boutique") ? candidateReturn : "/demarrer-boutique?plan=free";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -35,7 +39,7 @@ export default function Login() {
         order_operator: "/admin/operations-commandes",
         admin: typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch" ? "/admin/studio" : "/admin",
       };
-      setLocation(staffDestinations[data.user.role] || "/mon-compte");
+      setLocation(storeProjectIntent ? returnTo : staffDestinations[data.user.role] || "/mon-compte");
     },
     onError: error => toast.error(error.message || copy.login.error),
   });
@@ -43,14 +47,14 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
-      <Header />
+      {storeProjectIntent ? <header className="border-b border-[#e5e4da] bg-[#fffefb]"><div className="container mx-auto flex min-h-16 items-center justify-between px-4"><Link href={returnTo} className="text-sm font-bold text-[#596a32]">MAZIGHO · Projet boutique</Link><span className="text-xs font-semibold text-slate-500">Accès propriétaire</span></div></header> : <Header />}
       <main className="flex-1">
-        <section className="py-12 md:py-16" style={{ background: `linear-gradient(135deg, ${palette.soft}, #ffffff)` }}><div className="container mx-auto px-4"><Link href="/"><div className="mb-6 flex w-fit cursor-pointer items-center gap-2 font-medium" style={{ color: palette.accent }}><ArrowLeft className="h-5 w-5" /><span>{copy.back}</span></div></Link><h1 className="mb-4 text-4xl font-bold text-gray-800 md:text-5xl">{copy.login.title}</h1><p className="max-w-2xl text-lg text-gray-600">{copy.login.lead}</p></div></section>
+        <section className="py-12 md:py-16" style={{ background: `linear-gradient(135deg, ${palette.soft}, #ffffff)` }}><div className="container mx-auto px-4"><Link href={storeProjectIntent ? returnTo : "/"}><div className="mb-6 flex w-fit cursor-pointer items-center gap-2 font-medium" style={{ color: palette.accent }}><ArrowLeft className="h-5 w-5" /><span>{storeProjectIntent ? "Retour à mon projet de boutique" : copy.back}</span></div></Link><h1 className="mb-4 text-4xl font-bold text-gray-800 md:text-5xl">{storeProjectIntent ? "Reprendre mon projet de boutique" : copy.login.title}</h1><p className="max-w-2xl text-lg text-gray-600">{storeProjectIntent ? "Connectez-vous pour continuer la préparation de votre boutique MAZIGHO." : copy.login.lead}</p></div></section>
         <section className="py-14 md:py-20"><div className="container mx-auto max-w-md px-4"><Card><CardContent className="p-7 md:p-8"><div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: palette.soft, color: palette.primary }}><LockKeyhole className="h-7 w-7" /></div><h2 className="text-center text-2xl font-semibold text-gray-800">{copy.login.cardTitle}</h2><p className="mt-2 text-center text-sm text-gray-600">{copy.login.cardLead}</p>
           <form className="mt-7 space-y-5" onSubmit={handleSubmit}><div className="space-y-2"><Label htmlFor="login-email">{copy.email}</Label><Input id="login-email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="vous@exemple.ch" required /></div><div className="space-y-2"><div className="flex items-center justify-between gap-3"><Label htmlFor="login-password">{copy.password}</Label><Link href="/mot-de-passe-oublie" className="text-xs font-medium" style={{ color: palette.accent }}>{copy.login.forgot}</Link></div><div className="relative"><Input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} minLength={1} required className="pr-11" /><button type="button" onClick={() => setShowPassword(value => !value)} className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-800" aria-label={showPassword ? copy.hidePassword : copy.showPassword}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div><Button type="submit" disabled={login.isPending} className="w-full text-white" style={{ backgroundColor: palette.accent }}>{login.isPending ? copy.login.submitting : copy.login.submit}</Button></form>
-          <p className="mt-6 text-center text-sm text-gray-600">{copy.login.noAccount} <Link href="/register" className="font-semibold" style={{ color: palette.accent }}>{copy.login.register}</Link></p></CardContent></Card><div className="mt-7 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-left"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-green-700" /><p className="text-sm text-green-900">{copy.login.security}</p></div></div></section>
+          <p className="mt-6 text-center text-sm text-gray-600">{copy.login.noAccount} <Link href={storeProjectIntent ? `/register?intent=boutique&returnTo=${encodeURIComponent(returnTo)}` : "/register"} className="font-semibold" style={{ color: palette.accent }}>{copy.login.register}</Link></p></CardContent></Card><div className="mt-7 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-left"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-green-700" /><p className="text-sm text-green-900">{copy.login.security}</p></div></div></section>
       </main>
-      <Footer />
+      {storeProjectIntent ? <footer className="border-t border-[#e5e4da] bg-[#fffefb] px-4 py-5 text-center text-xs text-slate-500">Cet accès est réservé à la préparation de votre boutique MAZIGHO.</footer> : <Footer />}
     </div>
   );
 }

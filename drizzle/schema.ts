@@ -66,6 +66,8 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   // Optional geography and operations starting point selected in Studio.
   provisioningTemplate: varchar("provisioningTemplate", { length: 32 }).default("standard").notNull(),
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
+  // Prospect intent only. The active SaaS plan remains assigned from Studio.
+  requestedPlan: varchar("requestedPlan", { length: 16 }),
   status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
   notes: text("notes"),
   // Set only by the explicit, atomic gift-provisioning action.

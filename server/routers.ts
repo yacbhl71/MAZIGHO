@@ -8,6 +8,7 @@ import { z } from "zod";
 import { mayAcceptStorefrontCommerce, mayServeStorefront } from "./services/storeScope";
 import { authRouter } from "./authRouter";
 import { ownerRouter } from "./ownerRouter";
+import { storeAcquisitionRouter } from "./storeAcquisitionRouter";
 import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 import { DEFAULT_STORE_MAINTENANCE_MODE } from "../shared/storeMaintenanceMode";
@@ -66,6 +67,9 @@ export const appRouter = router({
   shop: shopRouter,
   auth: authRouter,
   owner: ownerRouter,
+  // Authenticated prospective owners can submit a preparation request only.
+  // This router never provisions a store, assigns a plan or starts billing.
+  storeAcquisition: storeAcquisitionRouter,
   ownerSystemPages: ownerSystemPagesRouter,
   // Main-store counterpart of ownerSystemPages. Protected by platformProcedure
   // so it remains unavailable on every customer storefront.

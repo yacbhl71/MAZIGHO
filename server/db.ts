@@ -315,10 +315,11 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `requestedPlan` varchar(16) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedAt` timestamp NULL"));
     await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_provisioned_store_idx` ON `storeProvisioningDrafts` (`provisionedStoreId`)"));
@@ -2754,6 +2755,8 @@ export type StudioProvisioningDraftInput = {
   themePreset?: StorefrontThemeId | null;
   provisioningTemplate?: StoreProvisioningTemplate;
   preferredCurrency: string;
+  /** Intent only: the active SaaS plan remains a Studio-only assignment. */
+  requestedPlan?: "free" | "basic" | "pro" | null;
   notes?: string | null;
 };
 
@@ -2769,6 +2772,7 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
     themePreset: input.themePreset ?? null,
     provisioningTemplate,
     preferredCurrency: provisioningTemplate === "algeria" ? "DZD" : input.preferredCurrency,
+    requestedPlan: input.requestedPlan ?? null,
     notes: input.notes?.trim() || null,
   };
 }
@@ -2804,6 +2808,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     themePreset: normalized.themePreset,
     provisioningTemplate: normalized.provisioningTemplate,
     preferredCurrency: normalized.preferredCurrency,
+    requestedPlan: normalized.requestedPlan,
     notes: normalized.notes,
     status: "draft",
   }).where(eq(storeProvisioningDrafts.id, input.id));

@@ -19,6 +19,7 @@ import { MaintenancePage } from "./components/MaintenancePage";
 import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
+const StoreAcquisitionWizard = lazy(() => import("./pages/StoreAcquisitionWizard"));
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
 const Category = lazy(() => import("./pages/Category"));
@@ -430,6 +431,7 @@ function Router() {
         <Switch>
       <Route path={"/"} component={isSaasLandingHost ? MazighoSaasLanding : Home} />
       <Route path={"/mazigho-saas"} component={MazighoSaasLanding} />
+      <Route path={"/demarrer-boutique"} component={StoreAcquisitionWizard} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
       <Route path={"/categorie/:slug"} component={Category} />

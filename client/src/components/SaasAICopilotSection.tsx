@@ -23,7 +23,7 @@ const capabilities = [
   },
 ] as const;
 
-export default function SaasAICopilotSection({ registerHref }: { registerHref: string }) {
+export default function SaasAICopilotSection({ acquisitionHref }: { acquisitionHref: string }) {
   return (
     <section id="assistant-ia" className="scroll-mt-20 border-b border-[#e9e6d9] bg-[#f7f6ec] py-16 sm:py-24" aria-labelledby="assistant-ia-title">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -46,7 +46,7 @@ export default function SaasAICopilotSection({ registerHref }: { registerHref: s
             <p className="flex items-center gap-2 text-sm font-bold text-[#46572b]"><LockKeyhole className="h-4 w-4" /> Privé, contrôlé, par boutique</p>
             <p className="mt-2 max-w-3xl text-xs leading-5 text-slate-600">Les résultats sont des propositions à vérifier. Les requêtes IA sont plafonnées selon l’offre ; certaines pages externes peuvent refuser l’analyse automatique. Aucune fiche ni commande n’est modifiée sans votre action.</p>
           </div>
-          <a href={registerHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#5a6834] px-4 text-sm font-bold text-white transition hover:bg-[#4b582d]">Créer mon espace <ArrowRight className="ml-2 h-4 w-4" /></a>
+          <a href={acquisitionHref} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#5a6834] px-4 text-sm font-bold text-white transition hover:bg-[#4b582d]">Préparer ma boutique <ArrowRight className="ml-2 h-4 w-4" /></a>
         </div>
       </div>
     </section>
