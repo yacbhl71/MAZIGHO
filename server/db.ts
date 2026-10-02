@@ -64,6 +64,7 @@ import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type Ma
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
 import type { StripeConnectMode } from "./services/stripeConnectMode";
+import { verifyStaleStripeCheckout } from "./services/stripeStaleCheckout";
 import { decideLemonSqueezyWebhookApplication, getLemonSqueezyBillablePlan, getLemonSqueezyBillingConfiguration, hasLemonSqueezySubscriptionAccess, shouldProcessLemonSqueezyWebhookEvent, type LemonSqueezyBillablePlanId, type LemonSqueezySubscriptionStatus, type ParsedLemonSqueezyWebhook } from "./services/lemonSqueezyBilling";
 import { createStoreSupportTicket, parseStoreSupportTicketProfile, updateStoreSupportTicket, type StoreSupportTicketStatus, type StoreSupportTicketTopic } from "../shared/storeSupportTickets";
 import { paginateStudioInventory, type StudioInventoryQuery } from "../shared/studioInventoryRegistry";
@@ -8335,7 +8336,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
-  const [storeRows, productRows, imageRows, profile, shipping, legal, markets, taxPolicies] = await Promise.all([
+  const [storeRows, productRows, imageRows, profile, shipping, legal, markets, taxPolicies, officialPlan] = await Promise.all([
     db.select({ displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status })
       .from(stores).where(eq(stores.id, storeId)).limit(1),
     db.select({ id: products.id, status: products.status, price: products.price, stock: products.stock })
@@ -8346,6 +8347,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
     getOwnerLegalContactProfile(storeId),
     getStoreMarketSettings(storeId),
     getStoreTaxPolicies(storeId),
+    getOwnerSaasPlanAssignment(storeId),
   ]);
   const store = storeRows[0];
   if (!store) throw new Error("STORE_NOT_FOUND");
@@ -8503,9 +8505,17 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       latestConfirmedOrderCreatedAt: testCheckoutEvidenceLatestRows[0]?.createdAt ?? null,
     },
   });
+  const assignedOfficialPlan = getMazighoSaasPlan(officialPlan?.planId);
 
   return {
     store: { displayName: store.displayName, status: store.status, primaryDomain: store.primaryDomain },
+    commercialGate: {
+      officialPlan: assignedOfficialPlan ? { name: assignedOfficialPlan.name, assigned: true as const } : null,
+      domainConfigured: Boolean(store.primaryDomain.trim()),
+      testCheckoutConfirmed: payment.testCheckoutEvidenceConfirmed,
+      // A configured hostname is not proof of DNS/TLS validation or Live authorization.
+      automaticLiveApproval: false as const,
+    },
     summary: {
       completed,
       total: items.length,
@@ -12289,10 +12299,9 @@ export async function releaseExpiredStripePendingOrder(input: { sessionId: strin
 }
 
 /**
- * Webhooks are the normal release path. This request-bound recovery prevents a
- * stale reservation from remaining forever if a merchant's Stripe endpoint is
- * temporarily unavailable. It only considers sessions older than the explicit
- * 31-minute Checkout expiry plus a small safety margin.
+ * Webhooks are the normal release path. This fallback never equates age with
+ * expiry: an unpaid order can have been paid while the webhook is delayed.
+ * Stripe must confirm that the exact connected-account session expired.
  */
 async function releaseElapsedCheckoutReservations(storeId: number) {
   const db = await getDb();
@@ -12306,11 +12315,17 @@ async function releaseElapsedCheckoutReservations(storeId: number) {
       eq(orders.paymentStatus, "unpaid"),
       lt(orders.createdAt, cutoff),
     ))
-    .limit(20);
+    .limit(3);
   for (const candidate of candidates) {
     if (!candidate.stripeSessionId || !candidate.stripeConnectedAccountId || !["stripe_connect_test", "stripe_connect_live"].includes(candidate.paymentMethod || "")) continue;
     const mode: StripeConnectMode = candidate.paymentMethod === "stripe_connect_live" ? "live" : "test";
-    await releaseExpiredStripePendingOrder({ mode, sessionId: candidate.stripeSessionId, stripeAccountId: candidate.stripeConnectedAccountId });
+    try {
+      const expired = await verifyStaleStripeCheckout({ orderId: candidate.id, storeId, mode, sessionId: candidate.stripeSessionId, stripeAccountId: candidate.stripeConnectedAccountId });
+      if (expired) await releaseExpiredStripePendingOrder({ mode, sessionId: candidate.stripeSessionId, stripeAccountId: candidate.stripeConnectedAccountId });
+    } catch (error) {
+      // Retrieval failure must retain the reservation; never treat it as an expiry.
+      console.warn("[checkout-stock] Stripe expiry could not be verified", { storeId, orderId: candidate.id, reason: error instanceof Error ? error.name : "UNKNOWN" });
+    }
   }
 }
 
