@@ -14,6 +14,8 @@ export type CheckoutShippingPolicy = {
   deliveryLeadTime: string;
   /** Public returns summary, never a refund or carrier workflow. */
   returnsSummary: string;
+  /** Whether customers may submit a return request from their order history. */
+  returnRequestsEnabled: boolean;
 };
 
 export type OwnerShippingCheckoutOverlay = {
@@ -23,6 +25,7 @@ export type OwnerShippingCheckoutOverlay = {
   servedCountries: string[];
   deliveryLeadTime: string;
   returnsSummary: string;
+  returnRequestsEnabled: boolean;
 };
 
 export type CheckoutShippingCalculation = {
@@ -42,6 +45,7 @@ export const DEFAULT_CHECKOUT_SHIPPING_POLICY: CheckoutShippingPolicy = {
   countryServed: true,
   deliveryLeadTime: "",
   returnsSummary: "",
+  returnRequestsEnabled: false,
 };
 
 const MAX_MONEY_CENTS = 10_000_000;
@@ -75,6 +79,7 @@ export function parseCheckoutShippingPolicy(settings: Array<{ key: string; value
     countryServed: true,
     deliveryLeadTime: "",
     returnsSummary: "",
+    returnRequestsEnabled: false,
   };
 }
 
@@ -104,6 +109,7 @@ export function resolveCheckoutShippingPolicy(
     countryServed: !ownerRuleConfigured || !requestedCountry || servedCountries.includes(requestedCountry),
     deliveryLeadTime: ownerRuleConfigured ? ownerRule!.deliveryLeadTime : "",
     returnsSummary: ownerRuleConfigured ? ownerRule!.returnsSummary : "",
+    returnRequestsEnabled: ownerRuleConfigured ? ownerRule!.returnRequestsEnabled : false,
   };
 }
 

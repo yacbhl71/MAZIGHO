@@ -72,7 +72,12 @@ function draftFromEntry(entry: any): CaseDraft {
   };
 }
 
-export default function OwnerReturnsCenter() {
+type OwnerReturnsCenterProps = {
+  returnRequestsEnabled: boolean;
+  onConfigureReturns: () => void;
+};
+
+export default function OwnerReturnsCenter({ returnRequestsEnabled, onConfigureReturns }: OwnerReturnsCenterProps) {
   const returns = trpc.owner.getReturnRequests.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [caseDrafts, setCaseDrafts] = useState<Record<number, CaseDraft>>({});
@@ -149,12 +154,14 @@ export default function OwnerReturnsCenter() {
       </CardContent>
     </Card>
 
+    {!returnRequestsEnabled && <Card className="border-amber-200 bg-amber-50"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-amber-950">Demandes de retour en ligne désactivées</p><p className="mt-1 max-w-2xl text-sm leading-6 text-amber-900">Le suivi des dossiers reste disponible, mais aucun client ne peut ouvrir une nouvelle demande tant que l’activation n’est pas enregistrée dans Livraison & retours.</p></div><Button type="button" className="min-h-11 shrink-0 bg-amber-700 hover:bg-amber-800" onClick={onConfigureReturns}>Configurer les retours</Button></CardContent></Card>}
+
     <Card className="border-violet-200 bg-violet-50/60">
       <CardHeader><CardTitle className="flex items-center gap-2 text-violet-950"><ClipboardCheck className="h-5 w-5 text-violet-700" /> Remboursements et litiges : procédure contrôlée</CardTitle><CardDescription className="mt-1 max-w-3xl text-violet-900">Pour les Direct Charges, la boutique est le vendeur. Elle décide, justifie et traite le remboursement ou la réponse au litige dans son propre compte Stripe ; MAZIGHO ne prélève, ne rembourse et ne conteste rien à sa place.</CardDescription></CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-2"><article className="rounded-xl border border-violet-200 bg-white p-4 text-sm leading-6 text-slate-700"><p className="font-semibold text-slate-950">Remboursement demandé par un client</p><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Vérifiez la commande, les conditions publiées et le dossier de retour.</li><li>Conservez la décision et les éléments utiles dans le dossier opérationnel de la boutique.</li><li>Le propriétaire exécute ensuite le remboursement dans Stripe pour son compte vendeur, après sa propre validation.</li><li>Actualisez le dossier seulement après confirmation dans Stripe et conservez la référence dans votre comptabilité.</li></ol></article><article className="rounded-xl border border-violet-200 bg-white p-4 text-sm leading-6 text-slate-700"><p className="font-semibold text-slate-950">Litige ou contestation de paiement</p><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Consultez l’alerte et l’échéance directement dans le compte du prestataire du vendeur.</li><li>Rassemblez les preuves pertinentes : commande, conditions acceptées, livraison, suivi et échanges autorisés.</li><li>Répondez dans le prestataire avant l’échéance et suivez la décision du réseau de paiement.</li><li>Documentez le résultat ici, sans copier de carte, de compte bancaire ou de données inutiles.</li></ol></article><div className="lg:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950"><p><strong>Limite volontaire :</strong> ce panneau conserve un dossier de suivi. Il ne déclenche aucun remboursement, aucune réponse au litige, aucun e-mail ni aucune écriture comptable.</p></div></CardContent>
     </Card>
 
-    {returns.isLoading ? <div className="h-72 animate-pulse rounded-2xl bg-slate-100" /> : returns.isError ? <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950">Les demandes de retour sont temporairement indisponibles. Aucun dossier n’a été modifié.</CardContent></Card> : entries.length === 0 ? <Card className="border-dashed border-slate-300"><CardContent className="flex min-h-52 flex-col items-center justify-center p-6 text-center"><RotateCcw className="h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold text-slate-900">Aucune demande de retour</p><p className="mt-1 max-w-md text-sm leading-6 text-slate-600">Les demandes clients apparaîtront ici avec leur sélection d’articles et leur historique.</p></CardContent></Card> : <div className="space-y-4">
+    {returns.isLoading ? <div className="h-72 animate-pulse rounded-2xl bg-slate-100" /> : returns.isError ? <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950">Les demandes de retour sont temporairement indisponibles. Aucun dossier n’a été modifié.</CardContent></Card> : entries.length === 0 ? <Card className="border-dashed border-slate-300"><CardContent className="flex min-h-52 flex-col items-center justify-center p-6 text-center"><RotateCcw className="h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold text-slate-900">Aucune demande de retour</p><p className="mt-1 max-w-md text-sm leading-6 text-slate-600">{returnRequestsEnabled ? "Les demandes clients apparaîtront ici avec leur sélection d’articles et leur historique." : "Activez les demandes de retour dans Livraison & retours lorsqu’une politique claire est prête à être publiée."}</p></CardContent></Card> : <div className="space-y-4">
       {entries.map(entry => {
         const presentation = statusPresentation[entry.status] || statusPresentation.requested;
         const note = notes[entry.id] || "";

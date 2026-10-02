@@ -87,6 +87,9 @@ export const shopRouter = router({
     getDetail: storefrontProtectedProcedure.input(z.number()).query(async ({ ctx, input }) => {
       return await db.getOrderDetail(ctx.user.id, input, ctx.store?.id);
     }),
+    getReturnRequestAvailability: storefrontProtectedProcedure.query(async ({ ctx }) => {
+      return await db.getStoreReturnRequestAvailability(ctx.store?.id);
+    }),
     requestReturn: storefrontProtectedProcedure.input(z.object({
       orderId: z.number().int().positive(),
       reason: z.string().trim().min(5).max(1000),
@@ -101,6 +104,7 @@ export const shopRouter = router({
         const code = error instanceof Error ? error.message : "";
         if (code === "ORDER_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Commande introuvable." });
         if (code === "ORDER_NOT_RETURNABLE") throw new TRPCError({ code: "BAD_REQUEST", message: "Cette commande ne peut pas faire l'objet d'un retour." });
+        if (code === "RETURN_REQUESTS_DISABLED") throw new TRPCError({ code: "BAD_REQUEST", message: "Les demandes de retour en ligne ne sont pas activées pour cette boutique." });
         if (code === "RETURN_ALREADY_OPEN") throw new TRPCError({ code: "CONFLICT", message: "Une demande de retour est déjà en cours pour cette commande." });
         if (code === "RETURN_ITEMS_INVALID" || code === "RETURN_ITEM_NOT_FOUND" || code === "RETURN_QUANTITY_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "La sélection d’articles à retourner est invalide." });
         throw error;

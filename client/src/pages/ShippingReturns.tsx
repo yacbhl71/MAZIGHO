@@ -29,6 +29,7 @@ export default function ShippingReturns() {
     formatPrice: amountCents => formatStorePrice(amountCents, locale),
   });
   const paymentEnabled = paymentAvailability.data?.enabled === true;
+  const returnRequestsEnabled = shippingPolicy.data?.returnRequestsEnabled === true;
 
   // A boutique that wrote its own shipping/returns page replaces the default
   // legal-profile-driven sections entirely.
@@ -42,6 +43,9 @@ export default function ShippingReturns() {
       >
         <section>
           <p className="mt-3 whitespace-pre-line">{storeReturns.body}</p>
+        </section>
+        <section className={returnRequestsEnabled ? "rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950" : "rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700"}>
+          {returnRequestsEnabled ? <>Les demandes de retour sont activées : après connexion, ouvrez <a className="font-semibold underline underline-offset-4" style={{ color: palette.primary }} href="/commandes">Mes commandes</a> pour sélectionner les articles concernés. La boutique vous répondra avec ses instructions.</> : <>Les demandes de retour en ligne ne sont pas activées pour cette boutique. Utilisez le contact indiqué dans ses conditions pour toute question.</>}
         </section>
       </LegalLayout>
     );
@@ -81,6 +85,9 @@ export default function ShippingReturns() {
         <h2 className="text-xl font-semibold text-slate-950">4. Retours</h2>
         <p className="mt-3">
           {shippingTerms.returns} Cette position ne limite pas les droits impératifs qui pourraient résulter du droit applicable lorsqu’un produit est défectueux ou ne correspond pas à ce qui a été convenu.
+        </p>
+        <p className={`mt-4 rounded-xl border p-4 text-sm leading-6 ${returnRequestsEnabled ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+          {returnRequestsEnabled ? <>Les demandes de retour sont activées : après connexion, ouvrez <a className="font-semibold underline underline-offset-4" style={{ color: palette.primary }} href="/commandes">Mes commandes</a> pour sélectionner les articles concernés. La boutique vous répondra ensuite avec ses instructions.</> : <>Les demandes de retour en ligne ne sont pas activées pour cette boutique. Pour toute question, utilisez le contact indiqué ci-dessous.</>}
         </p>
       </section>
 

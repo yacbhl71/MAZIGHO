@@ -11275,11 +11275,19 @@ function normalizeReturnSelections(items: ReturnSelection[]) {
   return quantities;
 }
 
+export async function getStoreReturnRequestAvailability(storeId?: number) {
+  const effectiveStoreId = storeId ?? await getPrimaryStoreId();
+  const settings = await getOwnerShippingReturnsSettings(effectiveStoreId);
+  return { enabled: settings.returnRequestsEnabled === true };
+}
+
 export async function createReturnRequest(input: { userId: number; orderId: number; reason: string; items: ReturnSelection[]; storeId?: number }) {
   await ensureStoreRelationshipScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
+  const returnAvailability = await getStoreReturnRequestAvailability(effectiveStoreId);
+  if (!returnAvailability.enabled) throw new Error("RETURN_REQUESTS_DISABLED");
   const selections = normalizeReturnSelections(input.items);
   const [order] = await db.select({ id: orders.id, userId: orders.userId, paymentStatus: orders.paymentStatus, status: orders.status })
     .from(orders)

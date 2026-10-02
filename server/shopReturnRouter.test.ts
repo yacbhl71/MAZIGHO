@@ -12,6 +12,7 @@ vi.mock("./db", () => ({
     return { id: 301 };
   }),
   getUserReturnRequests: vi.fn(async () => []),
+  getStoreReturnRequestAvailability: vi.fn(async () => ({ enabled: true })),
   getUserOrders: vi.fn(async () => []),
   getOrderDetail: vi.fn(async () => null),
   getStoreMaintenanceMode: vi.fn(async () => ({ enabled: false, title: "Retour bientôt", message: "La boutique est en pause." })),
@@ -49,6 +50,20 @@ describe("shop return requests", () => {
       storeId: 77,
     });
     expect(state.captured?.storeId).toBe(77);
+  });
+
+  it("reports the store-scoped return availability", async () => {
+    await expect(callerFor(77).shop.orders.getReturnRequestAvailability()).resolves.toEqual({ enabled: true });
+    expect(db.getStoreReturnRequestAvailability).toHaveBeenCalledWith(77);
+  });
+
+  it("refuses a return request when the resolved store has disabled the customer flow", async () => {
+    state.error = "RETURN_REQUESTS_DISABLED";
+    await expect(callerFor(77).shop.orders.requestReturn({
+      orderId: 42,
+      reason: "La boutique doit encore activer ce parcours.",
+      items: [{ orderItemId: 12, quantity: 1 }],
+    })).rejects.toMatchObject({ code: "BAD_REQUEST", message: "Les demandes de retour en ligne ne sont pas activées pour cette boutique." });
   });
 
   it("does not reveal a cross-store order as a valid return target", async () => {

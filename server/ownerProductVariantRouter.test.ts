@@ -40,7 +40,7 @@ vi.mock("./db", () => ({
   getStoreTaxPolicies: vi.fn(async () => [{ countryCode: "CH", displayMode: "included", notice: "Prix affichés taxes comprises." }]),
   saveStoreTaxPolicies: vi.fn(async (_storeId, input) => input),
   getCheckoutTaxDisclosure: vi.fn(async (storeId, countryCode) => ({ configured: true, storeId, countryCode, displayMode: "included", notice: "Prix affichés taxes comprises." })),
-  getOwnerShippingReturnsSettings: vi.fn(async () => ({ mode: "included", freeShippingThresholdCents: 0, flatShippingRateCents: 0, servedCountries: ["CH"], deliveryLeadTime: "2 à 4 jours", returnsSummary: "Retours sous 14 jours." })),
+  getOwnerShippingReturnsSettings: vi.fn(async () => ({ mode: "included", freeShippingThresholdCents: 0, flatShippingRateCents: 0, servedCountries: ["CH"], deliveryLeadTime: "2 à 4 jours", returnsSummary: "Retours sous 14 jours.", returnRequestsEnabled: false })),
   saveOwnerShippingReturnsSettings: vi.fn(async (_storeId, input) => input),
   getOwnerCommercialReadiness: vi.fn(async () => state.commercialReadiness),
   getOwnerPrivateCartSimulation: vi.fn(async (input) => ({ ...input, privateCartSimulation: true, persistedCart: false, paymentAvailable: false, orderCreated: false })),
@@ -509,6 +509,7 @@ describe("owner product variant routes", () => {
       servedCountries: ["ch", "fr"],
       deliveryLeadTime: "2 à 4 jours ouvrés",
       returnsSummary: "Retours sous 14 jours après réception.",
+      returnRequestsEnabled: true,
     };
 
     await expect(callerFor().owner.saveShippingReturnsSettings(input)).resolves.toMatchObject({
@@ -518,6 +519,7 @@ describe("owner product variant routes", () => {
     expect(db.saveOwnerShippingReturnsSettings).toHaveBeenCalledWith(77, expect.objectContaining({
       servedCountries: ["CH", "FR"],
       flatShippingRateCents: 650,
+      returnRequestsEnabled: true,
     }));
   });
 

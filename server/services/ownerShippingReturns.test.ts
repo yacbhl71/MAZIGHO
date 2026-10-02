@@ -19,6 +19,7 @@ describe("owner shipping and returns settings", () => {
       servedCountries: ["ch", "FR", "ch", "invalid-country"],
       deliveryLeadTime: "  2 à 4 jours ouvrables  ",
       returnsSummary: "  Retour sous 14 jours après réception.  ",
+      returnRequestsEnabled: true,
     });
 
     expect(settings).toEqual({
@@ -28,6 +29,7 @@ describe("owner shipping and returns settings", () => {
       servedCountries: ["CH", "FR"],
       deliveryLeadTime: "2 à 4 jours ouvrables",
       returnsSummary: "Retour sous 14 jours après réception.",
+      returnRequestsEnabled: true,
     });
     expect(describeShippingPreview(settings, "CHF")).toEqual({
       title: "Tarif fixe : 4.90 CHF",

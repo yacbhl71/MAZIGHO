@@ -7,6 +7,8 @@ export type OwnerShippingReturnsSettings = {
   servedCountries: string[];
   deliveryLeadTime: string;
   returnsSummary: string;
+  /** Enables customer-initiated return requests for this store only. */
+  returnRequestsEnabled: boolean;
 };
 
 export const DEFAULT_OWNER_SHIPPING_RETURNS_SETTINGS: OwnerShippingReturnsSettings = {
@@ -16,6 +18,7 @@ export const DEFAULT_OWNER_SHIPPING_RETURNS_SETTINGS: OwnerShippingReturnsSettin
   servedCountries: [],
   deliveryLeadTime: "",
   returnsSummary: "",
+  returnRequestsEnabled: false,
 };
 
 const MAX_MONEY_CENTS = 10_000_000;
@@ -52,6 +55,7 @@ export function normalizeOwnerShippingReturnsSettings(input: Partial<OwnerShippi
     servedCountries: normalizeCountries(input.servedCountries),
     deliveryLeadTime: normalizeText(input.deliveryLeadTime, 120),
     returnsSummary: normalizeText(input.returnsSummary, 1_500),
+    returnRequestsEnabled: input.returnRequestsEnabled === true,
   };
 }
 

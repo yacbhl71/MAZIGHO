@@ -560,9 +560,13 @@ const shippingReturnsSettings = z.object({
   servedCountries: z.array(z.string().trim().min(2).max(3).regex(/^[A-Za-z]{2,3}$/, "Utilisez un code pays de 2 ou 3 lettres.")).min(1, "Sélectionnez au moins un pays ou une zone.").max(25),
   deliveryLeadTime: z.string().trim().max(120),
   returnsSummary: z.string().trim().max(1_500),
+  returnRequestsEnabled: z.boolean(),
 }).superRefine((input, ctx) => {
   if (input.mode === "flat_rate" && input.flatShippingRateCents <= 0) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flatShippingRateCents"], message: "Indiquez un tarif fixe supérieur à zéro." });
+  }
+  if (input.returnRequestsEnabled && input.returnsSummary.trim().length < 10) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["returnsSummary"], message: "Décrivez la politique de retours avant d’activer les demandes en ligne." });
   }
   const normalizedCountries = input.servedCountries.map(country => country.toUpperCase());
   if (new Set(normalizedCountries).size !== normalizedCountries.length) {

@@ -47,6 +47,7 @@ export default function Orders() {
   const hasValidStripeSessionId = Boolean(stripeSessionId && /^cs_[A-Za-z0-9_]+$/.test(stripeSessionId));
   const ordersQuery = trpc.shop.orders.getMyOrders.useQuery(undefined, { enabled: Boolean(user) });
   const returnsQuery = trpc.shop.orders.getMyReturns.useQuery(undefined, { enabled: Boolean(user) });
+  const returnAvailability = trpc.shop.orders.getReturnRequestAvailability.useQuery(undefined, { enabled: Boolean(user), retry: false, refetchOnWindowFocus: false });
   const stripeCheckoutStatus = trpc.checkout.getSessionStatus.useQuery({ sessionId: stripeSessionId || "" }, { enabled: Boolean(user && hasValidStripeSessionId) });
   const [returnOrderId, setReturnOrderId] = useState<number | null>(null);
   const [receiptOrderId, setReceiptOrderId] = useState<number | null>(null);
@@ -120,7 +121,9 @@ export default function Orders() {
                 {orders.map(order => {
                   const status = STATUS[order.status] || { label: order.status, className: "bg-slate-100 text-slate-700" };
                   const existingReturn = returnByOrder.get(order.id);
-                  const canReturn = order.paymentStatus === "paid" && order.status !== "cancelled" && (!existingReturn || existingReturn.status === "rejected");
+                  const orderMayBeReturned = order.paymentStatus === "paid" && order.status !== "cancelled";
+                  const canReturn = returnAvailability.data?.enabled === true && orderMayBeReturned && (!existingReturn || existingReturn.status === "rejected");
+                  const returnsDisabled = returnAvailability.data?.enabled === false && orderMayBeReturned && !existingReturn;
                   return (
                     <Card key={order.id} className="border-slate-200" data-testid={`order-card-${order.id}`}>
                       <CardContent className="p-5">
@@ -145,11 +148,11 @@ export default function Orders() {
                         <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
                           <Button size="sm" variant="outline" onClick={() => setReceiptOrderId(order.id)} data-testid={`order-receipt-${order.id}`}><FileText className="mr-2 h-4 w-4" /> Récapitulatif</Button>
                         </div>
-                        {(existingReturn || canReturn) && (
+                        {(existingReturn || canReturn || returnsDisabled) && (
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                             {existingReturn ? (
                               <Badge className={`border-0 ${RETURN_STATUS[existingReturn.status].className}`}>{RETURN_STATUS[existingReturn.status].label}</Badge>
-                            ) : <span className="text-xs text-muted-foreground">Un souci avec cette commande ?</span>}
+                            ) : returnsDisabled ? <span className="text-xs text-muted-foreground">Les demandes de retour en ligne ne sont pas activées pour cette boutique. Contactez son assistance.</span> : <span className="text-xs text-muted-foreground">Un souci avec cette commande ?</span>}
                             {canReturn && (
                               <Button size="sm" variant="outline" onClick={() => { setReturnOrderId(order.id); setReason(""); setReturnQuantities({}); }} data-testid={`request-return-${order.id}`}>
                                 <RotateCcw className="mr-2 h-4 w-4" /> Demander un retour
