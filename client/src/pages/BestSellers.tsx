@@ -21,6 +21,7 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
 import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
+import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 
 export default function BestSellers() {
   const { locale } = useLocale();
@@ -39,6 +40,8 @@ export default function BestSellers() {
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const storefrontAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const commerceEnabled = storefrontAvailability.data?.commerceEnabled !== false;
+  const limitedShowcase = Boolean(storefrontAvailability.data?.publicStorefront && storefrontAvailability.data.commerceEnabled === false);
+  const limitedCopy = getLimitedStorefrontCopy(locale);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const products = (productsQuery.data || []).filter(product => getDeliveryProfileForCountry(product.deliveryProfiles, countryCode)).sort((a, b) => (b.reviews?.length || 0) - (a.reviews?.length || 0));
@@ -81,11 +84,11 @@ export default function BestSellers() {
             <div className="flex items-center gap-3 mb-4">
               <TrendingUp className="h-8 w-8 text-orange-500" />
               <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-                {copy.title}
+                {limitedShowcase ? limitedCopy.homeTitle : copy.title}
               </h1>
             </div>
             <p className="text-lg text-gray-600 max-w-2xl">
-              {copy.lead.replace("{country}", countryLabel)}
+              {limitedShowcase ? limitedCopy.homeText : copy.lead.replace("{country}", countryLabel)}
             </p>
           </div>
         </section>
@@ -93,7 +96,7 @@ export default function BestSellers() {
         {/* Products Grid */}
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            {productsQuery.isLoading ? (
+            {limitedShowcase ? <div className="border border-dashed border-[#d9cbbc] bg-[#fffaf5] px-6 py-12 text-center text-sm leading-6 text-slate-600">{limitedCopy.productsText}</div> : productsQuery.isLoading ? (
               <div className="flex justify-center py-20">
                 <Loader2 className="h-10 w-10 animate-spin text-orange-500" />
               </div>

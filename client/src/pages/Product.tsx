@@ -23,6 +23,7 @@ import { getProductPublicCopy } from "@/lib/productPublicCopy";
 import { getReviewFormCopy } from "@/lib/reviewFormCopy";
 import { isProductPurchasableForStorefront } from "@shared/storefrontProductVisibility";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
+import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 
 export default function Product() {
   const { key } = useParams<{ key?: string }>();
@@ -49,6 +50,8 @@ export default function Product() {
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
+  const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
+  const limitedCopy = getLimitedStorefrontCopy(locale);
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
   const deliveryProfile = getDeliveryProfileForCountry(product?.deliveryProfiles, countryCode);
@@ -269,7 +272,7 @@ export default function Product() {
               </div>
 
               {/* Price */}
-              <div className="space-y-2">
+              {limitedShowcase ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><p className="font-semibold">{limitedCopy.productPriceTitle}</p><p className="mt-1">{limitedCopy.productPriceText}</p></div> : <div className="space-y-2">
                 <div className="flex items-baseline gap-3">
                   <span className="text-4xl font-bold text-orange-500">
                     {formatPrice(effectivePrice, locale)}
@@ -285,7 +288,7 @@ export default function Product() {
                     {commerceT(locale, "save", { percent: Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) })}
                   </p>
                 )}
-              </div>
+              </div>}
 
 
               {/* Description */}
@@ -295,8 +298,10 @@ export default function Product() {
               />
 
               {/* Stock Status */}
-              <div className={`p-4 rounded-lg ${effectiveStock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-                {hasProductVariants && !selectedVariant ? (
+              <div className={`p-4 rounded-lg ${limitedShowcase ? "bg-sky-50 text-sky-900" : effectiveStock > 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                {limitedShowcase ? (
+                  <p className="font-semibold">{limitedCopy.productAvailability}</p>
+                ) : hasProductVariants && !selectedVariant ? (
                   <p className="font-semibold text-amber-800">Choisissez une variante pour voir son prix et son stock.</p>
                 ) : effectiveStock > 0 ? (
                   <p className="font-semibold">{commerceT(locale, "inStock", { count: effectiveStock })}</p>
@@ -409,7 +414,7 @@ export default function Product() {
                 >
                   <Share2 className="h-6 w-6" />
                 </Button>
-              </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Vitrine publique :</strong> ce produit est présenté à la découverte. Le panier, les commandes et le paiement seront activés séparément après la préparation commerciale.</div>}
+              </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>{limitedCopy.shopEyebrow} :</strong> {limitedCopy.productsText}</div>}
 
               {/* Store-owned product reassurance */}
               {profile.showProductReassurance && (
@@ -578,7 +583,7 @@ export default function Product() {
                             <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
                             <span>{(relatedProduct as any).averageRating || 0}</span>
                           </div>
-                          <div className="flex items-baseline gap-2">
+                          {!limitedShowcase && <div className="flex items-baseline gap-2">
                             <span className="text-lg font-bold text-orange-500">
                               {formatPrice(relatedProduct.price, locale)}
                             </span>
@@ -587,7 +592,7 @@ export default function Product() {
                                 {formatPrice(relatedProduct.originalPrice, locale)}
                               </span>
                             )}
-                          </div>
+                          </div>}
                         </div>
                       </CardContent>
                     </Card>

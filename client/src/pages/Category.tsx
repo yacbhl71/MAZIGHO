@@ -20,6 +20,7 @@ import { isProductPurchasableForStorefront, isProductVisibleForStorefront } from
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
 import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
+import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -51,6 +52,8 @@ export default function Category() {
   const categoryEmptyMessage = category?.emptyStateMessage?.trim() || (isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel }));
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
+  const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
+  const limitedCopy = getLimitedStorefrontCopy(locale);
   const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const catalogueFilters = useStorefrontCatalogueFiltering(products, { fixedCategoryId: categoryData ? String(categoryData.id) : undefined });
   const visibleProducts = catalogueFilters.visibleProducts;
@@ -169,12 +172,12 @@ export default function Category() {
             </div>
           </div>
         </section>
-        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{categoryNotice}</div>
+        <div className="border-b border-[#eadfd2] bg-white px-6 py-4 text-center text-sm text-slate-600">{limitedShowcase ? limitedCopy.productsText : categoryNotice}</div>
 
         {/* Products Grid */}
         <section className="py-16 md:py-24">
           <div className="container mx-auto px-4">
-            {products.length > 0 ? (
+            {limitedShowcase ? <div className="border border-dashed border-[#d9cbbc] bg-[#fffaf5] px-6 py-12 text-center text-sm leading-6 text-slate-600">{limitedCopy.productsText}</div> : products.length > 0 ? (
               <>
                 <div className="mb-6"><StorefrontCatalogueFilters products={products} categories={[]} categoryLabel={shopControls.categoryLabel} allCategoriesLabel={shopControls.allCategories} sortLabel={shopControls.sortLabel} sortOptions={[{ value: "featured", label: shopControls.sortFeatured }, { value: "newest", label: shopControls.sortNewest }, { value: "price-asc", label: shopControls.sortPriceAsc }, { value: "price-desc", label: shopControls.sortPriceDesc }]} value={catalogueFilters.value} onChange={catalogueFilters.setValue} formatPrice={cents => formatPrice(cents, locale)} primaryColor={palette.primary} hideCategory /></div>
                 {visibleProducts.length > 0 ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

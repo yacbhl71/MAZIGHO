@@ -15,6 +15,7 @@ import { t } from "@/lib/i18n";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
+import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 
 const optimizedBuiltInImageUrls: Record<string, string> = {
   "/assets/home-lifestyle-top.jpg": "/assets/home-lifestyle-top.webp",
@@ -100,6 +101,8 @@ export default function Home() {
   } as const;
 
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
+  const limitedCopy = getLimitedStorefrontCopy(locale);
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const featuredProducts = highlightedProducts.length ? highlightedProducts : catalogProducts.slice(0, 4);
@@ -256,16 +259,16 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.featured.eyebrow}</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.featured.title}</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{limitedShowcase ? limitedCopy.homeEyebrow : copy.featured.eyebrow}</p>
+                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{limitedShowcase ? limitedCopy.homeTitle : copy.featured.title}</h2>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{limitedShowcase ? limitedCopy.homeText : interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>
               </div>
               <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
-                {copy.featured.catalogue} <ArrowRight className="h-4 w-4" />
+                {limitedShowcase ? limitedCopy.catalogueLink : copy.featured.catalogue} <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
 
-            {featuredProducts.length > 0 ? (
+            {!limitedShowcase && featuredProducts.length > 0 ? (
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                 {featuredProducts.map((product) => {
                   const imageUrl = product.images?.[0]?.imageUrl;
@@ -300,7 +303,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm text-slate-500">{interpolatePublicCopy(copy.featured.unavailable, { country: countryLabel })}</div>
+              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm leading-6 text-slate-600">{limitedShowcase ? limitedCopy.productsText : interpolatePublicCopy(copy.featured.unavailable, { country: countryLabel })}</div>
             )}
           </div>
         </section>

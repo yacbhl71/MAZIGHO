@@ -14,6 +14,7 @@ import { t } from "@/lib/i18n";
 import { getCreativeMenuCopy, getPublicCopy } from "@/lib/publicCopy";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
+import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import ThemeToggle from "./ThemeToggle";
 import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
@@ -45,6 +46,7 @@ export default function Header() {
   const isPlatformStore = Boolean(storeAvailability.data?.isPlatformStore);
   const hasResolvedNonPlatformStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
+  const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
   const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
   const activeLanguages = marketSettings.data ? localeOptions.filter(option => marketSettings.data.activeLanguages.includes(option.code)) : localeOptions;
   // Do not briefly show fallback selectors before the boutique-specific market
@@ -101,7 +103,9 @@ export default function Header() {
   const rootNavigationItems = navigationItems.filter(item => !item.parentId);
   const getCustomNavigationChildren = (parentId: string) => customNavigationItems.filter(item => item.parentId === parentId);
   const isActive = (path: string) => location === path;
-  const announcementItems = (locale === "fr"
+  const announcementItems = (limitedShowcase
+    ? getLimitedStorefrontCopy(locale).announcements
+    : locale === "fr"
     ? profile.announcementItems
     : [t(locale, "topSelection"), t(locale, "topDelivery"), t(locale, "topQuote")]
   ).map(item => item.trim()).filter(Boolean);
