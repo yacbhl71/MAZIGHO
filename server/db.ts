@@ -61,6 +61,7 @@ import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile
 import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { createStoreCommissionOverride, parseStoreCommissionOverride, type StoreCommissionOverride } from "../shared/storeCommissionOverride";
+import { applyStoreQuotaOverride, createStoreQuotaOverride, parseStoreQuotaOverride, type StoreQuotaOverride, type StoreQuotaOverrideInput } from "../shared/storeQuotaOverride";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
@@ -3250,7 +3251,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
   };
   const [settingRows, checkoutResult, subscriptionResult] = await Promise.all([
     db.select({ storeId: storeSettings.storeId, key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
-      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment", "saas_dropshipping_exception", "saas_commission_override"]))),
+      .where(and(inArray(storeSettings.storeId, clientStoreIds), inArray(storeSettings.key, ["commercial_offer_mode", "saas_billing_profile", "saas_plan_assignment", "saas_dropshipping_exception", "saas_commission_override", "saas_quota_override"]))),
     readLemonCheckouts(),
     readLemonSubscriptions(),
   ]);
@@ -3275,6 +3276,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
     const billing = parseStoreSaasBillingProfile(values?.get("saas_billing_profile"));
     const planAssignment = parseStoreSaasPlanAssignment(values?.get("saas_plan_assignment"));
     const commissionOverride = parseStoreCommissionOverride(values?.get("saas_commission_override"));
+    const quotaOverride = parseStoreQuotaOverride(values?.get("saas_quota_override"));
     const commercialOfferMode = normalizeStoreCommercialOfferMode(values?.get("commercial_offer_mode"));
     const officialPlan = getMazighoSaasPlan(planAssignment?.planId);
     const dropshippingAccess = officialPlan?.id === "pro"
@@ -3301,6 +3303,7 @@ export async function getStudioSaasBillingDashboard(input: StudioSaasPortfolioQu
       billing,
       planAssignment,
       commissionOverride,
+      quotaOverride,
       dropshippingAccess,
       operatorReadiness: getStoreSaasBillingDraftReadiness({ commercialOfferMode, billing }),
       lemonSqueezy: {
@@ -3428,6 +3431,36 @@ export async function clearStudioStoreCommissionOverride(input: { storeId: numbe
     "Dérogation de commission Stripe Connect retirée par MAZIGHO Studio ; les futurs encaissements reviendront au taux officiel du plan, sans modifier les commandes existantes.",
   );
   return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, commissionOverride: null };
+}
+
+/**
+ * Stores a full, explicit capacity exception for one client boutique. The
+ * official offer remains intact; all quota gates resolve this record server-side.
+ */
+export async function setStudioStoreQuotaOverride(input: { storeId: number; confirmationName: string; quotas: StoreQuotaOverrideInput }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("QUOTA_OVERRIDE_CONFIRMATION_MISMATCH");
+  const quotaOverride = createStoreQuotaOverride(input.quotas);
+  await setStoreSettingValue(
+    store.id,
+    "saas_quota_override",
+    JSON.stringify(quotaOverride),
+    "Dérogation de capacités accordée manuellement par MAZIGHO Studio ; offre publique, commission, abonnement, paiement, facture, e-mail et statut de boutique inchangés.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, quotaOverride };
+}
+
+/** Removes a Studio capacity exception and restores the official plan allowances. */
+export async function clearStudioStoreQuotaOverride(input: { storeId: number; confirmationName: string }) {
+  const store = await getStudioClientStoreForBilling(input.storeId);
+  if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("QUOTA_OVERRIDE_CONFIRMATION_MISMATCH");
+  await setStoreSettingValue(
+    store.id,
+    "saas_quota_override",
+    "",
+    "Dérogation de capacités retirée par MAZIGHO Studio ; les prochains contrôles appliquent à nouveau les capacités du plan officiel, sans supprimer les données existantes.",
+  );
+  return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain }, quotaOverride: null };
 }
 
 /** Stores a non-binding SaaS plan draft after the commercial offer was explicitly selected. */
@@ -7264,6 +7297,19 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
   return parseStoreSaasPlanAssignment(row[0]?.value);
 }
 
+/** Returns the named Studio quota exception for one store without applying it. */
+export async function getStoreQuotaOverride(storeId: number): Promise<StoreQuotaOverride | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_quota_override"))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  return parseStoreQuotaOverride(row[0]?.value);
+}
+
 /**
  * Resolves the server-side allowance for one store. A client shop that has not
  * yet been manually assigned a plan receives the FREE allowance by default;
@@ -7272,18 +7318,23 @@ export async function getOwnerSaasPlanAssignment(storeId: number) {
 export async function getStoreSaasEntitlements(storeId: number): Promise<SaasPlanEntitlements> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const [store, assignment, dropshippingGrant] = await Promise.all([
+  const [store, assignment, dropshippingGrant, quotaOverride] = await Promise.all([
     db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
     db.select({ value: storeSettings.value }).from(storeSettings)
       .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_plan_assignment"))).limit(1),
     db.select({ value: storeSettings.value }).from(storeSettings)
       .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_dropshipping_exception"))).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, "saas_quota_override"))).limit(1),
   ]);
   if (!store[0]) throw new Error("STORE_NOT_FOUND");
   if (store[0].isPlatformStore) {
     return { ...getSaasPlanEntitlements("lifetime"), maxActiveProducts: null, maxTeamMembers: null };
   }
-  const entitlements = getSaasPlanEntitlements(parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId);
+  const entitlements = applyStoreQuotaOverride(
+    getSaasPlanEntitlements(parseStoreSaasPlanAssignment(assignment[0]?.value)?.planId),
+    parseStoreQuotaOverride(quotaOverride[0]?.value),
+  );
   const studioGrantEnabled = dropshippingGrant[0]?.value.trim() === "true";
   return studioGrantEnabled && !entitlements.dropshippingEnabled
     ? { ...entitlements, dropshippingEnabled: true }
@@ -7544,6 +7595,9 @@ export type StoreLemonSqueezyBillingStatus = {
   schemaReady: boolean;
   configuration: { enabled: boolean; mode: "test"; reason?: string };
   plan: { id: MazighoSaasPlanId; name: string; billable: boolean } | null;
+  /** Capacities actually enforced by the server for this specific boutique. */
+  entitlements: SaasPlanEntitlements;
+  quotaOverride: StoreQuotaOverride | null;
   checkout: { status: "created" | "paid" | "void"; createdAt: Date; paidAt: Date | null } | null;
   subscription: { status: LemonSqueezySubscriptionStatus; renewsAt: Date | null; endsAt: Date | null; activeAccess: boolean; updatedAt: Date } | null;
   billingAccess: "free_included" | "awaiting_checkout" | "active" | "past_due" | "inactive" | "not_assigned";
@@ -7562,7 +7616,11 @@ function lemonSchemaMissing(error: unknown) {
 export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promise<StoreLemonSqueezyBillingStatus> {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const assignment = await getOwnerSaasPlanAssignment(storeId);
+  const [assignment, entitlements, quotaOverride] = await Promise.all([
+    getOwnerSaasPlanAssignment(storeId),
+    getStoreSaasEntitlements(storeId),
+    getStoreQuotaOverride(storeId),
+  ]);
   const plan = getMazighoSaasPlan(assignment?.planId);
   const billablePlan = getLemonSqueezyBillablePlan(plan?.id);
   const configuration = getLemonSqueezyBillingConfiguration();
@@ -7570,6 +7628,8 @@ export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promis
     schemaReady: false,
     configuration: { enabled: configuration.enabled, mode: "test", reason: configuration.enabled ? undefined : configuration.reason },
     plan: plan ? { id: plan.id, name: plan.name, billable: Boolean(billablePlan) } : null,
+    entitlements,
+    quotaOverride,
     checkout: null,
     subscription: null,
     billingAccess: !plan ? "not_assigned" : plan.id === "free" ? "free_included" : "awaiting_checkout",
@@ -7605,6 +7665,8 @@ export async function getStoreLemonSqueezyBillingStatus(storeId: number): Promis
       schemaReady: true,
       configuration: { enabled: configuration.enabled, mode: "test", reason: configuration.enabled ? undefined : configuration.reason },
       plan: plan ? { id: plan.id, name: plan.name, billable: Boolean(billablePlan) } : null,
+      entitlements,
+      quotaOverride,
       checkout,
       subscription,
       billingAccess,

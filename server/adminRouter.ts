@@ -1513,6 +1513,61 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    setStoreQuotaOverride: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      quotas: z.object({
+        maxActiveProducts: z.number().int().positive().max(1_000_000).nullable(),
+        maxTeamMembers: z.number().int().positive().max(1_000).nullable(),
+        mediaQuotaBytes: z.number().int().positive().max(100 * 1024 * 1024 * 1024),
+        monthlyAiRequests: z.number().int().positive().max(100_000),
+        maxWorkspaceDocuments: z.number().int().positive().max(10_000),
+        maxWorkspaceTemplates: z.number().int().positive().max(10_000),
+      }),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.setStudioStoreQuotaOverride(input);
+        logAudit(ctx, {
+          action: "studio.store.quota_override.save",
+          entityType: "store",
+          entityId: result.store.id,
+          summary: "Dérogation de capacités enregistrée pour cette boutique.",
+          metadata: { quotaOverride: true, officialPlanChanged: false, paymentCreated: false, invoiceCreated: false, emailSent: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal dispose déjà de ses capacités opérateur et ne fait pas partie du portefeuille SaaS client." });
+        if (code === "QUOTA_OVERRIDE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de modifier ses capacités." });
+        if (code === "STORE_QUOTA_OVERRIDE_INVALID") throw new TRPCError({ code: "BAD_REQUEST", message: "Les capacités indiquées ne sont pas valides." });
+        throw error;
+      }
+    }),
+    clearStoreQuotaOverride: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const result = await db.clearStudioStoreQuotaOverride(input);
+        logAudit(ctx, {
+          action: "studio.store.quota_override.clear",
+          entityType: "store",
+          entityId: result.store.id,
+          summary: "Dérogation de capacités retirée ; le plan officiel redevient la référence.",
+          metadata: { quotaOverrideRemoved: true, officialPlanChanged: false, paymentCreated: false, invoiceCreated: false, emailSent: false },
+        });
+        return result;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "MAZIGHO principal ne fait pas partie du portefeuille SaaS client." });
+        if (code === "QUOTA_OVERRIDE_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant de retirer sa dérogation." });
+        throw error;
+      }
+    }),
     clearStoreSaasPlanAssignment: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),

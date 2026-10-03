@@ -56,6 +56,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.setStoreDropshippingAccess({ storeId: 1, confirmationName: "Boutique cliente", enabled: true, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.setStoreCommissionOverride({ storeId: 1, confirmationName: "Boutique cliente", commissionRateBps: 0, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.clearStoreCommissionOverride({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.setStoreQuotaOverride({ storeId: 1, confirmationName: "Boutique cliente", quotas: { maxActiveProducts: null, maxTeamMembers: 10, mediaQuotaBytes: 1024 * 1024 * 1024, monthlyAiRequests: 1000, maxWorkspaceDocuments: 100, maxWorkspaceTemplates: 50 }, acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.clearStoreQuotaOverride({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.clearStoreSaasPlanAssignment({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreSupportTickets()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateStoreSupportTicket({ storeId: 1, ticketId: "supportticket123", status: "reviewing", operatorReply: "Nous regardons." })).rejects.toMatchObject({ code: "FORBIDDEN" });
