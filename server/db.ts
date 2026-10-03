@@ -2884,9 +2884,11 @@ export async function getFirstActiveOwnerStoreForUser(userId: number) {
 }
 
 /**
- * Returns only client boutiques carrying an active store-scoped membership for
- * the signed-in user. The query is independent of the active host, so a user
- * can switch their own boutiques without seeing another tenant or the Studio.
+ * Returns only boutiques carrying an active store-scoped membership for the
+ * signed-in user. The query is independent of the active host, so a user can
+ * switch their own boutiques without seeing another tenant or the Studio.
+ * The public MAZIGHO boutique is included only when this exact user already
+ * owns or manages it; MAZIGHO Studio itself is never a switchable boutique.
  */
 export async function getOwnerStoreSwitcherOptionsForUser(userId: number) {
   if (!Number.isInteger(userId) || userId <= 0) return [];
@@ -2903,7 +2905,7 @@ export async function getOwnerStoreSwitcherOptionsForUser(userId: number) {
     })
     .from(storeMemberships)
     .innerJoin(stores, eq(stores.id, storeMemberships.storeId))
-    .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.status, "active"), inArray(storeMemberships.role, ["owner", "manager"]), eq(stores.isPlatformStore, 0)))
+    .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.status, "active"), inArray(storeMemberships.role, ["owner", "manager"])))
     .orderBy(asc(stores.displayName));
 }
 
