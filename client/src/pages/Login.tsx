@@ -22,7 +22,7 @@ export default function Login() {
   const { profile, palette } = useDesignProfile(locale);
   const brandName = getStorefrontBrandName(profile);
   const copy = withStorefrontBrand( getAuthCopy(locale), brandName);
-  const params = new URLSearchParams(location.split("?")[1] || "");
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : location.split("?")[1] || "");
   const storeProjectIntent = params.get("intent") === "boutique";
   const candidateReturn = params.get("returnTo") || "";
   const setupOwnerReturnTo = getSafeSetupOwnerPanelReturnTo(candidateReturn);
