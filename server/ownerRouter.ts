@@ -15,6 +15,7 @@ import { createOwnerLemonSqueezyBillingCheckout } from "./lemonSqueezyCheckout";
 import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
+import { buildStripeConnectV2AccountParams } from "./services/stripeConnectAccountsV2";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 import { invokeLLM } from "./_core/llm";
@@ -200,33 +201,47 @@ async function createStripeConnectOnboardingForStore(input: {
   const existing = await db.getStoreStripeConnectSetup(input.storeId, input.mode);
   if (!existing.plan) throw new Error("STRIPE_CONNECT_PLAN_MISSING");
   if (!existing.schemaReady) throw new Error("STRIPE_CONNECT_SCHEMA_MISSING");
-  const account = existing.account
-    ? await stripe.accounts.retrieve(existing.account.accountId)
-    : await stripe.accounts.create({
-      type: "express",
-      country: input.countryCode,
-      email: input.ownerEmail || undefined,
-      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-      metadata: { mazigho_store_id: String(input.storeId), mazigho_mode: input.mode },
+  let accountId: string;
+  if (existing.account) {
+    const account = await stripe.accounts.retrieve(existing.account.accountId);
+    accountId = account.id;
+    await db.saveStoreStripeConnectAccount({
+      storeId: input.storeId,
+      mode: input.mode,
+      stripeAccountId: account.id,
+      status: stripeConnectAccountStatus(account),
+      onboardingComplete: Boolean(account.details_submitted),
+      chargesEnabled: Boolean(account.charges_enabled),
+      payoutsEnabled: Boolean(account.payouts_enabled),
+      detailsSubmitted: Boolean(account.details_submitted),
     });
-  await db.saveStoreStripeConnectAccount({
-    storeId: input.storeId,
-    mode: input.mode,
-    stripeAccountId: account.id,
-    status: stripeConnectAccountStatus(account),
-    onboardingComplete: Boolean(account.details_submitted),
-    chargesEnabled: Boolean(account.charges_enabled),
-    payoutsEnabled: Boolean(account.payouts_enabled),
-    detailsSubmitted: Boolean(account.details_submitted),
-  });
+  } else {
+    const account = await stripe.v2.core.accounts.create(buildStripeConnectV2AccountParams(input));
+    accountId = account.id;
+    await db.saveStoreStripeConnectAccount({
+      storeId: input.storeId,
+      mode: input.mode,
+      stripeAccountId: account.id,
+      status: "created",
+      onboardingComplete: false,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+    });
+  }
   const origin = storePanelOrigin(input.primaryDomain);
-  const link = await stripe.accountLinks.create({
-    account: account.id,
-    refresh_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_refresh`,
-    return_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_return`,
-    type: "account_onboarding",
+  const link = await stripe.v2.core.accountLinks.create({
+    account: accountId,
+    use_case: {
+      type: "account_onboarding",
+      account_onboarding: {
+        configurations: ["merchant"],
+        refresh_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_refresh`,
+        return_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_return`,
+      },
+    },
   });
-  return { onboardingUrl: link.url, accountId: account.id, mode: input.mode };
+  return { onboardingUrl: link.url, accountId, mode: input.mode };
 }
 
 async function refreshStripeConnectSetupForStore(input: { mode: StripeConnectMode; storeId: number }) {
@@ -1669,6 +1684,7 @@ export const ownerRouter = router({
       if (error instanceof Error && error.message === "STRIPE_CONNECT_TEST_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe Connect Test n’est pas configuré par MAZIGHO Studio." });
       if (error instanceof Error && error.message === "STRIPE_CONNECT_PLAN_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "MAZIGHO Studio doit d’abord attribuer l’offre BASIC, PRO ou LIFETIME à cette boutique." });
       if (error instanceof Error && error.message === "STRIPE_CONNECT_SCHEMA_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La migration Stripe Connect doit être appliquée avant de créer un compte connecté." });
+      if (error instanceof Error && error.message === "STRIPE_CONNECT_OWNER_EMAIL_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ajoutez une adresse e-mail au compte propriétaire avant de préparer Stripe Connect." });
       console.error("Stripe Connect onboarding error", error);
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le lien Stripe Connect n’a pas pu être créé. Aucun paiement n’a été activé." });
     }
@@ -1695,6 +1711,7 @@ export const ownerRouter = router({
       if (error instanceof Error && error.message === "STRIPE_CONNECT_LIVE_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La configuration Stripe Production dédiée n’est pas encore active. Aucun compte de production n’a été créé." });
       if (error instanceof Error && error.message === "STRIPE_CONNECT_PLAN_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "MAZIGHO Studio doit d’abord attribuer l’offre BASIC, PRO ou LIFETIME à cette boutique." });
       if (error instanceof Error && error.message === "STRIPE_CONNECT_SCHEMA_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "La migration Stripe Production doit être appliquée avant de créer un compte connecté." });
+      if (error instanceof Error && error.message === "STRIPE_CONNECT_OWNER_EMAIL_MISSING") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Ajoutez une adresse e-mail au compte propriétaire avant de préparer Stripe Connect Production." });
       console.error("Stripe Connect Production onboarding error", error);
       throw new TRPCError({ code: "BAD_GATEWAY", message: "Le lien Stripe Production n’a pas pu être préparé. Aucun encaissement réel n’a été créé." });
     }
