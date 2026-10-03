@@ -8,6 +8,7 @@ import { Analytics } from "@vercel/analytics/react";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import { getSetupStoreIdFromSearch, setupStoreAccessHeader } from "@shared/setupStoreOwnerAccess";
+import { recoverFromStaleDynamicImport } from "@/lib/dynamicImportRecovery";
 import "./index.css";
 
 // Nettoyage de compatibilité : ces clés appartenaient à l’ancien prototype local
@@ -15,6 +16,14 @@ import "./index.css";
 if (typeof window !== "undefined") {
   window.localStorage.removeItem("mazigho_current_user");
   window.localStorage.removeItem("mazigho_users");
+
+  window.addEventListener("unhandledrejection", event => {
+    if (recoverFromStaleDynamicImport(event.reason)) event.preventDefault();
+  });
+
+  window.addEventListener("error", event => {
+    if (recoverFromStaleDynamicImport(event.error || event.message)) event.preventDefault();
+  });
 }
 
 const queryClient = new QueryClient();
