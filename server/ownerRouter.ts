@@ -593,12 +593,19 @@ const productFields = z.object({
   description: z.string().trim().max(2000).optional(),
   longDescription: z.string().trim().max(10000).optional(),
   price: z.number().int().min(0).max(10_000_000),
+  originalPrice: z.number().int().min(0).max(10_000_000).nullable().optional(),
   stock: z.number().int().min(0).max(1_000_000),
   featured: z.number().int().min(0).max(1),
   status: z.enum(["active", "draft", "archived"]),
   images: z.array(visualUrl).max(12).default([]),
   options: z.string().trim().max(20000).optional(),
 });
+
+function assertOwnerProductPromotion(input: { price?: number; originalPrice?: number | null }) {
+  if (input.originalPrice != null && input.price != null && input.originalPrice <= input.price) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Le prix barré doit être strictement supérieur au prix de vente." });
+  }
+}
 
 export const ownerProductVariantFields = z.object({
   label: z.string().trim().min(1, "Indiquez le libellé de la variante.").max(160),
@@ -1854,7 +1861,8 @@ export const ownerRouter = router({
   }),
   createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {
     try {
-      return await db.createProduct({ ...input, originalPrice: undefined }, ctx.store!.id);
+      assertOwnerProductPromotion(input);
+      return await db.createProduct(input, ctx.store!.id);
     } catch (error) {
       if (error instanceof Error && error.message === "SAAS_ACTIVE_PRODUCT_LIMIT_REACHED") {
         throw new TRPCError({ code: "FORBIDDEN", message: "La limite de produits actifs de votre plan est atteinte. Archivez un produit ou passez à une offre adaptée." });
@@ -1865,6 +1873,7 @@ export const ownerRouter = router({
   updateProduct: storeManagementProcedure.input(productFields.extend({ id: z.number().int().positive() }).partial({ categoryId: true, name: true, slug: true, price: true, stock: true, featured: true, status: true, images: true })).mutation(async ({ ctx, input }) => {
     const { id, ...changes } = input;
     try {
+      assertOwnerProductPromotion(changes);
       return await db.updateProduct(id, changes, ctx.store!.id);
     } catch (error) {
       if (error instanceof Error && error.message === "SAAS_ACTIVE_PRODUCT_LIMIT_REACHED") {

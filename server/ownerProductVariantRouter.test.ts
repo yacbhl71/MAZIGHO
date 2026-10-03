@@ -382,6 +382,15 @@ describe("owner product variant routes", () => {
     expect(db.updateProduct).toHaveBeenCalledWith(108, expect.objectContaining({ categoryId: 42, categoryIds: [42, 41] }), 77);
   });
 
+  it("stores a crossed-out price only when it is above the sale price", async () => {
+    const caller = callerFor();
+    const product = { categoryId: 41, name: "Affiche illustrée", slug: "affiche-illustree", description: "Une affiche colorée.", longDescription: "Une affiche illustrée pour la décoration.", price: 2490, originalPrice: 3290, stock: 8, featured: 1, status: "active" as const, images: [], options: "" };
+
+    await expect(caller.owner.createProduct(product)).resolves.toEqual({ id: 108 });
+    expect(db.createProduct).toHaveBeenCalledWith(expect.objectContaining({ price: 2490, originalPrice: 3290 }), 77);
+    await expect(caller.owner.updateProduct({ id: 108, price: 2490, originalPrice: 2490 })).rejects.toMatchObject({ code: "BAD_REQUEST", message: expect.stringContaining("prix barré") });
+  });
+
   it("keeps custom menu nesting scoped, visible, and one level deep", async () => {
     const items = [
       { id: "home", label: "Accueil", href: "/", visible: true, kind: "system" as const },

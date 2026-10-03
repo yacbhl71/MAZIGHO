@@ -31,11 +31,11 @@ export default function OwnerProductPublicationGuide({ product, brandName, prima
       </div>
     </div>
 
-    <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,.9fr)]">
-      <div className="grid gap-2 sm:grid-cols-2">
-        {readiness.checks.map(check => <div key={check.id} className={`flex min-h-12 items-start gap-2 rounded-xl border p-3 text-xs leading-5 ${check.complete ? "border-emerald-200 bg-white text-emerald-950" : "border-slate-200 bg-white/70 text-slate-700"}`}>
+    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,.85fr)]">
+      <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,11rem),1fr))]">
+        {readiness.checks.map(check => <div key={check.id} className={`flex min-h-16 items-start gap-2 rounded-xl border p-3 text-xs leading-5 ${check.complete ? "border-emerald-200 bg-white text-emerald-950" : "border-slate-200 bg-white/70 text-slate-700"}`}>
           {check.complete ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />}
-          <span><strong className="block text-sm">{check.label}</strong>{check.complete ? "Prêt." : check.recommendation}</span>
+          <span className="min-w-0"><strong className="block text-sm">{check.label}</strong>{check.complete ? "Prêt." : check.recommendation}</span>
         </div>)}
       </div>
 
