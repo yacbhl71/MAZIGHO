@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSetupOwnerPanelPath, getSetupStoreIdFromSearch, isPrivateSetupOwnerPanelPath, parseSetupStoreId } from "../shared/setupStoreOwnerAccess";
+import { getSafeSetupOwnerPanelReturnTo, getSetupOwnerPanelPath, getSetupStoreIdFromSearch, isPrivateSetupOwnerPanelPath, parseSetupStoreId } from "../shared/setupStoreOwnerAccess";
 
 describe("setup store owner access", () => {
   it("accepts one bounded positive store identifier", () => {
@@ -25,5 +25,13 @@ describe("setup store owner access", () => {
     expect(isPrivateSetupOwnerPanelPath("/gestion-boutique", "?preparation=3150005")).toBe(true);
     expect(isPrivateSetupOwnerPanelPath("/gestion-boutique", "?preparation=abc")).toBe(false);
     expect(isPrivateSetupOwnerPanelPath("/boutique", "?preparation=3150005")).toBe(false);
+  });
+
+  it("preserves only a safe setup owner panel as an authentication return path", () => {
+    expect(getSafeSetupOwnerPanelReturnTo("/gestion-boutique?preparation=3150005&stripe_connect=test_return"))
+      .toBe("/gestion-boutique?preparation=3150005&stripe_connect=test_return");
+    expect(getSafeSetupOwnerPanelReturnTo("https://evil.example/gestion-boutique?preparation=3150005")).toBeNull();
+    expect(getSafeSetupOwnerPanelReturnTo("//evil.example")).toBeNull();
+    expect(getSafeSetupOwnerPanelReturnTo("/gestion-boutique?preparation=invalid")).toBeNull();
   });
 });

@@ -26,3 +26,19 @@ export function getSetupOwnerPanelPath(storeId: number): string {
 export function isPrivateSetupOwnerPanelPath(pathname: string, search: string): boolean {
   return pathname === "/gestion-boutique" && getSetupStoreIdFromSearch(search) !== null;
 }
+
+/**
+ * Accept only a same-origin owner-panel path as an authentication return
+ * target. The preparation id is a routing hint; membership remains enforced
+ * by the server once the panel is reached.
+ */
+export function getSafeSetupOwnerPanelReturnTo(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const candidate = value.trim();
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) return null;
+
+  const parsed = new URL(candidate, "https://mazigho.invalid");
+  if (parsed.origin !== "https://mazigho.invalid") return null;
+  if (!isPrivateSetupOwnerPanelPath(parsed.pathname, parsed.search)) return null;
+  return `${parsed.pathname}${parsed.search}`;
+}

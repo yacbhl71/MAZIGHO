@@ -395,7 +395,7 @@ function Router() {
   // A setup boutique stays unavailable to the public. Its authenticated owner
   // may nevertheless reach the isolated management panel through the explicit
   // preparation hint; server-side membership guards still enforce access.
-  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding && !isStudioHost) {
+  if (!storefrontAvailabilityQuery.data?.publicStorefront && !isPrivateSetupOwnerPanel && !isSupportImpersonating && !isPublicSaasLanding && !isStudioHost && !(isPrimaryMazighoHost && isExemptPath)) {
     return <StorefrontUnavailablePage />;
   }
 
