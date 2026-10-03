@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, Menu, Search, Settings2, X } from "lucide-react";
+import { ExternalLink, Menu, Search, Settings2, Store, X } from "lucide-react";
 import { moveOwnerSearchSelection, resolveOwnerMenuTarget, searchOwnerWorkspace, type OwnerAdminTarget, type OwnerCatalogueItem, type OwnerMenuItem, type OwnerModule } from "@/lib/ownerAdminNavigation";
 
 type Props = {
@@ -10,11 +10,13 @@ type Props = {
   products: OwnerCatalogueItem[];
   modules: Array<{ id: OwnerModule; title: string; description: string }>;
   publicUrl?: string;
+  storeSwitcherAvailable?: boolean;
+  onOpenStoreSwitcher?: () => void;
   onSelect: (target: OwnerAdminTarget) => void;
 };
 const systemLabels: Record<string, string> = { home: "Accueil", shop: "Boutique", categories: "Catégories", creations: "Créations", new: "Nouveautés", "best-sellers": "Best-sellers", promos: "Promos", contact: "Contact" };
 
-export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, categories, products, modules, publicUrl, onSelect }: Props) {
+export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, categories, products, modules, publicUrl, storeSwitcherAvailable, onOpenStoreSwitcher, onSelect }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -99,9 +101,10 @@ export default function OwnerWorkspaceHeader({ brandName, logoUrl, menuItems, ca
         </div>}
       </div>
       <button type="button" onClick={() => choose({ module: "navigation" })} aria-label="Modifier le menu de la boutique" title="Modifier le menu" className="hidden min-h-11 min-w-11 place-items-center rounded-xl text-teal-800 hover:bg-teal-50 sm:grid"><Settings2 className="h-5 w-5" /></button>
+      {storeSwitcherAvailable && <button type="button" onClick={onOpenStoreSwitcher} aria-label="Ouvrir mes boutiques" title="Mes boutiques" className="hidden min-h-11 min-w-11 place-items-center rounded-xl text-teal-800 hover:bg-teal-50 sm:grid"><Store className="h-5 w-5" /></button>}
       {publicUrl && <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="hidden min-h-11 items-center gap-1 rounded-xl border border-teal-200 px-3 text-xs font-semibold text-teal-900 hover:bg-teal-50 2xl:inline-flex">Voir la vitrine <ExternalLink className="h-3.5 w-3.5" /></a>}
       <button type="button" aria-expanded={menuOpen} aria-label={menuOpen ? "Fermer les onglets" : "Ouvrir les onglets"} onClick={() => setMenuOpen(!menuOpen)} className="grid min-h-11 min-w-11 place-items-center rounded-xl border border-teal-100 text-teal-900 xl:hidden">{menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}</button>
     </div>
-    {menuOpen && <nav className="max-h-[60vh] overflow-y-auto border-t border-teal-100 bg-white px-4 pb-3 pt-2 xl:hidden" aria-label="Édition des onglets sur tablette et téléphone">{rootItems.map(item => renderItem(item, true))}<button type="button" onClick={() => choose({ module: "navigation" })} className="mt-2 min-h-11 w-full rounded-lg bg-teal-50 px-3 text-left text-sm font-semibold text-teal-900">Modifier le menu et les sous-menus</button>{publicUrl && <a href={publicUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)} className="mt-2 flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-teal-800">Voir la vitrine publique <ExternalLink className="h-4 w-4" /></a>}</nav>}
+    {menuOpen && <nav className="max-h-[60vh] overflow-y-auto border-t border-teal-100 bg-white px-4 pb-3 pt-2 xl:hidden" aria-label="Édition des onglets sur tablette et téléphone">{rootItems.map(item => renderItem(item, true))}<button type="button" onClick={() => choose({ module: "navigation" })} className="mt-2 min-h-11 w-full rounded-lg bg-teal-50 px-3 text-left text-sm font-semibold text-teal-900">Modifier le menu et les sous-menus</button>{storeSwitcherAvailable && <button type="button" onClick={() => { onOpenStoreSwitcher?.(); setMenuOpen(false); }} className="mt-2 flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-teal-800"><Store className="h-4 w-4" /> Mes boutiques</button>}{publicUrl && <a href={publicUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMenuOpen(false)} className="mt-2 flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-teal-800">Voir la vitrine publique <ExternalLink className="h-4 w-4" /></a>}</nav>}
   </header>;
 }

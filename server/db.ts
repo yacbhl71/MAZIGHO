@@ -2883,6 +2883,30 @@ export async function getFirstActiveOwnerStoreForUser(userId: number) {
   return rows[0] ?? null;
 }
 
+/**
+ * Returns only client boutiques carrying an active store-scoped membership for
+ * the signed-in user. The query is independent of the active host, so a user
+ * can switch their own boutiques without seeing another tenant or the Studio.
+ */
+export async function getOwnerStoreSwitcherOptionsForUser(userId: number) {
+  if (!Number.isInteger(userId) || userId <= 0) return [];
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  return await db
+    .select({
+      id: stores.id,
+      displayName: stores.displayName,
+      primaryDomain: stores.primaryDomain,
+      status: stores.status,
+      role: storeMemberships.role,
+    })
+    .from(storeMemberships)
+    .innerJoin(stores, eq(stores.id, storeMemberships.storeId))
+    .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.status, "active"), inArray(storeMemberships.role, ["owner", "manager"]), eq(stores.isPlatformStore, 0)))
+    .orderBy(asc(stores.displayName));
+}
+
 export async function getStoreMembershipForUser(storeId: number, userId: number) {
   await ensureMultiStoreSchema();
   const db = await getDb();

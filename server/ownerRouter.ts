@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import Stripe from "stripe";
-import { router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
+import { protectedProcedure, router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
 import { getAccountInvitationLink, sendStudioSupportTicketAlert } from "./transactionalEmail";
@@ -639,6 +639,9 @@ const ownerPrivateCartSimulation = z.object({
 });
 
 export const ownerRouter = router({
+  getStoreSwitcherOptions: protectedProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerStoreSwitcherOptionsForUser(ctx.user.id);
+  }),
   getWorkspace: storeManagementProcedure.query(async ({ ctx }) => {
     const storeId = ctx.store!.id;
     const isPrimaryPlatformAdmin = Boolean(ctx.store!.isPlatformStore && ctx.user.role === "admin");

@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
 
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
+  getOwnerStoreSwitcherOptionsForUser: vi.fn(async () => [
+    { id: 77, displayName: "Boutique test", primaryDomain: "boutique.test", status: "active", role: "owner" },
+    { id: 78, displayName: "Atelier de recette", primaryDomain: "atelier.test", status: "setup", role: "manager" },
+  ]),
   getStoreTeamMembers: vi.fn(async () => state.team),
   getStoreMarketSettings: vi.fn(async () => state.markets),
   saveStoreMarketSettings: vi.fn(async (_storeId, input) => input),
@@ -144,6 +148,14 @@ describe("owner product variant routes", () => {
       variant: { label: "Sauge · L", sku: "SAUGE-L", priceAdjustmentCents: 0, stock: 4, status: "active" },
     })).resolves.toEqual({ id: 6 });
     expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", stock: 4 }), 77);
+  });
+
+  it("lists only the connected user’s active management boutiques for the switcher", async () => {
+    await expect(callerFor().owner.getStoreSwitcherOptions()).resolves.toEqual([
+      { id: 77, displayName: "Boutique test", primaryDomain: "boutique.test", status: "active", role: "owner" },
+      { id: 78, displayName: "Atelier de recette", primaryDomain: "atelier.test", status: "setup", role: "manager" },
+    ]);
+    expect(db.getOwnerStoreSwitcherOptionsForUser).toHaveBeenCalledWith(7);
   });
 
   it("reads the variant stock overview only through the current resolved store", async () => {
