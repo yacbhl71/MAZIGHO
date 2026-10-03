@@ -16,6 +16,7 @@ import { formatSaasMediaQuota } from "../shared/saasEntitlements";
 import { storefrontThemeIds } from "../shared/storefrontThemeCatalog";
 import { getStripeConnectCredentials, type StripeConnectMode } from "./services/stripeConnectMode";
 import { buildStripeConnectV2AccountParams } from "./services/stripeConnectAccountsV2";
+import { getStripeConnectOnboardingReturnUrls } from "./services/stripeConnectOnboardingReturnUrls";
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternalCaseTypes } from "./services/returnExternalCase";
 import { invokeLLM } from "./_core/llm";
@@ -183,17 +184,12 @@ function stripeConnectAccountStatus(account: Stripe.Account): "created" | "onboa
   return account.details_submitted ? "onboarding" : "created";
 }
 
-function storePanelOrigin(domain: string) {
-  const normalized = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
-  if (!normalized || !/^[a-z0-9.-]+$/i.test(normalized)) throw new Error("STORE_DOMAIN_INVALID");
-  return `https://${normalized}`;
-}
-
 async function createStripeConnectOnboardingForStore(input: {
   mode: StripeConnectMode;
   storeId: number;
   ownerEmail: string | null | undefined;
   primaryDomain: string;
+  storeStatus: string;
   countryCode: (typeof storefrontCountryCodes)[number];
 }) {
   const stripe = getStripeConnectClient(input.mode);
@@ -229,15 +225,15 @@ async function createStripeConnectOnboardingForStore(input: {
       detailsSubmitted: false,
     });
   }
-  const origin = storePanelOrigin(input.primaryDomain);
+  const returnUrls = getStripeConnectOnboardingReturnUrls(input);
   const link = await stripe.v2.core.accountLinks.create({
     account: accountId,
     use_case: {
       type: "account_onboarding",
       account_onboarding: {
         configurations: ["merchant"],
-        refresh_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_refresh`,
-        return_url: `${origin}/gestion-boutique?stripe_connect=${input.mode}_return`,
+        refresh_url: returnUrls.refreshUrl,
+        return_url: returnUrls.returnUrl,
       },
     },
   });
@@ -1677,6 +1673,7 @@ export const ownerRouter = router({
         storeId: ctx.store!.id,
         ownerEmail: ctx.user.email,
         primaryDomain: ctx.store!.primaryDomain,
+        storeStatus: ctx.store!.status,
         countryCode: input.countryCode,
       });
     } catch (error) {
@@ -1705,6 +1702,7 @@ export const ownerRouter = router({
         storeId: ctx.store!.id,
         ownerEmail: ctx.user.email,
         primaryDomain: ctx.store!.primaryDomain,
+        storeStatus: ctx.store!.status,
         countryCode: input.countryCode,
       });
     } catch (error) {
