@@ -156,7 +156,7 @@ export default function Header() {
         <div className={`relative flex items-center gap-2 xl:gap-3 ${usesGalleryHeader ? "xl:min-h-12 xl:justify-between" : ""}`}>
           {/* Logo */}
           <Link href="/" aria-label={`Accueil ${brandName}`}>
-            <div className={`group flex min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:pr-3 ${usesGalleryHeader ? "xl:absolute xl:left-1/2 xl:-translate-x-1/2 xl:border-r-0 xl:px-6 xl:pr-6" : ""} ${usesMarketHeader ? "xl:min-w-[13rem]" : ""}`}>
+            <div className={`group flex min-h-11 min-w-0 cursor-pointer items-center gap-2 border-r border-slate-200 pr-2 xl:min-h-0 xl:pr-3 ${usesGalleryHeader ? "xl:absolute xl:left-1/2 xl:-translate-x-1/2 xl:border-r-0 xl:px-6 xl:pr-6" : ""} ${usesMarketHeader ? "xl:min-w-[13rem]" : ""}`}>
               <>{brandLogoUrl ? <img src={brandLogoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg border border-orange-100 bg-white object-contain p-0.5" style={{ borderColor: palette.soft }} /> : isPlatformStore ? <img src={MAZIGHO_BOUTIQUE_LOGO} alt="" className="h-8 w-8 shrink-0 object-contain" /> : null}<span className="truncate whitespace-nowrap text-base font-semibold tracking-[0.11em] text-orange-700 transition-colors group-hover:text-orange-800 xl:text-lg" style={{ color: palette.primary }}>{brandName}</span>{!brandLogoUrl && !isPlatformStore && <span className="h-2 w-2 shrink-0 rounded-full bg-orange-500" style={{ backgroundColor: palette.accent }} aria-hidden="true" />}{brandMessage ? <span className="hidden max-w-44 truncate border-l border-orange-100 pl-2 text-[10px] font-medium text-slate-500 2xl:inline" style={{ borderColor: palette.soft }}>{brandMessage}</span> : null}</>
             </div>
           </Link>
@@ -198,7 +198,7 @@ export default function Header() {
                 )}
               </div>
             </Link>}
-            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden h-auto items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white shadow-sm transition-transform hover:scale-[1.02] sm:inline-flex" style={{ backgroundColor: palette.accent }}>
+            <Link href="/mon-compte" aria-label={t(locale, "account")} className="hidden min-h-11 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white shadow-sm transition-transform hover:scale-[1.02] sm:inline-flex xl:min-h-0" style={{ backgroundColor: palette.accent }}>
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>
             </Link>
@@ -237,7 +237,7 @@ export default function Header() {
             {showLanguageSelector && <label className="mx-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-slate-700 md:hidden" style={{ borderColor: palette.soft, backgroundColor: palette.soft }}><span className="text-base font-semibold" style={{ color: palette.primary }} aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{activeLanguages.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>}
             {rootNavigationItems.map(renderMobileNavigationItem)}
 
-            <Button asChild className="mt-4 w-full gap-2 text-sm text-white" style={{ backgroundColor: palette.accent }}><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>
+            <Button asChild className="mt-4 min-h-11 w-full gap-2 text-sm text-white" style={{ backgroundColor: palette.accent }}><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>
             {isAdmin && <Button asChild variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Link></Button>}
           </div>
         )}
