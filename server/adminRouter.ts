@@ -31,6 +31,7 @@ import { isValidMetaPixelId, isValidTikTokPixelId } from "./services/trackingPix
 import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
+import { storeFactoryModelIds } from "../shared/storeFactoryModel";
 import { invokeLLM } from "./_core/llm";
 
 /** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
@@ -878,6 +879,7 @@ export const studioProvisioningDraftInputSchema = z.object({
   // The visual preset picker can legitimately leave this empty for Vêtements.
   customBusinessTheme: z.string().trim().max(160).optional().nullable(),
   themePreset: storefrontThemeIdSchema.optional().nullable(),
+  factoryModel: z.enum(storeFactoryModelIds).default("blank"),
   provisioningTemplate: z.enum(["standard", "algeria"]).default("standard"),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
@@ -2953,7 +2955,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: `Brouillon de mise en service créé pour ${input.displayName}`,
-          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, provisioningTemplate: input.provisioningTemplate },
+          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate },
         });
         return draft;
       } catch (error) {
@@ -2969,7 +2971,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: "Brouillon de mise en service modifié",
-          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, provisioningTemplate: input.provisioningTemplate },
+          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate },
         });
         return draft;
       } catch (error) {

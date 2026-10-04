@@ -63,6 +63,7 @@ import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../sh
 import { createStoreCommissionOverride, parseStoreCommissionOverride, type StoreCommissionOverride } from "../shared/storeCommissionOverride";
 import { applyStoreQuotaOverride, createStoreQuotaOverride, parseStoreQuotaOverride, type StoreQuotaOverride, type StoreQuotaOverrideInput } from "../shared/storeQuotaOverride";
 import { isMissingProductCategoryIdentityError, withExplicitProductCategoryIds } from "../shared/productCategoryIdentity";
+import { getStoreFactoryModel, getStoreFactoryStarterCategories, normalizeStoreFactoryModelId, type StoreFactoryModelId } from "../shared/storeFactoryModel";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
@@ -318,9 +319,10 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `factoryModel` varchar(32) NOT NULL DEFAULT 'blank'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `requestedPlan` varchar(16) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
@@ -2716,6 +2718,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       { storeId, key: "provisioning_mode", value: "gift", description: "Boutique offerte, sans facturation automatique." },
       { storeId, key: "provisioning_draft_id", value: String(draft.id), description: "Brouillon Studio source du provisionnement." },
       { storeId, key: "provisioning_business_type", value: draft.businessType, description: "Univers de départ choisi lors du provisionnement." },
+      { storeId, key: "store_factory_model", value: normalizeStoreFactoryModelId(draft.factoryModel), description: "Base de structure choisie dans la fabrique Studio ; aucun produit ni donnée commerciale." },
       ...(draft.customBusinessTheme ? [{ storeId, key: "provisioning_custom_business_theme", value: draft.customBusinessTheme, description: "Thématique personnalisée renseignée dans Studio." }] : []),
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
       { storeId, key: "currency", value: draft.preferredCurrency, description: "Compatibilité : devise de départ choisie lors du provisionnement." },
@@ -2736,12 +2739,26 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       );
     }
     await tx.insert(storeSettings).values(initialSettings);
+    const factoryModel = getStoreFactoryModel(draft.factoryModel);
+    const starterCategories = getStoreFactoryStarterCategories(draft.factoryModel);
+    if (starterCategories.length > 0) {
+      await tx.insert(categories).values(starterCategories.map(category => ({
+        storeId,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+        displayOrder: category.displayOrder,
+        catalogSection: "standard" as const,
+      })));
+    }
     await tx.update(storeProvisioningDrafts).set({ provisionedStoreId: storeId, provisionedAt: now }).where(eq(storeProvisioningDrafts.id, draft.id));
 
     return {
       store: { id: storeId, slug: proposedSlug, displayName: draft.displayName.trim(), primaryDomain: normalizedDomain, status: "setup" as const },
       owner: recipient[0] ? { attached: true, invitationRequired: false } : { attached: false, invitationRequired: true },
       themePreset: draft.themePreset,
+      factoryModel: factoryModel.id,
+      starterCategories: starterCategories.length,
       billing: "none" as const,
       invitationsSent: 0,
     };
@@ -2756,6 +2773,7 @@ export type StudioProvisioningDraftInput = {
   businessType: "animalier" | "bijoux" | "vetements" | "autre";
   customBusinessTheme?: string | null;
   themePreset?: StorefrontThemeId | null;
+  factoryModel?: StoreFactoryModelId | null;
   provisioningTemplate?: StoreProvisioningTemplate;
   preferredCurrency: string;
   /** Intent only: the active SaaS plan remains a Studio-only assignment. */
@@ -2767,12 +2785,14 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
   const customBusinessTheme = input.businessType === "autre" ? input.customBusinessTheme?.trim() || null : null;
   if (input.businessType === "autre" && !customBusinessTheme) throw new Error("PROVISIONING_CUSTOM_THEME_REQUIRED");
   const provisioningTemplate = normalizeStoreProvisioningTemplate(input.provisioningTemplate);
+  const factoryModel = normalizeStoreFactoryModelId(input.factoryModel);
   return {
     ...input,
     requestedDomain: input.requestedDomain.trim().toLowerCase(),
     ownerEmail: input.ownerEmail.trim().toLowerCase(),
     customBusinessTheme,
-    themePreset: input.themePreset ?? null,
+    themePreset: input.themePreset ?? getStoreFactoryModel(factoryModel).suggestedTheme,
+    factoryModel,
     provisioningTemplate,
     preferredCurrency: provisioningTemplate === "algeria" ? "DZD" : input.preferredCurrency,
     requestedPlan: input.requestedPlan ?? null,
@@ -2809,6 +2829,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     businessType: normalized.businessType,
     customBusinessTheme: normalized.customBusinessTheme,
     themePreset: normalized.themePreset,
+    factoryModel: normalized.factoryModel,
     provisioningTemplate: normalized.provisioningTemplate,
     preferredCurrency: normalized.preferredCurrency,
     requestedPlan: normalized.requestedPlan,

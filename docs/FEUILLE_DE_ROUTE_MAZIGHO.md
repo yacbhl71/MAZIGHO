@@ -31,6 +31,15 @@
 
 **Objectif :** préparer une boutique professionnelle en quelques minutes, sans recopier manuellement les réglages à chaque fois.
 
+### Avancement — première brique publiée
+
+- Studio permet maintenant de sélectionner une **structure sûre** : Base libre / pilote, Atelier créatif, Mode & accessoires, Bijoux & cadeaux, Animalerie, Beauté & bien-être, Maison & décoration, ou Café, thé & saveurs.
+- Le modèle dépose seulement le **thème suggéré** et des **catégories vides propres à la nouvelle boutique** ; il se combine avec la base Standard ou **Algérie** (DZD, wilayas et COD préparé).
+- Aucun produit, image, fournisseur, client, commande, donnée légale, domaine, paiement, e-mail ou publication n’est copié ou activé.
+- Le choix est enregistré sur le brouillon Studio et visible avant le prévol de création.
+
+**Reste du lot :** aperçu détaillé avant création (menu, blocs d’accueil et réglages réellement appliqués), puis ajout de modèles composables lorsque le besoin terrain le justifie.
+
 ### À construire
 
 - Écran Studio **« Créer depuis un modèle »**.
@@ -204,4 +213,4 @@ La première boutique commerciale est validée en conditions réelles avec une o
 
 **Lot 1 — Fabrique de boutiques et modèles réutilisables.**
 
-La première étape sera un audit des mécanismes actuels de création, des templates Algérie, des thèmes et des réglages duplicables afin de concevoir un clonage sûr, explicite et réellement réutilisable.
+La prochaine étape est l’**aperçu détaillé avant création** : rendre visible, pour le modèle choisi, la structure de catégories, le thème suggéré et la base géographique, sans copier ni activer de données commerciales.
