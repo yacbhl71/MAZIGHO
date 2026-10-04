@@ -142,6 +142,7 @@ function markdownToText(value: string) {
   return decodeHtml(value
     .replace(/!\[[^\]]*]\([^)]*\)/g, "")
     .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/([A-Za-zÀ-ÖØ-öø-ÿ])[*_`]+(?=[A-Za-zÀ-ÖØ-öø-ÿ])/g, "$1 ")
     .replace(/[*_`>#]/g, "")
     .replace(/\s+/g, " ")
     .trim());

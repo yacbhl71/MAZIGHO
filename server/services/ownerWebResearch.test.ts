@@ -54,7 +54,7 @@ describe("owner web research source", () => {
       .mockResolvedValueOnce(new Response(`
         ## [Catalogue de repli](https://duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fcatalogue)
 
-        Une source publique trouvée par le moteur de repli.
+        Une source **publique** trouvée par le moteur de repli.
       `, { status: 200, headers: { "content-type": "text/plain" } })));
 
     await expect(searchOwnerWebResearchSources("fournisseur créatif")).resolves.toEqual([{
