@@ -60,6 +60,7 @@ vi.mock("./db", () => ({
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
   getOrderTimeline: vi.fn(async () => [{ type: "created", label: "Commande créée", at: "2026-09-27T00:00:00.000Z" }]),
   getOwnerOrderDeliveryDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: null, addressIncomplete: false })),
+  getOwnerOrderDeliveryHandoverDetails: vi.fn(async () => ({ available: true, orderId: 481, recipientName: "Cliente test", addressLines: ["Rue Exemple 4"], postalCode: "1000", city: "Lausanne", state: null, countryCode: "CH", phone: null, email: null, trackingNumber: "CH481", addressIncomplete: false })),
   recordOrderDecision: vi.fn(async (input) => ({ ...input, success: true, supplierOrderCreated: false, paymentRefunded: false })),
   getAlgeriaCashOnDeliveryReadiness: vi.fn(async (storeId) => ({ storeId, enabled: false, enabledAt: null, eligibility: { eligible: true, marketEnabled: true, deliveryEnabled: true, wilayaDeliveryConfigured: true, dzdCurrencyConfigured: true, legalReady: true, missing: [] } })),
   saveAlgeriaCashOnDeliverySettings: vi.fn(async (storeId, enabled) => ({ storeId, enabled, enabledAt: enabled ? "2026-09-28T00:00:00.000Z" : null, eligibility: { eligible: true, marketEnabled: true, deliveryEnabled: true, wilayaDeliveryConfigured: true, dzdCurrencyConfigured: true, legalReady: true, missing: [] } })),
@@ -609,6 +610,25 @@ describe("owner product variant routes", () => {
       entityId: 481,
       action: "owner.order.delivery_details_revealed",
       metadata: { purpose: "manual_fulfillment" },
+    }));
+  });
+
+  it("reveals a handover sheet only to the store owner and records its consultation", async () => {
+    await expect(callerFor().owner.revealOrderDeliveryHandoverDetails({ orderId: 481 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.revealOrderDeliveryHandoverDetails({ orderId: 481 })).resolves.toMatchObject({
+      available: true,
+      orderId: 481,
+      trackingNumber: "CH481",
+    });
+    expect(db.getOwnerOrderDeliveryHandoverDetails).toHaveBeenCalledWith(481, 77);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      entityType: "order",
+      entityId: 481,
+      action: "owner.order.delivery_handover_revealed",
+      metadata: { purpose: "manual_delivery_handover" },
     }));
   });
 

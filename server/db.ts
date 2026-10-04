@@ -48,6 +48,7 @@ import { buildSaasPortfolioMetrics } from "./services/saasPortfolioMetrics";
 import { buildTenantResourceSummary } from "./services/tenantResourceSummary";
 import { buildOwnerSalesSettlementOverview } from "./services/ownerSalesSettlement";
 import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
+import { buildOwnerDeliveryHandoverDetails } from "./services/ownerDeliveryHandover";
 import { buildCheckoutStockReservations, buildStoredOrderStockReservations } from "./services/checkoutStockReservation";
 import { buildCheckoutLegalAcceptanceSnapshot, CHECKOUT_LEGAL_VERSION } from "../shared/checkoutLegalAcceptance";
 import { ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD, getAlgeriaCashOnDeliveryEligibility, getAlgeriaOnlinePaymentPreparationStatus, makeAlgeriaCashOnDeliverySettings, makeAlgeriaOnlinePaymentPreparation, parseAlgeriaCashOnDeliverySettings, parseAlgeriaOnlinePaymentPreparation, type AlgeriaOnlinePaymentPreparation } from "../shared/algeriaCashOnDelivery";
@@ -9233,6 +9234,29 @@ export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: num
     .limit(1);
 
   return buildOwnerDeliveryDetails(rows[0] ?? null);
+}
+
+/**
+ * Owner-only source for a manual handover sheet. Unlike the preparation view,
+ * it is intentionally restricted to an order that is already marked shipped.
+ */
+export async function getOwnerOrderDeliveryHandoverDetails(orderId: number, storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  const db = await getDb();
+  if (!db) return buildOwnerDeliveryHandoverDetails(null);
+
+  const rows = await db.select({
+    id: orders.id,
+    paymentStatus: orders.paymentStatus,
+    paymentMethod: orders.paymentMethod,
+    status: orders.status,
+    shippingAddress: orders.shippingAddress,
+    trackingNumber: orders.trackingNumber,
+  }).from(orders)
+    .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)))
+    .limit(1);
+
+  return buildOwnerDeliveryHandoverDetails(rows[0] ?? null);
 }
 
 /**

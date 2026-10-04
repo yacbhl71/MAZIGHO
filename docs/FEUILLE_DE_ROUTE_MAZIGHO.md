@@ -78,13 +78,13 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - La table détaillée reste disponible sur grand écran ; aucun transporteur, fournisseur, remboursement, e-mail ou paiement n’est ajouté automatiquement.
 - Le centre **Retours & service après-vente** propose maintenant une file tactile priorisée : « À décider », « En retour », « Réceptionnés » et « Terminés », avec la prochaine action explicitée dans chaque dossier. Le tri reste local à la boutique et purement visuel : il ne modifie ni décision, ni remboursement, ni prestataire.
 - L’audit du stock confirme que le réglage de seuil, la vue consolidée produits + variantes, les compteurs rupture / faible stock et les éditions par quantité existent déjà, avec une logique qui privilégie les variantes actives. Aucune duplication n’a été ajoutée.
+- Le propriétaire peut désormais imprimer un **bordereau de remise** une fois la commande marquée manuellement « Expédiée ». La consultation est limitée au propriétaire, liée au `storeId` et auditée ; le document ne contient ni e-mail, ni prix, ni paiement, ni facture, et ne crée ni transporteur, ni notification, ni preuve de livraison.
 
 ### À renforcer
 
-- Actions groupées sur les commandes et filtres tactiles efficaces.
-- Bon de livraison et impression, au-delà du bon de préparation existant.
 - Suivi transporteur et numéro de suivi, avec une validation terrain sur tablette.
 - Algérie : confirmation COD, livraison par wilaya et suivi d’encaissement, uniquement si le marché Algérie est actif.
+- Évaluer les actions groupées seulement avec une sélection explicite, une confirmation par lot et une séparation stricte des commandes non éligibles ; aucune décision, livraison ou remboursement ne doit devenir silencieux.
 
 ### Critère de fin
 

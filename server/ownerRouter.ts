@@ -1204,6 +1204,25 @@ export const ownerRouter = router({
     }
     return details;
   }),
+  revealOrderDeliveryHandoverDetails: storeOwnerProcedure.input(z.object({
+    orderId: z.number().int().positive(),
+  })).mutation(async ({ ctx, input }) => {
+    const details = await db.getOwnerOrderDeliveryHandoverDetails(input.orderId, ctx.store!.id);
+    if (details.available) {
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.order.delivery_handover_revealed",
+        entityType: "order",
+        entityId: input.orderId,
+        summary: `Bordereau de remise consulté pour la commande #${input.orderId}.`,
+        metadata: { purpose: "manual_delivery_handover" },
+      });
+    }
+    return details;
+  }),
   getReturnRequests: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerReturnRequests(ctx.store!.id);
   }),

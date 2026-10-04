@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderOwnerPackingSlipHtml } from "../shared/orderPackingSlip";
+import { renderOwnerDeliveryHandoverHtml } from "../shared/orderDeliveryHandover";
 import { getOwnerOrderPreparationFilterCount, matchesOwnerOrderPreparationFilter } from "../shared/orderPreparationQueue";
 
 describe("owner order preparation queue", () => {
@@ -50,6 +51,37 @@ describe("owner packing slip renderer", () => {
     expect(html).toContain("Cliente &lt;test&gt;");
     expect(html).toContain("Kit &lt;violet&gt;");
     expect(html).toContain("Violet &amp; fuchsia");
+    expect(html).not.toContain("TVA");
+    expect(html).not.toContain("Carte bancaire");
+  });
+});
+
+describe("owner delivery handover renderer", () => {
+  it("renders a manual shipment sheet without financial or email data", () => {
+    const html = renderOwnerDeliveryHandoverHtml({
+      storeName: "Boutique test",
+      handedOverAt: "4 oct. 2026, 21:00",
+      delivery: {
+        orderId: 72,
+        recipientName: "Cliente <test>",
+        addressLines: ["Rue & Exemple 4"],
+        postalCode: "1000",
+        city: "Lausanne",
+        state: null,
+        countryCode: "CH",
+        phone: "+41 79 000 00 00",
+        email: "cliente@example.test",
+        trackingNumber: "CH-72",
+      },
+      items: [{ productName: "Kit <violet>", quantity: 2, selectedOptions: [{ name: "Couleur", value: "Violet & fuchsia" }] }],
+    });
+
+    expect(html).toContain("Bordereau de remise");
+    expect(html).toContain("Cliente &lt;test&gt;");
+    expect(html).toContain("Kit &lt;violet&gt;");
+    expect(html).toContain("Violet &amp; fuchsia");
+    expect(html).toContain("Remis au transporteur ou au point de dépôt");
+    expect(html).not.toContain("cliente@example.test");
     expect(html).not.toContain("TVA");
     expect(html).not.toContain("Carte bancaire");
   });

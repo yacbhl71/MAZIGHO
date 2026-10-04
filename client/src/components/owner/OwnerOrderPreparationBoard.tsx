@@ -1,4 +1,4 @@
-import { Banknote, ClipboardList, FileText, PackageCheck, Truck } from "lucide-react";
+import { Banknote, ClipboardList, FileSignature, FileText, PackageCheck, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ type OwnerOrderPreparationBoardProps = {
   onOpenItems: (orderId: number) => void;
   onOpenDelivery: (orderId: number) => void;
   onOpenPackingSlip: (orderId: number) => void;
+  onOpenDeliveryHandover: (orderId: number) => void;
   onDecide: (order: OwnerOrderActionRow, action: "accepted" | "rejected") => void;
   onUpdateTracking: (order: OwnerOrderActionRow, status: "shipped" | "delivered") => void;
   onConfirmCashOnDeliveryCollection: (orderId: number) => void;
@@ -46,6 +47,7 @@ export default function OwnerOrderPreparationBoard({
   onOpenItems,
   onOpenDelivery,
   onOpenPackingSlip,
+  onOpenDeliveryHandover,
   onDecide,
   onUpdateTracking,
   onConfirmCashOnDeliveryCollection,
@@ -106,7 +108,7 @@ export default function OwnerOrderPreparationBoard({
 
           {order.status === "shipped" ? <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-sm font-semibold text-slate-900">{order.trackingNumber || "Sans numéro de suivi"}</p><p className="mt-1 text-xs text-slate-500">Confirmez uniquement après remise effective au client ou au transporteur.</p></div>
-            <Button type="button" variant="outline" className="min-h-11 border-teal-200 text-teal-800 hover:bg-teal-50" disabled={pendingTracking} onClick={() => onUpdateTracking(order, "delivered")}>Marquer livrée</Button>
+            <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" className="min-h-11 border-indigo-200 text-indigo-800 hover:bg-indigo-50" onClick={() => onOpenDeliveryHandover(order.id)}><FileSignature className="mr-2 h-4 w-4" /> Bordereau</Button><Button type="button" variant="outline" className="min-h-11 border-teal-200 text-teal-800 hover:bg-teal-50" disabled={pendingTracking} onClick={() => onUpdateTracking(order, "delivered")}>Marquer livrée</Button></div>
           </div> : null}
 
           {order.status === "delivered" && order.paymentMethod === "cash_on_delivery_dz" && order.paymentStatus === "unpaid" && canRevealDelivery ? <Button type="button" className="min-h-12 w-full bg-emerald-700 hover:bg-emerald-800" disabled={pendingCollection} onClick={() => onConfirmCashOnDeliveryCollection(order.id)}><Banknote className="mr-2 h-4 w-4" /> Confirmer l’encaissement à la livraison</Button> : null}
