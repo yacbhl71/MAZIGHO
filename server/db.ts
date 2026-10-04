@@ -87,6 +87,8 @@ import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
 import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProductBundle } from "../shared/storeProductBundles";
+import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds, parsePromotionTargetProductIds } from "../shared/promotionTargetProducts";
+import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -3693,8 +3695,16 @@ async function ensurePromotionAdvancedSchema() {
         if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
       }
     };
-    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `scope` enum('all','first_order','category') NOT NULL DEFAULT 'all'");
+    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `scope` enum('all','first_order','category','products') NOT NULL DEFAULT 'all'");
+    // Existing databases already have the scope column. Widen the enum safely
+    // before a product-targeted promotion can be written.
+    try {
+      await db.execute(sql.raw("ALTER TABLE `promotions` MODIFY COLUMN `scope` enum('all','first_order','category','products') NOT NULL DEFAULT 'all'"));
+    } catch (error) {
+      if (!/duplicate|already exists/i.test(String(error))) throw error;
+    }
     await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `categoryId` int");
+    await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `productIds` text");
     await addColumn("ALTER TABLE `promotions` ADD COLUMN IF NOT EXISTS `perUserLimit` int");
     await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `promotionId` int");
     await addColumn("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `discountAmount` int NOT NULL DEFAULT 0");
@@ -9274,6 +9284,38 @@ export async function getOwnerSalesSettlementOverview(storeId: number) {
 }
 
 /**
+ * Store-scoped, read-only sales snapshot for the owner marketing panel.
+ * It deliberately selects no customer identity, delivery, payment instrument,
+ * payout or address data.
+ */
+export async function getOwnerCommercialSnapshot(storeId: number) {
+  await ensureStoreRelationshipScopeSchema();
+  await ensureOrderCurrencySchema();
+  const db = await getDb();
+  if (!db) return buildOwnerCommercialSnapshot({ orders: [], lines: [] });
+
+  const [orderRows, lineRows] = await Promise.all([
+    db.select({
+      id: orders.id,
+      totalAmount: orders.totalAmount,
+      currencyCode: orders.currencyCode,
+      paymentStatus: orders.paymentStatus,
+      createdAt: orders.createdAt,
+    }).from(orders).where(eq(orders.storeId, storeId)),
+    db.select({
+      orderId: orderItems.orderId,
+      productId: orderItems.productId,
+      productName: products.name,
+      quantity: orderItems.quantity,
+    }).from(orderItems)
+      .leftJoin(products, and(eq(orderItems.productId, products.id), eq(orderItems.storeId, products.storeId)))
+      .where(eq(orderItems.storeId, storeId)),
+  ]);
+
+  return buildOwnerCommercialSnapshot({ orders: orderRows, lines: lineRows });
+}
+
+/**
  * Minimal preparation view for the owner panel. This intentionally leaves out
  * customer identity, delivery details, payment values, suppliers and private
  * fulfillment snapshots. The orderId predicate remains bound to the store.
@@ -11370,12 +11412,17 @@ export async function getAllPromotions(storeId?: number) {
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   const rows = await db.select().from(promotions).where(eq(promotions.storeId, effectiveStoreId)).orderBy(desc(promotions.createdAt));
   const categoryList = await getAllCategories(effectiveStoreId);
+  const activeProductRows = await db.select({ id: products.id, name: products.name }).from(products)
+    .where(and(eq(products.storeId, effectiveStoreId), eq(products.status, "active")));
   const categoryMap = new Map(categoryList.map(c => [c.id, c.name]));
+  const productMap = new Map(activeProductRows.map(product => [product.id, product.name]));
   const redemptionCounts = await db.select({ promotionId: promotionRedemptions.promotionId, value: count() }).from(promotionRedemptions).where(eq(promotionRedemptions.storeId, effectiveStoreId)).groupBy(promotionRedemptions.promotionId);
   const redemptionMap = new Map(redemptionCounts.map(r => [r.promotionId, Number(r.value)]));
   return rows.map(row => ({
     ...row,
     categoryName: row.categoryId ? categoryMap.get(row.categoryId) ?? null : null,
+    productIds: parsePromotionTargetProductIds(row.productIds),
+    productNames: parsePromotionTargetProductIds(row.productIds).map(productId => productMap.get(productId)).filter((name): name is string => Boolean(name)),
     redemptionCount: redemptionMap.get(row.id) ?? 0,
   }));
 }
@@ -11387,12 +11434,24 @@ type PromotionWriteData = {
   minOrderAmount?: number;
   maxUses?: number;
   active?: number;
-  scope?: "all" | "first_order" | "category";
+  scope?: "all" | "first_order" | "category" | "products";
   categoryId?: number | null;
+  productIds?: number[] | null;
   perUserLimit?: number | null;
   startsAt?: Date;
   expiresAt?: Date;
 };
+
+async function resolvePromotionTargetProducts(productIds: number[] | null | undefined, storeId: number): Promise<number[]> {
+  const normalized = normalizePromotionTargetProductIds(productIds);
+  if (normalized.length === 0) throw new Error("PROMOTION_PRODUCTS_REQUIRED");
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const rows = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.status, "active"), inArray(products.id, normalized)));
+  if (rows.length !== normalized.length) throw new Error("PROMOTION_PRODUCTS_NOT_FOUND");
+  return normalized;
+}
 
 export async function createPromotion(data: PromotionWriteData, storeId?: number) {
   await ensureStoreRelationshipScopeSchema();
@@ -11402,6 +11461,7 @@ export async function createPromotion(data: PromotionWriteData, storeId?: number
   const scope = data.scope ?? "all";
   if (scope === "category" && !data.categoryId) throw new Error("PROMOTION_CATEGORY_REQUIRED");
   if (scope === "category" && !await getCategoryNameById(data.categoryId!, effectiveStoreId)) throw new Error("PROMOTION_CATEGORY_NOT_FOUND");
+  const targetProductIds = scope === "products" ? await resolvePromotionTargetProducts(data.productIds, effectiveStoreId) : [];
   const result = await db.insert(promotions).values({
     storeId: effectiveStoreId,
     code: data.code.trim().toUpperCase(),
@@ -11412,6 +11472,7 @@ export async function createPromotion(data: PromotionWriteData, storeId?: number
     active: data.active ?? 1,
     scope,
     categoryId: scope === "category" ? data.categoryId ?? null : null,
+    productIds: scope === "products" ? JSON.stringify(targetProductIds) : null,
     perUserLimit: data.perUserLimit ?? null,
     startsAt: data.startsAt ?? null,
     expiresAt: data.expiresAt ?? null,
@@ -11427,6 +11488,7 @@ export async function updatePromotion(id: number, data: PromotionWriteData & { a
   const scope = data.scope ?? "all";
   if (scope === "category" && !data.categoryId) throw new Error("PROMOTION_CATEGORY_REQUIRED");
   if (scope === "category" && !await getCategoryNameById(data.categoryId!, effectiveStoreId)) throw new Error("PROMOTION_CATEGORY_NOT_FOUND");
+  const targetProductIds = scope === "products" ? await resolvePromotionTargetProducts(data.productIds, effectiveStoreId) : [];
   await db.update(promotions).set({
     code: data.code.trim().toUpperCase(),
     type: data.type,
@@ -11436,6 +11498,7 @@ export async function updatePromotion(id: number, data: PromotionWriteData & { a
     active: data.active,
     scope,
     categoryId: scope === "category" ? data.categoryId ?? null : null,
+    productIds: scope === "products" ? JSON.stringify(targetProductIds) : null,
     perUserLimit: data.perUserLimit ?? null,
     startsAt: data.startsAt ?? null,
     expiresAt: data.expiresAt ?? null,
@@ -11510,7 +11573,8 @@ export async function validatePromotion(
     if (used >= promotion.perUserLimit) throw new Error("Vous avez déjà utilisé ce code le nombre de fois autorisé");
   }
 
-  // Determine the amount the discount applies to (whole order, or a single category's items).
+  // Determine the amount the discount applies to: whole order, category, or an
+  // explicit product list which was validated against this store on write.
   let discountBase = orderAmount;
   if (promotion.scope === "category" && promotion.categoryId) {
     if (!opts?.cartItems || opts.cartItems.length === 0) throw new Error("Ce code s'applique à une catégorie précise du panier");
@@ -11523,6 +11587,13 @@ export async function validatePromotion(
     discountBase = opts.cartItems
       .filter(item => eligibleProductIds.has(item.productId))
       .reduce((sum, item) => sum + item.price * item.quantity, 0);
+    if (discountBase <= 0) throw new Error("Aucun article du panier n'est éligible à ce code");
+  }
+
+  if (promotion.scope === "products") {
+    if (!opts?.cartItems || opts.cartItems.length === 0) throw new Error("Ce code s'applique à des produits précis du panier");
+    const targetProductIds = parsePromotionTargetProductIds(promotion.productIds);
+    discountBase = getPromotionTargetProductsSubtotal(opts.cartItems, targetProductIds);
     if (discountBase <= 0) throw new Error("Aucun article du panier n'est éligible à ce code");
   }
 

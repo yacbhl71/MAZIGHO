@@ -102,7 +102,7 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - La diffusion publique reste une décision humaine : une confirmation explicite est demandée à l’enregistrement ou à l’activation. L’arrêt est immédiat et réversible.
 - La mesure affiche uniquement les **utilisations agrégées** et les **remises associées** au code de la campagne, sur sa période. Aucun visiteur, identifiant, clic, appareil, adresse ou paiement n’est suivi ou exposé.
 - Un texte prêt à copier est fourni pour un partage manuel sur Instagram, Facebook ou WhatsApp. Aucune publication sur un réseau social, e-mail, pixel ou relance n’est envoyée par MAZIGHO.
-- Les seuils de stock et alertes visuelles produits / variantes sont déjà couverts dans **Gestion du stock** ; les promotions propriétaire existantes couvrent dates, seuil, limite, première commande et catégories.
+- Les seuils de stock et alertes visuelles produits / variantes sont déjà couverts dans **Gestion du stock** ; les promotions propriétaire existantes couvrent dates, seuil, limite, première commande, catégories et produits précis.
 - Les suggestions **« Vous aimerez aussi »** existent déjà sur chaque fiche produit : elles restent dans la même boutique et catégorie, excluent la fiche consultée, et ne proposent que des produits disponibles pour le pays de livraison sélectionné.
 
 ### Jalon publié — sélections duo/trio sans stock virtuel
@@ -112,6 +112,13 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - Une sélection ne crée ni SKU, ni prix groupé, ni stock propre, ni réservation, ni paiement. Lorsque le client choisit **Ajouter la sélection**, seuls les produits réels, sans variante ni option à choisir, sont ajoutés séparément au panier ; les autres restent accessibles individuellement.
 - Le checkout conserve donc sa réservation atomique par produit ou variante et sa validation des prix, stocks et livraisons. Un produit archivé ou absent empêche automatiquement la diffusion de la sélection.
 - La persistance, la lecture publique et les journaux d’audit sont tous bornés au `storeId` résolu. Aucun produit, code, client, tarif ou stock d’une autre boutique ne peut être sélectionné ou révélé.
+
+### Jalon publié — promotions précises et repères de vente
+
+- Un code promotionnel peut désormais cibler jusqu’à **30 produits actifs** d’une même boutique. La liste est validée côté serveur avec le `storeId` résolu, stockée sans prix client et recalculée au checkout à partir des lignes réelles du panier ; elle ne modifie ni prix catalogue, ni stock, ni réservation.
+- Le panneau **Marketing** affiche aussi des repères strictement agrégés : commandes localement marquées réglées, montant, panier moyen, rythme sur 30 jours et cinq produits les plus vendus. Les devises restent séparées.
+- Cette lecture ne sélectionne ni nom, e-mail, adresse, instrument de paiement, compte bancaire ni versement. Elle n’ajoute aucun pixel, visite, panier abandonné, segment ni automatisation.
+- Le tableau de conversion complet (visites, paniers et taux) reste volontairement hors de ce jalon : il exige un choix explicite de consentement, de rétention et de métriques avant toute collecte.
 
 ### À compléter par petites briques séparées
 
@@ -123,16 +130,13 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 
 - Alertes de retour en stock.
 - Relances de paniers abandonnés par e-mail, avec accord et modèles éditables.
-- Promotions ciblées : dates, seuils, limite d’usage, catégories et produits.
-- Suggestions « vous aimerez aussi » et ventes croisées maîtrisées.
-- Création de campagnes prêtes à partager sur Instagram, Facebook et WhatsApp.
-- Tableau simple : visites, paniers, commandes, conversion, produits vus et vendus.
+- Mesure de conversion complète : visites, paniers, taux, produits vus et vendus, uniquement après cadre de consentement et rétention.
 
 ### Critère de fin
 
-Un propriétaire peut créer une campagne ou une sélection duo/trio, vérifier son impact ou sa présentation et l’arrêter sans affecter les autres boutiques.
+Un propriétaire peut créer une campagne, un code ciblé ou une sélection duo/trio, suivre des repères de ventes confirmées, vérifier leur impact ou leur présentation et les arrêter sans affecter les autres boutiques.
 
-**Statut : critère atteint pour les sous-lots Campagnes de vitrine et sélections duo/trio.** Les compléments listés ci-dessus restent autonomes et seront traités séparément, sans ouvrir Stripe ni automatiser une communication externe.
+**Statut : Lot 3 clôturé pour son socle marketing/fidélisation utile.** Les compléments listés ci-dessus restent autonomes et seront traités séparément, sans ouvrir Stripe ni automatiser une communication externe.
 
 ---
 

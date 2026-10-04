@@ -62,6 +62,7 @@ vi.mock("./db", () => ({
   createProduct: vi.fn(async () => ({ id: 108 })),
   updateProduct: vi.fn(async () => ({ success: true })),
   getOwnerSalesSettlementOverview: vi.fn(async () => ({ buckets: [], recentSales: [] })),
+  getOwnerCommercialSnapshot: vi.fn(async () => ({ buckets: [], topProducts: [] })),
   getOwnerTransactionalEmailTemplates: vi.fn(async () => [{ type: "order_confirmation", template: { subject: "Merci {{boutique}}", heading: "Confirmation", body: "Bonjour {{prenom}}", buttonLabel: "Suivre", enabled: true }, default: { subject: "Merci {{boutique}}", heading: "Confirmation", body: "Bonjour {{prenom}}", buttonLabel: "Suivre", enabled: true } }]),
   saveOwnerTransactionalEmailTemplate: vi.fn(async () => ({ success: true })),
   getOwnerOrderItemSummaries: vi.fn(async () => [{ id: 15, quantity: 2, productName: "Kit créatif", selectedOptions: [{ name: "Couleur", value: "Violet" }] }]),
@@ -283,6 +284,40 @@ describe("owner product variant routes", () => {
     expect(db.updatePromotion).toHaveBeenCalledWith(91, expect.objectContaining({ code: "CREATIVE10", active: 0 }), 77);
     await expect(callerFor().owner.deletePromotion({ id: 91 })).resolves.toEqual({ success: true });
     expect(db.deletePromotion).toHaveBeenCalledWith(91, 77);
+  });
+
+  it("returns commercial indicators only for the resolved management store", async () => {
+    await expect(callerFor().owner.getCommercialSnapshot()).resolves.toEqual({ buckets: [], topProducts: [] });
+    expect(db.getOwnerCommercialSnapshot).toHaveBeenCalledWith(77);
+  });
+
+  it("limits product-targeted promotions to active products in the resolved owner store", async () => {
+    const promotion = {
+      code: "ATELIER20",
+      type: "percent" as const,
+      value: 20,
+      active: 1 as const,
+      scope: "products" as const,
+      categoryId: null,
+      productIds: [41, 42],
+      perUserLimit: null,
+    };
+    await expect(callerFor().owner.createPromotion(promotion)).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.createPromotion(promotion)).resolves.toEqual({ success: true, id: 92 });
+    expect(db.createPromotion).toHaveBeenCalledWith(expect.objectContaining({
+      scope: "products",
+      productIds: [41, 42],
+      categoryId: null,
+    }), 77);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      action: "owner_promotion_created",
+      metadata: expect.objectContaining({ scope: "products", targetProductCount: 2 }),
+    }));
+
+    await expect(callerFor().owner.createPromotion({ ...promotion, productIds: [] })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("keeps campaign measurement readable to managers and campaign publishing limited to the resolved owner store", async () => {

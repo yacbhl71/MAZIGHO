@@ -26,6 +26,7 @@ import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
 import { OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS, getOwnerKnowledgeDocumentSizeMessage } from "../shared/ownerKnowledgeDocumentPolicy";
 import { isSafeOwnerManualTrackingUrl, OWNER_MANUAL_TRACKING_LIMITS } from "../shared/ownerManualTracking";
 import { STORE_PRODUCT_BUNDLE_LIMITS } from "../shared/storeProductBundles";
+import { PROMOTION_TARGET_PRODUCT_LIMIT } from "../shared/promotionTargetProducts";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -163,8 +164,11 @@ const ownerPromotionInput = z.object({
   minOrderAmount: z.number().int().min(0).optional(),
   maxUses: z.number().int().positive().optional(),
   active: z.union([z.literal(0), z.literal(1)]),
-  scope: z.enum(["all", "first_order", "category"]),
+  scope: z.enum(["all", "first_order", "category", "products"]),
   categoryId: z.number().int().positive().nullable(),
+  productIds: z.array(z.number().int().positive()).max(PROMOTION_TARGET_PRODUCT_LIMIT)
+    .refine(ids => new Set(ids).size === ids.length, "Un produit ne peut être ciblé qu’une seule fois.")
+    .nullable().default(null),
   perUserLimit: z.number().int().positive().nullable(),
   startsAt: z.date().optional(),
   expiresAt: z.date().optional(),
@@ -172,6 +176,8 @@ const ownerPromotionInput = z.object({
   if (input.type === "percent" && input.value > 100) context.addIssue({ code: z.ZodIssueCode.custom, path: ["value"], message: "Le pourcentage doit être compris entre 1 et 100." });
   if (input.scope === "category" && !input.categoryId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Choisissez une catégorie pour cette promotion." });
   if (input.scope !== "category" && input.categoryId) context.addIssue({ code: z.ZodIssueCode.custom, path: ["categoryId"], message: "Une catégorie ne peut être ciblée que pour une promotion de catégorie." });
+  if (input.scope === "products" && (!input.productIds || input.productIds.length === 0)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["productIds"], message: "Choisissez au moins un produit pour cette promotion." });
+  if (input.scope !== "products" && input.productIds?.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["productIds"], message: "Des produits précis ne peuvent être ciblés que par une promotion de produits." });
   if (input.startsAt && input.expiresAt && input.expiresAt <= input.startsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["expiresAt"], message: "La date de fin doit être postérieure à la date de début." });
 });
 
@@ -293,6 +299,8 @@ function promotionErrorToTrpc(error: unknown): never {
   const message = error instanceof Error ? error.message : "";
   if (message === "PROMOTION_CATEGORY_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez une catégorie pour cette promotion." });
   if (message === "PROMOTION_CATEGORY_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Cette catégorie ne fait pas partie de votre boutique." });
+  if (message === "PROMOTION_PRODUCTS_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez au moins un produit actif pour cette promotion." });
+  if (message === "PROMOTION_PRODUCTS_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Un produit ciblé n’est pas actif dans cette boutique." });
   if (/duplicate entry|unique constraint|promotions_store_code_unique/i.test(message)) throw new TRPCError({ code: "CONFLICT", message: "Ce code promotionnel existe déjà dans votre boutique." });
   throw error;
 }
@@ -1205,6 +1213,9 @@ export const ownerRouter = router({
   getSalesSettlementOverview: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerSalesSettlementOverview(ctx.store!.id);
   }),
+  getCommercialSnapshot: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerCommercialSnapshot(ctx.store!.id);
+  }),
   getOrderItemSummaries: storeManagementProcedure.input(z.object({
     orderId: z.number().int().positive(),
   })).query(async ({ ctx, input }) => {
@@ -1513,7 +1524,7 @@ export const ownerRouter = router({
         entityType: "promotion",
         entityId: result.id,
         summary: `Code promotionnel ${input.code.toUpperCase()} créé depuis le panneau propriétaire.`,
-        metadata: { scope: input.scope, type: input.type, active: input.active === 1 },
+        metadata: { scope: input.scope, type: input.type, active: input.active === 1, targetProductCount: input.scope === "products" ? input.productIds?.length ?? 0 : 0 },
       });
       return result;
     } catch (error) {
@@ -1533,7 +1544,7 @@ export const ownerRouter = router({
         entityType: "promotion",
         entityId: id,
         summary: `Code promotionnel ${data.code.toUpperCase()} modifié depuis le panneau propriétaire.`,
-        metadata: { scope: data.scope, type: data.type, active: data.active === 1 },
+        metadata: { scope: data.scope, type: data.type, active: data.active === 1, targetProductCount: data.scope === "products" ? data.productIds?.length ?? 0 : 0 },
       });
       return result;
     } catch (error) {

@@ -831,9 +831,10 @@ export const promotions = mysqlTable("promotions", {
   maxUses: int("maxUses"),
   usedCount: int("usedCount").default(0).notNull(),
   active: int("active").default(1).notNull(),
-  // Advanced targeting: 'all' (default), 'first_order' (only customers with no prior paid order), 'category' (only items of a category).
-  scope: mysqlEnum("scope", ["all", "first_order", "category"]).default("all").notNull(),
+  // Advanced targeting: whole basket, first paid order, one category, or an explicit local product list.
+  scope: mysqlEnum("scope", ["all", "first_order", "category", "products"]).default("all").notNull(),
   categoryId: int("categoryId"), // required when scope = 'category'
+  productIds: text("productIds"), // JSON array; required when scope = 'products', always store-scoped on write
   perUserLimit: int("perUserLimit"), // max redemptions per customer
   startsAt: timestamp("startsAt"),
   expiresAt: timestamp("expiresAt"),
