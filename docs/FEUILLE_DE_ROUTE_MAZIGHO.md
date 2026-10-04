@@ -37,8 +37,9 @@
 - Le modèle dépose seulement le **thème suggéré** et des **catégories vides propres à la nouvelle boutique** ; il se combine avec la base Standard ou **Algérie** (DZD, wilayas et COD préparé).
 - Aucun produit, image, fournisseur, client, commande, donnée légale, domaine, paiement, e-mail ou publication n’est copié ou activé.
 - Le choix est enregistré sur le brouillon Studio et visible avant le prévol de création.
+- Un **aperçu avant création** indique immédiatement la structure, le thème modifiable, la base géographique et les catégories qui seront préparées ; il rappelle explicitement ce qui ne sera jamais copié.
 
-**Reste du lot :** aperçu détaillé avant création (menu, blocs d’accueil et réglages réellement appliqués), puis ajout de modèles composables lorsque le besoin terrain le justifie.
+**Reste du lot :** valider les modèles avec les prochaines boutiques réellement demandées, puis ajouter menus ou blocs d’accueil composables seulement lorsqu’un besoin terrain précis le justifie.
 
 ### À construire
 
@@ -68,6 +69,13 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 ## Lot 2 — Commandes, livraison et après-vente opérationnels
 
 **Objectif :** permettre à un propriétaire de traiter une vente du début à la fin sans revenir vers Studio.
+
+### Avancement — première brique publiée
+
+- La file de commandes devient **tactile sur téléphone et tablette** : cartes lisibles, prochaine étape explicite, filtres de traitement et actions adaptées au statut réel.
+- Le parcours conserve les mêmes protections par boutique : accepter/refuser, préparer, enregistrer un suivi, marquer livrée et, pour l’Algérie, confirmer l’encaissement COD uniquement après livraison.
+- Les articles et l’**historique horodaté** restent accessibles par commande ; l’adresse et le bon de préparation nécessitent toujours une ouverture propriétaire séparée et tracée.
+- La table détaillée reste disponible sur grand écran ; aucun transporteur, fournisseur, remboursement, e-mail ou paiement n’est ajouté automatiquement.
 
 ### À renforcer
 
@@ -211,6 +219,6 @@ La première boutique commerciale est validée en conditions réelles avec une o
 
 ## Prochain lot actif
 
-**Lot 1 — Fabrique de boutiques et modèles réutilisables.**
+**Lot 2 — Commandes, livraison et après-vente opérationnels.**
 
-La prochaine étape est l’**aperçu détaillé avant création** : rendre visible, pour le modèle choisi, la structure de catégories, le thème suggéré et la base géographique, sans copier ni activer de données commerciales.
+La première brique sera l’audit puis le renforcement des **statuts de commande et des actions tactiles** : chaque boutique doit pouvoir confirmer, préparer, expédier ou livrer une commande avec un historique clair, sans dépendre de Stripe.

@@ -40,6 +40,7 @@ const OwnerPrivateCartSimulation = lazy(() => import("@/components/OwnerPrivateC
 const OwnerOrderItemsDialog = lazy(() => import("@/components/OwnerOrderItemsDialog"));
 const OwnerOrderDeliveryDialog = lazy(() => import("@/components/owner/OwnerOrderDeliveryDialog"));
 const OwnerOrderPackingSlipDialog = lazy(() => import("@/components/owner/OwnerOrderPackingSlipDialog"));
+const OwnerOrderPreparationBoard = lazy(() => import("@/components/owner/OwnerOrderPreparationBoard"));
 const OwnerCataloguePageCopyEditor = lazy(() => import("@/components/OwnerCataloguePageCopyEditor"));
 const OwnerAnnouncementBarEditor = lazy(() => import("@/components/OwnerAnnouncementBarEditor"));
 const OwnerShopPageEditor = lazy(() => import("@/components/OwnerShopPageEditor"));
@@ -828,7 +829,21 @@ export default function OwnerStorePanel() {
             </div>
             <p className="mt-3 text-xs leading-5 text-teal-900">À accepter = réglées, ou à encaisser à la livraison, et en attente. À préparer = commandes acceptées. Ces filtres n’effectuent aucune action et ne modifient aucune commande.</p>
           </section>
-          {visibleOrders.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm leading-6 text-slate-600">Aucune commande ne correspond à cette étape de traitement.</div> : <div className="overflow-x-auto rounded-xl border border-slate-200">
+          {visibleOrders.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm leading-6 text-slate-600">Aucune commande ne correspond à cette étape de traitement.</div> : <><OwnerOrderPreparationBoard
+            orders={visibleOrders}
+            canRevealDelivery={workspace.data?.membership?.role === "owner"}
+            pendingDecision={recordOrderDecision.isPending}
+            pendingTracking={updateOrderTracking.isPending}
+            pendingCollection={confirmAlgeriaCashOnDeliveryCollection.isPending}
+            trackingDrafts={orderTrackingDrafts}
+            onTrackingDraftChange={(orderId, value) => setOrderTrackingDrafts(current => ({ ...current, [orderId]: value }))}
+            onOpenItems={setOrderItemsOrderId}
+            onOpenDelivery={setOrderDeliveryOrderId}
+            onOpenPackingSlip={setOrderPackingSlipOrderId}
+            onDecide={confirmOrderDecision}
+            onUpdateTracking={confirmOrderTracking}
+            onConfirmCashOnDeliveryCollection={confirmCashOnDeliveryCollection}
+          /><div className="hidden overflow-x-auto rounded-xl border border-slate-200 xl:block">
             <table className="min-w-[1180px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3 font-semibold">Commande</th><th className="px-4 py-3 font-semibold">Traitement</th><th className="px-4 py-3 font-semibold">Paiement</th><th className="px-4 py-3 font-semibold">Montant</th><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 font-semibold">Suivi manuel</th><th className="px-4 py-3 text-right font-semibold">Décision</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
@@ -843,7 +858,7 @@ export default function OwnerStorePanel() {
                 </tr>)}
               </tbody>
             </table>
-          </div>}
+          </div></>}
         </div>}
       </CardContent>
     </Card>
