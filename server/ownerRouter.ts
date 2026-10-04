@@ -585,6 +585,19 @@ const shippingReturnsSettings = z.object({
   }
 });
 
+const ownerProductDeliveryProfile = z.object({
+  countryCode: z.string().trim().length(2).transform(value => value.toUpperCase()).refine(value => storefrontCountryCodes.includes(value as typeof storefrontCountryCodes[number]), "Choisissez un pays pris en charge."),
+  supplierShippingCost: z.number().int().min(0).max(10_000_000),
+  customerShippingCost: z.number().int().min(0).max(10_000_000),
+  deliveryMethod: z.string().trim().max(255).nullable().optional(),
+  minDeliveryDays: z.number().int().min(0).max(365).nullable().optional(),
+  maxDeliveryDays: z.number().int().min(0).max(365).nullable().optional(),
+}).superRefine((profile, ctx) => {
+  if (profile.minDeliveryDays != null && profile.maxDeliveryDays != null && profile.maxDeliveryDays < profile.minDeliveryDays) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["maxDeliveryDays"], message: "Le délai maximum doit être supérieur ou égal au délai minimum." });
+  }
+});
+
 const productFields = z.object({
   categoryId: z.number().int().positive(),
   categoryIds: z.array(z.number().int().positive()).min(1).max(20).refine(values => new Set(values).size === values.length, "Une catégorie ne peut être sélectionnée qu’une fois.").optional(),
@@ -599,6 +612,12 @@ const productFields = z.object({
   status: z.enum(["active", "draft", "archived"]),
   images: z.array(visualUrl).max(12).default([]),
   options: z.string().trim().max(20000).optional(),
+  deliveryProfiles: z.array(ownerProductDeliveryProfile).max(20).refine(profiles => new Set(profiles.map(profile => profile.countryCode)).size === profiles.length, "Une destination ne peut être ajoutée qu’une seule fois.").optional(),
+  supplier: z.string().trim().max(32).nullable().optional(),
+  supplierProductId: z.string().trim().max(128).nullable().optional(),
+  supplierUrl: z.union([z.literal(""), z.string().trim().url().max(1000)]).nullable().optional(),
+  supplierPrice: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  supplierWeightG: z.number().int().min(0).max(1_000_000).nullable().optional(),
 });
 
 function assertOwnerProductPromotion(input: { price?: number; originalPrice?: number | null }) {
@@ -1857,6 +1876,41 @@ export const ownerRouter = router({
       payload: z.record(z.string(), z.string().max(1200)),
     })).mutation(async ({ ctx, input }) => {
       return await db.savePublicContentTranslation({ ...input, machineGenerated: false, storeId: ctx.store!.id });
+    }),
+  }),
+  // Product translations are deliberately separated from the source product
+  // editor. The source stays French; each visitor-facing locale can be
+  // generated, reviewed and corrected by the boutique owner.
+  productTranslations: router({
+    list: storeManagementProcedure.input(z.object({ productId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      return await db.getProductTranslations(input.productId, ctx.store!.id);
+    }),
+    translate: storeOwnerProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      locales: z.array(z.enum(["de", "it", "en", "es", "nl", "ar"])).min(1).max(6),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const { translateProductFromFrench } = await import("./productTranslation");
+        return await translateProductFromFrench(input.productId, input.locales, ctx.store!.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        throw new TRPCError({ code: message.includes("Produit introuvable") ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR", message: message || "La traduction est momentanément indisponible. Réessayez dans quelques instants." });
+      }
+    }),
+    save: storeOwnerProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      locale: z.enum(["de", "it", "en", "es", "nl", "ar"]),
+      name: z.string().trim().min(1).max(200),
+      description: z.string().trim().max(2_000).nullable().optional(),
+      longDescription: z.string().trim().max(10_000).nullable().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const { saveManualProductTranslation } = await import("./productTranslation");
+        return await saveManualProductTranslation({ ...input, description: input.description ?? null, longDescription: input.longDescription ?? null, options: null, storeId: ctx.store!.id });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        throw new TRPCError({ code: message.includes("Produit introuvable") ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR", message: message || "La traduction n’a pas pu être enregistrée." });
+      }
     }),
   }),
   createProduct: storeManagementProcedure.input(productFields).mutation(async ({ ctx, input }) => {

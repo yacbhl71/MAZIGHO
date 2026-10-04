@@ -106,6 +106,7 @@ vi.mock("./db", () => ({
   getPublicContentTranslationSource: vi.fn(async () => ({ title: "Atelier", payload: { title: "Atelier", subtitle: "Une sélection créative" } })),
   getPublicContentTranslation: vi.fn(async () => undefined),
   savePublicContentTranslation: vi.fn(async input => ({ ...input, status: "ready", payload: input.payload })),
+  getProductTranslations: vi.fn(async () => [{ productId: 41, locale: "en", name: "Creative notebook", description: "A notebook", longDescription: "A notebook for ideas.", options: null, status: "ready", machineGenerated: 1 }]),
 }));
 
 vi.mock("./transactionalEmail", () => ({
@@ -371,15 +372,20 @@ describe("owner product variant routes", () => {
     expect(db.deleteCategory).toHaveBeenCalledWith(41, 77);
   });
 
-  it("assigns one catalogue product to several categories within the resolved store", async () => {
+  it("assigns catalogue categories, delivery and supplier references within the resolved store", async () => {
     const caller = callerFor();
-    const product = { categoryId: 41, categoryIds: [41, 42], name: "Carnet créatif", slug: "carnet-creatif", description: "Un carnet prêt à dessiner.", longDescription: "Un carnet créatif à personnaliser.", price: 1890, stock: 4, featured: 0, status: "active" as const, images: [], options: "" };
+    const product = { categoryId: 41, categoryIds: [41, 42], name: "Carnet créatif", slug: "carnet-creatif", description: "Un carnet prêt à dessiner.", longDescription: "Un carnet créatif à personnaliser.", price: 1890, stock: 4, featured: 0, status: "active" as const, images: [], options: "", supplier: "Atelier test", supplierProductId: "CARNET-01", supplierUrl: "https://supplier.example.test/carnet-01", supplierPrice: 650, supplierWeightG: 180, deliveryProfiles: [{ countryCode: "CH", supplierShippingCost: 400, customerShippingCost: 590, deliveryMethod: "Colissimo", minDeliveryDays: 2, maxDeliveryDays: 4 }] };
 
     await expect(caller.owner.createProduct(product)).resolves.toEqual({ id: 108 });
-    expect(db.createProduct).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 41, categoryIds: [41, 42] }), 77);
+    expect(db.createProduct).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 41, categoryIds: [41, 42], supplier: "Atelier test", deliveryProfiles: [expect.objectContaining({ countryCode: "CH", customerShippingCost: 590 })] }), 77);
 
     await expect(caller.owner.updateProduct({ id: 108, categoryId: 42, categoryIds: [42, 41] })).resolves.toEqual({ success: true });
     expect(db.updateProduct).toHaveBeenCalledWith(108, expect.objectContaining({ categoryId: 42, categoryIds: [42, 41] }), 77);
+  });
+
+  it("lists product translations only through the resolved store", async () => {
+    await expect(callerFor().owner.productTranslations.list({ productId: 41 })).resolves.toEqual([expect.objectContaining({ locale: "en", status: "ready" })]);
+    expect(db.getProductTranslations).toHaveBeenCalledWith(41, 77);
   });
 
   it("stores a crossed-out price only when it is above the sale price", async () => {
