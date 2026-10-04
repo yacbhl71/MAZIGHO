@@ -6,7 +6,7 @@ const MAX_TEXT_CHARS = 24_000;
 const REQUEST_TIMEOUT_MS = 12_000;
 const SEARCH_RESULT_LIMIT = 6;
 const PUBLIC_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
-const FALLBACK_SEARCH_ENDPOINT = "https://www.bing.com/search";
+const LITE_SEARCH_ENDPOINT = "https://lite.duckduckgo.com/lite/";
 
 function isBlockedAddress(address: string) {
   const value = address.toLowerCase();
@@ -88,19 +88,6 @@ function getSearchResultTarget(rawHref: string) {
   return resultUrl.searchParams.get("uddg") || resultUrl.toString();
 }
 
-function getFallbackSearchResultTarget(rawHref: string) {
-  const resultUrl = new URL(decodeHtml(rawHref), FALLBACK_SEARCH_ENDPOINT);
-  const encodedTarget = resultUrl.searchParams.get("u");
-  if (resultUrl.hostname.endsWith("bing.com") && encodedTarget?.startsWith("a1")) {
-    try {
-      return Buffer.from(encodedTarget.slice(2), "base64url").toString("utf8");
-    } catch {
-      return resultUrl.toString();
-    }
-  }
-  return resultUrl.toString();
-}
-
 async function fetchPublicSearchHtml(endpointValue: string, query: string) {
   const endpoint = await assertPublicHttpsUrl(endpointValue);
   let response: Response;
@@ -111,6 +98,7 @@ async function fetchPublicSearchHtml(endpointValue: string, query: string) {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
         Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.7",
         "User-Agent": "Mozilla/5.0 (compatible; MAZIGHO-Research/1.0)",
       },
     });
@@ -142,7 +130,7 @@ async function collectSearchResults(html: string, pattern: RegExp, getTarget: (r
     if (seenUrls.has(url.toString())) continue;
     const anchorStart = match.index ?? 0;
     const nearbyHtml = html.slice(anchorStart, anchorStart + 2_000);
-    const snippetMatch = nearbyHtml.match(/<[^>]*class=["'][^"']*\b(?:result__snippet|b_caption)\b[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) || nearbyHtml.match(/<[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
+    const snippetMatch = nearbyHtml.match(/<[^>]*class=["'][^"']*\b(?:result__snippet|b_caption)\b[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) || nearbyHtml.match(/<[^>]*class=["'][^"']*\b(?:result__snippet|result-snippet)\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span|td)>/i);
     results.push({ title, url: url.toString(), excerpt: htmlToText(snippetMatch?.[1] || "").slice(0, 500) });
     seenUrls.add(url.toString());
   }
@@ -160,7 +148,7 @@ export async function searchOwnerWebResearchSources(rawQuery: string): Promise<O
   const primaryResults = primaryHtml ? await collectSearchResults(primaryHtml, /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getSearchResultTarget) : [];
   if (primaryResults.length) return primaryResults;
 
-  const fallbackHtml = await fetchPublicSearchHtml(FALLBACK_SEARCH_ENDPOINT, query);
-  if (!fallbackHtml) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
-  return collectSearchResults(fallbackHtml, /<h2[^>]*>\s*<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getFallbackSearchResultTarget);
+  const liteHtml = await fetchPublicSearchHtml(LITE_SEARCH_ENDPOINT, query);
+  if (!liteHtml) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  return collectSearchResults(liteHtml, /<a\b(?=[^>]*\bclass=["'][^"']*\bresult-link\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getSearchResultTarget);
 }

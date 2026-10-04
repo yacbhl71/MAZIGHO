@@ -48,14 +48,12 @@ describe("owner web research source", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the public fallback when the primary index is unavailable", async () => {
-    const encodedTarget = Buffer.from("https://example.org/catalogue", "utf8").toString("base64url");
+  it("uses the public Lite fallback when the primary index is unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockResolvedValueOnce(new Response(`
-        <li class="b_algo"><h2><a href="https://www.bing.com/ck/a?u=a1${encodedTarget}">Catalogue de repli</a></h2>
-          <div class="b_caption"><p>Une source publique trouvée par le moteur de repli.</p></div>
-        </li>
+        <a class="result-link" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fcatalogue">Catalogue de repli</a>
+        <td class="result-snippet">Une source publique trouvée par le moteur de repli.</td>
       `, { status: 200, headers: { "content-type": "text/html" } })));
 
     await expect(searchOwnerWebResearchSources("fournisseur créatif")).resolves.toEqual([{
