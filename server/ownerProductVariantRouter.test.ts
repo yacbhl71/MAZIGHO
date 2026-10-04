@@ -31,6 +31,10 @@ vi.mock("./db", () => ({
   createPromotion: vi.fn(async () => ({ success: true, id: 92 })),
   updatePromotion: vi.fn(async () => ({ success: true })),
   deletePromotion: vi.fn(async () => ({ success: true })),
+  getOwnerCampaignInsights: vi.fn(async () => [{ id: 47, name: "Atelier d’automne", message: "Une sélection créative", startsAt: new Date("2026-10-01T08:00:00.000Z"), endsAt: new Date("2026-10-05T18:00:00.000Z"), promoCode: "ATELIER10", showCountdown: 1, placement: "announcement", enabled: 1, redemptions: 2, discountCents: 500, measurement: "promo" }]),
+  createCampaign: vi.fn(async () => ({ success: true, id: 48 })),
+  updateCampaign: vi.fn(async () => ({ success: true })),
+  toggleCampaign: vi.fn(async () => ({ success: true })),
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
   getStoreStripeConnectSetup: vi.fn(async (storeId) => ({ schemaReady: true, account: null, plan: { id: "basic", name: "BASIC", commissionRateBps: 250 }, paymentReadiness: { enabled: false, reason: "connect_account_missing" }, storeId })),
   upsertStoreStripeConnectAccount: vi.fn(async input => input),
@@ -276,6 +280,36 @@ describe("owner product variant routes", () => {
     expect(db.updatePromotion).toHaveBeenCalledWith(91, expect.objectContaining({ code: "CREATIVE10", active: 0 }), 77);
     await expect(callerFor().owner.deletePromotion({ id: 91 })).resolves.toEqual({ success: true });
     expect(db.deletePromotion).toHaveBeenCalledWith(91, 77);
+  });
+
+  it("keeps campaign measurement readable to managers and campaign publishing limited to the resolved owner store", async () => {
+    await expect(callerFor().owner.getCampaignInsights()).resolves.toMatchObject([{ id: 47, promoCode: "ATELIER10", redemptions: 2 }]);
+    expect(db.getOwnerCampaignInsights).toHaveBeenCalledWith(77);
+
+    const campaign = {
+      name: "Atelier d’automne",
+      message: "Une sélection créative",
+      startsAt: new Date("2026-10-02T08:00:00.000Z"),
+      endsAt: new Date("2026-10-05T18:00:00.000Z"),
+      imageDesktopUrl: null,
+      imageMobileUrl: null,
+      linkUrl: "/boutique",
+      promoCode: "ATELIER10",
+      showCountdown: true,
+      placement: "announcement" as const,
+      enabled: false,
+    };
+    await expect(callerFor().owner.createCampaign(campaign)).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.createCampaign(campaign)).resolves.toEqual({ success: true, id: 48 });
+    expect(db.createCampaign).toHaveBeenCalledWith(expect.objectContaining({ name: "Atelier d’automne", enabled: false }), 77);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, action: "owner_campaign_created", entityId: 48 }));
+
+    await expect(callerFor().owner.updateCampaign({ id: 47, ...campaign, enabled: true })).resolves.toEqual({ success: true });
+    expect(db.updateCampaign).toHaveBeenCalledWith(47, expect.objectContaining({ enabled: true, promoCode: "ATELIER10" }), 77);
+    await expect(callerFor().owner.setCampaignEnabled({ id: 47, enabled: false })).resolves.toEqual({ success: true });
+    expect(db.toggleCampaign).toHaveBeenCalledWith(47, false, 77);
   });
 
   it("shows the descriptive SaaS plan only to the current store owner", async () => {

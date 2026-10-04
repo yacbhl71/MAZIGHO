@@ -174,6 +174,24 @@ const ownerPromotionInput = z.object({
   if (input.startsAt && input.expiresAt && input.expiresAt <= input.startsAt) context.addIssue({ code: z.ZodIssueCode.custom, path: ["expiresAt"], message: "La date de fin doit être postérieure à la date de début." });
 });
 
+const ownerCampaignInput = z.object({
+  name: z.string().trim().min(2).max(200),
+  message: z.string().trim().max(300).optional().nullable(),
+  startsAt: z.date(),
+  endsAt: z.date(),
+  imageDesktopUrl: visualUrl.optional().nullable(),
+  imageMobileUrl: visualUrl.optional().nullable(),
+  linkUrl: storefrontLink.optional().nullable(),
+  promoCode: z.string().trim().max(64).optional().nullable(),
+  showCountdown: z.boolean().default(true),
+  placement: z.enum(["announcement", "products", "both"]).default("announcement"),
+  enabled: z.boolean().default(false),
+}).superRefine((input, context) => {
+  if (input.endsAt <= input.startsAt) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "La date de fin doit être postérieure à la date de début." });
+  }
+});
+
 function getStripeConnectClient(mode: StripeConnectMode) {
   const credentials = getStripeConnectCredentials(mode);
   if (!credentials.enabled || !credentials.keyValid) return null;
@@ -1522,6 +1540,55 @@ export const ownerRouter = router({
       entityType: "promotion",
       entityId: input.id,
       summary: "Code promotionnel supprimé depuis le panneau propriétaire.",
+    });
+    return result;
+  }),
+  getCampaignInsights: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerCampaignInsights(ctx.store!.id);
+  }),
+  createCampaign: storeOwnerProcedure.input(ownerCampaignInput).mutation(async ({ ctx, input }) => {
+    const result = await db.createCampaign(input, ctx.store!.id);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: "owner_campaign_created",
+      entityType: "campaign",
+      entityId: result.id,
+      summary: `Campagne « ${input.name} » créée depuis le panneau propriétaire.`,
+      metadata: { enabled: input.enabled, placement: input.placement, hasPromoCode: Boolean(input.promoCode) },
+    });
+    return result;
+  }),
+  updateCampaign: storeOwnerProcedure.input(ownerCampaignInput.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    const { id, ...campaign } = input;
+    const result = await db.updateCampaign(id, campaign, ctx.store!.id);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: "owner_campaign_updated",
+      entityType: "campaign",
+      entityId: id,
+      summary: `Campagne « ${campaign.name} » mise à jour depuis le panneau propriétaire.`,
+      metadata: { enabled: campaign.enabled, placement: campaign.placement, hasPromoCode: Boolean(campaign.promoCode) },
+    });
+    return result;
+  }),
+  setCampaignEnabled: storeOwnerProcedure.input(z.object({ id: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+    const result = await db.toggleCampaign(input.id, input.enabled, ctx.store!.id);
+    await db.recordAuditLog({
+      storeId: ctx.store!.id,
+      actorUserId: ctx.user!.id,
+      actorName: ctx.user!.name || ctx.user!.email,
+      actorRole: ctx.user!.role,
+      action: input.enabled ? "owner_campaign_enabled" : "owner_campaign_disabled",
+      entityType: "campaign",
+      entityId: input.id,
+      summary: input.enabled ? "Campagne activée depuis le panneau propriétaire." : "Campagne arrêtée depuis le panneau propriétaire.",
+      metadata: { enabled: input.enabled },
     });
     return result;
   }),

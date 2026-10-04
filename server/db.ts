@@ -13125,6 +13125,61 @@ export async function getAllCampaignsAdmin(storeId?: number) {
   return await db.select().from(campaigns).where(eq(campaigns.storeId, effectiveStoreId)).orderBy(desc(campaigns.startsAt));
 }
 
+/**
+ * Owner-safe campaign measurement. Only aggregate redemptions and discounts
+ * are returned: no visitor identity, browser data, order reference, address,
+ * payment data or advertising tracking is exposed or collected.
+ */
+export async function getOwnerCampaignInsights(storeId: number) {
+  await ensureStoreOperationsScopeSchema();
+  const db = await getDb();
+  if (!db) return [];
+
+  const campaignRows = await getAllCampaignsAdmin(storeId);
+  const campaignPromoCodes = Array.from(new Set(campaignRows
+    .map(campaign => campaign.promoCode?.trim())
+    .filter((code): code is string => Boolean(code))));
+
+  if (campaignPromoCodes.length === 0) {
+    return campaignRows.map(campaign => ({ ...campaign, redemptions: 0, discountCents: 0, measurement: "no_promo" as const }));
+  }
+
+  const promotionRows = await db.select({ id: promotions.id, code: promotions.code })
+    .from(promotions)
+    .where(and(eq(promotions.storeId, storeId), inArray(promotions.code, campaignPromoCodes)));
+  const promotionIdByCode = new Map(promotionRows.map(promotion => [promotion.code, promotion.id]));
+  const promotionIds = promotionRows.map(promotion => promotion.id);
+
+  if (promotionIds.length === 0) {
+    return campaignRows.map(campaign => ({ ...campaign, redemptions: 0, discountCents: 0, measurement: campaign.promoCode ? "promo_missing" as const : "no_promo" as const }));
+  }
+
+  const redemptionRows = await db.select({
+    promotionId: promotionRedemptions.promotionId,
+    discountAmount: promotionRedemptions.discountAmount,
+    createdAt: promotionRedemptions.createdAt,
+  }).from(promotionRedemptions)
+    .where(and(eq(promotionRedemptions.storeId, storeId), inArray(promotionRedemptions.promotionId, promotionIds)));
+
+  return campaignRows.map(campaign => {
+    const promotionId = campaign.promoCode ? promotionIdByCode.get(campaign.promoCode) : undefined;
+    if (!promotionId) {
+      return { ...campaign, redemptions: 0, discountCents: 0, measurement: campaign.promoCode ? "promo_missing" as const : "no_promo" as const };
+    }
+
+    const startsAt = new Date(campaign.startsAt).getTime();
+    const endsAt = new Date(campaign.endsAt).getTime();
+    const matching = redemptionRows.filter(redemption => redemption.promotionId === promotionId && new Date(redemption.createdAt).getTime() >= startsAt && new Date(redemption.createdAt).getTime() < endsAt);
+
+    return {
+      ...campaign,
+      redemptions: matching.length,
+      discountCents: matching.reduce((total, redemption) => total + Number(redemption.discountAmount || 0), 0),
+      measurement: "promo" as const,
+    };
+  });
+}
+
 export async function createCampaign(input: CampaignInput, storeId?: number) {
   await ensureStoreOperationsScopeSchema();
   const db = await getDb();

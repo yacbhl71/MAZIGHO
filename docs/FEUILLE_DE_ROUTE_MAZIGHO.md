@@ -96,6 +96,20 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 
 **Objectif :** aider chaque boutique à obtenir et convertir ses premières ventes, sans complexité excessive.
 
+### Jalon publié — campagnes de vitrine propriétaire
+
+- Le panneau **Marketing** propose désormais un centre de campagnes isolé par `storeId` : brouillon, période, emplacement, visuels, lien, compte à rebours et code promotionnel lié.
+- La diffusion publique reste une décision humaine : une confirmation explicite est demandée à l’enregistrement ou à l’activation. L’arrêt est immédiat et réversible.
+- La mesure affiche uniquement les **utilisations agrégées** et les **remises associées** au code de la campagne, sur sa période. Aucun visiteur, identifiant, clic, appareil, adresse ou paiement n’est suivi ou exposé.
+- Un texte prêt à copier est fourni pour un partage manuel sur Instagram, Facebook ou WhatsApp. Aucune publication sur un réseau social, e-mail, pixel ou relance n’est envoyée par MAZIGHO.
+- Les seuils de stock et alertes visuelles produits / variantes sont déjà couverts dans **Gestion du stock** ; les promotions propriétaire existantes couvrent dates, seuil, limite, première commande et catégories.
+
+### À compléter par petites briques séparées
+
+- Packs et offres duo/trio, puis suggestions de produits maîtrisées.
+- Tableau de conversion complet : seulement après définition du consentement, de la rétention et des métriques agrégées nécessaires. Le jalon actuel ne prétend pas mesurer les visites ou paniers.
+- Relances de paniers : seulement avec accord explicite, modèles éditables et procédure de désinscription ; aucune relance automatique n’est activée en attendant.
+
 ### À construire
 
 - Alertes de retour en stock.
@@ -109,6 +123,8 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 ### Critère de fin
 
 Un propriétaire peut créer une campagne, vérifier son impact et l’arrêter sans affecter les autres boutiques.
+
+**Statut : critère atteint pour le sous-lot Campagnes de vitrine.** Les compléments listés ci-dessus restent autonomes et seront traités séparément, sans ouvrir Stripe ni automatiser une communication externe.
 
 ---
 
