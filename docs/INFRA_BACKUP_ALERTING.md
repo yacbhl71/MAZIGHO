@@ -12,6 +12,8 @@
 
 **Décision encore requise :** choisir et autoriser le coffre de sauvegarde, le compte à droits minimaux, une cible TiDB de restauration distincte et le canal de réception des incidents. Sans ces quatre éléments, le Lot 7 reste préparé mais non achevé.
 
+**Décision propriétaire — 5 octobre 2026 :** aucune ressource payante supplémentaire n’est engagée pour le moment. Les workflows restent verrouillés, les sauvegardes externes et la restauration isolée ne sont pas lancées, et aucune alerte de production n’est présentée comme active. Le jour où l’ouverture commerciale sera décidée, reprendre l’activation à l’étape 17 avec les quatre choix ci-dessus ; les scripts et contrôles sont déjà prêts.
+
 ## Architecture et calendrier
 
 | Fonction | Fichier | Exécution après activation | Propriété |

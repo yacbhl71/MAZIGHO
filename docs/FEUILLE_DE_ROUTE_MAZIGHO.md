@@ -228,6 +228,8 @@ Une restauration isolée a été réussie, les alertes arrivent sur un canal ré
 
 **Audit d’activation — 5 octobre 2026 :** les scripts chiffrés, politiques S3, workflows GitHub Actions et tests d’exploitation ont été revus. Les jobs planifiés sont publiés mais correctement verrouillés : aucune sauvegarde ni sonde DNS ne s’est exécutée sans `MAZIGHO_OPS_ENABLED=true`. L’activation réelle requiert encore un coffre S3 dédié avec Object Lock, des secrets GitHub à droits minimaux, une instance TiDB de restauration distincte, un canal d’incident et une solution de métriques durable pour les seuils 5xx/CPU/RAM. Le Lot 7 ne sera déclaré terminé qu’après exercice de restauration et réception d’alertes réelles.
 
+**Décision propriétaire — report sans frais :** les ressources externes restent volontairement désactivées jusqu’au moment où l’ouverture commerciale justifiera leur coût. Cette décision ne touche ni les données des boutiques, ni les paiements, ni la configuration des vitrines ; elle maintient simplement les workflows d’exploitation en attente.
+
 ---
 
 ## Lot 8 — Stripe et ouverture publique à grande échelle **(dernier)**
