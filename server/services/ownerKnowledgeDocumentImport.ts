@@ -1,21 +1,21 @@
-export const OWNER_KNOWLEDGE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-export const OWNER_KNOWLEDGE_MAX_TEXT_CHARS = 250_000;
+// Keep the native PDF runtime as a direct production dependency. Vercel's
+// file tracer otherwise omits this transitive optional package, causing PDF
+// extraction to fail only after deployment.
+import "@napi-rs/canvas";
+import {
+  getOwnerKnowledgeSourceTypeFromMimeType,
+  OWNER_KNOWLEDGE_MAX_UPLOAD_BYTES,
+  type OwnerKnowledgeSourceType,
+} from "../../shared/ownerKnowledgeDocumentPolicy";
 
-export type OwnerKnowledgeSourceType = "pdf" | "docx" | "txt" | "csv";
+export { OWNER_KNOWLEDGE_MAX_UPLOAD_BYTES } from "../../shared/ownerKnowledgeDocumentPolicy";
+export const OWNER_KNOWLEDGE_MAX_TEXT_CHARS = 250_000;
 
 export type ImportedOwnerKnowledgeDocument = {
   sourceType: OwnerKnowledgeSourceType;
   sourceName: string;
   title: string;
   text: string;
-};
-
-const acceptedTypes: Record<string, OwnerKnowledgeSourceType> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-  "text/plain": "txt",
-  "text/csv": "csv",
-  "application/csv": "csv",
 };
 
 function normalizeSourceName(value: string) {
@@ -37,10 +37,9 @@ function normalizeExtractedText(value: string) {
 }
 
 function parseDataUrl(dataUrl: string) {
-  const match = dataUrl.match(/^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/);
+  const match = dataUrl.match(/^data:([^;,]+)(?:;charset=[^;,]+)?;base64,([A-Za-z0-9+/=]+)$/i);
   if (!match) throw new Error("DOCUMENT_DATA_INVALID");
-  const contentType = match[1].toLowerCase();
-  const sourceType = acceptedTypes[contentType];
+  const sourceType = getOwnerKnowledgeSourceTypeFromMimeType(match[1]);
   if (!sourceType) throw new Error("DOCUMENT_TYPE_INVALID");
   const buffer = Buffer.from(match[2], "base64");
   if (!buffer.length || buffer.length > OWNER_KNOWLEDGE_MAX_UPLOAD_BYTES) throw new Error("DOCUMENT_SIZE_INVALID");

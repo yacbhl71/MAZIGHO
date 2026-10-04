@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { importOwnerKnowledgeDocument } from "./ownerKnowledgeDocumentImport";
+import { exportOwnerAiWorkspaceDocument } from "./ownerAiWorkspaceExport";
 
 const dataUrl = (contentType: string, value: string) => `data:${contentType};base64,${Buffer.from(value, "utf8").toString("base64")}`;
 
@@ -24,6 +25,36 @@ describe("owner knowledge document import", () => {
     });
     expect(imported.sourceType).toBe("csv");
     expect(imported.text).toContain("Thé vert;12");
+  });
+
+  it("extracts readable text from a generated PDF", async () => {
+    const exported = await exportOwnerAiWorkspaceDocument({
+      title: "Validation PDF",
+      content: "Fournisseur de test, stock et livraison.",
+      format: "pdf",
+    });
+    const imported = await importOwnerKnowledgeDocument({ sourceName: exported.fileName, dataUrl: exported.dataUrl });
+    expect(imported.sourceType).toBe("pdf");
+    expect(imported.text).toContain("Fournisseur de test");
+  });
+
+  it("extracts readable text from a generated DOCX", async () => {
+    const exported = await exportOwnerAiWorkspaceDocument({
+      title: "Validation DOCX",
+      content: "Fournisseur de test, stock et livraison.",
+      format: "docx",
+    });
+    const imported = await importOwnerKnowledgeDocument({ sourceName: exported.fileName, dataUrl: exported.dataUrl });
+    expect(imported.sourceType).toBe("docx");
+    expect(imported.text).toContain("Fournisseur de test");
+  });
+
+  it("accepts a charset declared by browsers in textual data URLs", async () => {
+    const imported = await importOwnerKnowledgeDocument({
+      sourceName: "guide.txt",
+      dataUrl: `data:text/plain;charset=utf-8;base64,${Buffer.from("Guide fournisseur", "utf8").toString("base64")}`,
+    });
+    expect(imported.text).toBe("Guide fournisseur");
   });
 
   it("rejects unsupported document types", async () => {

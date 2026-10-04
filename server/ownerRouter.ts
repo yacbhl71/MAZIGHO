@@ -23,6 +23,7 @@ import { invokeLLM } from "./_core/llm";
 import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentImport";
 import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExport";
 import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
+import { OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS, getOwnerKnowledgeDocumentSizeMessage } from "../shared/ownerKnowledgeDocumentPolicy";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -60,7 +61,7 @@ function ownerKnowledgeDocumentError(error: unknown): never {
   const messages: Record<string, string> = {
     DOCUMENT_DATA_INVALID: "Le fichier transmis est invalide.",
     DOCUMENT_TYPE_INVALID: "Seuls les formats PDF, DOCX, TXT et CSV sont acceptés.",
-    DOCUMENT_SIZE_INVALID: "Le document dépasse la limite de 5 Mo.",
+    DOCUMENT_SIZE_INVALID: `Le document dépasse la limite de ${getOwnerKnowledgeDocumentSizeMessage()}.`,
     DOCUMENT_TEXT_EMPTY: "Aucun texte exploitable n’a été trouvé dans ce document.",
     DOCUMENT_EXTRACTION_FAILED: "Le texte de ce document n’a pas pu être extrait. Essayez une version PDF, DOCX, TXT ou CSV lisible.",
     OWNER_KNOWLEDGE_DOCUMENT_DUPLICATE: "Ce document est déjà présent dans votre centre documentaire.",
@@ -690,7 +691,7 @@ export const ownerRouter = router({
     knowledgeDocuments: router({
       list: storeOwnerProcedure.query(async ({ ctx }) => db.listOwnerKnowledgeDocuments(ctx.store!.id)),
       importDocument: storeOwnerProcedure.input(z.object({
-        dataUrl: z.string().min(16).max(7_100_000),
+        dataUrl: z.string().min(16).max(OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS),
         sourceName: z.string().trim().min(1).max(255),
         folder: z.string().trim().max(100).default("Général"),
       })).mutation(async ({ ctx, input }) => {
