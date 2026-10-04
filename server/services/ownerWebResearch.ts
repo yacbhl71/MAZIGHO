@@ -4,6 +4,8 @@ import { isIP } from "node:net";
 const MAX_HTML_BYTES = 900_000;
 const MAX_TEXT_CHARS = 24_000;
 const REQUEST_TIMEOUT_MS = 12_000;
+const SEARCH_RESULT_LIMIT = 6;
+const PUBLIC_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
 
 function isBlockedAddress(address: string) {
   const value = address.toLowerCase();
@@ -48,6 +50,7 @@ function titleFromHtml(html: string, fallback: string) {
 }
 
 export type OwnerWebResearchSource = { url: string; title: string; text: string };
+export type OwnerWebSearchResult = { title: string; url: string; excerpt: string };
 
 /** Fetches a single user-selected public HTTPS source. It never performs a search, login or remote action. */
 export async function fetchOwnerWebResearchSource(rawUrl: string): Promise<OwnerWebResearchSource> {
@@ -77,4 +80,72 @@ export async function fetchOwnerWebResearchSource(rawUrl: string): Promise<Owner
     return { url: url.toString(), title: titleFromHtml(html, url.hostname), text };
   }
   throw new Error("WEB_RESEARCH_REDIRECT_LIMIT");
+}
+
+function getSearchResultTarget(rawHref: string) {
+  const resultUrl = new URL(decodeHtml(rawHref), PUBLIC_SEARCH_ENDPOINT);
+  return resultUrl.searchParams.get("uddg") || resultUrl.toString();
+}
+
+/**
+ * Runs one explicit public-web search and returns citations only. It never
+ * fetches a returned result page; the owner must select it before analysis.
+ */
+export async function searchOwnerWebResearchSources(rawQuery: string): Promise<OwnerWebSearchResult[]> {
+  const query = rawQuery.trim();
+  if (query.length < 2) throw new Error("WEB_RESEARCH_QUERY_INVALID");
+
+  const endpoint = await assertPublicHttpsUrl(PUBLIC_SEARCH_ENDPOINT);
+  let response: Response;
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("q", query);
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (compatible; MAZIGHO-Research/1.0)",
+      },
+    });
+  } catch {
+    throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  }
+
+  if (!response.ok) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  const type = response.headers.get("content-type") || "";
+  const length = Number(response.headers.get("content-length") || 0);
+  if (!type.toLowerCase().includes("text/html") || (length && length > MAX_HTML_BYTES)) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+
+  const html = (await response.text()).slice(0, MAX_HTML_BYTES);
+  const anchorPattern = /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const results: OwnerWebSearchResult[] = [];
+  const seenUrls = new Set<string>();
+
+  let match: RegExpExecArray | null;
+  while ((match = anchorPattern.exec(html))) {
+    if (results.length >= SEARCH_RESULT_LIMIT) break;
+    const rawHref = match[1];
+    const title = htmlToText(match[2] || "").slice(0, 180);
+    if (!rawHref || !title) continue;
+
+    let url: URL;
+    try {
+      url = await assertPublicHttpsUrl(getSearchResultTarget(rawHref));
+    } catch {
+      continue;
+    }
+    if (seenUrls.has(url.toString())) continue;
+
+    const anchorStart = match.index ?? 0;
+    const nearbyHtml = html.slice(anchorStart, anchorStart + 2_000);
+    const snippetMatch = nearbyHtml.match(/<[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
+    results.push({
+      title,
+      url: url.toString(),
+      excerpt: htmlToText(snippetMatch?.[1] || "").slice(0, 500),
+    });
+    seenUrls.add(url.toString());
+  }
+
+  return results;
 }

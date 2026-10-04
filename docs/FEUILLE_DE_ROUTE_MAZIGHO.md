@@ -201,6 +201,12 @@ Le Studio permet de retrouver, filtrer et préparer une boutique sans parcourir 
 
 Chaque scénario clé fonctionne manuellement sur une boutique pilote avec une réponse visible, utile, sourcée lorsque nécessaire et sans publication automatique.
 
+**Jalon publié — validation de l’Assistant IA :** le copilote a été contrôlé sur une boutique pilote avec une FAQ réellement préparée et affichée dans le panneau propriétaire, sans modifier la vitrine. Les réponses sont désormais rendues en Markdown lisible sur téléphone, tablette et ordinateur, avec deux décisions explicites : **copier** le brouillon ou **le garder dans le Workspace privé**. Cette seconde action crée un document chiffré, isolé par `storeId`, exportable ensuite en PDF/DOCX ; elle ne publie rien. Les analyses de visuels disposent du même choix explicite.
+
+**Couverture vérifiée :** les tests couvrent les imports PDF/DOCX/TXT/CSV (politique de 3 Mio incluse), l’extraction de texte, la recherche documentaire isolée et les citations de documents sélectionnés, l’export Workspace PDF/DOCX, les rôles lecture seule, les limites de quotas et la recherche web HTTPS avec citation ou l’étiquette claire « texte fourni non vérifié ». Le propriétaire peut aussi lancer une recherche par mots-clés dans un index public : seuls des liens et extraits sont alors proposés, puis il choisit explicitement la page que l’assistant est autorisé à lire. Cette recherche ne consomme pas de quota IA et ne déclenche aucune action externe. Le modèle multimodal utilisé pour les brouillons est présent dans le catalogue actif. Les URL et images restent des sources de travail ; aucune publication, modification de prix, e-mail ou contact externe ne peut être déclenché automatiquement.
+
+**Statut : Lot 6 clôturé pour la validation qualité de l’Assistant IA.**
+
 ---
 
 ## Lot 7 — Résilience, exploitation et conformité

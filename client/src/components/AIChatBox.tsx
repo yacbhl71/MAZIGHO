@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Copy, Loader2, Send, User, Sparkles } from "lucide-react";
+import { Copy, Loader2, Save, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { Streamdown } from "streamdown";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -28,6 +29,9 @@ export type AIChatBoxProps = {
 
   /** Optional action shown below assistant messages, for example copying a draft. */
   onCopyAssistantMessage?: (content: string) => void;
+
+  /** Optional explicit action to keep an assistant answer in a private workspace. */
+  onSaveAssistantMessage?: (content: string) => void;
 
   /**
    * Whether the AI is currently generating a response
@@ -116,6 +120,7 @@ export function AIChatBox({
   messages,
   onSendMessage,
   onCopyAssistantMessage,
+  onSaveAssistantMessage,
   isLoading = false,
   placeholder = "Type your message...",
   className,
@@ -265,17 +270,30 @@ export function AIChatBox({
                     >
                       {message.role === "assistant" ? (
                         <div>
-                          <div className="max-w-none whitespace-pre-wrap text-sm leading-6 text-foreground">
-                            {message.content || "Aucune réponse texte n’a été reçue. Réessayez avec une demande plus courte."}
+                          <div className="max-w-none text-sm leading-6 text-foreground [&_h1]:mt-1 [&_h1]:text-lg [&_h1]:font-bold [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-bold [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
+                            <Streamdown>{message.content || "Aucune réponse texte n’a été reçue. Réessayez avec une demande plus courte."}</Streamdown>
                           </div>
-                          {onCopyAssistantMessage && (
-                            <button
-                              type="button"
-                              onClick={() => onCopyAssistantMessage(message.content)}
-                              className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
-                            >
-                              <Copy className="size-3.5" /> Copier le brouillon
-                            </button>
+                          {(onCopyAssistantMessage || onSaveAssistantMessage) && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {onCopyAssistantMessage && (
+                                <button
+                                  type="button"
+                                  onClick={() => onCopyAssistantMessage(message.content)}
+                                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+                                >
+                                  <Copy className="size-3.5" /> Copier le brouillon
+                                </button>
+                              )}
+                              {onSaveAssistantMessage && (
+                                <button
+                                  type="button"
+                                  onClick={() => onSaveAssistantMessage(message.content)}
+                                  className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition hover:bg-background hover:text-foreground"
+                                >
+                                  <Save className="size-3.5" /> Garder dans Workspace
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       ) : (

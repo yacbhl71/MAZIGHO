@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchOwnerWebResearchSource } from "./ownerWebResearch";
+import { fetchOwnerWebResearchSource, searchOwnerWebResearchSources } from "./ownerWebResearch";
 
 vi.mock("node:dns/promises", () => ({ lookup: vi.fn(async () => [{ address: "93.184.215.14", family: 4 }]) }));
 
@@ -29,5 +29,26 @@ describe("owner web research source", () => {
   it("rejects redirect to private network", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://127.0.0.1/private" } })));
     await expect(fetchOwnerWebResearchSource("https://example.com/page")).rejects.toThrow("WEB_RESEARCH_URL_BLOCKED");
+  });
+
+  it("returns only public citations from an explicit search without reading result pages", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(`
+      <html><body>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fproduit">Source créative</a>
+        <div class="result__snippet">Une description publique utile pour la boutique.</div>
+        <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fproduit">Source dupliquée</a>
+      </body></html>
+    `, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } })));
+
+    await expect(searchOwnerWebResearchSources("dessin créatif")).resolves.toEqual([{
+      title: "Source créative",
+      url: "https://example.com/produit",
+      excerpt: "Une description publique utile pour la boutique.",
+    }]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an empty web-search query before making a public request", async () => {
+    await expect(searchOwnerWebResearchSources(" ")).rejects.toThrow("WEB_RESEARCH_QUERY_INVALID");
   });
 });

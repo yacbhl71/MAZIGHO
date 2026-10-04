@@ -11,6 +11,7 @@ vi.mock("./_core/llm", () => ({
 
 vi.mock("./services/ownerWebResearch", () => ({
   fetchOwnerWebResearchSource: vi.fn(async () => { throw new Error("WEB_RESEARCH_PAGE_NOT_FOUND"); }),
+  searchOwnerWebResearchSources: vi.fn(async () => [{ title: "Source publique", url: "https://example.test/source", excerpt: "Extrait public" }]),
 }));
 
 vi.mock("./db", () => ({
@@ -108,6 +109,15 @@ describe("store-scoped management procedure", () => {
     await expect(callerFor().owner.assistant.webResearch.analyzeText(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
     membershipState.current = { role: "owner", status: "active" };
     await expect(callerFor().owner.assistant.webResearch.analyzeText(input)).resolves.toMatchObject({ answer: "Brouillon de réponse IA", citation: null, historySaved: true });
+  });
+  it("keeps keyword web searches owner-only and returns citations before any page analysis", async () => {
+    membershipState.current = { role: "manager", status: "active" };
+    await expect(callerFor().owner.assistant.webResearch.search({ query: "fournisseur créatif" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    membershipState.current = { role: "owner", status: "active" };
+    await expect(callerFor().owner.assistant.webResearch.search({ query: "fournisseur créatif" })).resolves.toEqual({
+      results: [{ title: "Source publique", url: "https://example.test/source", excerpt: "Extrait public" }],
+    });
+    expect(db.reserveStoreAiRequest).not.toHaveBeenCalled();
   });
   it("does not consume an AI request when the merchant URL returns 404", async () => {
     membershipState.current = { role: "owner", status: "active" };

@@ -22,7 +22,7 @@ import { returnExternalCaseProviders, returnExternalCaseStatuses, returnExternal
 import { invokeLLM } from "./_core/llm";
 import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentImport";
 import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExport";
-import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
+import { fetchOwnerWebResearchSource, searchOwnerWebResearchSources } from "./services/ownerWebResearch";
 import { OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS, getOwnerKnowledgeDocumentSizeMessage } from "../shared/ownerKnowledgeDocumentPolicy";
 import { isSafeOwnerManualTrackingUrl, OWNER_MANUAL_TRACKING_LIMITS } from "../shared/ownerManualTracking";
 import { STORE_PRODUCT_BUNDLE_LIMITS } from "../shared/storeProductBundles";
@@ -120,6 +120,8 @@ function ownerWebResearchError(error: unknown): never {
     WEB_RESEARCH_CONTENT_UNSUPPORTED: "Cette source ne fournit pas une page HTML exploitable.",
     WEB_RESEARCH_TEXT_EMPTY: "Cette page ne contient pas assez de texte exploitable.",
     WEB_RESEARCH_REDIRECT_LIMIT: "Cette source comporte trop de redirections.",
+    WEB_RESEARCH_QUERY_INVALID: "Saisissez au moins deux caractères pour chercher sur le web.",
+    WEB_RESEARCH_SEARCH_UNAVAILABLE: "La recherche web est momentanément indisponible. Réessayez plus tard ou analysez directement une URL HTTPS.",
     WEB_RESEARCH_AI_EMPTY: "L’analyse IA n’a pas produit de réponse. Rien n’a été archivé ; réessayez.",
     OWNER_AI_WORKSPACE_ENCRYPTION_NOT_CONFIGURED: "Le chiffrement privé du Workspace n’est pas configuré. L’analyse n’a pas été archivée ; contactez MAZIGHO Studio.",
     OWNER_AI_WORKSPACE_DOCUMENT_UNREADABLE: "Le Workspace ne peut pas relire un document chiffré. L’analyse n’a pas été archivée ; contactez MAZIGHO Studio.",
@@ -966,6 +968,25 @@ export const ownerRouter = router({
       }),
     }),
     webResearch: router({
+      search: storeOwnerProcedure.input(z.object({ query: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+        try {
+          const results = await searchOwnerWebResearchSources(input.query);
+          await db.recordAuditLog({
+            storeId: ctx.store!.id,
+            actorUserId: ctx.user!.id,
+            actorName: ctx.user!.name || ctx.user!.email,
+            actorRole: "owner",
+            action: "owner.ai.web_research.search",
+            entityType: "owner_ai_web_research",
+            entityId: null,
+            summary: "Recherche web explicitement lancée par le propriétaire.",
+            metadata: { resultCount: results.length },
+          });
+          return { results };
+        } catch (error) {
+          return ownerWebResearchError(error);
+        }
+      }),
       analyzeUrl: storeOwnerProcedure.input(z.object({
         url: z.string().trim().url().max(2000).refine(value => /^https:\/\//i.test(value), "Utilisez une URL https://."),
         instruction: z.string().trim().min(3).max(1200),
