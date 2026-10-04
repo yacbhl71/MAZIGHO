@@ -262,6 +262,6 @@ La première boutique commerciale est validée en conditions réelles avec une o
 
 ## Prochain lot actif
 
-**Lot 2 — Commandes, livraison et après-vente opérationnels.**
+**Lot 7 — Résilience, exploitation et conformité.**
 
-La prochaine priorité est une **validation manuelle connectée**, sur tablette, d’une commande de recette et de son après-vente : décisions, préparation, suivi, livraison / COD puis retour. Aucun achat, paiement, e-mail, remboursement ou publication ne sera créé sans décision humaine explicite.
+La prochaine priorité reste l’**activation contrôlée** des sauvegardes, de la restauration et des alertes sur ressources externes, au moment où leur coût sera justifié. Les contrôles manuels de commande, livraison / COD et retour restent recommandés sur une boutique de recette, sans achat, paiement, e-mail, remboursement ou publication non voulue.
