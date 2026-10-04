@@ -13,12 +13,15 @@ export const CUSTOM_CREATION_REQUEST_LIMITS = {
   ownerReply: 3_000,
   headline: 160,
   intro: 1_000,
+  navigationLabel: 40,
 } as const;
 
 export type StoreCustomCreationRequestSettings = {
   enabled: boolean;
   /** A boutique may accept briefs while keeping the public shortcut hidden. */
   visibleInNavigation: boolean;
+  /** Short public shortcut text, adapted to the boutique's activity. */
+  navigationLabel: string;
   headline: string;
   intro: string;
 };
@@ -26,6 +29,7 @@ export type StoreCustomCreationRequestSettings = {
 export const DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS: StoreCustomCreationRequestSettings = {
   enabled: false,
   visibleInNavigation: true,
+  navigationLabel: "Sur mesure",
   headline: "Une demande à préparer ?",
   intro: "Expliquez ce dont vous avez besoin. La boutique vous répondra après étude, sans devis ni commande automatiques.",
 };
@@ -60,6 +64,7 @@ export function parseStoreCustomCreationRequestSettings(value: string | null | u
       // Existing activated boutiques gain the useful shortcut by default; only
       // an explicit false hides it.
       visibleInNavigation: parsed.visibleInNavigation !== false,
+      navigationLabel: readText(parsed.navigationLabel, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.navigationLabel, CUSTOM_CREATION_REQUEST_LIMITS.navigationLabel),
       headline: readText(parsed.headline, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.headline, CUSTOM_CREATION_REQUEST_LIMITS.headline),
       intro: readText(parsed.intro, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.intro, CUSTOM_CREATION_REQUEST_LIMITS.intro),
     };
@@ -72,6 +77,7 @@ export function normalizeStoreCustomCreationRequestSettings(input: Partial<Store
   return {
     enabled: input.enabled === true,
     visibleInNavigation: input.visibleInNavigation !== false,
+    navigationLabel: readText(input.navigationLabel, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.navigationLabel, CUSTOM_CREATION_REQUEST_LIMITS.navigationLabel),
     headline: readText(input.headline, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.headline, CUSTOM_CREATION_REQUEST_LIMITS.headline),
     intro: readText(input.intro, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.intro, CUSTOM_CREATION_REQUEST_LIMITS.intro),
   };

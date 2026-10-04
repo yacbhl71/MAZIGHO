@@ -33,6 +33,7 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
   const utils = trpc.useUtils();
   const [enabled, setEnabled] = useState(false);
   const [visibleInNavigation, setVisibleInNavigation] = useState(true);
+  const [navigationLabel, setNavigationLabel] = useState("Sur mesure");
   const [headline, setHeadline] = useState("");
   const [intro, setIntro] = useState("");
   const [drafts, setDrafts] = useState<Record<number, { status: CustomCreationRequestStatus; reply: string }>>({});
@@ -41,6 +42,7 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
     if (!settings.data) return;
     setEnabled(settings.data.enabled);
     setVisibleInNavigation(settings.data.visibleInNavigation);
+    setNavigationLabel(settings.data.navigationLabel);
     setHeadline(settings.data.headline);
     setIntro(settings.data.intro);
   }, [settings.data]);
@@ -86,6 +88,7 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
   const settingsChanged = Boolean(settings.data && (
     settings.data.enabled !== enabled
     || settings.data.visibleInNavigation !== visibleInNavigation
+    || settings.data.navigationLabel !== navigationLabel.trim()
     || settings.data.headline !== headline.trim()
     || settings.data.intro !== intro.trim()
   ));
@@ -138,11 +141,16 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
           <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
             <input type="checkbox" checked={visibleInNavigation} disabled={!canManage} onChange={event => setVisibleInNavigation(event.target.checked)} className="mt-1 h-4 w-4 accent-violet-700" />
             <span>
-              <span className="font-semibold text-slate-950">Afficher « Demander une création » dans le menu</span>
+              <span className="font-semibold text-slate-950">Afficher le raccourci dans le menu</span>
               <span className="mt-1 block text-xs leading-5 text-slate-600">Vous pouvez le masquer sans désactiver le service. Le raccourci n’apparaît que lorsque les demandes sont acceptées.</span>
             </span>
           </label>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="custom-request-navigation-label">Libellé du raccourci</Label>
+              <Input id="custom-request-navigation-label" value={navigationLabel} disabled={!canManage} maxLength={CUSTOM_CREATION_REQUEST_LIMITS.navigationLabel} onChange={event => setNavigationLabel(event.target.value)} placeholder="Ex. Sur mesure" />
+              <p className="text-xs leading-5 text-slate-500">Ex. « Personnaliser un article » ou « Projet déco ». Évitez « Dessin sur demande » si l’offre n’est pas artistique.</p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="custom-request-headline">Titre de la page</Label>
               <Input id="custom-request-headline" value={headline} disabled={!canManage} maxLength={CUSTOM_CREATION_REQUEST_LIMITS.headline} onChange={event => setHeadline(event.target.value)} placeholder="Une idée à transformer ?" />
@@ -154,7 +162,7 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <p className="max-w-2xl text-xs leading-5 text-slate-500">Les demandes peuvent porter sur un produit, un service, une personnalisation ou tout autre besoin : chaque boutique reste libre de décider ce qu’elle accepte ensuite.</p>
-            {canManage ? <Button type="button" className="min-h-11 bg-violet-700 hover:bg-violet-800" disabled={!settingsChanged || saveSettings.isPending} onClick={() => saveSettings.mutate({ enabled, visibleInNavigation, headline, intro })}>
+            {canManage ? <Button type="button" className="min-h-11 bg-violet-700 hover:bg-violet-800" disabled={!settingsChanged || saveSettings.isPending} onClick={() => saveSettings.mutate({ enabled, visibleInNavigation, navigationLabel, headline, intro })}>
               {saveSettings.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Enregistrement…</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Enregistrer</>}
             </Button> : <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">Propriétaire requis pour configurer</Badge>}
           </div>

@@ -15,11 +15,13 @@ describe("custom creation request settings", () => {
     const settings = normalizeStoreCustomCreationRequestSettings({
       enabled: true,
       visibleInNavigation: false,
+      navigationLabel: " Personnaliser un article ",
       headline: " Portraits & projets ",
       intro: "x".repeat(2_000),
     });
     expect(settings.enabled).toBe(true);
     expect(settings.visibleInNavigation).toBe(false);
+    expect(settings.navigationLabel).toBe("Personnaliser un article");
     expect(settings.headline).toBe("Portraits & projets");
     expect(settings.intro.length).toBeLessThanOrEqual(1_000);
   });
@@ -28,6 +30,7 @@ describe("custom creation request settings", () => {
     expect(parseStoreCustomCreationRequestSettings(JSON.stringify({ enabled: true, headline: "Projet", intro: "Texte" }))).toMatchObject({
       enabled: true,
       visibleInNavigation: true,
+      navigationLabel: "Sur mesure",
     });
   });
 

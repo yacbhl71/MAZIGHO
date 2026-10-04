@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
-  getStoreCustomCreationRequestSettings: vi.fn(async () => ({ enabled: true, visibleInNavigation: true, headline: "Une idée ?", intro: "Décrivez votre projet." })),
+  getStoreCustomCreationRequestSettings: vi.fn(async () => ({ enabled: true, visibleInNavigation: true, navigationLabel: "Sur mesure", headline: "Une idée ?", intro: "Décrivez votre projet." })),
   saveStoreCustomCreationRequestSettings: vi.fn(async (_storeId: number, input: any) => input),
   createStoreCustomCreationRequest: vi.fn(async (input: any) => {
     state.created.push(input);
@@ -69,11 +69,12 @@ describe("customCreationRequestRouter", () => {
     const result = await caller().owner.saveSettings({
       enabled: true,
       visibleInNavigation: false,
+      navigationLabel: "Personnaliser",
       headline: "Une idée ?",
       intro: "Décrivez votre projet.",
     });
     expect(result).toMatchObject({ enabled: true, visibleInNavigation: false });
-    expect(state.audits).toEqual([expect.objectContaining({ storeId: 77, metadata: { enabled: true, visibleInNavigation: false } })]);
+    expect(state.audits).toEqual([expect.objectContaining({ storeId: 77, metadata: { enabled: true, visibleInNavigation: false, navigationLabel: "Personnaliser" } })]);
   });
 
   it("rejects non-manager members from the internal queue", async () => {

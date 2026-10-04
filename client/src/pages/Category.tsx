@@ -21,6 +21,7 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
 import { useStorefrontCatalogueFiltering } from "@/hooks/useStorefrontCatalogueFiltering";
 import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
+import { getStorefrontCategoryAvailability } from "@shared/storefrontCategoryAvailability";
 
 const categoryHeroImages: Record<string, { src: string; srcSet: string; fallback: string }> = {
   "high-tech-gadgets": { src: "/assets/category-high-tech-hero.webp", srcSet: "/assets/category-high-tech-sm.webp 480w, /assets/category-high-tech.webp 960w, /assets/category-high-tech-hero.webp 1920w", fallback: "/assets/category-high-tech.webp" },
@@ -48,13 +49,18 @@ export default function Category() {
   const creativeVisual = isCreativeCategory ? getCollectionVisual(slug) : undefined;
   const heroImageUrl = creativeVisual?.imageUrl || category?.imageUrl || categoryHeroImages[slug]?.src || "/assets/shop-editorial-hero.webp";
   const usesStoreCategoryImage = Boolean(creativeVisual?.imageUrl || category?.imageUrl);
-  const categoryNotice = category?.publicNotice?.trim() || (isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : categoryT(locale, "categoryNotice", { category: category?.name || "", country: countryLabel }));
-  const categoryEmptyMessage = category?.emptyStateMessage?.trim() || (isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryEmpty", { country: countryLabel }));
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
+  const categoryNotice = category?.publicNotice?.trim() || (isCreativeCategory ? categoryT(locale, "creativeNotice", { country: countryLabel }) : isClientStore ? categoryT(locale, "categoryStoreNotice", { category: category?.name || "" }) : categoryT(locale, "categoryNotice", { category: category?.name || "", country: countryLabel }));
   const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
   const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
   const limitedCopy = getLimitedStorefrontCopy(locale);
-  const products = (categoryQuery.data?.products || []).filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
+  const allCategoryProducts = categoryQuery.data?.products || [];
+  const products = allCategoryProducts.filter(product => isCreativeCategory || isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
+  const categoryAvailability = getStorefrontCategoryAvailability({ totalProducts: allCategoryProducts.length, visibleProducts: products.length });
+  const categoryEmptyMessage = category?.emptyStateMessage?.trim()
+    || (categoryAvailability === "delivery_unavailable"
+      ? categoryT(locale, "categoryDeliveryUnavailable", { country: countryLabel })
+      : isCreativeCategory ? categoryT(locale, "creativeEmpty") : categoryT(locale, "categoryNoProducts"));
   const catalogueFilters = useStorefrontCatalogueFiltering(products, { fixedCategoryId: categoryData ? String(categoryData.id) : undefined });
   const visibleProducts = catalogueFilters.visibleProducts;
 
@@ -295,7 +301,7 @@ export default function Category() {
                 <p className="text-gray-600 text-lg">{categoryEmptyMessage}</p>
                 <Link href={isCreativeCategory ? "/creations" : "/boutique"}>
                   <Button className="mt-6 bg-orange-500 hover:bg-orange-600 text-white">
-                    {isCreativeCategory ? categoryT(locale, "backCreations") : categoryT(locale, "chooseCountryOrShop")}
+                    {isCreativeCategory ? categoryT(locale, "backCreations") : categoryAvailability === "delivery_unavailable" ? categoryT(locale, "chooseCountryOrShop") : categoryT(locale, "backShop")}
                   </Button>
                 </Link>
               </div>
