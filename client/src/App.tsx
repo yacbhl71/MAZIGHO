@@ -22,6 +22,7 @@ const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
 const StoreAcquisitionWizard = lazy(() => import("./pages/StoreAcquisitionWizard"));
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
+const CustomCreationRequest = lazy(() => import("./pages/CustomCreationRequest"));
 const Category = lazy(() => import("./pages/Category"));
 const Product = lazy(() => import("./pages/Product"));
 const About = lazy(() => import("./pages/About"));
@@ -434,6 +435,7 @@ function Router() {
       <Route path={"/demarrer-boutique"} component={StoreAcquisitionWizard} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
+      <Route path={"/demande-sur-mesure"} component={CustomCreationRequest} />
       <Route path={"/categorie/:slug"} component={Category} />
       <Route path={"/produit/:key"} component={Product} />
       <Route path={"/a-propos"} component={About} />

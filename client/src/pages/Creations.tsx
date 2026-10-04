@@ -20,6 +20,7 @@ export default function Creations() {
   const copy = getCollectionsCopy(locale).creations;
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const productsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
+  const customCreationRequests = trpc.customCreationRequests.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
 
@@ -48,9 +49,9 @@ export default function Creations() {
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-200 md:text-lg">
                 {copy.lead}
               </p>
-              <a href="#collections" className="mt-8 inline-flex items-center gap-2 bg-white px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-rose-100">
+              <div className="mt-8 flex flex-wrap gap-3"><a href="#collections" className="inline-flex min-h-11 items-center gap-2 bg-white px-5 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-rose-100">
                 {copy.cta} <ArrowRight className="h-4 w-4" />
-              </a>
+              </a>{customCreationRequests.data?.enabled ? <Link href="/demande-sur-mesure" className="inline-flex min-h-11 items-center gap-2 border border-white/30 bg-white/10 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-white/20"><Sparkles className="h-4 w-4" /> Demander une création</Link> : null}</div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <div className="border border-white/15 bg-white/10 p-5 backdrop-blur-sm">

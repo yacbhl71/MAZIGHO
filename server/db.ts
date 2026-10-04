@@ -89,8 +89,9 @@ import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platform
 import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProductBundle } from "../shared/storeProductBundles";
 import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds, parsePromotionTargetProductIds } from "../shared/promotionTargetProducts";
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
+import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, customCreationRequests, customCreationRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -125,6 +126,7 @@ let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
 let _ownerKnowledgeDocumentSchemaReady: Promise<void> | null = null;
 let _ownerAiConversationSchemaReady: Promise<void> | null = null;
 let _ownerAiWorkspaceDocumentSchemaReady: Promise<void> | null = null;
+let _customCreationRequestSchemaReady: Promise<void> | null = null;
 
 export type StoreScope = Pick<schema.Store, "id" | "slug" | "displayName" | "primaryDomain" | "status" | "isPlatformStore">;
 
@@ -3788,6 +3790,27 @@ async function ensureOwnerAiWorkspaceDocumentSchema() {
     await db.execute(sql.raw("ALTER TABLE `ownerAiWorkspaceDocuments` ADD COLUMN IF NOT EXISTS `visibility` enum('private','team') NOT NULL DEFAULT 'private'"));
   })();
   return _ownerAiWorkspaceDocumentSchemaReady;
+}
+
+/**
+ * Customer creative requests are deliberately local to a storefront. The
+ * record stores a project brief only: no file upload, payment, address,
+ * e-mail snapshot or automatic quote is accepted here.
+ */
+async function ensureCustomCreationRequestSchema() {
+  if (_customCreationRequestSchemaReady) return _customCreationRequestSchemaReady;
+  _customCreationRequestSchemaReady = (async () => {
+    await ensureMultiStoreSchema();
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `customCreationRequests` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `userId` int NOT NULL, `kind` enum('portrait','object','animal','home','textile','other') NOT NULL, `title` varchar(140) NOT NULL, `description` text NOT NULL, `dimensions` varchar(300) NULL, `budget` varchar(120) NULL, `deadline` varchar(120) NULL, `status` enum('submitted','in_review','answered','closed') NOT NULL DEFAULT 'submitted', `ownerReply` text NULL, `ownerActorUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `custom_creation_requests_store_status_updated_idx` (`storeId`,`status`,`updatedAt`), INDEX `custom_creation_requests_store_user_updated_idx` (`storeId`,`userId`,`updatedAt`))"));
+    // A small early deployment did not yet include human portraits. Widening is
+    // idempotent and means a boutique can choose that category without a
+    // platform-wide prohibition.
+    await db.execute(sql.raw("ALTER TABLE `customCreationRequests` MODIFY COLUMN `kind` enum('portrait','object','animal','home','textile','other') NOT NULL"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `customCreationRequestEvents` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `requestId` int NOT NULL, `action` varchar(40) NOT NULL, `fromStatus` varchar(30) NULL, `toStatus` varchar(30) NOT NULL, `note` varchar(500) NULL, `actorUserId` int NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX `custom_creation_request_events_store_request_created_idx` (`storeId`,`requestId`,`createdAt`))"));
+  })();
+  return _customCreationRequestSchemaReady;
 }
 
 async function getPrimaryStoreId() {
@@ -11657,6 +11680,174 @@ export async function markCartReminderSent(cartId: number, storeId?: number) {
   if (!db) return;
   const effectiveStoreId = storeId ?? await getPrimaryStoreId();
   await db.update(carts).set({ reminderSentAt: new Date() }).where(and(eq(carts.storeId, effectiveStoreId), eq(carts.id, cartId)));
+}
+
+// --- Customer creative requests -------------------------------------------
+// This is an authenticated project brief and a manual store-owner reply. It is
+// intentionally not a quote, product, checkout, upload or messaging system.
+const CUSTOM_CREATION_REQUEST_SETTINGS_KEY = "store_custom_creation_requests";
+
+export async function getStoreCustomCreationRequestSettings(storeId: number): Promise<StoreCustomCreationRequestSettings> {
+  const raw = await getStoreSettingValue(storeId, CUSTOM_CREATION_REQUEST_SETTINGS_KEY);
+  return parseStoreCustomCreationRequestSettings(raw);
+}
+
+export async function saveStoreCustomCreationRequestSettings(storeId: number, input: StoreCustomCreationRequestSettings) {
+  const settings = normalizeStoreCustomCreationRequestSettings(input);
+  await setStoreSettingValue(
+    storeId,
+    CUSTOM_CREATION_REQUEST_SETTINGS_KEY,
+    JSON.stringify(settings),
+    "Demandes de créations sur mesure propres à cette boutique ; projet texte et réponse manuelle, sans fichier, devis, commande, paiement ou e-mail automatique.",
+  );
+  return settings;
+}
+
+export async function createStoreCustomCreationRequest(input: {
+  storeId: number;
+  userId: number;
+  kind: CustomCreationRequestKind;
+  title: string;
+  description: string;
+  dimensions?: string | null;
+  budget?: string | null;
+  deadline?: string | null;
+}) {
+  await ensureCustomCreationRequestSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const settings = await getStoreCustomCreationRequestSettings(input.storeId);
+  if (!settings.enabled) throw new Error("CUSTOM_CREATION_REQUESTS_DISABLED");
+  const title = input.title.trim().replace(/\s+/g, " ").slice(0, CUSTOM_CREATION_REQUEST_LIMITS.title);
+  const description = input.description.trim().slice(0, CUSTOM_CREATION_REQUEST_LIMITS.description);
+  if (title.length < 3 || description.length < 10) throw new Error("CUSTOM_CREATION_REQUEST_INVALID");
+  const optional = (value: string | null | undefined, maximum: number) => value?.trim().slice(0, maximum) || null;
+  return await db.transaction(async tx => {
+    const inserted = await tx.insert(customCreationRequests).values({
+      storeId: input.storeId,
+      userId: input.userId,
+      kind: input.kind,
+      title,
+      description,
+      dimensions: optional(input.dimensions, CUSTOM_CREATION_REQUEST_LIMITS.dimensions),
+      budget: optional(input.budget, CUSTOM_CREATION_REQUEST_LIMITS.budget),
+      deadline: optional(input.deadline, CUSTOM_CREATION_REQUEST_LIMITS.deadline),
+      status: "submitted",
+    });
+    const id = Number((inserted as any)[0]?.insertId ?? (inserted as any).insertId);
+    await tx.insert(customCreationRequestEvents).values({
+      storeId: input.storeId,
+      requestId: id,
+      action: "submitted",
+      toStatus: "submitted",
+      actorUserId: input.userId,
+    });
+    return { id, status: "submitted" as const, createdAt: new Date() };
+  });
+}
+
+async function getCustomCreationRequestEvents(storeId: number, requestIds: number[]) {
+  if (!requestIds.length) return new Map<number, Array<{ action: string; fromStatus: string | null; toStatus: string; createdAt: Date }>>();
+  const db = await getDb();
+  if (!db) return new Map();
+  const events = await db.select({
+    requestId: customCreationRequestEvents.requestId,
+    action: customCreationRequestEvents.action,
+    fromStatus: customCreationRequestEvents.fromStatus,
+    toStatus: customCreationRequestEvents.toStatus,
+    createdAt: customCreationRequestEvents.createdAt,
+  }).from(customCreationRequestEvents)
+    .where(and(eq(customCreationRequestEvents.storeId, storeId), inArray(customCreationRequestEvents.requestId, requestIds)))
+    .orderBy(asc(customCreationRequestEvents.createdAt));
+  const result = new Map<number, typeof events>();
+  for (const event of events) result.set(event.requestId, [...(result.get(event.requestId) ?? []), event]);
+  return result;
+}
+
+export async function getUserStoreCustomCreationRequests(input: { storeId: number; userId: number }) {
+  await ensureCustomCreationRequestSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(customCreationRequests)
+    .where(and(eq(customCreationRequests.storeId, input.storeId), eq(customCreationRequests.userId, input.userId)))
+    .orderBy(desc(customCreationRequests.updatedAt));
+  const events = await getCustomCreationRequestEvents(input.storeId, rows.map(row => row.id));
+  return rows.map(row => ({
+    id: row.id,
+    kind: row.kind as CustomCreationRequestKind,
+    title: row.title,
+    description: row.description,
+    dimensions: row.dimensions,
+    budget: row.budget,
+    deadline: row.deadline,
+    status: row.status as CustomCreationRequestStatus,
+    ownerReply: row.ownerReply,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    events: events.get(row.id) ?? [],
+  }));
+}
+
+export async function getOwnerStoreCustomCreationRequests(storeId: number) {
+  await ensureCustomCreationRequestSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(customCreationRequests)
+    .where(eq(customCreationRequests.storeId, storeId))
+    .orderBy(desc(customCreationRequests.updatedAt));
+  const events = await getCustomCreationRequestEvents(storeId, rows.map(row => row.id));
+  return rows.map(row => ({
+    id: row.id,
+    kind: row.kind as CustomCreationRequestKind,
+    title: row.title,
+    description: row.description,
+    dimensions: row.dimensions,
+    budget: row.budget,
+    deadline: row.deadline,
+    status: row.status as CustomCreationRequestStatus,
+    ownerReply: row.ownerReply,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    events: events.get(row.id) ?? [],
+  }));
+}
+
+export async function updateOwnerStoreCustomCreationRequest(input: {
+  storeId: number;
+  requestId: number;
+  actorUserId: number;
+  status: CustomCreationRequestStatus;
+  ownerReply?: string | null;
+}) {
+  await ensureCustomCreationRequestSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [current] = await db.select().from(customCreationRequests)
+    .where(and(eq(customCreationRequests.storeId, input.storeId), eq(customCreationRequests.id, input.requestId)))
+    .limit(1);
+  if (!current) throw new Error("CUSTOM_CREATION_REQUEST_NOT_FOUND");
+  const ownerReply = input.ownerReply === undefined ? current.ownerReply : (input.ownerReply ?? "").trim().slice(0, CUSTOM_CREATION_REQUEST_LIMITS.ownerReply) || null;
+  if (input.status === "answered" && (!ownerReply || ownerReply.length < 2)) throw new Error("CUSTOM_CREATION_REQUEST_REPLY_REQUIRED");
+  await db.transaction(async tx => {
+    await tx.update(customCreationRequests).set({
+      status: input.status,
+      ownerReply,
+      ownerActorUserId: input.actorUserId,
+      updatedAt: new Date(),
+    }).where(and(eq(customCreationRequests.storeId, input.storeId), eq(customCreationRequests.id, input.requestId)));
+    if (current.status !== input.status || current.ownerReply !== ownerReply) {
+      await tx.insert(customCreationRequestEvents).values({
+        storeId: input.storeId,
+        requestId: input.requestId,
+        action: current.status === input.status ? "reply_updated" : "status_updated",
+        fromStatus: current.status,
+        toStatus: input.status,
+        note: input.status === "answered" ? "Réponse propriétaire enregistrée." : null,
+        actorUserId: input.actorUserId,
+      });
+    }
+  });
+  return { id: input.requestId, status: input.status, ownerReply };
 }
 
 // --- Controlled returns / RMA ---

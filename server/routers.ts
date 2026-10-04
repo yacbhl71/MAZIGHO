@@ -11,6 +11,7 @@ import { ownerRouter } from "./ownerRouter";
 import { storeAcquisitionRouter } from "./storeAcquisitionRouter";
 import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
+import { customCreationRequestRouter } from "./customCreationRequestRouter";
 import { DEFAULT_STORE_MAINTENANCE_MODE } from "../shared/storeMaintenanceMode";
 import { orderBundleProducts } from "../shared/storeProductBundles";
 
@@ -76,6 +77,7 @@ export const appRouter = router({
   // so it remains unavailable on every customer storefront.
   adminSystemPages: adminSystemPagesRouter,
   storefrontSystemPages: storefrontSystemPagesRouter,
+  customCreationRequests: customCreationRequestRouter,
   checkout: stripeCheckoutRouter,
 
   // Only visual URLs are public. Mutations are platformProcedure-only through

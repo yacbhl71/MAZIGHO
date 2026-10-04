@@ -864,6 +864,50 @@ export const promotionRedemptions = mysqlTable("promotionRedemptions", {
 export type PromotionRedemption = typeof promotionRedemptions.$inferSelect;
 export type InsertPromotionRedemption = typeof promotionRedemptions.$inferInsert;
 
+// Customer-to-store creative requests. They carry no attachment, payment,
+// address or contact snapshot: the authenticated account remains the sole
+// identity link, scoped to the resolved storefront.
+export const customCreationRequests = mysqlTable("customCreationRequests", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  userId: int("userId").notNull(),
+  kind: mysqlEnum("kind", ["portrait", "object", "animal", "home", "textile", "other"]).notNull(),
+  title: varchar("title", { length: 140 }).notNull(),
+  description: text("description").notNull(),
+  dimensions: varchar("dimensions", { length: 300 }),
+  budget: varchar("budget", { length: 120 }),
+  deadline: varchar("deadline", { length: 120 }),
+  status: mysqlEnum("status", ["submitted", "in_review", "answered", "closed"]).default("submitted").notNull(),
+  ownerReply: text("ownerReply"),
+  ownerActorUserId: int("ownerActorUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  storeStatusUpdatedIndex: index("custom_creation_requests_store_status_updated_idx").on(table.storeId, table.status, table.updatedAt),
+  storeUserUpdatedIndex: index("custom_creation_requests_store_user_updated_idx").on(table.storeId, table.userId, table.updatedAt),
+}));
+
+export type CustomCreationRequest = typeof customCreationRequests.$inferSelect;
+export type InsertCustomCreationRequest = typeof customCreationRequests.$inferInsert;
+
+// Append-only status history; this does not contact the customer or create a quote.
+export const customCreationRequestEvents = mysqlTable("customCreationRequestEvents", {
+  id: int("id").autoincrement().primaryKey(),
+  storeId: int("storeId").notNull(),
+  requestId: int("requestId").notNull(),
+  action: varchar("action", { length: 40 }).notNull(),
+  fromStatus: varchar("fromStatus", { length: 30 }),
+  toStatus: varchar("toStatus", { length: 30 }).notNull(),
+  note: varchar("note", { length: 500 }),
+  actorUserId: int("actorUserId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  storeRequestCreatedIndex: index("custom_creation_request_events_store_request_created_idx").on(table.storeId, table.requestId, table.createdAt),
+}));
+
+export type CustomCreationRequestEvent = typeof customCreationRequestEvents.$inferSelect;
+export type InsertCustomCreationRequestEvent = typeof customCreationRequestEvents.$inferInsert;
+
 // Staff activity audit trail. Records who did what and when across sensitive admin actions.
 export const auditLogs = mysqlTable("auditLogs", {
   id: int("id").autoincrement().primaryKey(),
