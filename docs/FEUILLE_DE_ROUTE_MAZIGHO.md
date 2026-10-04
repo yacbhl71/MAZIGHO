@@ -226,6 +226,8 @@ Chaque scénario clé fonctionne manuellement sur une boutique pilote avec une r
 
 Une restauration isolée a été réussie, les alertes arrivent sur un canal réel et les obligations de marché sont validées avant une ouverture élargie.
 
+**Audit d’activation — 5 octobre 2026 :** les scripts chiffrés, politiques S3, workflows GitHub Actions et tests d’exploitation ont été revus. Les jobs planifiés sont publiés mais correctement verrouillés : aucune sauvegarde ni sonde DNS ne s’est exécutée sans `MAZIGHO_OPS_ENABLED=true`. L’activation réelle requiert encore un coffre S3 dédié avec Object Lock, des secrets GitHub à droits minimaux, une instance TiDB de restauration distincte, un canal d’incident et une solution de métriques durable pour les seuils 5xx/CPU/RAM. Le Lot 7 ne sera déclaré terminé qu’après exercice de restauration et réception d’alertes réelles.
+
 ---
 
 ## Lot 8 — Stripe et ouverture publique à grande échelle **(dernier)**

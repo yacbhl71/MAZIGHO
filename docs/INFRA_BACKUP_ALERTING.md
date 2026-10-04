@@ -2,6 +2,16 @@
 
 **État : configuration livrée, non activée en production.** Les tâches planifiées sont verrouillées par `MAZIGHO_OPS_ENABLED=true`. Aucun bucket AWS, clé, accès TiDB de lecture seule, sonde de métriques, ou instance TiDB de restauration n’a été créé par cette livraison. Ne pas confondre le déploiement des fichiers avec une protection opérationnelle.
 
+## Audit d’activation — 5 octobre 2026
+
+- Les six tests des scripts d’exploitation passent localement : validation des URL TiDB, blocage des DNS non publics, politique de rétention, versionnage, Object Lock et accès public S3.
+- Le provisionneur S3 reste en **dry run** sans `--apply` : aucune ressource ni facture n’est déclenchée par défaut.
+- Les workflows GitHub Actions sont publiés et planifiés, mais leur dernière exécution a correctement **ignoré** les jobs `backup` et `dns` : `MAZIGHO_OPS_ENABLED` n’est donc pas activé. Cela évite toute sauvegarde incomplète ou exécution avec des secrets absents.
+- Le projet Vercel est sur le plan Hobby et aucun Log Drain n’est actuellement raccordé. Le seuil exact de 5xx sur cinq minutes et les mesures CPU/RAM ne peuvent donc pas être annoncés comme surveillés.
+- Les droits actuels de l’intégration GitHub ne permettent pas d’inventorier les secrets ou variables du dépôt ; leur présence ne peut pas être déduite. Ils doivent être revus par un opérateur avant activation.
+
+**Décision encore requise :** choisir et autoriser le coffre de sauvegarde, le compte à droits minimaux, une cible TiDB de restauration distincte et le canal de réception des incidents. Sans ces quatre éléments, le Lot 7 reste préparé mais non achevé.
+
 ## Architecture et calendrier
 
 | Fonction | Fichier | Exécution après activation | Propriété |
