@@ -6,6 +6,7 @@ const MAX_TEXT_CHARS = 24_000;
 const REQUEST_TIMEOUT_MS = 12_000;
 const SEARCH_RESULT_LIMIT = 6;
 const PUBLIC_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
+const FALLBACK_SEARCH_ENDPOINT = "https://www.bing.com/search";
 
 function isBlockedAddress(address: string) {
   const value = address.toLowerCase();
@@ -87,15 +88,21 @@ function getSearchResultTarget(rawHref: string) {
   return resultUrl.searchParams.get("uddg") || resultUrl.toString();
 }
 
-/**
- * Runs one explicit public-web search and returns citations only. It never
- * fetches a returned result page; the owner must select it before analysis.
- */
-export async function searchOwnerWebResearchSources(rawQuery: string): Promise<OwnerWebSearchResult[]> {
-  const query = rawQuery.trim();
-  if (query.length < 2) throw new Error("WEB_RESEARCH_QUERY_INVALID");
+function getFallbackSearchResultTarget(rawHref: string) {
+  const resultUrl = new URL(decodeHtml(rawHref), FALLBACK_SEARCH_ENDPOINT);
+  const encodedTarget = resultUrl.searchParams.get("u");
+  if (resultUrl.hostname.endsWith("bing.com") && encodedTarget?.startsWith("a1")) {
+    try {
+      return Buffer.from(encodedTarget.slice(2), "base64url").toString("utf8");
+    } catch {
+      return resultUrl.toString();
+    }
+  }
+  return resultUrl.toString();
+}
 
-  const endpoint = await assertPublicHttpsUrl(PUBLIC_SEARCH_ENDPOINT);
+async function fetchPublicSearchHtml(endpointValue: string, query: string) {
+  const endpoint = await assertPublicHttpsUrl(endpointValue);
   let response: Response;
   try {
     const url = new URL(endpoint);
@@ -108,44 +115,52 @@ export async function searchOwnerWebResearchSources(rawQuery: string): Promise<O
       },
     });
   } catch {
-    throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+    return null;
   }
-
-  if (!response.ok) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  if (!response.ok) return null;
   const type = response.headers.get("content-type") || "";
   const length = Number(response.headers.get("content-length") || 0);
-  if (!type.toLowerCase().includes("text/html") || (length && length > MAX_HTML_BYTES)) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  if (!type.toLowerCase().includes("text/html") || (length && length > MAX_HTML_BYTES)) return null;
+  return (await response.text()).slice(0, MAX_HTML_BYTES);
+}
 
-  const html = (await response.text()).slice(0, MAX_HTML_BYTES);
-  const anchorPattern = /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+async function collectSearchResults(html: string, pattern: RegExp, getTarget: (rawHref: string) => string) {
   const results: OwnerWebSearchResult[] = [];
   const seenUrls = new Set<string>();
-
   let match: RegExpExecArray | null;
-  while ((match = anchorPattern.exec(html))) {
+  while ((match = pattern.exec(html))) {
     if (results.length >= SEARCH_RESULT_LIMIT) break;
     const rawHref = match[1];
     const title = htmlToText(match[2] || "").slice(0, 180);
     if (!rawHref || !title) continue;
-
     let url: URL;
     try {
-      url = await assertPublicHttpsUrl(getSearchResultTarget(rawHref));
+      url = await assertPublicHttpsUrl(getTarget(rawHref));
     } catch {
       continue;
     }
     if (seenUrls.has(url.toString())) continue;
-
     const anchorStart = match.index ?? 0;
     const nearbyHtml = html.slice(anchorStart, anchorStart + 2_000);
-    const snippetMatch = nearbyHtml.match(/<[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
-    results.push({
-      title,
-      url: url.toString(),
-      excerpt: htmlToText(snippetMatch?.[1] || "").slice(0, 500),
-    });
+    const snippetMatch = nearbyHtml.match(/<[^>]*class=["'][^"']*\b(?:result__snippet|b_caption)\b[^"']*["'][^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i) || nearbyHtml.match(/<[^>]*class=["'][^"']*\bresult__snippet\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:a|div|span)>/i);
+    results.push({ title, url: url.toString(), excerpt: htmlToText(snippetMatch?.[1] || "").slice(0, 500) });
     seenUrls.add(url.toString());
   }
-
   return results;
+}
+
+/**
+ * Runs one explicit public-web search and returns citations only. It never
+ * fetches a returned result page; the owner must select it before analysis.
+ */
+export async function searchOwnerWebResearchSources(rawQuery: string): Promise<OwnerWebSearchResult[]> {
+  const query = rawQuery.trim();
+  if (query.length < 2) throw new Error("WEB_RESEARCH_QUERY_INVALID");
+  const primaryHtml = await fetchPublicSearchHtml(PUBLIC_SEARCH_ENDPOINT, query);
+  const primaryResults = primaryHtml ? await collectSearchResults(primaryHtml, /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getSearchResultTarget) : [];
+  if (primaryResults.length) return primaryResults;
+
+  const fallbackHtml = await fetchPublicSearchHtml(FALLBACK_SEARCH_ENDPOINT, query);
+  if (!fallbackHtml) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
+  return collectSearchResults(fallbackHtml, /<h2[^>]*>\s*<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getFallbackSearchResultTarget);
 }

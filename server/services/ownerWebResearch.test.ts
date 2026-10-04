@@ -48,6 +48,24 @@ describe("owner web research source", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the public fallback when the primary index is unavailable", async () => {
+    const encodedTarget = Buffer.from("https://example.org/catalogue", "utf8").toString("base64url");
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(`
+        <li class="b_algo"><h2><a href="https://www.bing.com/ck/a?u=a1${encodedTarget}">Catalogue de repli</a></h2>
+          <div class="b_caption"><p>Une source publique trouvée par le moteur de repli.</p></div>
+        </li>
+      `, { status: 200, headers: { "content-type": "text/html" } })));
+
+    await expect(searchOwnerWebResearchSources("fournisseur créatif")).resolves.toEqual([{
+      title: "Catalogue de repli",
+      url: "https://example.org/catalogue",
+      excerpt: "Une source publique trouvée par le moteur de repli.",
+    }]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects an empty web-search query before making a public request", async () => {
     await expect(searchOwnerWebResearchSources(" ")).rejects.toThrow("WEB_RESEARCH_QUERY_INVALID");
   });
