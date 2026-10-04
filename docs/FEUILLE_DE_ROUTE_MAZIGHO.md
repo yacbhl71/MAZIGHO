@@ -70,21 +70,20 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 
 **Objectif :** permettre à un propriétaire de traiter une vente du début à la fin sans revenir vers Studio.
 
-### Avancement — première brique publiée
+### Avancement — briques publiées
 
 - La file de commandes devient **tactile sur téléphone et tablette** : cartes lisibles, prochaine étape explicite, filtres de traitement et actions adaptées au statut réel.
 - Le parcours conserve les mêmes protections par boutique : accepter/refuser, préparer, enregistrer un suivi, marquer livrée et, pour l’Algérie, confirmer l’encaissement COD uniquement après livraison.
 - Les articles et l’**historique horodaté** restent accessibles par commande ; l’adresse et le bon de préparation nécessitent toujours une ouverture propriétaire séparée et tracée.
 - La table détaillée reste disponible sur grand écran ; aucun transporteur, fournisseur, remboursement, e-mail ou paiement n’est ajouté automatiquement.
+- Le centre **Retours & service après-vente** propose maintenant une file tactile priorisée : « À décider », « En retour », « Réceptionnés » et « Terminés », avec la prochaine action explicitée dans chaque dossier. Le tri reste local à la boutique et purement visuel : il ne modifie ni décision, ni remboursement, ni prestataire.
+- L’audit du stock confirme que le réglage de seuil, la vue consolidée produits + variantes, les compteurs rupture / faible stock et les éditions par quantité existent déjà, avec une logique qui privilégie les variantes actives. Aucune duplication n’a été ajoutée.
 
 ### À renforcer
 
-- Statuts guidés : **nouvelle → confirmée → préparation → expédiée/livrée → retour/remboursement**.
 - Actions groupées sur les commandes et filtres tactiles efficaces.
-- Bon de préparation, bon de livraison et impression.
-- Suivi transporteur et numéro de suivi.
-- Alertes de stock bas et vue des variantes concernées.
-- Retours : demande client, décision propriétaire, suivi externe et remboursement préparé.
+- Bon de livraison et impression, au-delà du bon de préparation existant.
+- Suivi transporteur et numéro de suivi, avec une validation terrain sur tablette.
 - Algérie : confirmation COD, livraison par wilaya et suivi d’encaissement, uniquement si le marché Algérie est actif.
 
 ### Critère de fin
@@ -221,4 +220,4 @@ La première boutique commerciale est validée en conditions réelles avec une o
 
 **Lot 2 — Commandes, livraison et après-vente opérationnels.**
 
-La première brique sera l’audit puis le renforcement des **statuts de commande et des actions tactiles** : chaque boutique doit pouvoir confirmer, préparer, expédier ou livrer une commande avec un historique clair, sans dépendre de Stripe.
+La prochaine priorité est une **validation manuelle connectée**, sur tablette, d’une commande de recette et de son après-vente : décisions, préparation, suivi, livraison / COD puis retour. Aucun achat, paiement, e-mail, remboursement ou publication ne sera créé sans décision humaine explicite.

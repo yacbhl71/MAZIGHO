@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, ClipboardCheck, Clock3, Gavel, Loader2, PackageCheck, RotateCcw, Save, ShieldAlert, XCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { filterOwnerReturnRequestsForOperationalQueue, getOwnerReturnOperationalPresentation, ownerReturnQueueFilterLabels, ownerReturnQueueFilters, type OwnerReturnQueueFilter } from "@shared/ownerReturnOperationsPresentation";
 import { toast } from "sonner";
 
 const statusPresentation: Record<string, { label: string; className: string }> = {
@@ -81,6 +82,7 @@ export default function OwnerReturnsCenter({ returnRequestsEnabled, onConfigureR
   const returns = trpc.owner.getReturnRequests.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [caseDrafts, setCaseDrafts] = useState<Record<number, CaseDraft>>({});
+  const [queueFilter, setQueueFilter] = useState<OwnerReturnQueueFilter>("all");
   const update = trpc.owner.updateReturnRequest.useMutation({
     onSuccess: async result => {
       toast.success(result.label);
@@ -128,6 +130,13 @@ export default function OwnerReturnsCenter({ returnRequestsEnabled, onConfigureR
   };
 
   const entries = returns.data ?? [];
+  const visibleEntries = useMemo(
+    () => filterOwnerReturnRequestsForOperationalQueue(entries, queueFilter),
+    [entries, queueFilter],
+  );
+  const countForFilter = (filter: OwnerReturnQueueFilter) => filter === "all"
+    ? entries.length
+    : entries.filter(entry => getOwnerReturnOperationalPresentation(entry).filter === filter).length;
   const pending = entries.filter(entry => entry.status === "requested").length;
   const urgentCases = entries.filter(entry => entry.externalCaseStatus === "action_required").length;
 
@@ -156,14 +165,20 @@ export default function OwnerReturnsCenter({ returnRequestsEnabled, onConfigureR
 
     {!returnRequestsEnabled && <Card className="border-amber-200 bg-amber-50"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold text-amber-950">Demandes de retour en ligne désactivées</p><p className="mt-1 max-w-2xl text-sm leading-6 text-amber-900">Le suivi des dossiers reste disponible, mais aucun client ne peut ouvrir une nouvelle demande tant que l’activation n’est pas enregistrée dans Livraison & retours.</p></div><Button type="button" className="min-h-11 shrink-0 bg-amber-700 hover:bg-amber-800" onClick={onConfigureReturns}>Configurer les retours</Button></CardContent></Card>}
 
+    {!returns.isLoading && !returns.isError && entries.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="font-semibold text-slate-950">File opérationnelle</p><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Commencez par les décisions et les retours réceptionnés. Ce tri ne modifie aucun dossier et ne déclenche aucune action financière.</p></div><Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">{visibleEntries.length} dossier{visibleEntries.length > 1 ? "s" : ""} affiché{visibleEntries.length > 1 ? "s" : ""}</Badge></div>
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1" aria-label="Filtrer la file des retours">{ownerReturnQueueFilters.map(filter => { const active = queueFilter === filter; const count = countForFilter(filter); return <Button key={filter} type="button" variant={active ? "default" : "outline"} className={active ? "min-h-11 shrink-0 bg-sky-700 hover:bg-sky-800" : "min-h-11 shrink-0 border-slate-200 bg-white text-slate-700 hover:bg-slate-50"} onClick={() => setQueueFilter(filter)} aria-pressed={active}>{ownerReturnQueueFilterLabels[filter]} <span className={active ? "ml-2 rounded-full bg-white/20 px-2 py-0.5 text-xs" : "ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"}>{count}</span></Button>; })}</div>
+    </section>}
+
     <Card className="border-violet-200 bg-violet-50/60">
       <CardHeader><CardTitle className="flex items-center gap-2 text-violet-950"><ClipboardCheck className="h-5 w-5 text-violet-700" /> Remboursements et litiges : procédure contrôlée</CardTitle><CardDescription className="mt-1 max-w-3xl text-violet-900">Pour les Direct Charges, la boutique est le vendeur. Elle décide, justifie et traite le remboursement ou la réponse au litige dans son propre compte Stripe ; MAZIGHO ne prélève, ne rembourse et ne conteste rien à sa place.</CardDescription></CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-2"><article className="rounded-xl border border-violet-200 bg-white p-4 text-sm leading-6 text-slate-700"><p className="font-semibold text-slate-950">Remboursement demandé par un client</p><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Vérifiez la commande, les conditions publiées et le dossier de retour.</li><li>Conservez la décision et les éléments utiles dans le dossier opérationnel de la boutique.</li><li>Le propriétaire exécute ensuite le remboursement dans Stripe pour son compte vendeur, après sa propre validation.</li><li>Actualisez le dossier seulement après confirmation dans Stripe et conservez la référence dans votre comptabilité.</li></ol></article><article className="rounded-xl border border-violet-200 bg-white p-4 text-sm leading-6 text-slate-700"><p className="font-semibold text-slate-950">Litige ou contestation de paiement</p><ol className="mt-3 list-decimal space-y-2 pl-5"><li>Consultez l’alerte et l’échéance directement dans le compte du prestataire du vendeur.</li><li>Rassemblez les preuves pertinentes : commande, conditions acceptées, livraison, suivi et échanges autorisés.</li><li>Répondez dans le prestataire avant l’échéance et suivez la décision du réseau de paiement.</li><li>Documentez le résultat ici, sans copier de carte, de compte bancaire ou de données inutiles.</li></ol></article><div className="lg:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950"><p><strong>Limite volontaire :</strong> ce panneau conserve un dossier de suivi. Il ne déclenche aucun remboursement, aucune réponse au litige, aucun e-mail ni aucune écriture comptable.</p></div></CardContent>
     </Card>
 
-    {returns.isLoading ? <div className="h-72 animate-pulse rounded-2xl bg-slate-100" /> : returns.isError ? <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950">Les demandes de retour sont temporairement indisponibles. Aucun dossier n’a été modifié.</CardContent></Card> : entries.length === 0 ? <Card className="border-dashed border-slate-300"><CardContent className="flex min-h-52 flex-col items-center justify-center p-6 text-center"><RotateCcw className="h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold text-slate-900">Aucune demande de retour</p><p className="mt-1 max-w-md text-sm leading-6 text-slate-600">{returnRequestsEnabled ? "Les demandes clients apparaîtront ici avec leur sélection d’articles et leur historique." : "Activez les demandes de retour dans Livraison & retours lorsqu’une politique claire est prête à être publiée."}</p></CardContent></Card> : <div className="space-y-4">
-      {entries.map(entry => {
+    {returns.isLoading ? <div className="h-72 animate-pulse rounded-2xl bg-slate-100" /> : returns.isError ? <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950">Les demandes de retour sont temporairement indisponibles. Aucun dossier n’a été modifié.</CardContent></Card> : entries.length === 0 ? <Card className="border-dashed border-slate-300"><CardContent className="flex min-h-52 flex-col items-center justify-center p-6 text-center"><RotateCcw className="h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold text-slate-900">Aucune demande de retour</p><p className="mt-1 max-w-md text-sm leading-6 text-slate-600">{returnRequestsEnabled ? "Les demandes clients apparaîtront ici avec leur sélection d’articles et leur historique." : "Activez les demandes de retour dans Livraison & retours lorsqu’une politique claire est prête à être publiée."}</p></CardContent></Card> : visibleEntries.length === 0 ? <Card className="border-dashed border-slate-300"><CardContent className="flex min-h-44 flex-col items-center justify-center p-6 text-center"><RotateCcw className="h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold text-slate-900">Aucun dossier dans cette étape</p><p className="mt-1 max-w-md text-sm leading-6 text-slate-600">Choisissez une autre étape pour retrouver les demandes déjà terminées ou en attente.</p></CardContent></Card> : <div className="space-y-4">
+      {visibleEntries.map(entry => {
         const presentation = statusPresentation[entry.status] || statusPresentation.requested;
+        const operationalPresentation = getOwnerReturnOperationalPresentation(entry);
         const note = notes[entry.id] || "";
         const caseDraft = caseDrafts[entry.id] || draftFromEntry(entry);
         const hasExternalCase = caseDraft.type !== "none";
@@ -176,6 +191,8 @@ export default function OwnerReturnsCenter({ returnRequestsEnabled, onConfigureR
               </div>
               <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-700">{entry.items.reduce((total, item) => total + item.quantity, 0)} article{entry.items.reduce((total, item) => total + item.quantity, 0) > 1 ? "s" : ""}</Badge>
             </div>
+
+            <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4 text-sm leading-6 text-sky-950"><p className="font-semibold">Prochaine action · {operationalPresentation.label}</p><p className="mt-1 text-xs leading-5 text-sky-900">{operationalPresentation.description}</p></div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Motif du client</p><p className="mt-2">{entry.reason}</p></div>
 
