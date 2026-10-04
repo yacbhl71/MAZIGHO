@@ -62,6 +62,7 @@ import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } 
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { createStoreCommissionOverride, parseStoreCommissionOverride, type StoreCommissionOverride } from "../shared/storeCommissionOverride";
 import { applyStoreQuotaOverride, createStoreQuotaOverride, parseStoreQuotaOverride, type StoreQuotaOverride, type StoreQuotaOverrideInput } from "../shared/storeQuotaOverride";
+import { isMissingProductCategoryIdentityError, withExplicitProductCategoryIds } from "../shared/productCategoryIdentity";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
@@ -4641,8 +4642,15 @@ async function ensureProductCategoryIdentity(db: NonNullable<Awaited<ReturnType<
   // TiDB requires an indexed AUTO_INCREMENT column. The normal schema uses a
   // primary key, while this small index keeps a safely recoverable old table
   // writable even if its historic primary-key metadata is incomplete.
-  await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `product_categories_id_identity_idx` ON `productCategories` (`id`)"));
-  await db.execute(sql.raw("ALTER TABLE `productCategories` MODIFY COLUMN `id` int NOT NULL AUTO_INCREMENT"));
+  try {
+    await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `product_categories_id_identity_idx` ON `productCategories` (`id`)"));
+    await db.execute(sql.raw("ALTER TABLE `productCategories` MODIFY COLUMN `id` int NOT NULL AUTO_INCREMENT"));
+  } catch (error) {
+    // Some legacy TiDB clusters reject a late AUTO_INCREMENT conversion. The
+    // write path below retains a narrow explicit-id fallback rather than
+    // blocking a product save; all other database errors still propagate.
+    console.warn("[Catalogue] Legacy productCategories identity could not be upgraded", error);
+  }
 }
 
 async function ensureCatalogSectionSchema() {
@@ -5607,7 +5615,31 @@ export async function replaceProductCategories(productId: number, categoryIds: n
   const validCategories = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.storeId, effectiveStoreId), inArray(categories.id, uniqueCategoryIds)));
   if (validCategories.length !== uniqueCategoryIds.length) throw new Error("CATEGORY_NOT_FOUND");
   await db.delete(productCategories).where(and(eq(productCategories.storeId, effectiveStoreId), eq(productCategories.productId, productId)));
-  await db.insert(productCategories).values(uniqueCategoryIds.map(categoryId => ({ storeId: effectiveStoreId, productId, categoryId })));
+  const assignments = uniqueCategoryIds.map(categoryId => ({ storeId: effectiveStoreId, productId, categoryId }));
+  try {
+    await db.insert(productCategories).values(assignments);
+  } catch (error) {
+    if (!isMissingProductCategoryIdentityError(error)) throw error;
+
+    // Compatibility only for a historic table missing AUTO_INCREMENT. The
+    // normal path above remains the only path for every current installation.
+    // A single retry covers a simultaneous legacy save without weakening the
+    // scoped uniqueness constraint on (storeId, productId, categoryId).
+    let lastError: unknown = error;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const [rows] = await db.execute(sql.raw("SELECT COALESCE(MAX(`id`), 0) AS `maximumId` FROM `productCategories`")) as unknown as [Array<{ maximumId?: number | string }>];
+      const maximumId = Number(rows[0]?.maximumId ?? 0);
+      try {
+        await db.insert(productCategories).values(withExplicitProductCategoryIds(assignments, maximumId));
+        lastError = null;
+        break;
+      } catch (fallbackError) {
+        lastError = fallbackError;
+        if (!/duplicate entry|duplicate key/i.test(String(fallbackError)) || attempt === 1) throw fallbackError;
+      }
+    }
+    if (lastError) throw lastError;
+  }
   await db.update(products).set({ categoryId: uniqueCategoryIds[0] }).where(and(eq(products.storeId, effectiveStoreId), eq(products.id, productId)));
   return { productId, categoryIds: uniqueCategoryIds };
 }
