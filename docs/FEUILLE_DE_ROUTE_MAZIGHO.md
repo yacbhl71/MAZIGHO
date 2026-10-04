@@ -149,13 +149,13 @@ Un propriétaire peut créer une campagne, un code ciblé ou une sélection duo/
 - **Suivi et historique client :** la page *Mes commandes* présente le statut, le suivi, le récapitulatif et les retours activables ; les favoris permettent de retrouver et remettre rapidement un article disponible au panier, sans commande automatique.
 - **Avis et questions encadrés :** les avis sont soumis à modération dans la boutique concernée. Les questions restent guidées par les FAQ éditables et le contact de la boutique, plutôt qu’une discussion publique non contrôlée ou automatisée.
 - **Guides de décision produit :** options/variantes, descriptions, caractéristiques, dimensions et profils de livraison avec délais par destination sont déjà éditables par fiche.
-- **Jalon publié — demandes sur mesure :** chaque propriétaire peut activer, désactiver et présenter son propre formulaire **« Demander une création sur mesure »**. Le client connecté dépose un projet (portrait humain, objet, animal, maison, textile ou autre) ; il suit sa demande et la réponse manuelle de la boutique dans son espace. La file propriétaire est tenant-scopée, ne révèle aucune donnée de contact client, ne reçoit aucun fichier, ne crée ni devis, ni commande, ni stock, ni paiement, ni e-mail automatique.
+- **Jalon publié — demandes sur mesure :** chaque propriétaire peut activer ou désactiver son propre formulaire, puis choisir séparément si le raccourci **« Demander une création »** est visible dans le menu public. Le client connecté dépose une demande générale (personnalisation, produit, article, animal, maison, textile ou autre) ; il suit sa demande et la réponse manuelle de la boutique dans son espace. La file propriétaire est tenant-scopée, ne révèle aucune donnée de contact client, ne reçoit aucun fichier, ne crée ni devis, ni commande, ni stock, ni paiement, ni e-mail automatique.
 
 ### Critère de fin
 
 Un client peut faire une demande sur mesure, le propriétaire peut la traiter dans sa boutique, et aucune donnée n’est exposée à une autre boutique.
 
-**Statut : Lot 4 clôturé pour le socle d’expérience client et créations sur mesure.** La saisie de portraits humains n’est pas interdite par MAZIGHO : elle reste une option de projet proposée par chaque boutique, qui décide ensuite manuellement si elle accepte ou non la demande.
+**Statut : Lot 4 clôturé pour le socle d’expérience client et demandes sur mesure.** Les exemples de saisie sont volontairement neutres et réutilisables par toute activité ; chaque boutique décide ensuite manuellement de ce qu’elle accepte.
 
 ---
 

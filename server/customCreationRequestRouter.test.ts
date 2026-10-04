@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("./db", () => ({
   getStoreMembershipForUser: vi.fn(async () => state.membership),
-  getStoreCustomCreationRequestSettings: vi.fn(async () => ({ enabled: true, headline: "Une idée ?", intro: "Décrivez votre projet." })),
+  getStoreCustomCreationRequestSettings: vi.fn(async () => ({ enabled: true, visibleInNavigation: true, headline: "Une idée ?", intro: "Décrivez votre projet." })),
   saveStoreCustomCreationRequestSettings: vi.fn(async (_storeId: number, input: any) => input),
   createStoreCustomCreationRequest: vi.fn(async (input: any) => {
     state.created.push(input);
@@ -63,6 +63,17 @@ describe("customCreationRequestRouter", () => {
   it("keeps owner updates within the active store membership", async () => {
     await caller().owner.update({ requestId: 12, status: "answered", ownerReply: "Projet réalisable après validation." });
     expect(state.ownerUpdates).toEqual([expect.objectContaining({ storeId: 77, requestId: 12, actorUserId: 44, status: "answered" })]);
+  });
+
+  it("lets the owner hide the public shortcut without disabling the workflow", async () => {
+    const result = await caller().owner.saveSettings({
+      enabled: true,
+      visibleInNavigation: false,
+      headline: "Une idée ?",
+      intro: "Décrivez votre projet.",
+    });
+    expect(result).toMatchObject({ enabled: true, visibleInNavigation: false });
+    expect(state.audits).toEqual([expect.objectContaining({ storeId: 77, metadata: { enabled: true, visibleInNavigation: false } })]);
   });
 
   it("rejects non-manager members from the internal queue", async () => {

@@ -86,6 +86,7 @@ export const customCreationRequestRouter = router({
     }),
     saveSettings: storeOwnerProcedure.input(z.object({
       enabled: z.boolean(),
+      visibleInNavigation: z.boolean(),
       headline: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.headline),
       intro: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.intro),
     })).mutation(async ({ ctx, input }) => {
@@ -99,7 +100,7 @@ export const customCreationRequestRouter = router({
         entityType: "store_setting",
         entityId: null,
         summary: settings.enabled ? "Demandes de créations sur mesure activées pour la boutique." : "Demandes de créations sur mesure désactivées pour la boutique.",
-        metadata: { enabled: settings.enabled },
+        metadata: { enabled: settings.enabled, visibleInNavigation: settings.visibleInNavigation },
       });
       return settings;
     }),

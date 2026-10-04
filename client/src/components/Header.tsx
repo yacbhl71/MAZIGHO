@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CampaignBar } from "@/components/CampaignBar";
-import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard, MapPin } from "lucide-react";
+import { Menu, X, Heart, ShoppingCart, User, LayoutDashboard, MapPin, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import SearchBar from "./SearchBar";
@@ -47,6 +47,7 @@ export default function Header() {
   const hasResolvedNonPlatformStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const commerceEnabled = storeAvailability.data?.commerceEnabled !== false;
   const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
+  const customCreationRequests = trpc.customCreationRequests.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const activeCountries = marketSettings.data ? deliveryCountries.filter(country => marketSettings.data.activeCountries.includes(country.code)) : deliveryCountries;
   const activeLanguages = marketSettings.data ? localeOptions.filter(option => marketSettings.data.activeLanguages.includes(option.code)) : localeOptions;
   // Do not briefly show fallback selectors before the boutique-specific market
@@ -101,6 +102,8 @@ export default function Header() {
   const isNavigationVisible = (id: string) => Boolean(getNavigationItem(id));
   const customNavigationItems = navigationItems.filter(item => item.kind === "custom");
   const rootNavigationItems = navigationItems.filter(item => !item.parentId);
+  const hasCustomCreationNavigation = navigationItems.some(item => item.href === "/demande-sur-mesure");
+  const showCustomCreationNavigation = customCreationRequests.data?.enabled === true && customCreationRequests.data.visibleInNavigation === true && !hasCustomCreationNavigation;
   const getCustomNavigationChildren = (parentId: string) => customNavigationItems.filter(item => item.parentId === parentId);
   const isActive = (path: string) => location === path;
   const announcementItems = (limitedShowcase
@@ -164,6 +167,7 @@ export default function Header() {
           {/* Desktop Menu */}
           {!usesSplitHeader && <div className={`hidden flex-shrink-0 items-center gap-0 ${usesSearchFirstHeader ? "xl:ml-3" : "xl:ml-5"} xl:flex`}>
             {rootNavigationItems.map(renderDesktopNavigationItem)}
+            {showCustomCreationNavigation && <Link href="/demande-sur-mesure" className={desktopLinkClass("/demande-sur-mesure")}><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />Sur mesure</Link>}
           </div>}
 
           {/* Search Bar - Desktop */}
@@ -219,9 +223,9 @@ export default function Header() {
           </div>
         </div>
 
-        {usesSplitHeader && <div className={`hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:gap-1 xl:pb-0.5 ${usesMarketHeader ? "xl:justify-between" : "xl:justify-center"}`}>
+          {usesSplitHeader && <div className={`hidden border-t border-slate-100 pt-2 xl:flex xl:items-center xl:gap-1 xl:pb-0.5 ${usesMarketHeader ? "xl:justify-between" : "xl:justify-center"}`}>
           {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Sélection en ligne</span>}
-          <div className="flex items-center gap-1">{rootNavigationItems.map(renderDesktopNavigationItem)}</div>
+          <div className="flex items-center gap-1">{rootNavigationItems.map(renderDesktopNavigationItem)}{showCustomCreationNavigation && <Link href="/demande-sur-mesure" className={desktopLinkClass("/demande-sur-mesure")}><Sparkles className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />Sur mesure</Link>}</div>
           {usesMarketHeader && <span className="px-1 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: palette.accent }}>{limitedShowcase ? getLimitedStorefrontCopy(locale).shopEyebrow : "Nouveautés & offres"}</span>}
         </div>}
 
@@ -236,6 +240,7 @@ export default function Header() {
             {showCountrySelector && <label className="mx-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-slate-700 md:hidden" style={{ borderColor: palette.soft, backgroundColor: palette.soft }}><MapPin className="h-4 w-4" style={{ color: palette.primary }} /><span className="font-medium">{t(locale, "deliverTo")}</span><select value={countryCode} onChange={event => setCountryCode(event.target.value as typeof countryCode)} className="ml-auto bg-transparent font-semibold outline-none">{activeCountries.map(country => <option key={country.code} value={country.code}>{getLocalizedCountryName(country.code, locale)}</option>)}</select></label>}
             {showLanguageSelector && <label className="mx-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm text-slate-700 md:hidden" style={{ borderColor: palette.soft, backgroundColor: palette.soft }}><span className="text-base font-semibold" style={{ color: palette.primary }} aria-hidden="true">A</span><span className="font-medium">{t(locale, "language")}</span><select value={locale} onChange={event => setLocale(event.target.value as typeof locale)} className="ml-auto bg-transparent font-semibold outline-none">{activeLanguages.map(option => <option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></label>}
             {rootNavigationItems.map(renderMobileNavigationItem)}
+            {showCustomCreationNavigation && <Link href="/demande-sur-mesure"><div onClick={() => setIsMenuOpen(false)} className="flex min-h-11 cursor-pointer items-center gap-2 rounded px-4 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-50"><Sparkles className="h-4 w-4" aria-hidden="true" /> Demander une création</div></Link>}
 
             <Button asChild className="mt-4 min-h-11 w-full gap-2 text-sm text-white" style={{ backgroundColor: palette.accent }}><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>
             {isAdmin && <Button asChild variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Link></Button>}

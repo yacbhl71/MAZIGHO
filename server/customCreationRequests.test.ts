@@ -11,15 +11,24 @@ describe("custom creation request settings", () => {
     expect(parseStoreCustomCreationRequestSettings(null)).toEqual(DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS);
   });
 
-  it("keeps portraits available and bounds storefront copy", () => {
+  it("keeps the request settings bounded and reusable", () => {
     const settings = normalizeStoreCustomCreationRequestSettings({
       enabled: true,
+      visibleInNavigation: false,
       headline: " Portraits & projets ",
       intro: "x".repeat(2_000),
     });
     expect(settings.enabled).toBe(true);
+    expect(settings.visibleInNavigation).toBe(false);
     expect(settings.headline).toBe("Portraits & projets");
     expect(settings.intro.length).toBeLessThanOrEqual(1_000);
+  });
+
+  it("shows the shortcut by default for a historical activated boutique", () => {
+    expect(parseStoreCustomCreationRequestSettings(JSON.stringify({ enabled: true, headline: "Projet", intro: "Texte" }))).toMatchObject({
+      enabled: true,
+      visibleInNavigation: true,
+    });
   });
 
   it("falls back safely if a historical setting is malformed", () => {

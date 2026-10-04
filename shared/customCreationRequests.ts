@@ -17,23 +17,26 @@ export const CUSTOM_CREATION_REQUEST_LIMITS = {
 
 export type StoreCustomCreationRequestSettings = {
   enabled: boolean;
+  /** A boutique may accept briefs while keeping the public shortcut hidden. */
+  visibleInNavigation: boolean;
   headline: string;
   intro: string;
 };
 
 export const DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS: StoreCustomCreationRequestSettings = {
   enabled: false,
-  headline: "Une idée à transformer ?",
-  intro: "Décrivez votre projet. La boutique vous répondra après étude, sans devis ni commande automatiques.",
+  visibleInNavigation: true,
+  headline: "Une demande à préparer ?",
+  intro: "Expliquez ce dont vous avez besoin. La boutique vous répondra après étude, sans devis ni commande automatiques.",
 };
 
 export const customCreationRequestKindLabels: Record<CustomCreationRequestKind, string> = {
-  portrait: "Portrait humain",
-  object: "Objet / illustration",
+  portrait: "Personnalisation",
+  object: "Produit ou article",
   animal: "Animal ou compagnon",
-  home: "Décoration / maison",
-  textile: "Textile / accessoire",
-  other: "Autre projet",
+  home: "Maison ou décoration",
+  textile: "Textile ou accessoire",
+  other: "Autre demande",
 };
 
 export const customCreationRequestStatusPresentation: Record<CustomCreationRequestStatus, { label: string; detail: string; tone: "slate" | "amber" | "teal" | "violet" }> = {
@@ -54,6 +57,9 @@ export function parseStoreCustomCreationRequestSettings(value: string | null | u
     const parsed = JSON.parse(value) as Partial<StoreCustomCreationRequestSettings>;
     return {
       enabled: parsed.enabled === true,
+      // Existing activated boutiques gain the useful shortcut by default; only
+      // an explicit false hides it.
+      visibleInNavigation: parsed.visibleInNavigation !== false,
       headline: readText(parsed.headline, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.headline, CUSTOM_CREATION_REQUEST_LIMITS.headline),
       intro: readText(parsed.intro, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.intro, CUSTOM_CREATION_REQUEST_LIMITS.intro),
     };
@@ -65,6 +71,7 @@ export function parseStoreCustomCreationRequestSettings(value: string | null | u
 export function normalizeStoreCustomCreationRequestSettings(input: Partial<StoreCustomCreationRequestSettings>): StoreCustomCreationRequestSettings {
   return {
     enabled: input.enabled === true,
+    visibleInNavigation: input.visibleInNavigation !== false,
     headline: readText(input.headline, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.headline, CUSTOM_CREATION_REQUEST_LIMITS.headline),
     intro: readText(input.intro, DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS.intro, CUSTOM_CREATION_REQUEST_LIMITS.intro),
   };
