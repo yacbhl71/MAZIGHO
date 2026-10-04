@@ -48,12 +48,23 @@ describe("customCreationRequestRouter", () => {
       kind: "portrait",
       title: "Portrait de famille",
       description: "Un portrait chaleureux au crayon avec trois personnes.",
-      budget: "80 CHF",
+      budget: "80,50",
+      deadline: "2026-10-31",
     });
     expect(result).toMatchObject({ id: 321, status: "submitted" });
-    expect(state.created).toEqual([expect.objectContaining({ storeId: 77, userId: 44, kind: "portrait" })]);
+    expect(state.created).toEqual([expect.objectContaining({ storeId: 77, userId: 44, kind: "portrait", budget: "80.50", deadline: "2026-10-31" })]);
     expect(state.audits).toEqual([expect.objectContaining({ storeId: 77, entityId: 321, metadata: { kind: "portrait" } })]);
     expect(JSON.stringify(state.audits)).not.toContain("Portrait de famille");
+  });
+
+  it("rejects a free-text budget or non-calendar deadline", async () => {
+    await expect(caller().create({
+      kind: "object",
+      title: "Objet personnalisé",
+      description: "Une demande suffisamment détaillée pour valider le formulaire.",
+      budget: "environ quatre-vingts",
+      deadline: "avant fin juin",
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("does not expose the workflow on a setup boutique", async () => {

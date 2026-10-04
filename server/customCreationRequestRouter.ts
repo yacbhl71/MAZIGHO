@@ -7,6 +7,8 @@ import {
   CUSTOM_CREATION_REQUEST_LIMITS,
   customCreationRequestKinds,
   customCreationRequestStatuses,
+  isCustomCreationRequestDeadline,
+  normalizeCustomCreationRequestBudget,
 } from "../shared/customCreationRequests";
 
 const storefrontProcedure = publicProcedure.use(async ({ ctx, next }) => {
@@ -26,8 +28,8 @@ const customerRequestInput = z.object({
   title: z.string().trim().min(3).max(CUSTOM_CREATION_REQUEST_LIMITS.title),
   description: z.string().trim().min(10).max(CUSTOM_CREATION_REQUEST_LIMITS.description),
   dimensions: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.dimensions).optional(),
-  budget: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.budget).optional(),
-  deadline: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.deadline).optional(),
+  budget: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.budget).refine(value => !value || normalizeCustomCreationRequestBudget(value) !== null, { message: "Le budget doit être un montant positif, avec au plus deux décimales." }).optional(),
+  deadline: z.string().trim().max(CUSTOM_CREATION_REQUEST_LIMITS.deadline).refine(value => !value || isCustomCreationRequestDeadline(value), { message: "Choisissez une date valide." }).optional(),
 });
 
 function customerError(error: unknown): never {
@@ -62,6 +64,7 @@ export const customCreationRequestRouter = router({
         storeId: ctx.store!.id,
         userId: ctx.user.id,
         ...input,
+        budget: input.budget ? normalizeCustomCreationRequestBudget(input.budget) : undefined,
       });
       await db.recordAuditLog({
         storeId: ctx.store!.id,

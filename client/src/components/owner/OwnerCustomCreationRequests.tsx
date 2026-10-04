@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ClipboardPenLine, Eye, Loader2, MessageCircleMore, Palette, RefreshCw, Settings2, Sparkles } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useStoreCurrency } from "@/hooks/useStoreCurrency";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +13,8 @@ import {
   CUSTOM_CREATION_REQUEST_LIMITS,
   customCreationRequestKindLabels,
   customCreationRequestStatuses,
+  formatCustomCreationRequestBudget,
+  formatCustomCreationRequestDeadline,
   getCustomCreationRequestStatusPresentation,
   type CustomCreationRequestStatus,
 } from "@shared/customCreationRequests";
@@ -28,6 +31,7 @@ function dateLabel(value: Date | string) {
 }
 
 export default function OwnerCustomCreationRequests({ canManage }: { canManage: boolean }) {
+  const { currencyCode } = useStoreCurrency();
   const settings = trpc.customCreationRequests.owner.getSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const requests = trpc.customCreationRequests.owner.list.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const utils = trpc.useUtils();
@@ -196,8 +200,8 @@ export default function OwnerCustomCreationRequests({ canManage }: { canManage: 
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.description}</p>
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                     {request.dimensions && <span>Format : {request.dimensions}</span>}
-                    {request.budget && <span>Budget indicatif : {request.budget}</span>}
-                    {request.deadline && <span>Échéance : {request.deadline}</span>}
+                    {request.budget && <span>Budget indicatif : {formatCustomCreationRequestBudget(request.budget, currencyCode)}</span>}
+                    {request.deadline && <span>Échéance : {formatCustomCreationRequestDeadline(request.deadline)}</span>}
                     <span>Reçue le {dateLabel(request.createdAt)}</span>
                   </div>
                 </div>

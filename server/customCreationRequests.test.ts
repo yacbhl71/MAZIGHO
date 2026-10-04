@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_STORE_CUSTOM_CREATION_REQUEST_SETTINGS,
+  formatCustomCreationRequestBudget,
+  formatCustomCreationRequestDeadline,
   getCustomCreationRequestStatusPresentation,
+  isCustomCreationRequestDeadline,
+  normalizeCustomCreationRequestBudget,
   normalizeStoreCustomCreationRequestSettings,
   parseStoreCustomCreationRequestSettings,
 } from "../shared/customCreationRequests";
@@ -43,5 +47,18 @@ describe("custom creation request settings", () => {
       label: "Réponse disponible",
       tone: "teal",
     });
+  });
+
+  it("normalizes a concise numeric budget without storing a currency name", () => {
+    expect(normalizeCustomCreationRequestBudget(" 80,50 ")).toBe("80.50");
+    expect(normalizeCustomCreationRequestBudget("80 CHF")).toBeNull();
+    expect(formatCustomCreationRequestBudget("80.5", "DZD")).toContain("DZD");
+  });
+
+  it("accepts only a real calendar date and presents it in the customer locale", () => {
+    expect(isCustomCreationRequestDeadline("2026-10-31")).toBe(true);
+    expect(isCustomCreationRequestDeadline("2026-02-31")).toBe(false);
+    expect(isCustomCreationRequestDeadline("avant fin juin")).toBe(false);
+    expect(formatCustomCreationRequestDeadline("2026-10-31")).toMatch(/2026/);
   });
 });
