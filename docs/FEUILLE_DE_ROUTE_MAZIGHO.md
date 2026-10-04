@@ -1,0 +1,207 @@
+# Feuille de route d’exécution — MAZIGHO
+
+**Décision de pilotage :** la plateforme continue d’abord à gagner en qualité, en réutilisabilité et en autonomie propriétaire. **Stripe et l’ouverture commerciale publique à grande échelle restent volontairement le dernier lot.**
+
+> Cette feuille de route sert de référence pour les prochains travaux. Chaque lot doit être terminé, contrôlé et publié avant de passer au suivant, sauf correction urgente d’un défaut bloquant.
+
+## Principes non négociables
+
+- Préserver l’isolation stricte par `storeId`, les accès propriétaires et l’impersonation Studio en lecture seule.
+- Ne pas modifier une brique validée sans nécessité directe, test et contrôle de non-régression.
+- Toute création de boutique reste privée ou en préparation tant qu’une ouverture explicite n’est pas décidée.
+- Les offres officielles restent inchangées : **FREE 0 CHF + 2,5 %**, **BASIC 7,90 CHF + 1 %**, **PRO 12,90 CHF + 1 % + Dropshipping**. Lifetime reste une action manuelle Studio, hors landing publique.
+- Studio peut attribuer exceptionnellement plan, commission et quotas par boutique, sans générer paiement, facture ou e-mail.
+- Le marché Algérie ne s’affiche et ne s’active que lorsqu’il est configuré pour la boutique ; DZD, COD et wilayas restent séparés du parcours Stripe.
+- Aucun paiement réel, domaine personnalisé, publication publique ou action irréversible n’est déclenché silencieusement.
+
+## État de départ — octobre 2026
+
+| Domaine | État | Décision |
+|---|---|---|
+| Multi-boutique, Studio, vitrines et panels propriétaires | Avancé et publié | Continuer par petits lots vérifiés |
+| Fiches produit propriétaire | Enrichies : promotions, options, livraison, traductions, fournisseur | Stabiliser les retours terrain et corriger les défauts bloquants en priorité |
+| Quotas, commissions et plans exceptionnels | Pilotables depuis Studio | Réserver les dérogations aux boutiques offertes / pilotes ou cas validés |
+| Assistant IA et centre documentaire | Fonctionnalités publiées ; import documentaire PDF/DOCX/TXT/CSV corrigé | Validation manuelle progressive avant promesse commerciale forte |
+| Stripe Connect | Parcours Test préparé, non finalisé | **Reporter à la fin de la feuille de route** |
+| Backups, alerting et conformité | Configurations préparées, ressources réelles à activer | Traiter avant toute ouverture commerciale élargie |
+
+---
+
+## Lot 1 — Fabrique de boutiques et modèles réutilisables
+
+**Objectif :** préparer une boutique professionnelle en quelques minutes, sans recopier manuellement les réglages à chaque fois.
+
+### À construire
+
+- Écran Studio **« Créer depuis un modèle »**.
+- Modèles initiaux :
+  1. **Créations & univers** — galerie, univers créatifs, demande sur mesure.
+  2. **Mode, beauté & accessoires** — collections, tailles/couleurs, promotions.
+  3. **Algérie — COD & wilayas** — DZD, livraison par wilaya, COD, pages adaptées.
+  4. **Thé & infusions** — sous-menus, collections, vitrines ou commerce.
+  5. **Boutique cadeau / pilote** — privée par défaut et paramétrable depuis Studio.
+- Choix précis lors de la duplication : thème, menu, catégories, blocs d’accueil, réglages de marché et livraison, textes de base, configuration de commerce.
+- Aperçu de ce qui sera copié avant validation.
+
+### Ce qui ne doit jamais être copié sans action explicite
+
+- Produits, images et fournisseurs réels.
+- Commandes, paniers, clients, avis ou données personnelles.
+- Coordonnées légales, domaine personnalisé, Stripe, e-mails ou clés externes.
+- Publication publique et ouverture à la vente.
+
+### Critère de fin
+
+Une boutique de démonstration peut être créée depuis chaque modèle, reste totalement isolée et peut être complétée par son propriétaire sans réglage technique.
+
+---
+
+## Lot 2 — Commandes, livraison et après-vente opérationnels
+
+**Objectif :** permettre à un propriétaire de traiter une vente du début à la fin sans revenir vers Studio.
+
+### À renforcer
+
+- Statuts guidés : **nouvelle → confirmée → préparation → expédiée/livrée → retour/remboursement**.
+- Actions groupées sur les commandes et filtres tactiles efficaces.
+- Bon de préparation, bon de livraison et impression.
+- Suivi transporteur et numéro de suivi.
+- Alertes de stock bas et vue des variantes concernées.
+- Retours : demande client, décision propriétaire, suivi externe et remboursement préparé.
+- Algérie : confirmation COD, livraison par wilaya et suivi d’encaissement, uniquement si le marché Algérie est actif.
+
+### Critère de fin
+
+Un scénario de commande non-Stripe et un scénario COD peuvent être traités entièrement sur tablette, avec un historique clair dans la boutique concernée.
+
+---
+
+## Lot 3 — Marketing et fidélisation utiles
+
+**Objectif :** aider chaque boutique à obtenir et convertir ses premières ventes, sans complexité excessive.
+
+### À construire
+
+- Alertes de retour en stock.
+- Relances de paniers abandonnés par e-mail, avec accord et modèles éditables.
+- Promotions ciblées : dates, seuils, limite d’usage, catégories et produits.
+- Packs et offres duo/trio.
+- Suggestions « vous aimerez aussi » et ventes croisées maîtrisées.
+- Création de campagnes prêtes à partager sur Instagram, Facebook et WhatsApp.
+- Tableau simple : visites, paniers, commandes, conversion, produits vus et vendus.
+
+### Critère de fin
+
+Un propriétaire peut créer une campagne, vérifier son impact et l’arrêter sans affecter les autres boutiques.
+
+---
+
+## Lot 4 — Expérience client et créations sur mesure
+
+**Objectif :** rendre les vitrines plus rassurantes et adaptées aux boutiques créatives, cadeaux et artisanales.
+
+### À construire
+
+- Suivi de commande client détaillé.
+- Compte client : favoris, réachat rapide et historique.
+- Avis produits modérés par le propriétaire.
+- Questions / réponses encadrées sur les fiches produit.
+- Formulaire **« Demander une création sur mesure »** : objet, animal, univers ou description ; les portraits humains sur photo restent exclus pour l’instant selon la règle boutique.
+- Guides de tailles, matières, dimensions, délais ou caractéristiques selon les catégories.
+
+### Critère de fin
+
+Un client peut faire une demande sur mesure, le propriétaire peut la traiter dans sa boutique, et aucune donnée n’est exposée à une autre boutique.
+
+---
+
+## Lot 5 — Pilotage commercial et relation client dans Studio
+
+**Objectif :** permettre à MAZIGHO de gérer des dizaines puis centaines de boutiques de façon professionnelle.
+
+### À renforcer
+
+- Pipeline : **nouveau projet → à analyser → à préparer → prêt → remis au propriétaire**.
+- Notes internes, checklist de remise, support et rappels ciblés.
+- Suivi lisible des boutiques offertes, commissions offertes et quotas exceptionnels.
+- Vue consolidée et filtrable : statut, modèle, marché, propriétaire, préparation, domaine et alertes.
+- Modèles de devis, de contrat de création et de remise de boutique — préparés, jamais envoyés sans validation.
+- Contrôle et réparation sécurisée d’accès propriétaire.
+
+### Critère de fin
+
+Le Studio permet de retrouver, filtrer et préparer une boutique sans parcourir une liste interminable ni mélanger les données clients.
+
+---
+
+## Lot 6 — Validation qualité de l’Assistant IA
+
+**Objectif :** faire de l’IA un vrai copilote fiable, sans surpromesse.
+
+### À contrôler et améliorer
+
+- Scénarios concrets : fiche produit, SEO, traduction, FAQ, image, URL et recherche interne.
+- Centre documentaire privé : PDF, DOCX, TXT et CSV, citations et recherche isolée par boutique.
+- Conversations, modèles Workspace, exports et partage lecture seule.
+- Réponses affichées, copiables, téléchargeables et compréhensibles sur mobile/tablette.
+- Recherche web explicite avec citations et validation humaine avant toute action.
+- Mesure des quotas FREE / BASIC / PRO et messages clairs en cas de limite.
+
+### Critère de fin
+
+Chaque scénario clé fonctionne manuellement sur une boutique pilote avec une réponse visible, utile, sourcée lorsque nécessaire et sans publication automatique.
+
+---
+
+## Lot 7 — Résilience, exploitation et conformité
+
+**Objectif :** sécuriser l’exploitation avant d’ouvrir largement les ventes.
+
+### À activer réellement
+
+- Snapshots base de données chiffrés, rétention de 30 jours et restauration testée.
+- Versionnage / verrouillage du stockage média et contrôle des quotas.
+- Alertes : 5xx, webhooks, CPU/RAM, DNS et échecs de sauvegarde.
+- Canal d’incident et procédure de réaction courte.
+- Revue juridique, fiscale et de protection des données pour chaque marché actif.
+- Validation des mentions légales, retours, livraison, information prix/taxes et règles COD.
+
+### Critère de fin
+
+Une restauration isolée a été réussie, les alertes arrivent sur un canal réel et les obligations de marché sont validées avant une ouverture élargie.
+
+---
+
+## Lot 8 — Stripe et ouverture publique à grande échelle **(dernier)**
+
+**Décision explicite :** aucun travail Stripe ne devient prioritaire avant la fin des lots précédents, sauf correction de sécurité urgente. La boutique peut continuer à être préparée, utilisée en vitrine ou vendue avec des moyens non-Stripe adaptés à son marché.
+
+### À faire seulement au moment de l’ouverture
+
+1. Finaliser une recette Stripe Connect Test complète sur boutique isolée : refus, abandon, paiement webhook sans redirection et remboursement.
+2. Vérifier les responsabilités vendeur : chaque boutique reste vendeuse, porte remboursements et litiges ; MAZIGHO reçoit seulement la commission décidée, éventuellement 0 % pour une boutique offerte.
+3. Ajouter les secrets Live dans Vercel et configurer les webhooks Live uniquement après validation finale.
+4. Réaliser une revue humaine des écrans, e-mails transactionnels, retours, commissions et conditions de vente.
+5. Activer progressivement, boutique par boutique — jamais toutes les boutiques d’un coup.
+6. Ouvrir la communication commerciale publique seulement après une validation finale du propriétaire de MAZIGHO.
+
+### Critère de fin
+
+La première boutique commerciale est validée en conditions réelles avec une ouverture volontaire, traçable et réversible ; l’ouverture générale n’est envisagée qu’après cette preuve.
+
+---
+
+## Méthode de travail continue
+
+1. Choisir **un seul lot actif**.
+2. Auditer l’existant avant toute modification.
+3. Construire par petites briques visibles et tactiles.
+4. Tester la logique métier, le typage, le build et au moins le parcours visuel concerné.
+5. Publier seulement lorsque le contrôle est positif.
+6. Mettre à jour cette feuille de route avec le résultat et la prochaine priorité.
+
+## Prochain lot actif
+
+**Lot 1 — Fabrique de boutiques et modèles réutilisables.**
+
+La première étape sera un audit des mécanismes actuels de création, des templates Algérie, des thèmes et des réglages duplicables afin de concevoir un clonage sûr, explicite et réellement réutilisable.
