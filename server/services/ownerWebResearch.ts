@@ -6,6 +6,7 @@ const MAX_TEXT_CHARS = 24_000;
 const REQUEST_TIMEOUT_MS = 12_000;
 const SEARCH_RESULT_LIMIT = 6;
 const PUBLIC_SEARCH_ENDPOINT = "https://html.duckduckgo.com/html/";
+const TEXT_GATEWAY_SEARCH_ENDPOINT = "https://r.jina.ai/http://html.duckduckgo.com/html/";
 const LITE_SEARCH_ENDPOINT = "https://lite.duckduckgo.com/lite/";
 
 function isBlockedAddress(address: string) {
@@ -88,7 +89,7 @@ function getSearchResultTarget(rawHref: string) {
   return resultUrl.searchParams.get("uddg") || resultUrl.toString();
 }
 
-async function fetchPublicSearchHtml(endpointValue: string, query: string) {
+async function fetchPublicSearchContent(endpointValue: string, query: string, acceptedTypes: string[]) {
   const endpoint = await assertPublicHttpsUrl(endpointValue);
   let response: Response;
   try {
@@ -108,7 +109,7 @@ async function fetchPublicSearchHtml(endpointValue: string, query: string) {
   if (!response.ok) return null;
   const type = response.headers.get("content-type") || "";
   const length = Number(response.headers.get("content-length") || 0);
-  if (!type.toLowerCase().includes("text/html") || (length && length > MAX_HTML_BYTES)) return null;
+  if (!acceptedTypes.some(acceptedType => type.toLowerCase().includes(acceptedType)) || (length && length > MAX_HTML_BYTES)) return null;
   return (await response.text()).slice(0, MAX_HTML_BYTES);
 }
 
@@ -137,6 +138,47 @@ async function collectSearchResults(html: string, pattern: RegExp, getTarget: (r
   return results;
 }
 
+function markdownToText(value: string) {
+  return decodeHtml(value
+    .replace(/!\[[^\]]*]\([^)]*\)/g, "")
+    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/[*_`>#]/g, "")
+    .replace(/\s+/g, " ")
+    .trim());
+}
+
+async function collectGatewaySearchResults(markdown: string) {
+  const results: OwnerWebSearchResult[] = [];
+  const seenUrls = new Set<string>();
+  const headingPattern = /^[ \t]*##\s+\[([^\]]+)]\((https?:\/\/(?:www\.)?duckduckgo\.com\/l\/\?[^)]+)\)\s*$/gim;
+  const matches = Array.from(markdown.matchAll(headingPattern));
+  for (let index = 0; index < matches.length && results.length < SEARCH_RESULT_LIMIT; index += 1) {
+    const match = matches[index];
+    const title = markdownToText(match[1] || "").slice(0, 180);
+    if (!title) continue;
+    let url: URL;
+    try {
+      url = await assertPublicHttpsUrl(getSearchResultTarget(match[2] || ""));
+    } catch {
+      continue;
+    }
+    if (seenUrls.has(url.toString())) continue;
+    const resultStart = (match.index || 0) + match[0].length;
+    const resultEnd = index + 1 < matches.length ? (matches[index + 1].index || markdown.length) : markdown.length;
+    const excerpt = markdown.slice(resultStart, resultEnd)
+      .split("\n")
+      .map(line => line.trim())
+      .filter(line => line && !/^\[!\[/.test(line) && !/^https?:\/\//i.test(line))
+      .map(markdownToText)
+      .filter(Boolean)
+      .join(" ")
+      .slice(0, 500);
+    results.push({ title, url: url.toString(), excerpt });
+    seenUrls.add(url.toString());
+  }
+  return results;
+}
+
 /**
  * Runs one explicit public-web search and returns citations only. It never
  * fetches a returned result page; the owner must select it before analysis.
@@ -144,11 +186,15 @@ async function collectSearchResults(html: string, pattern: RegExp, getTarget: (r
 export async function searchOwnerWebResearchSources(rawQuery: string): Promise<OwnerWebSearchResult[]> {
   const query = rawQuery.trim();
   if (query.length < 2) throw new Error("WEB_RESEARCH_QUERY_INVALID");
-  const primaryHtml = await fetchPublicSearchHtml(PUBLIC_SEARCH_ENDPOINT, query);
+  const primaryHtml = await fetchPublicSearchContent(PUBLIC_SEARCH_ENDPOINT, query, ["text/html"]);
   const primaryResults = primaryHtml ? await collectSearchResults(primaryHtml, /<a\b(?=[^>]*\bclass=["'][^"']*\bresult__a\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getSearchResultTarget) : [];
   if (primaryResults.length) return primaryResults;
 
-  const liteHtml = await fetchPublicSearchHtml(LITE_SEARCH_ENDPOINT, query);
+  const gatewayMarkdown = await fetchPublicSearchContent(TEXT_GATEWAY_SEARCH_ENDPOINT, query, ["text/plain", "text/markdown"]);
+  const gatewayResults = gatewayMarkdown ? await collectGatewaySearchResults(gatewayMarkdown) : [];
+  if (gatewayResults.length) return gatewayResults;
+
+  const liteHtml = await fetchPublicSearchContent(LITE_SEARCH_ENDPOINT, query, ["text/html"]);
   if (!liteHtml) throw new Error("WEB_RESEARCH_SEARCH_UNAVAILABLE");
   return collectSearchResults(liteHtml, /<a\b(?=[^>]*\bclass=["'][^"']*\bresult-link\b[^"']*["'])[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, getSearchResultTarget);
 }
