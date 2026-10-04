@@ -51,6 +51,7 @@ import { buildOwnerDeliveryDetails } from "./services/ownerDeliveryDetails";
 import { buildOwnerDeliveryHandoverDetails } from "./services/ownerDeliveryHandover";
 import { buildCheckoutStockReservations, buildStoredOrderStockReservations } from "./services/checkoutStockReservation";
 import { buildCheckoutLegalAcceptanceSnapshot, CHECKOUT_LEGAL_VERSION } from "../shared/checkoutLegalAcceptance";
+import { OWNER_MANUAL_TRACKING_LIMITS } from "../shared/ownerManualTracking";
 import { ALGERIA_CASH_ON_DELIVERY_PAYMENT_METHOD, getAlgeriaCashOnDeliveryEligibility, getAlgeriaOnlinePaymentPreparationStatus, makeAlgeriaCashOnDeliverySettings, makeAlgeriaOnlinePaymentPreparation, parseAlgeriaCashOnDeliverySettings, parseAlgeriaOnlinePaymentPreparation, type AlgeriaOnlinePaymentPreparation } from "../shared/algeriaCashOnDelivery";
 import { needsStudioSupportAttention } from "./services/studioSupportAttention";
 import { assessStudioStoreAttention } from "./services/studioStoreAttention";
@@ -112,6 +113,7 @@ let _supplierWeightSchemaReady: Promise<void> | null = null;
 let _supplierVariantMappingsSchemaReady: Promise<void> | null = null;
 let _checkoutShippingSchemaReady: Promise<void> | null = null;
 let _orderCurrencySchemaReady: Promise<void> | null = null;
+let _orderManualTrackingSchemaReady: Promise<void> | null = null;
 let _multiStoreSchemaReady: Promise<void> | null = null;
 let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
@@ -4817,6 +4819,31 @@ async function ensureOrderCurrencySchema() {
   return _orderCurrencySchemaReady;
 }
 
+/**
+ * Adds optional, store-scoped manual tracking context. These fields only record
+ * a carrier label and a user-entered HTTP(S) address; no carrier is contacted.
+ */
+async function ensureOrderManualTrackingSchema() {
+  if (_orderManualTrackingSchemaReady) return _orderManualTrackingSchemaReady;
+
+  _orderManualTrackingSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    const run = async (statement: string) => {
+      try {
+        await db.execute(sql.raw(statement));
+      } catch (error) {
+        const message = String(error).toLowerCase();
+        if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+      }
+    };
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `trackingCarrier` varchar(120)");
+    await run("ALTER TABLE `orders` ADD COLUMN IF NOT EXISTS `trackingUrl` varchar(1000)");
+  })();
+
+  return _orderManualTrackingSchemaReady;
+}
+
 async function ensureCheckoutShippingSchema() {
   if (_checkoutShippingSchemaReady) return _checkoutShippingSchemaReady;
 
@@ -9141,6 +9168,7 @@ export async function saveOwnerStockAlertSettings(storeId: number, input: OwnerS
 export async function getOwnerOrderSummaries(storeId: number) {
   await ensureStoreRelationshipScopeSchema();
   await ensureOrderCurrencySchema();
+  await ensureOrderManualTrackingSchema();
   const db = await getDb();
   if (!db) return [];
 
@@ -9152,6 +9180,8 @@ export async function getOwnerOrderSummaries(storeId: number) {
     totalAmount: orders.totalAmount,
     currencyCode: orders.currencyCode,
     trackingNumber: orders.trackingNumber,
+    trackingCarrier: orders.trackingCarrier,
+    trackingUrl: orders.trackingUrl,
     createdAt: orders.createdAt,
     updatedAt: orders.updatedAt,
   }).from(orders)
@@ -9219,6 +9249,7 @@ export async function getOwnerOrderItemSummaries(orderId: number, storeId: numbe
  */
 export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: number) {
   await ensureStoreRelationshipScopeSchema();
+  await ensureOrderManualTrackingSchema();
   const db = await getDb();
   if (!db) return buildOwnerDeliveryDetails(null);
 
@@ -9229,6 +9260,8 @@ export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: num
     status: orders.status,
     shippingAddress: orders.shippingAddress,
     trackingNumber: orders.trackingNumber,
+    trackingCarrier: orders.trackingCarrier,
+    trackingUrl: orders.trackingUrl,
   }).from(orders)
     .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)))
     .limit(1);
@@ -9242,6 +9275,7 @@ export async function getOwnerOrderDeliveryDetails(orderId: number, storeId: num
  */
 export async function getOwnerOrderDeliveryHandoverDetails(orderId: number, storeId: number) {
   await ensureStoreRelationshipScopeSchema();
+  await ensureOrderManualTrackingSchema();
   const db = await getDb();
   if (!db) return buildOwnerDeliveryHandoverDetails(null);
 
@@ -9252,6 +9286,8 @@ export async function getOwnerOrderDeliveryHandoverDetails(orderId: number, stor
     status: orders.status,
     shippingAddress: orders.shippingAddress,
     trackingNumber: orders.trackingNumber,
+    trackingCarrier: orders.trackingCarrier,
+    trackingUrl: orders.trackingUrl,
   }).from(orders)
     .where(and(eq(orders.storeId, storeId), eq(orders.id, orderId)))
     .limit(1);
@@ -9495,8 +9531,9 @@ export async function getOperationalOrderItems(orderId: number, storeId?: number
     .where(and(eq(orderItems.storeId, effectiveStoreId), eq(orderItems.orderId, orderId)));
 }
 
-export async function updateOperationalOrderTracking(input: { id: number; status: "shipped" | "delivered"; trackingNumber?: string; storeId?: number }) {
+export async function updateOperationalOrderTracking(input: { id: number; status: "shipped" | "delivered"; trackingNumber?: string; trackingCarrier?: string; trackingUrl?: string; storeId?: number }) {
   await ensureStoreRelationshipScopeSchema();
+  await ensureOrderManualTrackingSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const effectiveStoreId = input.storeId ?? await getPrimaryStoreId();
@@ -9505,8 +9542,10 @@ export async function updateOperationalOrderTracking(input: { id: number; status
   if (current[0].status !== "processing" && current[0].status !== "shipped") throw new Error("ORDER_NOT_OPERATIONAL");
   if (current[0].status === "processing" && input.status !== "shipped") throw new Error("ORDER_REQUIRES_SHIPMENT");
   if (current[0].status === "shipped" && input.status !== "delivered") throw new Error("ORDER_REQUIRES_DELIVERY");
-  const updateData: { status: "shipped" | "delivered"; trackingNumber?: string } = { status: input.status };
+  const updateData: { status: "shipped" | "delivered"; trackingNumber?: string; trackingCarrier?: string; trackingUrl?: string } = { status: input.status };
   if (input.trackingNumber?.trim()) updateData.trackingNumber = input.trackingNumber.trim();
+  if (input.trackingCarrier?.trim()) updateData.trackingCarrier = input.trackingCarrier.trim().slice(0, OWNER_MANUAL_TRACKING_LIMITS.carrier);
+  if (input.trackingUrl?.trim()) updateData.trackingUrl = input.trackingUrl.trim().slice(0, OWNER_MANUAL_TRACKING_LIMITS.url);
   const result = await db.update(orders).set(updateData).where(and(
     eq(orders.storeId, effectiveStoreId),
     eq(orders.id, input.id),

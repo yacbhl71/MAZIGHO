@@ -79,16 +79,16 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - Le centre **Retours & service après-vente** propose maintenant une file tactile priorisée : « À décider », « En retour », « Réceptionnés » et « Terminés », avec la prochaine action explicitée dans chaque dossier. Le tri reste local à la boutique et purement visuel : il ne modifie ni décision, ni remboursement, ni prestataire.
 - L’audit du stock confirme que le réglage de seuil, la vue consolidée produits + variantes, les compteurs rupture / faible stock et les éditions par quantité existent déjà, avec une logique qui privilégie les variantes actives. Aucune duplication n’a été ajoutée.
 - Le propriétaire peut désormais imprimer un **bordereau de remise** une fois la commande marquée manuellement « Expédiée ». La consultation est limitée au propriétaire, liée au `storeId` et auditée ; le document ne contient ni e-mail, ni prix, ni paiement, ni facture, et ne crée ni transporteur, ni notification, ni preuve de livraison.
+- Le suivi manuel peut enregistrer, au moment de l’expédition, un **transporteur**, un numéro et un **lien HTTP(S)**. Le lien est seulement mémorisé puis ouvert sur action explicite ; MAZIGHO ne contacte ni API, ni transporteur, ni fournisseur. Les données restent attachées à la boutique concernée et le bordereau imprimé ne reprend jamais le lien.
 
-### À renforcer
+### Contrôle de mise en service à conserver
 
-- Suivi transporteur et numéro de suivi, avec une validation terrain sur tablette.
-- Algérie : confirmation COD, livraison par wilaya et suivi d’encaissement, uniquement si le marché Algérie est actif.
-- Évaluer les actions groupées seulement avec une sélection explicite, une confirmation par lot et une séparation stricte des commandes non éligibles ; aucune décision, livraison ou remboursement ne doit devenir silencieux.
+- Sur tablette, vérifier humainement une commande de recette sans créer de paiement : accepter, préparer, saisir le suivi, marquer expédiée, imprimer le bordereau, marquer livrée et, en Algérie/COD, confirmer l’encaissement après remise réelle.
+- Les actions groupées restent volontairement hors Lot 2 : elles ne seront évaluées que si une sélection explicite, une confirmation par lot et une séparation stricte des commandes non éligibles apportent un réel gain. Aucune décision, livraison ou remboursement ne deviendra silencieux.
 
 ### Critère de fin
 
-Un scénario de commande non-Stripe et un scénario COD peuvent être traités entièrement sur tablette, avec un historique clair dans la boutique concernée.
+**Clôture technique atteinte :** un scénario de commande non-Stripe et un scénario COD disposent de toutes les étapes manuelles nécessaires sur tablette, avec un historique clair dans la boutique concernée. La validation terrain humaine ci-dessus reste un contrôle de mise en service, sans nouveau développement ni action Stripe.
 
 ---
 

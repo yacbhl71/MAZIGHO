@@ -1,4 +1,4 @@
-import { Eye, Loader2, MapPin, ShieldCheck } from "lucide-react";
+import { ExternalLink, Eye, Loader2, MapPin, ShieldCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ export default function OwnerOrderDeliveryDialog({ orderId, onOpenChange }: Owne
           <p className="mt-4 text-xs font-bold uppercase tracking-wide text-slate-500">Adresse de livraison</p>
           <p className="mt-1 whitespace-pre-line">{[...details.addressLines, [details.postalCode, details.city].filter(Boolean).join(" "), details.state, details.countryCode].filter(Boolean).join("\n")}</p>
           {(details.phone || details.email) ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Contact utile à la livraison</p>{details.phone ? <p className="mt-1">Tél. {details.phone}</p> : null}{details.email ? <p className="mt-1 break-all">{details.email}</p> : null}</div> : null}
-          {details.trackingNumber ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Suivi enregistré</p><p className="mt-1 font-mono text-xs">{details.trackingNumber}</p></div> : null}
+          {(details.trackingNumber || details.trackingCarrier || details.trackingUrl) ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Suivi manuel enregistré</p>{details.trackingCarrier ? <p className="mt-1 text-sm font-semibold text-slate-900">{details.trackingCarrier}</p> : null}{details.trackingNumber ? <p className="mt-1 font-mono text-xs">{details.trackingNumber}</p> : null}{details.trackingUrl ? <a href={details.trackingUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 text-xs font-semibold text-sky-900 hover:bg-sky-100"><ExternalLink className="h-3.5 w-3.5" /> Ouvrir le suivi déclaré</a> : null}</div> : null}
         </div>
         {details.addressIncomplete ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-950">Certaines coordonnées nécessaires à l’expédition semblent incomplètes. Vérifiez-les avant toute remise à un transporteur.</p> : null}
       </section>}

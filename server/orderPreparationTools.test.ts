@@ -43,6 +43,7 @@ describe("owner packing slip renderer", () => {
         phone: null,
         email: "cliente@example.test",
         trackingNumber: null,
+        trackingCarrier: "Yalidine",
       },
       items: [{ productName: "Kit <violet>", quantity: 2, selectedOptions: [{ name: "Couleur", value: "Violet & fuchsia" }] }],
     });
@@ -51,6 +52,7 @@ describe("owner packing slip renderer", () => {
     expect(html).toContain("Cliente &lt;test&gt;");
     expect(html).toContain("Kit &lt;violet&gt;");
     expect(html).toContain("Violet &amp; fuchsia");
+    expect(html).toContain("Yalidine");
     expect(html).not.toContain("TVA");
     expect(html).not.toContain("Carte bancaire");
   });
@@ -72,6 +74,8 @@ describe("owner delivery handover renderer", () => {
         phone: "+41 79 000 00 00",
         email: "cliente@example.test",
         trackingNumber: "CH-72",
+        trackingCarrier: "Yalidine <DZ>",
+        trackingUrl: "https://carrier.example/track/CH-72",
       },
       items: [{ productName: "Kit <violet>", quantity: 2, selectedOptions: [{ name: "Couleur", value: "Violet & fuchsia" }] }],
     });
@@ -80,8 +84,10 @@ describe("owner delivery handover renderer", () => {
     expect(html).toContain("Cliente &lt;test&gt;");
     expect(html).toContain("Kit &lt;violet&gt;");
     expect(html).toContain("Violet &amp; fuchsia");
+    expect(html).toContain("Yalidine &lt;DZ&gt;");
     expect(html).toContain("Remis au transporteur ou au point de dépôt");
     expect(html).not.toContain("cliente@example.test");
+    expect(html).not.toContain("https://carrier.example/track/CH-72");
     expect(html).not.toContain("TVA");
     expect(html).not.toContain("Carte bancaire");
   });

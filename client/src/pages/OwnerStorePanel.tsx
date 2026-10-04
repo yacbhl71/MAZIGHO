@@ -245,6 +245,8 @@ export default function OwnerStorePanel() {
   const [stockDrafts, setStockDrafts] = useState<Record<number, string>>({});
   const [variantStockDrafts, setVariantStockDrafts] = useState<Record<number, string>>({});
   const [orderTrackingDrafts, setOrderTrackingDrafts] = useState<Record<number, string>>({});
+  const [orderTrackingCarrierDrafts, setOrderTrackingCarrierDrafts] = useState<Record<number, string>>({});
+  const [orderTrackingUrlDrafts, setOrderTrackingUrlDrafts] = useState<Record<number, string>>({});
   const [orderItemsOrderId, setOrderItemsOrderId] = useState<number | null>(null);
   const [orderDeliveryOrderId, setOrderDeliveryOrderId] = useState<number | null>(null);
   const [orderPackingSlipOrderId, setOrderPackingSlipOrderId] = useState<number | null>(null);
@@ -483,6 +485,8 @@ export default function OwnerStorePanel() {
   const updateOrderTracking = trpc.owner.updateOrderTracking.useMutation({
     onSuccess: (result, input) => {
       setOrderTrackingDrafts(current => { const next = { ...current }; delete next[input.orderId]; return next; });
+      setOrderTrackingCarrierDrafts(current => { const next = { ...current }; delete next[input.orderId]; return next; });
+      setOrderTrackingUrlDrafts(current => { const next = { ...current }; delete next[input.orderId]; return next; });
       if (input.status === "shipped" && result.customerNotification === "sent") {
         toast.success("Commande marquée comme expédiée. La confirmation d’expédition a été envoyée.");
       } else if (input.status === "shipped" && result.customerNotification === "unavailable") {
@@ -718,13 +722,15 @@ export default function OwnerStorePanel() {
     if (!window.confirm(`Confirmer l’encaissement à la livraison de la commande #${orderId} ? Cette action marque la commande comme réglée dans cette boutique, sans contacter de banque, de client ou de transporteur.`)) return;
     confirmAlgeriaCashOnDeliveryCollection.mutate({ orderId });
   };
-  const confirmOrderTracking = (order: { id: number; trackingNumber?: string | null }, status: "shipped" | "delivered") => {
+  const confirmOrderTracking = (order: { id: number; trackingNumber?: string | null; trackingCarrier?: string | null; trackingUrl?: string | null }, status: "shipped" | "delivered") => {
     const trackingNumber = (orderTrackingDrafts[order.id] ?? order.trackingNumber ?? "").trim();
+    const trackingCarrier = (orderTrackingCarrierDrafts[order.id] ?? order.trackingCarrier ?? "").trim();
+    const trackingUrl = (orderTrackingUrlDrafts[order.id] ?? order.trackingUrl ?? "").trim();
     const label = status === "shipped" ? "marquer comme expédiée" : "marquer comme livrée";
-    const trackingCopy = status === "shipped" && trackingNumber ? ` Le numéro de suivi « ${trackingNumber} » sera enregistré.` : "";
+    const trackingCopy = status === "shipped" && (trackingCarrier || trackingNumber || trackingUrl) ? ` ${[trackingCarrier, trackingNumber].filter(Boolean).join(" · ") || "Le lien de suivi"} sera enregistré avec la commande.` : "";
     const notificationCopy = status === "shipped" ? " Pour une commande Stripe Production avec les e-mails transactionnels activés, une confirmation d’expédition sera envoyée au client." : " Aucun e-mail ne sera envoyé.";
-    if (!window.confirm(`Confirmer : ${label} la commande #${order.id} ?${trackingCopy}${notificationCopy} Aucun transporteur, fournisseur, paiement ou remboursement n’est déclenché automatiquement.`)) return;
-    updateOrderTracking.mutate({ orderId: order.id, status, trackingNumber: trackingNumber || undefined });
+    if (!window.confirm(`Confirmer : ${label} la commande #${order.id} ?${trackingCopy}${notificationCopy} Le lien n’est pas contacté et aucun transporteur, fournisseur, paiement ou remboursement n’est déclenché automatiquement.`)) return;
+    updateOrderTracking.mutate({ orderId: order.id, status, trackingNumber: trackingNumber || undefined, trackingCarrier: trackingCarrier || undefined, trackingUrl: trackingUrl || undefined });
   };
   const shippingPreview = useMemo(() => {
     const currency = settingsSummary?.currencyCode || "CHF";
@@ -838,7 +844,11 @@ export default function OwnerStorePanel() {
             pendingTracking={updateOrderTracking.isPending}
             pendingCollection={confirmAlgeriaCashOnDeliveryCollection.isPending}
             trackingDrafts={orderTrackingDrafts}
+            trackingCarrierDrafts={orderTrackingCarrierDrafts}
+            trackingUrlDrafts={orderTrackingUrlDrafts}
             onTrackingDraftChange={(orderId, value) => setOrderTrackingDrafts(current => ({ ...current, [orderId]: value }))}
+            onTrackingCarrierDraftChange={(orderId, value) => setOrderTrackingCarrierDrafts(current => ({ ...current, [orderId]: value }))}
+            onTrackingUrlDraftChange={(orderId, value) => setOrderTrackingUrlDrafts(current => ({ ...current, [orderId]: value }))}
             onOpenItems={setOrderItemsOrderId}
             onOpenDelivery={setOrderDeliveryOrderId}
             onOpenPackingSlip={setOrderPackingSlipOrderId}
@@ -856,7 +866,7 @@ export default function OwnerStorePanel() {
                   <td className="px-4 py-3"><div className="flex flex-col items-start gap-1"><Badge variant="outline" className={order.paymentMethod === "cash_on_delivery_dz" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-700"}>{order.paymentMethod === "cash_on_delivery_dz" ? order.paymentStatus === "paid" ? "Livraison · encaissé" : "À encaisser à la livraison" : paymentStatusLabels[order.paymentStatus] || order.paymentStatus}</Badge>{order.paymentMethod === "cash_on_delivery_dz" && <span className="text-[11px] leading-4 text-slate-500">Algérie · sans carte</span>}</div></td>
                   <td className="px-4 py-3 font-medium text-slate-900">{(Number(order.totalAmount || 0) / 100).toFixed(2)} {order.currencyCode || "CHF"}</td>
                   <td className="px-4 py-3 text-slate-600">{new Date(order.createdAt).toLocaleString("fr-CH", { dateStyle: "medium", timeStyle: "short" })}</td>
-                  <td className="px-4 py-3">{order.status === "processing" ? <div className="flex min-w-64 items-end gap-2"><div className="min-w-0 flex-1"><Label htmlFor={`tracking-${order.id}`} className="text-xs font-medium text-slate-600">N° de suivi (facultatif)</Label><Input id={`tracking-${order.id}`} className="mt-1 h-10" value={orderTrackingDrafts[order.id] ?? order.trackingNumber ?? ""} onChange={event => setOrderTrackingDrafts(current => ({ ...current, [order.id]: event.target.value }))} placeholder="Ex. CH123456789" /></div><Button type="button" size="sm" className="min-h-10 shrink-0 bg-teal-700 hover:bg-teal-800" disabled={updateOrderTracking.isPending} onClick={() => confirmOrderTracking(order, "shipped")}><Truck className="mr-1 h-4 w-4" /> Expédiée</Button></div> : order.status === "shipped" ? <div className="flex min-w-52 flex-wrap items-center gap-2"><span className="max-w-32 truncate text-xs text-slate-600" title={order.trackingNumber || undefined}>{order.trackingNumber || "Sans numéro"}</span><Button type="button" size="sm" variant="outline" className="min-h-10 border-teal-200 text-teal-800 hover:bg-teal-50" disabled={updateOrderTracking.isPending} onClick={() => confirmOrderTracking(order, "delivered")}>Marquer livrée</Button></div> : order.trackingNumber ? <span className="text-xs text-slate-600">{order.trackingNumber}</span> : <span className="text-xs text-slate-400">—</span>}</td>
+                  <td className="px-4 py-3">{order.status === "processing" ? <div className="grid min-w-80 gap-2"><div className="grid gap-2 sm:grid-cols-2"><div><Label htmlFor={`tracking-carrier-${order.id}`} className="text-xs font-medium text-slate-600">Transporteur</Label><Input id={`tracking-carrier-${order.id}`} className="mt-1 h-10" value={orderTrackingCarrierDrafts[order.id] ?? order.trackingCarrier ?? ""} onChange={event => setOrderTrackingCarrierDrafts(current => ({ ...current, [order.id]: event.target.value }))} placeholder="Ex. Yalidine" maxLength={120} /></div><div><Label htmlFor={`tracking-${order.id}`} className="text-xs font-medium text-slate-600">N° de suivi</Label><Input id={`tracking-${order.id}`} className="mt-1 h-10" value={orderTrackingDrafts[order.id] ?? order.trackingNumber ?? ""} onChange={event => setOrderTrackingDrafts(current => ({ ...current, [order.id]: event.target.value }))} placeholder="Ex. CH123456789" maxLength={100} /></div></div><div><Label htmlFor={`tracking-url-${order.id}`} className="text-xs font-medium text-slate-600">Lien de suivi</Label><Input id={`tracking-url-${order.id}`} type="url" className="mt-1 h-10" value={orderTrackingUrlDrafts[order.id] ?? order.trackingUrl ?? ""} onChange={event => setOrderTrackingUrlDrafts(current => ({ ...current, [order.id]: event.target.value }))} placeholder="https://transporteur.example/suivi/…" maxLength={1000} /></div><Button type="button" size="sm" className="min-h-10 w-fit bg-teal-700 hover:bg-teal-800" disabled={updateOrderTracking.isPending} onClick={() => confirmOrderTracking(order, "shipped")}><Truck className="mr-1 h-4 w-4" /> Expédiée</Button></div> : order.status === "shipped" ? <div className="flex min-w-52 flex-col items-start gap-2"><div className="flex flex-wrap items-center gap-2"><span className="max-w-44 truncate text-xs text-slate-600" title={[order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" · ") || undefined}>{[order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" · ") || "Sans suivi"}</span>{order.trackingUrl ? <a href={order.trackingUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-sky-800 underline underline-offset-2 hover:text-sky-950"><ExternalLink className="h-3.5 w-3.5" /> Suivi</a> : null}</div><Button type="button" size="sm" variant="outline" className="min-h-10 border-teal-200 text-teal-800 hover:bg-teal-50" disabled={updateOrderTracking.isPending} onClick={() => confirmOrderTracking(order, "delivered")}>Marquer livrée</Button></div> : (order.trackingNumber || order.trackingCarrier) ? <span className="text-xs text-slate-600">{[order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" · ")}</span> : <span className="text-xs text-slate-400">—</span>}</td>
                   <td className="px-4 py-3 text-right">{order.status === "pending" && (order.paymentStatus === "paid" || order.paymentMethod === "cash_on_delivery_dz") ? <div className="flex min-w-52 justify-end gap-2"><Button type="button" size="sm" className="min-h-11 bg-teal-700 hover:bg-teal-800" disabled={recordOrderDecision.isPending} onClick={() => confirmOrderDecision(order, "accepted")}>Accepter</Button><Button type="button" size="sm" variant="outline" className="min-h-11 border-rose-200 text-rose-700 hover:bg-rose-50" disabled={recordOrderDecision.isPending} onClick={() => confirmOrderDecision(order, "rejected")}>Refuser</Button></div> : order.status === "delivered" && order.paymentMethod === "cash_on_delivery_dz" && order.paymentStatus === "unpaid" && workspace.data?.membership?.role === "owner" ? <Button type="button" size="sm" className="min-h-11 bg-emerald-700 hover:bg-emerald-800" disabled={confirmAlgeriaCashOnDeliveryCollection.isPending} onClick={() => confirmCashOnDeliveryCollection(order.id)}><Banknote className="mr-1 h-4 w-4" />Confirmer encaissement</Button> : order.status === "pending" ? <span className="text-xs text-slate-500">Paiement requis</span> : <span className="text-xs text-slate-500">Décision enregistrée</span>}</td>
                 </tr>)}
               </tbody>

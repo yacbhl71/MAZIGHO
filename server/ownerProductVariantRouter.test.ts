@@ -683,19 +683,24 @@ describe("owner product variant routes", () => {
   });
 
   it("records manual shipment status only for the current resolved store", async () => {
-    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped", trackingNumber: " CH123456 " })).resolves.toMatchObject({
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped", trackingNumber: " CH123456 ", trackingCarrier: " Yalidine ", trackingUrl: "https://carrier.example/track/CH123456" })).resolves.toMatchObject({
       success: true,
       id: 481,
       status: "shipped",
       trackingNumber: "CH123456",
+      trackingCarrier: "Yalidine",
+      trackingUrl: "https://carrier.example/track/CH123456",
       storeId: 77,
     });
     expect(db.updateOperationalOrderTracking).toHaveBeenCalledWith({
       id: 481,
       status: "shipped",
       trackingNumber: "CH123456",
+      trackingCarrier: "Yalidine",
+      trackingUrl: "https://carrier.example/track/CH123456",
       storeId: 77,
     });
+    await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "shipped", trackingUrl: "javascript:alert(1)" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     state.membership = { role: "catalog_editor", status: "active" };
     await expect(callerFor().owner.updateOrderTracking({ orderId: 481, status: "delivered" })).rejects.toMatchObject({ code: "FORBIDDEN" });

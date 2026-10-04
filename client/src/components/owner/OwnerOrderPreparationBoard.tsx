@@ -1,4 +1,4 @@
-import { Banknote, ClipboardList, FileSignature, FileText, PackageCheck, Truck } from "lucide-react";
+import { Banknote, ClipboardList, ExternalLink, FileSignature, FileText, PackageCheck, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,11 @@ type OwnerOrderPreparationBoardProps = {
   pendingTracking: boolean;
   pendingCollection: boolean;
   trackingDrafts: Record<number, string>;
+  trackingCarrierDrafts: Record<number, string>;
+  trackingUrlDrafts: Record<number, string>;
   onTrackingDraftChange: (orderId: number, value: string) => void;
+  onTrackingCarrierDraftChange: (orderId: number, value: string) => void;
+  onTrackingUrlDraftChange: (orderId: number, value: string) => void;
   onOpenItems: (orderId: number) => void;
   onOpenDelivery: (orderId: number) => void;
   onOpenPackingSlip: (orderId: number) => void;
@@ -43,7 +47,11 @@ export default function OwnerOrderPreparationBoard({
   pendingTracking,
   pendingCollection,
   trackingDrafts,
+  trackingCarrierDrafts,
+  trackingUrlDrafts,
   onTrackingDraftChange,
+  onTrackingCarrierDraftChange,
+  onTrackingUrlDraftChange,
   onOpenItems,
   onOpenDelivery,
   onOpenPackingSlip,
@@ -58,6 +66,8 @@ export default function OwnerOrderPreparationBoard({
       const canPrepare = (order.paymentStatus === "paid" || order.paymentMethod === "cash_on_delivery_dz")
         && ["processing", "shipped", "delivered"].includes(order.status);
       const trackingValue = trackingDrafts[order.id] ?? order.trackingNumber ?? "";
+      const trackingCarrierValue = trackingCarrierDrafts[order.id] ?? order.trackingCarrier ?? "";
+      const trackingUrlValue = trackingUrlDrafts[order.id] ?? order.trackingUrl ?? "";
 
       return <article key={order.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
@@ -99,15 +109,18 @@ export default function OwnerOrderPreparationBoard({
           </div> : null}
 
           {order.status === "processing" ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <label htmlFor={`tracking-card-${order.id}`} className="text-sm font-semibold text-slate-900">Numéro de suivi <span className="font-normal text-slate-500">(facultatif)</span></label>
-            <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <input id={`tracking-card-${order.id}`} className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={trackingValue} onChange={event => onTrackingDraftChange(order.id, event.target.value)} placeholder="Ex. CH123456789" />
-              <Button type="button" className="min-h-11 bg-teal-700 hover:bg-teal-800" disabled={pendingTracking} onClick={() => onUpdateTracking(order, "shipped")}><Truck className="mr-2 h-4 w-4" /> Marquer expédiée</Button>
+            <p className="text-sm font-semibold text-slate-900">Suivi manuel <span className="font-normal text-slate-500">(facultatif)</span></p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Le transporteur et son lien sont enregistrés uniquement avec la commande. Aucun prestataire n’est contacté.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div><label htmlFor={`tracking-carrier-card-${order.id}`} className="text-xs font-semibold text-slate-700">Transporteur</label><input id={`tracking-carrier-card-${order.id}`} className="mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={trackingCarrierValue} maxLength={120} onChange={event => onTrackingCarrierDraftChange(order.id, event.target.value)} placeholder="Ex. Yalidine" /></div>
+              <div><label htmlFor={`tracking-card-${order.id}`} className="text-xs font-semibold text-slate-700">Numéro</label><input id={`tracking-card-${order.id}`} className="mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={trackingValue} maxLength={100} onChange={event => onTrackingDraftChange(order.id, event.target.value)} placeholder="Ex. CH123456789" /></div>
+              <div className="sm:col-span-2"><label htmlFor={`tracking-url-card-${order.id}`} className="text-xs font-semibold text-slate-700">Lien de suivi <span className="font-normal text-slate-500">(http(s), facultatif)</span></label><input id={`tracking-url-card-${order.id}`} type="url" inputMode="url" className="mt-1 h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={trackingUrlValue} maxLength={1000} onChange={event => onTrackingUrlDraftChange(order.id, event.target.value)} placeholder="https://transporteur.example/suivi/…" /></div>
+              <Button type="button" className="min-h-11 bg-teal-700 hover:bg-teal-800 sm:col-span-2" disabled={pendingTracking} onClick={() => onUpdateTracking(order, "shipped")}><Truck className="mr-2 h-4 w-4" /> Marquer expédiée</Button>
             </div>
           </div> : null}
 
           {order.status === "shipped" ? <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-sm font-semibold text-slate-900">{order.trackingNumber || "Sans numéro de suivi"}</p><p className="mt-1 text-xs text-slate-500">Confirmez uniquement après remise effective au client ou au transporteur.</p></div>
+            <div><p className="text-sm font-semibold text-slate-900">{[order.trackingCarrier, order.trackingNumber].filter(Boolean).join(" · ") || "Sans suivi enregistré"}</p>{order.trackingUrl ? <a href={order.trackingUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-sky-800 underline underline-offset-2 hover:text-sky-950"><ExternalLink className="h-3.5 w-3.5" /> Ouvrir le suivi déclaré</a> : null}<p className="mt-1 text-xs text-slate-500">Confirmez uniquement après remise effective au client ou au transporteur.</p></div>
             <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" className="min-h-11 border-indigo-200 text-indigo-800 hover:bg-indigo-50" onClick={() => onOpenDeliveryHandover(order.id)}><FileSignature className="mr-2 h-4 w-4" /> Bordereau</Button><Button type="button" variant="outline" className="min-h-11 border-teal-200 text-teal-800 hover:bg-teal-50" disabled={pendingTracking} onClick={() => onUpdateTracking(order, "delivered")}>Marquer livrée</Button></div>
           </div> : null}
 

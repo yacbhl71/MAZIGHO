@@ -6,6 +6,8 @@ const paidProcessingOrder = {
   paymentStatus: "paid",
   status: "processing",
   trackingNumber: null,
+  trackingCarrier: "Yalidine",
+  trackingUrl: "https://carrier.example/track/CH123456",
   shippingAddress: JSON.stringify({
     source: "stripe_checkout",
     name: "Cliente test",
@@ -33,6 +35,8 @@ describe("owner delivery details", () => {
       phone: "+41 79 000 00 00",
       email: "cliente@example.test",
       trackingNumber: null,
+      trackingCarrier: "Yalidine",
+      trackingUrl: "https://carrier.example/track/CH123456",
       addressIncomplete: false,
       collectionPending: false,
     });

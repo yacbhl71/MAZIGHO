@@ -412,6 +412,9 @@ export const orders = mysqlTable("orders", {
   stripeApplicationFeeAmount: int("stripeApplicationFeeAmount").default(0).notNull(),
   stripeCommissionRateBps: int("stripeCommissionRateBps").default(0).notNull(),
   trackingNumber: varchar("trackingNumber", { length: 100 }),
+  // Manually entered logistics context. It is never sent to or fetched from a carrier.
+  trackingCarrier: varchar("trackingCarrier", { length: 120 }),
+  trackingUrl: varchar("trackingUrl", { length: 1000 }),
   // Internal fulfillment state. It is intentionally separate from the customer-facing order status.
   fulfillmentState: mysqlEnum("fulfillmentState", ["not_eligible", "awaiting_supplier_preparation", "supplier_order_draft", "supplier_payment_review", "supplier_payment_pending", "supplier_paid", "supplier_exception", "shipped", "delivered", "cancelled", "refunded"]).default("not_eligible").notNull(),
   odooSaleOrderId: int("odooSaleOrderId"),

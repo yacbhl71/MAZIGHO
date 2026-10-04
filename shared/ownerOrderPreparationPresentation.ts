@@ -7,6 +7,8 @@ export type OwnerOrderActionRow = {
   currencyCode?: string | null;
   createdAt: string | Date;
   trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingUrl?: string | null;
 };
 
 export const ownerOrderStatusLabels: Record<string, string> = {

@@ -24,6 +24,7 @@ import { importOwnerKnowledgeDocument } from "./services/ownerKnowledgeDocumentI
 import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExport";
 import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
 import { OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS, getOwnerKnowledgeDocumentSizeMessage } from "../shared/ownerKnowledgeDocumentPolicy";
+import { isSafeOwnerManualTrackingUrl, OWNER_MANUAL_TRACKING_LIMITS } from "../shared/ownerManualTracking";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -1310,13 +1311,17 @@ export const ownerRouter = router({
   updateOrderTracking: storeManagementProcedure.input(z.object({
     orderId: z.number().int().positive(),
     status: z.enum(["shipped", "delivered"]),
-    trackingNumber: z.string().trim().max(100).optional(),
+    trackingNumber: z.string().trim().max(OWNER_MANUAL_TRACKING_LIMITS.number).optional(),
+    trackingCarrier: z.string().trim().max(OWNER_MANUAL_TRACKING_LIMITS.carrier).optional(),
+    trackingUrl: z.string().trim().max(OWNER_MANUAL_TRACKING_LIMITS.url).refine(isSafeOwnerManualTrackingUrl, "Utilisez une URL de suivi http:// ou https:// valide.").optional(),
   })).mutation(async ({ ctx, input }) => {
     try {
       const result = await db.updateOperationalOrderTracking({
         id: input.orderId,
         status: input.status,
         trackingNumber: input.trackingNumber?.trim() || undefined,
+        trackingCarrier: input.trackingCarrier?.trim() || undefined,
+        trackingUrl: input.trackingUrl?.trim() || undefined,
         storeId: ctx.store!.id,
       });
       let customerNotification: "not_applicable" | "sent" | "unavailable" = "not_applicable";

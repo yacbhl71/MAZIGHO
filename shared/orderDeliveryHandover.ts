@@ -40,6 +40,7 @@ export function renderOwnerDeliveryHandoverHtml(input: OwnerDeliveryHandoverInpu
   }).join("") || "<li><div><strong>Articles indisponibles</strong><p class=\"options\">Vérifiez la commande depuis le panneau.</p></div></li>";
   const phone = input.delivery.phone ? `<p class="contact"><strong>Contact livraison :</strong> ${escapeHtml(input.delivery.phone)}</p>` : "";
   const tracking = input.delivery.trackingNumber ? escapeHtml(input.delivery.trackingNumber) : "Aucun numéro de suivi enregistré";
+  const trackingCarrier = input.delivery.trackingCarrier ? `${escapeHtml(input.delivery.trackingCarrier)} · ` : "";
 
   return `<!doctype html>
 <html lang="fr">
@@ -86,7 +87,7 @@ export function renderOwnerDeliveryHandoverHtml(input: OwnerDeliveryHandoverInpu
   </header>
   <div class="grid">
     <section><h2>Destinataire</h2><p class="recipient">${escapeHtml(input.delivery.recipientName || "Destinataire non renseigné")}</p><p class="address">${recipientLines.join("<br />")}</p>${phone}</section>
-    <section><h2>Suivi manuel</h2><p><strong>${tracking}</strong></p><p class="contact">Ce bordereau ne crée ni étiquette, ni dépôt, ni suivi transporteur. Complétez la remise réellement effectuée ci-dessous.</p></section>
+    <section><h2>Suivi manuel</h2><p><strong>${trackingCarrier}${tracking}</strong></p><p class="contact">Ce bordereau ne crée ni étiquette, ni dépôt, ni suivi transporteur. Complétez la remise réellement effectuée ci-dessous.</p></section>
   </div>
   <section><h2>Contenu du colis</h2><ul>${items}</ul></section>
   <div class="checklist">

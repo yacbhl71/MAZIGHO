@@ -5,6 +5,8 @@ export type OwnerDeliveryOrderRow = {
   status: string;
   shippingAddress: string | null;
   trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingUrl?: string | null;
 };
 
 export type OwnerDeliveryDetails =
@@ -24,6 +26,8 @@ export type OwnerDeliveryDetails =
     phone: string | null;
     email: string | null;
     trackingNumber: string | null;
+    trackingCarrier: string | null;
+    trackingUrl: string | null;
     addressIncomplete: boolean;
     collectionPending: boolean;
   };
@@ -102,6 +106,8 @@ export function buildOwnerDeliveryDetails(row: OwnerDeliveryOrderRow | null | un
     phone,
     email,
     trackingNumber: cleanText(row.trackingNumber, 100),
+    trackingCarrier: cleanText(row.trackingCarrier, 120),
+    trackingUrl: cleanText(row.trackingUrl, 1000),
     addressIncomplete: !recipientName || !postalCode || !city || !countryCode,
     collectionPending: cashOnDelivery && row.paymentStatus !== "paid",
   };

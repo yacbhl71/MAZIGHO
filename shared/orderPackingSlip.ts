@@ -15,6 +15,8 @@ export type OwnerPackingSlipDelivery = {
   phone: string | null;
   email: string | null;
   trackingNumber: string | null;
+  trackingCarrier?: string | null;
+  trackingUrl?: string | null;
 };
 
 export type OwnerPackingSlipInput = {
@@ -56,6 +58,7 @@ export function renderOwnerPackingSlipHtml(input: OwnerPackingSlipInput) {
   }).join("") || "<li><div><strong>Articles indisponibles</strong><p class=\"options\">Vérifiez la commande depuis le panneau.</p></div></li>";
   const contact = [input.delivery.phone ? `Tél. ${escapeHtml(input.delivery.phone)}` : "", input.delivery.email ? escapeHtml(input.delivery.email) : ""].filter(Boolean).join("<br />");
   const tracking = input.delivery.trackingNumber ? escapeHtml(input.delivery.trackingNumber) : "À renseigner avant dépôt";
+  const trackingCarrier = input.delivery.trackingCarrier ? `${escapeHtml(input.delivery.trackingCarrier)} · ` : "";
 
   return `<!doctype html>
 <html lang="fr">
@@ -101,7 +104,7 @@ export function renderOwnerPackingSlipHtml(input: OwnerPackingSlipInput) {
   </header>
   <div class="grid">
     <section><h2>Livraison</h2><p class="recipient">${escapeHtml(input.delivery.recipientName || "Destinataire non renseigné")}</p><p class="address">${recipientLines.join("<br />")}</p>${contact ? `<p class="contact">${contact}</p>` : ""}</section>
-    <section><h2>Suivi manuel</h2><p><strong>${tracking}</strong></p><p class="contact">Vérifiez le numéro avant de remettre le colis. Aucun envoi transporteur n’est créé par ce document.</p></section>
+    <section><h2>Suivi manuel</h2><p><strong>${trackingCarrier}${tracking}</strong></p><p class="contact">Vérifiez le numéro avant de remettre le colis. Aucun envoi transporteur n’est créé par ce document.</p></section>
   </div>
   <section><h2>Articles à préparer</h2><ul>${items}</ul></section>
   <div class="checklist">
