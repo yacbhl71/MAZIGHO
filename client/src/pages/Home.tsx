@@ -86,6 +86,7 @@ export default function Home() {
   const catalogProductsQuery = trpc.products.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const categoriesQuery = trpc.categories.getAll.useQuery(locale, { placeholderData: (prev) => prev });
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
+  const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const activeBannersQuery = trpc.content.getActiveBanners.useQuery(locale, { retry: false, refetchOnWindowFocus: false });
   const { countryCode } = useDeliveryCountry();
   const countryLabel = getLocalizedCountryName(countryCode, locale);
@@ -102,6 +103,7 @@ export default function Home() {
 
   const isClientStore = Boolean(storeAvailability.data && !storeAvailability.data.isPlatformStore);
   const limitedShowcase = Boolean(storeAvailability.data?.publicStorefront && storeAvailability.data.commerceEnabled === false);
+  const hasSingleActiveMarket = marketSettings.data?.activeCountries.length === 1;
   const limitedCopy = getLimitedStorefrontCopy(locale);
   const catalogProducts = (catalogProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
   const highlightedProducts = (featuredProductsQuery.data || []).filter(product => isProductVisibleForStorefront(product.deliveryProfiles, countryCode, isClientStore, Boolean(product.isManualProduct)));
@@ -261,7 +263,7 @@ export default function Home() {
               <div>
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{limitedShowcase ? limitedCopy.homeEyebrow : copy.featured.eyebrow}</p>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{limitedShowcase ? limitedCopy.homeTitle : copy.featured.title}</h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{limitedShowcase ? limitedCopy.homeText : interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>
+                {(limitedShowcase || !hasSingleActiveMarket) && <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{limitedShowcase ? limitedCopy.homeText : interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>}
               </div>
               <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
                 {limitedShowcase ? limitedCopy.catalogueLink : copy.featured.catalogue} <ArrowRight className="h-4 w-4" />
