@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { ENV } from "../_core/env";
 
-export type OwnerAiEncryptionPurpose = "mazigho-owner-knowledge" | "mazigho-owner-ai-conversations" | "mazigho-owner-ai-workspace";
+export type OwnerAiEncryptionPurpose = "mazigho-owner-knowledge" | "mazigho-owner-ai-conversations" | "mazigho-owner-ai-workspace" | "mazigho-studio-project-desk";
 
 /** A dedicated key is preferred. Existing JWT-key ciphertext remains readable;
  * older deployments without JWT_SECRET use a domain-separated database secret.

@@ -2,7 +2,7 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { decryptOwnerAiText, encryptOwnerAiText, type OwnerAiEncryptionPurpose } from "./ownerAiEncryption";
 
-const purposes: OwnerAiEncryptionPurpose[] = ["mazigho-owner-knowledge", "mazigho-owner-ai-conversations", "mazigho-owner-ai-workspace"];
+const purposes: OwnerAiEncryptionPurpose[] = ["mazigho-owner-knowledge", "mazigho-owner-ai-conversations", "mazigho-owner-ai-workspace", "mazigho-studio-project-desk"];
 
 afterEach(() => vi.unstubAllEnvs());
 

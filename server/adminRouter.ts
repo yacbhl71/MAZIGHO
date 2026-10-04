@@ -1855,6 +1855,51 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    getStoreProjectDesk: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioStoreProjectDesk(input.storeId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "Le suivi de projet Studio est réservé aux boutiques clientes." });
+        if (code === "STUDIO_PROJECT_DESK_UNREADABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Les notes internes de cette boutique ne peuvent pas être relues de manière sûre." });
+        throw error;
+      }
+    }),
+    saveStoreProjectDesk: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      desk: z.object({
+        stage: z.enum(["new_project", "to_analyze", "to_prepare", "ready", "handed_over"]),
+        notes: z.string().max(4_000),
+        reminders: z.array(z.object({
+          id: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/),
+          title: z.string().trim().min(1).max(160),
+          dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          completed: z.boolean(),
+          createdAt: z.string().datetime(),
+        })).max(12),
+        handover: z.object({ owner_access: z.boolean(), store_identity: z.boolean(), catalogue: z.boolean(), operations: z.boolean(), domain: z.boolean() }),
+      }),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const saved = await db.saveStudioStoreProjectDesk(input);
+        logAudit(ctx, {
+          action: "studio.store.project_desk.save",
+          entityType: "store",
+          entityId: saved.store.id,
+          summary: "Suivi interne de projet Studio mis à jour.",
+          metadata: { stage: saved.desk.stage, reminderCount: saved.desk.reminders.length, noteStoredEncrypted: true, emailSent: false, paymentChanged: false, domainChanged: false, storefrontActivated: false },
+        });
+        return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "Le suivi de projet Studio est réservé aux boutiques clientes." });
+        if (code === "STUDIO_PROJECT_DESK_ENCRYPTION_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le chiffrement des notes Studio n’est pas disponible pour le moment." });
+        if (code === "STUDIO_PROJECT_DESK_UNREADABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Les notes internes de cette boutique ne peuvent pas être relues de manière sûre." });
+        throw error;
+      }
+    }),
     prepareOwnerCustomDomainGuide: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       providerLabel: z.string().trim().max(80).optional(),

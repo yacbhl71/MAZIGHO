@@ -90,6 +90,7 @@ import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProdu
 import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds, parsePromotionTargetProductIds } from "../shared/promotionTargetProducts";
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
 import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
+import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk } from "../shared/studioStoreProjectDesk";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, customCreationRequests, customCreationRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -3660,6 +3661,68 @@ export async function getStudioStoreCommercialSupervision(storeId: number) {
     mediaUsage: mediaResult.usage,
     mediaUsageUnavailable: mediaResult.unavailable,
     paymentStatus: "not_activated" as const,
+  };
+}
+
+type StudioStoreProjectDeskStored = { ciphertext: string; iv: string };
+
+function encryptStudioStoreProjectDesk(value: StudioStoreProjectDesk) {
+  return encryptOwnerAiText(
+    "mazigho-studio-project-desk",
+    JSON.stringify(value),
+    "STUDIO_PROJECT_DESK_ENCRYPTION_NOT_CONFIGURED",
+  );
+}
+
+function parseStudioStoreProjectDesk(value: string | null | undefined): StudioStoreProjectDesk {
+  const now = new Date().toISOString();
+  if (!value?.trim()) return createStudioStoreProjectDesk(now);
+  try {
+    const stored = JSON.parse(value) as Partial<StudioStoreProjectDeskStored>;
+    if (typeof stored.ciphertext !== "string" || typeof stored.iv !== "string") throw new Error("INVALID_RECORD");
+    const plaintext = decryptOwnerAiText(
+      "mazigho-studio-project-desk",
+      stored.ciphertext,
+      stored.iv,
+      "STUDIO_PROJECT_DESK_ENCRYPTION_NOT_CONFIGURED",
+      "STUDIO_PROJECT_DESK_UNREADABLE",
+    );
+    return normalizeStudioStoreProjectDesk(JSON.parse(plaintext), now);
+  } catch (error) {
+    if (error instanceof Error && ["STUDIO_PROJECT_DESK_ENCRYPTION_NOT_CONFIGURED", "STUDIO_PROJECT_DESK_UNREADABLE"].includes(error.message)) throw error;
+    throw new Error("STUDIO_PROJECT_DESK_UNREADABLE");
+  }
+}
+
+/**
+ * Studio-only, tenant-scoped project metadata. Notes are stored encrypted and
+ * intentionally exclude customer, credential, payment and registrar data.
+ */
+export async function getStudioStoreProjectDesk(storeId: number) {
+  const { store } = await getStudioActiveStoreManagementContext(storeId);
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  const raw = await getStoreSettingValue(store.id, "studio_project_desk");
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    desk: parseStudioStoreProjectDesk(raw),
+  };
+}
+
+/** Saves only the current store's bounded project desk; it never dispatches a reminder or document. */
+export async function saveStudioStoreProjectDesk(input: { storeId: number; desk: Omit<StudioStoreProjectDesk, "updatedAt"> }) {
+  const { store } = await getStudioActiveStoreManagementContext(input.storeId);
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  const desk = normalizeStudioStoreProjectDesk({ ...input.desk, updatedAt: new Date().toISOString() });
+  const encrypted = encryptStudioStoreProjectDesk(desk);
+  await setStoreSettingValue(
+    store.id,
+    "studio_project_desk",
+    JSON.stringify(encrypted),
+    "Suivi interne Studio chiffré par boutique : pipeline, notes, rappels manuels et checklist de remise ; sans envoi, accès, domaine, publication, facture ni paiement.",
+  );
+  return {
+    store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
+    desk,
   };
 }
 

@@ -176,6 +176,12 @@ Un client peut faire une demande sur mesure, le propriétaire peut la traiter da
 
 Le Studio permet de retrouver, filtrer et préparer une boutique sans parcourir une liste interminable ni mélanger les données clients.
 
+**Jalon publié — pilotage opérationnel Studio :** la fiche Studio de chaque boutique cliente comporte désormais un **bureau de suivi** tactile avec le pipeline `nouveau projet → à analyser → à préparer → prêt → remis au propriétaire`, des notes internes chiffrées au repos, des rappels locaux manuels et une checklist de remise. Les modèles de devis, contrat de création et remise sont des textes prêts à copier puis à adapter : ils ne sont ni envoyés, ni signés, ni transformés en facture. Cette fiche reste strictement isolée par boutique ; elle n’affiche aucune donnée client, n’active ni domaine, ni paiement, ni publication et ne remplace pas les contrôles d’accès existants.
+
+**Couverture consolidée :** le registre Studio déjà publié assure la recherche et les filtres sur les statuts, les offres, les modèles, les marchés, les signaux de préparation, les domaines et les alertes. Les dérogations de commissions et quotas, les boutiques offertes, le centre de tickets, le portefeuille de domaines, les intentions d’intégration et la réparation d’accès restent des modules séparés, à confirmation humaine lorsque l’action a une conséquence.
+
+**Statut : Lot 5 clôturé pour le pilotage commercial et la relation client dans Studio.**
+
 ---
 
 ## Lot 6 — Validation qualité de l’Assistant IA
