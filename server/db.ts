@@ -4616,22 +4616,33 @@ async function ensureOwnerProductVariantsSchema() {
 
 async function ensureProductCategorySchema() {
   if (_productCategorySchemaReady) return _productCategorySchemaReady;
+
   _productCategorySchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
     await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `productCategories` (`id` int AUTO_INCREMENT PRIMARY KEY, `productId` int NOT NULL, `categoryId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY `product_categories_product_category_unique` (`productId`, `categoryId`), INDEX `product_categories_product_idx` (`productId`), INDEX `product_categories_category_idx` (`categoryId`))"));
-    // Some early TiDB tables were created before the Drizzle schema declared
-    // `id` auto-increment. The insert used for multiple categories therefore
-    // fails with a generic "Failed query" even though the category choice is
-    // valid. Repair the legacy table once, without touching its associations.
-    const [columnRows] = await db.execute(sql.raw("SHOW COLUMNS FROM `productCategories` LIKE 'id'")) as unknown as [Array<{ Extra?: string }>];
-    const idColumn = columnRows[0];
-    if (!String(idColumn?.Extra || "").toLowerCase().includes("auto_increment")) {
-      await db.execute(sql.raw("ALTER TABLE `productCategories` MODIFY COLUMN `id` int NOT NULL AUTO_INCREMENT"));
-    }
+    await ensureProductCategoryIdentity(db);
     await db.execute(sql.raw("INSERT IGNORE INTO `productCategories` (`productId`, `categoryId`) SELECT `id`, `categoryId` FROM `products`"));
   })();
   return _productCategorySchemaReady;
+}
+
+/**
+ * A short-lived legacy schema omitted AUTO_INCREMENT from the association ID.
+ * Drizzle correctly omits that field, but TiDB then rejects category updates
+ * with a raw SQL error. Keep the repair idempotent and callable once more from
+ * the write path when a warm function still sees the legacy table.
+ */
+async function ensureProductCategoryIdentity(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  const [columns] = await db.execute(sql.raw("SHOW COLUMNS FROM `productCategories` LIKE 'id'")) as unknown as [Array<{ Extra?: string }>];
+  const idColumn = columns[0];
+  if (String(idColumn?.Extra || "").toLowerCase().includes("auto_increment")) return;
+
+  // TiDB requires an indexed AUTO_INCREMENT column. The normal schema uses a
+  // primary key, while this small index keeps a safely recoverable old table
+  // writable even if its historic primary-key metadata is incomplete.
+  await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `product_categories_id_identity_idx` ON `productCategories` (`id`)"));
+  await db.execute(sql.raw("ALTER TABLE `productCategories` MODIFY COLUMN `id` int NOT NULL AUTO_INCREMENT"));
 }
 
 async function ensureCatalogSectionSchema() {
