@@ -103,10 +103,11 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - La mesure affiche uniquement les **utilisations agrégées** et les **remises associées** au code de la campagne, sur sa période. Aucun visiteur, identifiant, clic, appareil, adresse ou paiement n’est suivi ou exposé.
 - Un texte prêt à copier est fourni pour un partage manuel sur Instagram, Facebook ou WhatsApp. Aucune publication sur un réseau social, e-mail, pixel ou relance n’est envoyée par MAZIGHO.
 - Les seuils de stock et alertes visuelles produits / variantes sont déjà couverts dans **Gestion du stock** ; les promotions propriétaire existantes couvrent dates, seuil, limite, première commande et catégories.
+- Les suggestions **« Vous aimerez aussi »** existent déjà sur chaque fiche produit : elles restent dans la même boutique et catégorie, excluent la fiche consultée, et ne proposent que des produits disponibles pour le pays de livraison sélectionné.
 
 ### À compléter par petites briques séparées
 
-- Packs et offres duo/trio, puis suggestions de produits maîtrisées.
+- Packs et offres duo/trio : à concevoir seulement lorsqu’un modèle d’inventaire groupé, de prix et d’annulation sera validé. Un faux pack qui décrémenterait mal le stock n’est pas introduit.
 - Tableau de conversion complet : seulement après définition du consentement, de la rétention et des métriques agrégées nécessaires. Le jalon actuel ne prétend pas mesurer les visites ou paniers.
 - Relances de paniers : seulement avec accord explicite, modèles éditables et procédure de désinscription ; aucune relance automatique n’est activée en attendant.
 
