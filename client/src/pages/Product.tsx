@@ -24,6 +24,7 @@ import { getReviewFormCopy } from "@/lib/reviewFormCopy";
 import { isProductPurchasableForStorefront } from "@shared/storefrontProductVisibility";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
+import ProductBundleSuggestions from "@/components/ProductBundleSuggestions";
 
 export default function Product() {
   const { key } = useParams<{ key?: string }>();
@@ -432,6 +433,8 @@ export default function Product() {
             </div>
           </div>
         </section>
+
+        {!isPreview && <ProductBundleSuggestions productId={product.id} commerceEnabled={commerceEnabled} isClientStore={isClientStore} />}
 
         {/* Reviews Section */}
         <section className="bg-gray-50 py-16">

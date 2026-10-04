@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   profile: { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" } as Record<string, unknown>,
   trackingResult: { success: true, statusChanged: false },
   orderContact: null as null | { paymentMethod: string; userName: string; userEmail: string; trackingNumber: string | null },
+  bundles: [] as Array<{ id: string; name: string; description: string; productIds: number[]; promoCode: string | null; enabled: boolean }>,
 }));
 
 vi.mock("./db", () => ({
@@ -35,6 +36,8 @@ vi.mock("./db", () => ({
   createCampaign: vi.fn(async () => ({ success: true, id: 48 })),
   updateCampaign: vi.fn(async () => ({ success: true })),
   toggleCampaign: vi.fn(async () => ({ success: true })),
+  getOwnerProductBundles: vi.fn(async () => state.bundles),
+  saveOwnerProductBundles: vi.fn(async (_storeId, bundles) => { state.bundles = bundles; return bundles; }),
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
   getStoreStripeConnectSetup: vi.fn(async (storeId) => ({ schemaReady: true, account: null, plan: { id: "basic", name: "BASIC", commissionRateBps: 250 }, paymentReadiness: { enabled: false, reason: "connect_account_missing" }, storeId })),
   upsertStoreStripeConnectAccount: vi.fn(async input => input),
@@ -310,6 +313,31 @@ describe("owner product variant routes", () => {
     expect(db.updateCampaign).toHaveBeenCalledWith(47, expect.objectContaining({ enabled: true, promoCode: "ATELIER10" }), 77);
     await expect(callerFor().owner.setCampaignEnabled({ id: 47, enabled: false })).resolves.toEqual({ success: true });
     expect(db.toggleCampaign).toHaveBeenCalledWith(47, false, 77);
+  });
+
+  it("keeps duo and trio selections readable to managers and writable only by the resolved owner", async () => {
+    await expect(callerFor().owner.getProductBundles()).resolves.toEqual([]);
+    expect(db.getOwnerProductBundles).toHaveBeenCalledWith(77);
+
+    const bundles = [{
+      id: "bundle_6e7ae22d-4fb8-46ea-939b-2172d4ac73e1",
+      name: "Duo atelier",
+      description: "Deux produits pour commencer.",
+      productIds: [41, 42],
+      promoCode: "DUO10",
+      enabled: false,
+    }];
+    await expect(callerFor().owner.saveProductBundles({ bundles })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    state.membership = { role: "owner", status: "active" };
+    await expect(callerFor().owner.saveProductBundles({ bundles })).resolves.toEqual(bundles);
+    expect(db.saveOwnerProductBundles).toHaveBeenCalledWith(77, bundles);
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      storeId: 77,
+      action: "owner.product_bundles.saved",
+      entityType: "product_bundle_configuration",
+      metadata: { enabled: 0, total: 1 },
+    }));
   });
 
   it("shows the descriptive SaaS plan only to the current store owner", async () => {

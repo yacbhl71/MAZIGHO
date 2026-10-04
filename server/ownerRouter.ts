@@ -25,6 +25,7 @@ import { exportOwnerAiWorkspaceDocument } from "./services/ownerAiWorkspaceExpor
 import { fetchOwnerWebResearchSource } from "./services/ownerWebResearch";
 import { OWNER_KNOWLEDGE_MAX_DATA_URL_CHARS, getOwnerKnowledgeDocumentSizeMessage } from "../shared/ownerKnowledgeDocumentPolicy";
 import { isSafeOwnerManualTrackingUrl, OWNER_MANUAL_TRACKING_LIMITS } from "../shared/ownerManualTracking";
+import { STORE_PRODUCT_BUNDLE_LIMITS } from "../shared/storeProductBundles";
 
 const ownerTransactionalEmailTemplate = z.object({
   subject: z.string().trim().min(2).max(200),
@@ -190,6 +191,16 @@ const ownerCampaignInput = z.object({
   if (input.endsAt <= input.startsAt) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["endsAt"], message: "La date de fin doit être postérieure à la date de début." });
   }
+});
+
+const ownerProductBundle = z.object({
+  id: z.string().regex(/^bundle_[a-z0-9-]{8,90}$/i),
+  name: z.string().trim().min(2).max(STORE_PRODUCT_BUNDLE_LIMITS.name),
+  description: z.string().trim().max(STORE_PRODUCT_BUNDLE_LIMITS.description),
+  productIds: z.array(z.number().int().positive()).min(2).max(STORE_PRODUCT_BUNDLE_LIMITS.productsPerBundle)
+    .refine(ids => new Set(ids).size === ids.length, "Chaque produit ne peut apparaître qu’une fois dans la sélection."),
+  promoCode: z.string().trim().max(STORE_PRODUCT_BUNDLE_LIMITS.promoCode).nullable(),
+  enabled: z.boolean(),
 });
 
 function getStripeConnectClient(mode: StripeConnectMode) {
@@ -1591,6 +1602,34 @@ export const ownerRouter = router({
       metadata: { enabled: input.enabled },
     });
     return result;
+  }),
+  getProductBundles: storeManagementProcedure.query(async ({ ctx }) => {
+    return await db.getOwnerProductBundles(ctx.store!.id);
+  }),
+  saveProductBundles: storeOwnerProcedure.input(z.object({
+    bundles: z.array(ownerProductBundle).max(STORE_PRODUCT_BUNDLE_LIMITS.bundles)
+      .refine(bundles => new Set(bundles.map(bundle => bundle.id)).size === bundles.length, "Chaque sélection doit avoir un identifiant unique."),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const bundles = await db.saveOwnerProductBundles(ctx.store!.id, input.bundles);
+      await db.recordAuditLog({
+        storeId: ctx.store!.id,
+        actorUserId: ctx.user!.id,
+        actorName: ctx.user!.name || ctx.user!.email,
+        actorRole: ctx.user!.role,
+        action: "owner.product_bundles.saved",
+        entityType: "product_bundle_configuration",
+        entityId: null,
+        summary: `${bundles.length} sélection(s) duo ou trio enregistrée(s) depuis le panneau propriétaire.`,
+        metadata: { enabled: bundles.filter(bundle => bundle.enabled).length, total: bundles.length },
+      });
+      return bundles;
+    } catch (error) {
+      if (error instanceof Error && error.message === "OWNER_PRODUCT_BUNDLE_PRODUCT_INVALID") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Chaque sélection publiée doit contenir uniquement des produits actifs de cette boutique." });
+      }
+      throw error;
+    }
   }),
   getIntegrationRequests: storeManagementProcedure.query(async ({ ctx }) => {
     return await db.getOwnerIntegrationRequests(ctx.store!.id);

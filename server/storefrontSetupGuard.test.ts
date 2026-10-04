@@ -42,6 +42,7 @@ describe("setup storefront guard", () => {
     const caller = appRouter.createCaller(setupStoreContext());
     await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, commerceEnabled: false, hasResolvedStore: true, isPlatformStore: false });
     await expect(caller.products.getAll("fr")).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.products.getBundlesForProduct({ productId: 1, locale: "fr" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.checkout.createSession({ countryCode: "CH", legalAcceptanceVersion: "2026-09-28", legalAccepted: true, items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     const setupAdminCaller = appRouter.createCaller({ ...setupStoreContext(), user: { ...setupStoreContext().user!, role: "admin" } });
@@ -55,6 +56,7 @@ describe("setup storefront guard", () => {
     await expect(caller.storefront.getAvailability()).resolves.toEqual({ publicStorefront: false, commerceEnabled: false, hasResolvedStore: false, isPlatformStore: false });
     await expect(caller.content.getStoreCurrency()).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.products.getAll("fr")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(caller.products.getBundlesForProduct({ productId: 1, locale: "fr" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.shop.cart.get()).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(caller.checkout.createSession({ countryCode: "CH", legalAcceptanceVersion: "2026-09-28", legalAccepted: true, items: [{ productId: 1, quantity: 1 }] })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });

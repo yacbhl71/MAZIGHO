@@ -105,9 +105,17 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - Les seuils de stock et alertes visuelles produits / variantes sont déjà couverts dans **Gestion du stock** ; les promotions propriétaire existantes couvrent dates, seuil, limite, première commande et catégories.
 - Les suggestions **« Vous aimerez aussi »** existent déjà sur chaque fiche produit : elles restent dans la même boutique et catégorie, excluent la fiche consultée, et ne proposent que des produits disponibles pour le pays de livraison sélectionné.
 
+### Jalon publié — sélections duo/trio sans stock virtuel
+
+- Le panneau **Marketing** permet au propriétaire de composer jusqu’à 12 sélections locales de 2 ou 3 **produits actifs de sa boutique**, avec un brouillon, un texte court et, facultativement, un code promotionnel existant à communiquer au client.
+- Une activation demande une confirmation humaine explicite. La sélection est visible uniquement dans les fiches françaises concernées ; elle reste masquée dans les autres langues tant qu’un vrai workflow de traduction dédié n’est pas construit.
+- Une sélection ne crée ni SKU, ni prix groupé, ni stock propre, ni réservation, ni paiement. Lorsque le client choisit **Ajouter la sélection**, seuls les produits réels, sans variante ni option à choisir, sont ajoutés séparément au panier ; les autres restent accessibles individuellement.
+- Le checkout conserve donc sa réservation atomique par produit ou variante et sa validation des prix, stocks et livraisons. Un produit archivé ou absent empêche automatiquement la diffusion de la sélection.
+- La persistance, la lecture publique et les journaux d’audit sont tous bornés au `storeId` résolu. Aucun produit, code, client, tarif ou stock d’une autre boutique ne peut être sélectionné ou révélé.
+
 ### À compléter par petites briques séparées
 
-- Packs et offres duo/trio : à concevoir seulement lorsqu’un modèle d’inventaire groupé, de prix et d’annulation sera validé. Un faux pack qui décrémenterait mal le stock n’est pas introduit.
+- Prix pack réellement fixe, stock groupé et annulation : uniquement après validation d’un modèle comptable, inventaire et remboursement dédié. Le jalon actuel ne prétend pas offrir ce mécanisme.
 - Tableau de conversion complet : seulement après définition du consentement, de la rétention et des métriques agrégées nécessaires. Le jalon actuel ne prétend pas mesurer les visites ou paniers.
 - Relances de paniers : seulement avec accord explicite, modèles éditables et procédure de désinscription ; aucune relance automatique n’est activée en attendant.
 
@@ -116,16 +124,15 @@ Une boutique de démonstration peut être créée depuis chaque modèle, reste t
 - Alertes de retour en stock.
 - Relances de paniers abandonnés par e-mail, avec accord et modèles éditables.
 - Promotions ciblées : dates, seuils, limite d’usage, catégories et produits.
-- Packs et offres duo/trio.
 - Suggestions « vous aimerez aussi » et ventes croisées maîtrisées.
 - Création de campagnes prêtes à partager sur Instagram, Facebook et WhatsApp.
 - Tableau simple : visites, paniers, commandes, conversion, produits vus et vendus.
 
 ### Critère de fin
 
-Un propriétaire peut créer une campagne, vérifier son impact et l’arrêter sans affecter les autres boutiques.
+Un propriétaire peut créer une campagne ou une sélection duo/trio, vérifier son impact ou sa présentation et l’arrêter sans affecter les autres boutiques.
 
-**Statut : critère atteint pour le sous-lot Campagnes de vitrine.** Les compléments listés ci-dessus restent autonomes et seront traités séparément, sans ouvrir Stripe ni automatiser une communication externe.
+**Statut : critère atteint pour les sous-lots Campagnes de vitrine et sélections duo/trio.** Les compléments listés ci-dessus restent autonomes et seront traités séparément, sans ouvrir Stripe ni automatiser une communication externe.
 
 ---
 

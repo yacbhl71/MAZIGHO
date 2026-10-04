@@ -86,6 +86,7 @@ import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type Retur
 import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
+import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProductBundle } from "../shared/storeProductBundles";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -9163,6 +9164,60 @@ export async function saveOwnerStockAlertSettings(storeId: number, input: OwnerS
     await db.insert(storeSettings).values({ storeId, key, value, description });
   }
   return settings;
+}
+
+const OWNER_PRODUCT_BUNDLES_SETTING_KEY = "owner_product_bundles";
+
+/**
+ * Product bundles are a lightweight storefront selection, not a SKU. The
+ * configuration remains scoped to one store and never holds price, stock,
+ * payment or customer data.
+ */
+export async function getOwnerProductBundles(storeId: number): Promise<StoreProductBundle[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [row] = await db.select({ value: storeSettings.value }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, OWNER_PRODUCT_BUNDLES_SETTING_KEY)))
+    .limit(1);
+  return parseStoreProductBundles(row?.value);
+}
+
+/**
+ * Keeps only active products belonging to this exact store. A published bundle
+ * cannot point to a product of another boutique or an archived/draft product.
+ */
+export async function saveOwnerProductBundles(storeId: number, input: StoreProductBundle[]): Promise<StoreProductBundle[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const bundles = normalizeStoreProductBundles(input);
+  const activeProducts = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.status, "active")));
+  const activeProductIds = new Set(activeProducts.map(product => product.id));
+  if (bundles.some(bundle => bundle.productIds.some(productId => !activeProductIds.has(productId)))) {
+    throw new Error("OWNER_PRODUCT_BUNDLE_PRODUCT_INVALID");
+  }
+
+  const value = JSON.stringify(bundles);
+  const description = "Sélections duo ou trio de produits de cette boutique ; sans prix, stock, réduction, paiement ni réservation propres";
+  const [existing] = await db.select({ id: storeSettings.id }).from(storeSettings)
+    .where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, OWNER_PRODUCT_BUNDLES_SETTING_KEY)))
+    .limit(1);
+  if (existing) {
+    await db.update(storeSettings).set({ value, description }).where(eq(storeSettings.id, existing.id));
+  } else {
+    await db.insert(storeSettings).values({ storeId, key: OWNER_PRODUCT_BUNDLES_SETTING_KEY, value, description });
+  }
+  return bundles;
+}
+
+/** Public callers receive enabled selections only; all their components must remain active in the resolved store. */
+export async function getPublicProductBundles(storeId: number, productId: number): Promise<StoreProductBundle[]> {
+  const bundles = await getOwnerProductBundles(storeId);
+  const activeProducts = await getAllProducts(storeId);
+  const activeProductIds = new Set(activeProducts.map(product => product.id));
+  return bundles.filter(bundle => bundle.enabled
+    && bundle.productIds.includes(productId)
+    && bundle.productIds.every(id => activeProductIds.has(id)));
 }
 
 export async function getOwnerOrderSummaries(storeId: number) {

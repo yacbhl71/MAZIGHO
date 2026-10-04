@@ -12,6 +12,7 @@ import { storeAcquisitionRouter } from "./storeAcquisitionRouter";
 import { adminSystemPagesRouter, ownerSystemPagesRouter, storefrontSystemPagesRouter } from "./storeSystemPagesRouter";
 import { stripeCheckoutRouter } from "./stripeCheckout";
 import { DEFAULT_STORE_MAINTENANCE_MODE } from "../shared/storeMaintenanceMode";
+import { orderBundleProducts } from "../shared/storeProductBundles";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
@@ -316,6 +317,25 @@ export const appRouter = router({
         ctx.store ? getPublicOwnerProductVariantsForProducts([product.id], ctx.store.id) : Promise.resolve(new Map()),
       ]);
       return { ...localizedProduct, images, variants: variantsMap.get(product.id) || [], reviews, averageRating };
+    }),
+    getBundlesForProduct: storefrontProcedure.input((val: unknown) => {
+      if (typeof val !== "object" || val === null || !("productId" in val) || typeof val.productId !== "number" || !Number.isInteger(val.productId) || val.productId <= 0) {
+        throw new Error("Invalid product id");
+      }
+      return { productId: val.productId, locale: parsePublicProductLocale(val) };
+    }).query(async ({ ctx, input }) => {
+      // Bundle copy has no translation workflow yet. Omitting it outside French
+      // is safer than exposing a partially localized commercial message.
+      if (input.locale !== "fr" || !ctx.store) return [];
+      const { getAllProducts, getPublicProductBundles } = await import("./db");
+      const [bundles, allProducts] = await Promise.all([
+        getPublicProductBundles(ctx.store.id, input.productId),
+        getAllProducts(ctx.store.id),
+      ]);
+      const productIds = new Set(bundles.flatMap(bundle => bundle.productIds));
+      const products = await enrichPublicProducts(allProducts.filter(product => productIds.has(product.id)), input.locale, ctx.store.id);
+      return bundles.map(bundle => ({ ...bundle, products: orderBundleProducts(bundle, products) }))
+        .filter(bundle => bundle.products.length >= 2);
     }),
     submitReview: storefrontProcedure.input((val: unknown) => {
       if (typeof val !== "object" || val === null) throw new Error("Invalid review payload");
