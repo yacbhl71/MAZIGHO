@@ -98,7 +98,7 @@ category,name,shortDescription,longDescription,price,stock,dimensions,imageUrl,f
 | `priceChf` | Alternative historique | Acceptée si `price` est absent ; le nom ne convertit pas la devise |
 | `stock` | Oui | Entier de 0 à 999 999 |
 | `dimensions` | Oui | Valeurs séparées par `|` ou `;` |
-| `imageUrl` | Oui (peut être vide) | URL `https://` ou chemin relatif sûr dans le ZIP |
+| `imageUrl` | Non | URL `https://` ou chemin relatif sûr dans le ZIP |
 | `imagePaths` | Non | Chemins d’images supplémentaires séparés par `|` ou `;` |
 | `featured` | Oui | `oui`, `yes`, `true` ou `1` pour la mise à la une |
 
