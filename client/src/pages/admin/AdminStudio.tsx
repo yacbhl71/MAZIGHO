@@ -1028,6 +1028,16 @@ export default function AdminStudio() {
         </Dialog>
 
 
+        <section id="studio-resources" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-5 shadow-sm md:p-6" aria-label="Parcours Studio et ressources">
+          <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">Repères opérateur</p>
+              <p className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Parcours Studio et ressources, sans les confondre avec les priorités du jour.</p>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Les raccourcis orientent le travail ; le résumé technique informe sur les ressources mesurables. Aucun réglage ni donnée n’est modifié depuis cette zone.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-slate-200 bg-white text-slate-700">Lecture et orientation</Badge>
+          </div>
+          <div className="mt-5 space-y-4">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priorities-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -1067,6 +1077,8 @@ export default function AdminStudio() {
         </section>
 
         <StudioTenantResourceSummary />
+          </div>
+        </section>
 
         <section id="studio-future-saas" className="grid gap-5 xl:grid-cols-[1.06fr_.94fr] scroll-mt-6">
           <Card className="border-orange-100 shadow-sm">
