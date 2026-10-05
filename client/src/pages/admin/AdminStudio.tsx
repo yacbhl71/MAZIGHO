@@ -1080,19 +1080,29 @@ export default function AdminStudio() {
           </div>
         </section>
 
-        <section id="studio-future-saas" className="grid gap-5 xl:grid-cols-[1.06fr_.94fr] scroll-mt-6">
-          <Card className="border-orange-100 shadow-sm">
-            <CardHeader>
+        <section id="studio-future-saas" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:p-5" aria-labelledby="studio-future-saas-title">
+          <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">Capacités avancées</p>
+              <h2 id="studio-future-saas-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Futur SaaS et modèles</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Repères de plateforme à consulter selon le besoin : ils complètent le travail opérationnel sans le remplacer.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-slate-200 bg-white text-slate-700">Secondaire · lecture</Badge>
+          </div>
+
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1.06fr_.94fr]">
+          <Card className="border-orange-100 bg-white/90 shadow-none">
+            <CardHeader className="p-4 pb-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Niveau 1 — vous</p>
-                  <CardTitle className="mt-1 flex items-center gap-2 text-2xl"><Layers3 className="h-6 w-6 text-orange-600" /> MAZIGHO Studio</CardTitle>
+                  <CardTitle className="mt-1 flex items-center gap-2 text-lg"><Layers3 className="h-5 w-5 text-orange-600" /> MAZIGHO Studio</CardTitle>
                 </div>
                 <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-800">Réservé opérateur</Badge>
               </div>
               <CardDescription>Le cockpit de l’activité SaaS : il ne sera pas le panneau quotidien de l’acheteur d’une boutique.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
+            <CardContent className="grid gap-3 p-4 pt-0 sm:grid-cols-2">
               <StudioRailItem icon={Store} title="Parc de boutiques" detail="Voir les boutiques actives, leur état d’accès et leur domaine, sans ouvrir leur contenu." />
               <StudioRailItem icon={ClipboardCheck} title="Mises en service" detail="Suivre les étapes de lancement : identité, catalogue, domaine et contrôles de sécurité." />
               <StudioRailItem icon={ShieldCheck} title="Protection plateforme" detail="Contrôler les états limité, suspendu ou révoqué, avec une trace d’audit." />
@@ -1100,32 +1110,32 @@ export default function AdminStudio() {
             </CardContent>
           </Card>
 
-          <Card className="border-teal-100 bg-gradient-to-br from-teal-50 via-white to-white shadow-sm">
-            <CardHeader>
+          <Card className="border-teal-100 bg-gradient-to-br from-teal-50/80 via-white to-white shadow-none">
+            <CardHeader className="p-4 pb-3">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Niveau 2 — acheteur</p>
-              <CardTitle className="mt-1 flex items-center gap-2 text-2xl"><PanelTop className="h-6 w-6 text-teal-700" /> Panneau de sa boutique</CardTitle>
+              <CardTitle className="mt-1 flex items-center gap-2 text-lg"><PanelTop className="h-5 w-5 text-teal-700" /> Panneau de sa boutique</CardTitle>
               <CardDescription>Un espace plus simple et rassurant : le client travaille sur sa marque, son catalogue et ses commandes, jamais sur l’ensemble de la plateforme.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 p-4 pt-0">
               {["Vue du jour : ventes, commandes et alertes", "Catalogue : produits, catégories, variantes et contenus", "Marque : logo, couleurs, bannières et textes", "Relation client : promotions, messages, avis et retours"].map(item => (
                 <div key={item} className="flex items-center gap-3 rounded-xl border border-teal-100 bg-white/85 px-4 py-3"><CheckCircle2 className="h-5 w-5 shrink-0 text-teal-600" /><span className="text-sm font-medium text-slate-800">{item}</span></div>
               ))}
               <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" /><p><strong className="text-slate-800">Volontairement absent :</strong> clés Stripe, Odoo, base de données, facturation SaaS et autres secrets ne seront jamais saisis ni affichés dans ce panneau.</p></div>
             </CardContent>
           </Card>
-        </section>
+          </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-700">Modèles d’univers métier</p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Une même ossature, trois identités vraiment différentes.</h2>
+              <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Une même ossature, trois identités vraiment différentes.</h3>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Le logiciel reste le même et sécurisé. Seuls l’univers visuel, les catégories, les conseils de catalogue et la priorité de gestion changent selon le métier du client.</p>
             </div>
             <Badge variant="outline" className="w-fit border-slate-200 bg-slate-50 text-slate-600"><Eye className="mr-1.5 h-3.5 w-3.5" /> Simulation locale non publiée</Badge>
           </div>
 
-          <Tabs value={themeId} onValueChange={value => setThemeId(value as BoutiqueTheme)} className="mt-6">
+          <Tabs value={themeId} onValueChange={value => setThemeId(value as BoutiqueTheme)} className="mt-4">
             <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
               {(Object.values(previews) as ThemePreview[]).map(item => {
                 const Icon = item.icon;
@@ -1134,7 +1144,7 @@ export default function AdminStudio() {
             </TabsList>
           </Tabs>
 
-          <div className="mt-6 grid gap-5 xl:grid-cols-[1.07fr_.93fr]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.07fr_.93fr]">
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
               <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3"><div className="flex items-center gap-2 text-xs font-semibold text-slate-500"><CircleDashed className="h-4 w-4" /> Aperçu storefront</div><Badge className="border-0 bg-slate-100 text-slate-700 hover:bg-slate-100">{theme.tone}</Badge></div>
               <div className="p-5" style={{ backgroundColor: theme.canvas }}>
@@ -1153,6 +1163,7 @@ export default function AdminStudio() {
                 <div className="mt-5 flex items-start gap-2 rounded-xl border p-3 text-sm" style={{ borderColor: theme.accentSoft, backgroundColor: theme.canvas, color: theme.ink }}><BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>{theme.progress}. Le propriétaire adaptera ensuite son logo, son contenu et ses catégories depuis un espace guidé.</p></div>
               </div>
             </div>
+          </div>
           </div>
         </section>
 
