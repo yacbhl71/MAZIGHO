@@ -694,44 +694,6 @@ export default function AdminStudio() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priorities-title">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parcours Studio</p>
-              <h2 id="studio-priorities-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Ce dont vous avez besoin maintenant, sans perdre la suite.</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Commencez par gérer le parc de boutiques. Lorsque vous préparez une nouvelle offre, les outils de mise en service restent disponibles. Les capacités SaaS plus avancées sont conservées plus bas, sans être confondues avec les actions du jour.</p>
-            </div>
-            <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-800">Aucun outil supprimé</Badge>
-          </div>
-          <nav className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Priorités MAZIGHO Studio">
-            <a href="#studio-inventory" className="group rounded-2xl border border-slate-900 bg-slate-950 p-4 text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-300">1. Aujourd’hui</p><p className="mt-1 text-lg font-semibold">Gérer les boutiques</p></div><Store className="h-5 w-5 text-orange-300" /></div>
-              <p className="mt-3 text-sm leading-6 text-slate-300">MAZIGHO principal, boutiques actives et préparations en cours : chaque ligne ouvre le bon parcours.</p>
-              <p className="mt-4 inline-flex items-center text-sm font-semibold text-orange-200">Ouvrir le registre <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
-            </a>
-            <a href="#studio-provisioning" className="group rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-800">2. Prochaine boutique</p><p className="mt-1 text-lg font-semibold">Préparer et remettre</p></div><ClipboardPlus className="h-5 w-5 text-amber-800" /></div>
-              <p className="mt-3 text-sm leading-6 text-amber-900">Brouillon, propriétaire, accès temporaire et contrôles de préparation, sans ouverture ni facture automatique.</p>
-              <p className="mt-4 inline-flex items-center text-sm font-semibold text-amber-900">Voir la mise en service <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
-            </a>
-            <a href="#studio-future-saas" className="group rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950 transition-colors hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-800">3. Pour la suite</p><p className="mt-1 text-lg font-semibold">Construire le SaaS</p></div><Layers3 className="h-5 w-5 text-violet-800" /></div>
-              <p className="mt-3 text-sm leading-6 text-violet-900">Kits métier, aperçus, prévols et principes de séparation plateforme / boutique, conservés pour vos futures offres.</p>
-              <p className="mt-4 inline-flex items-center text-sm font-semibold text-violet-900">Voir la feuille de route <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
-            </a>
-            <a href="#studio-ai" className="group rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4 text-fuchsia-950 transition-colors hover:bg-fuchsia-100 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-fuchsia-800">4. Nouveau</p><p className="mt-1 text-lg font-semibold">Copilote IA Studio</p></div><Sparkles className="h-5 w-5 text-fuchsia-800" /></div>
-              <p className="mt-3 text-sm leading-6 text-fuchsia-900">Résumer le parc, repérer les priorités et préparer les prochaines actions opérateur.</p>
-              <p className="mt-4 inline-flex items-center text-sm font-semibold text-fuchsia-900">Ouvrir le copilote <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
-            </a>
-            <Link href="/admin/studio/importer-boutique" className="group rounded-2xl border border-teal-200 bg-teal-50 p-4 text-teal-950 transition-colors hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-800">5. Import privé</p><p className="mt-1 text-lg font-semibold">Importer une boutique</p></div><FileArchive className="h-5 w-5 text-teal-800" /></div>
-              <p className="mt-3 text-sm leading-6 text-teal-900">Prévisualiser un catalogue préparé depuis une archive MAZIGHO, ZIP ou WordPress WPRESS, avant toute application.</p>
-              <p className="mt-4 inline-flex items-center text-sm font-semibold text-teal-900">Ouvrir l’atelier <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
-            </Link>
-          </nav>
-        </section>
-
         <section id="studio-priorities" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priority-board-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -747,7 +709,6 @@ export default function AdminStudio() {
           })}</div>}
         </section>
 
-        <section id="studio-ai" className="scroll-mt-6"><StudioAICopilot /></section>
         <section id="studio-health" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-health-title">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -763,8 +724,6 @@ export default function AdminStudio() {
             return <Link key={health.id} href={health.href} className="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"><div className="flex min-w-0 items-start gap-3"><span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${palette.dot}`} /><div className="min-w-0"><p className="truncate font-semibold text-slate-950">{store?.displayName}</p><p className="mt-1 text-sm leading-5 text-slate-600">{health.detail}</p></div></div><div className="flex shrink-0 items-center gap-3"><Badge variant="outline" className={palette.badge}>{health.label}</Badge><ArrowUpRight className="h-4 w-4 text-slate-500 group-hover:text-slate-900" /></div></Link>;
           })}</div>}
         </section>
-
-        <StudioTenantResourceSummary />
 
         <section id="studio-boutiques" className="scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" data-testid="studio-inventory">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -1041,6 +1000,46 @@ export default function AdminStudio() {
           </DialogContent>
         </Dialog>
 
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6" aria-labelledby="studio-priorities-title">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-orange-700">Parcours Studio</p>
+              <h2 id="studio-priorities-title" className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Ce dont vous avez besoin maintenant, sans perdre la suite.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Commencez par gérer le parc de boutiques. Lorsque vous préparez une nouvelle offre, les outils de mise en service restent disponibles. Les capacités SaaS plus avancées sont conservées plus bas, sans être confondues avec les actions du jour.</p>
+            </div>
+            <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-800">Aucun outil supprimé</Badge>
+          </div>
+          <nav className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Priorités MAZIGHO Studio">
+            <a href="#studio-inventory" className="group rounded-2xl border border-slate-900 bg-slate-950 p-4 text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-300">1. Aujourd’hui</p><p className="mt-1 text-lg font-semibold">Gérer les boutiques</p></div><Store className="h-5 w-5 text-orange-300" /></div>
+              <p className="mt-3 text-sm leading-6 text-slate-300">MAZIGHO principal, boutiques actives et préparations en cours : chaque ligne ouvre le bon parcours.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-orange-200">Ouvrir le registre <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-provisioning" className="group rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-800">2. Prochaine boutique</p><p className="mt-1 text-lg font-semibold">Préparer et remettre</p></div><ClipboardPlus className="h-5 w-5 text-amber-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-amber-900">Brouillon, propriétaire, accès temporaire et contrôles de préparation, sans ouverture ni facture automatique.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-amber-900">Voir la mise en service <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-future-saas" className="group rounded-2xl border border-violet-200 bg-violet-50 p-4 text-violet-950 transition-colors hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-800">3. Pour la suite</p><p className="mt-1 text-lg font-semibold">Construire le SaaS</p></div><Layers3 className="h-5 w-5 text-violet-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-violet-900">Kits métier, aperçus, prévols et principes de séparation plateforme / boutique, conservés pour vos futures offres.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-violet-900">Voir la feuille de route <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <a href="#studio-ai" className="group rounded-2xl border border-fuchsia-200 bg-fuchsia-50 p-4 text-fuchsia-950 transition-colors hover:bg-fuchsia-100 focus:outline-none focus:ring-2 focus:ring-fuchsia-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-fuchsia-800">4. Nouveau</p><p className="mt-1 text-lg font-semibold">Copilote IA Studio</p></div><Sparkles className="h-5 w-5 text-fuchsia-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-fuchsia-900">Résumer le parc, repérer les priorités et préparer les prochaines actions opérateur.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-fuchsia-900">Ouvrir le copilote <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </a>
+            <Link href="/admin/studio/importer-boutique" className="group rounded-2xl border border-teal-200 bg-teal-50 p-4 text-teal-950 transition-colors hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-800">5. Import privé</p><p className="mt-1 text-lg font-semibold">Importer une boutique</p></div><FileArchive className="h-5 w-5 text-teal-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-teal-900">Prévisualiser un catalogue préparé depuis une archive MAZIGHO, ZIP ou WordPress WPRESS, avant toute application.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-teal-900">Ouvrir l’atelier <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </Link>
+          </nav>
+        </section>
+
+        <StudioTenantResourceSummary />
+
         <section id="studio-future-saas" className="grid gap-5 xl:grid-cols-[1.06fr_.94fr] scroll-mt-6">
           <Card className="border-orange-100 shadow-sm">
             <CardHeader>
@@ -1116,6 +1115,8 @@ export default function AdminStudio() {
             </div>
           </div>
         </section>
+
+        <section id="studio-ai" className="scroll-mt-6"><StudioAICopilot /></section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p>              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">Vous pouvez maintenant préparer une future boutique dans Studio sans l’activer. La création réelle — domaine, boutique, invitation du propriétaire et accès — restera une opération distincte, visible et à confirmer séparément.</p></div>
