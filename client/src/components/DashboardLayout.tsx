@@ -80,6 +80,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
       { icon: Building2, label: "MAZIGHO Studio", path: "/admin/studio" },
       { icon: Palette, label: "Identité Studio & Pro", path: "/admin/studio/identite" },
       { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
+      { icon: Import, label: "Importer une boutique", path: "/admin/studio/importer-boutique" },
       { icon: Network, label: "Domaines personnalisés", path: "/admin/studio/domaines" },
       { icon: PlugZap, label: "Demandes d’intégrations", path: "/admin/studio/integrations" },
       { icon: ReceiptText, label: "Abonnements & factures", path: "/admin/studio/facturation" },

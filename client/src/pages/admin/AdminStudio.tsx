@@ -703,7 +703,7 @@ export default function AdminStudio() {
             </div>
             <Badge variant="outline" className="w-fit border-orange-200 bg-orange-50 text-orange-800">Aucun outil supprimé</Badge>
           </div>
-          <nav className="mt-5 grid gap-3 lg:grid-cols-4" aria-label="Priorités MAZIGHO Studio">
+          <nav className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Priorités MAZIGHO Studio">
             <a href="#studio-inventory" className="group rounded-2xl border border-slate-900 bg-slate-950 p-4 text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
               <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-300">1. Aujourd’hui</p><p className="mt-1 text-lg font-semibold">Gérer les boutiques</p></div><Store className="h-5 w-5 text-orange-300" /></div>
               <p className="mt-3 text-sm leading-6 text-slate-300">MAZIGHO principal, boutiques actives et préparations en cours : chaque ligne ouvre le bon parcours.</p>
@@ -724,6 +724,11 @@ export default function AdminStudio() {
               <p className="mt-3 text-sm leading-6 text-fuchsia-900">Résumer le parc, repérer les priorités et préparer les prochaines actions opérateur.</p>
               <p className="mt-4 inline-flex items-center text-sm font-semibold text-fuchsia-900">Ouvrir le copilote <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
             </a>
+            <Link href="/admin/studio/importer-boutique" className="group rounded-2xl border border-teal-200 bg-teal-50 p-4 text-teal-950 transition-colors hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
+              <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-800">5. Import privé</p><p className="mt-1 text-lg font-semibold">Importer une boutique</p></div><FileArchive className="h-5 w-5 text-teal-800" /></div>
+              <p className="mt-3 text-sm leading-6 text-teal-900">Prévisualiser un catalogue préparé depuis une archive MAZIGHO, ZIP ou WordPress WPRESS, avant toute application.</p>
+              <p className="mt-4 inline-flex items-center text-sm font-semibold text-teal-900">Ouvrir l’atelier <ArrowUpRight className="ml-1.5 h-4 w-4" /></p>
+            </Link>
           </nav>
         </section>
 
