@@ -26,7 +26,7 @@ L’archive n’est pas traitée comme un fichier magique : elle est lue **local
 | `marque/` | Détecté seulement | Aucun remplacement automatique de logo, palette ou police |
 | `manifest.json` | Lu et présenté | La devise est informative : aucune conversion de prix n’est faite |
 
-La suite prévue après essais est la création d’**adaptateurs d’origine** : Shopify, WooCommerce, PrestaShop, Wix, etc. Chaque adaptateur convertira son export vers ce contrat universel au lieu de donner au ZIP des droits implicites.
+Un premier adaptateur **WordPress `.wpress`** est disponible en expérimentation privée : il prépare hors ligne une archive MAZIGHO à partir de produits WooCommerce/SureCart, sans restaurer WordPress ni copier les données clients. Son usage et ses limites sont décrits dans [`CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md`](./CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md). Les autres adaptateurs d’origine (Shopify, PrestaShop, Wix, etc.) suivront seulement après des essais concluants, chacun convertissant son export vers ce contrat universel au lieu de donner au ZIP des droits implicites.
 
 ## 3. Structure recommandée
 

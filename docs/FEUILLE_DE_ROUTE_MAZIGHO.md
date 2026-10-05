@@ -188,6 +188,8 @@ Un atelier **« Importer une boutique »** est maintenant disponible exclusiveme
 
 Le guide de format et de test est conservé dans [`IMPORT_BOUTIQUE_UNIVERSEL_STUDIO.md`](./IMPORT_BOUTIQUE_UNIVERSEL_STUDIO.md).
 
+**Extension privée — convertisseur WordPress `.wpress` :** un script Python autonome prépare désormais une archive MAZIGHO depuis une sauvegarde All-in-One WP Migration, sans restaurer WordPress ni écrire dans une boutique. Il ne retient que des fiches produits WooCommerce/SureCart publiées et les médias qui leur sont explicitement liés ; clients, commandes, paiements, secrets, thèmes et réglages sont exclus. L’archive générée reste un brouillon à vérifier dans Studio avec la confirmation des droits ; elle n’ouvre ni vitrine, ni checkout, ni domaine. Le mode d’emploi et les limites sont documentés dans [`CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md`](./CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md).
+
 ---
 
 ## Lot 6 — Validation qualité de l’Assistant IA
