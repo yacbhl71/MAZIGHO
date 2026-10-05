@@ -862,6 +862,34 @@ export default function AdminStudio() {
 
 
         <section id="studio-provisioning" className="grid gap-5 xl:grid-cols-[1.15fr_.85fr] scroll-mt-6" data-testid="studio-provisioning">
+          <div className="col-span-full space-y-3" aria-labelledby="studio-provisioning-pathways-title">
+            <div>
+              <h2 id="studio-provisioning-pathways-title" className="text-2xl font-bold tracking-tight text-slate-900">Préparer une boutique</h2>
+              <p className="mt-1 text-sm text-slate-600">Choisir un parcours</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <a href="#studio-provisioning-form" className="group flex min-h-28 items-start justify-between gap-3 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-orange-950 transition-colors hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2">
+                <div>
+                  <p className="font-semibold">Nouvelle boutique</p>
+                  <p className="mt-2 text-sm leading-5 text-orange-900">Préparer un dossier, puis créer la boutique en préparation.</p>
+                </div>
+                <ArrowUpRight className="h-5 w-5 shrink-0 text-orange-800" />
+              </a>
+              <div aria-disabled="true" className="flex min-h-28 cursor-not-allowed items-start justify-between gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-slate-500">
+                <div>
+                  <p className="font-semibold text-slate-700">Depuis une boutique existante</p>
+                  <p className="mt-2 text-sm leading-5">Bientôt disponible</p>
+                </div>
+              </div>
+              <Link href="/admin/studio/importer-boutique" className="group flex min-h-28 items-start justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-teal-950 transition-colors hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2">
+                <div>
+                  <p className="font-semibold">Importer ZIP / WPRESS</p>
+                  <p className="mt-2 text-sm leading-5 text-teal-900">Ouvrir l’atelier d’import existant.</p>
+                </div>
+                <FileArchive className="h-5 w-5 shrink-0 text-teal-800" />
+              </Link>
+            </div>
+          </div>
           <Card className="border-orange-200 shadow-sm">
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
