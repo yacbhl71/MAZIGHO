@@ -28,6 +28,12 @@ L’archive n’est pas traitée comme un fichier magique : elle est lue **local
 
 Un premier adaptateur **WordPress `.wpress`** est disponible en expérimentation privée : il prépare hors ligne une archive MAZIGHO à partir de produits WooCommerce/SureCart, sans restaurer WordPress ni copier les données clients. Son usage et ses limites sont décrits dans [`CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md`](./CONVERTIR_WORDPRESS_WPRESS_VERS_STUDIO.md). Les autres adaptateurs d’origine (Shopify, PrestaShop, Wix, etc.) suivront seulement après des essais concluants, chacun convertissant son export vers ce contrat universel au lieu de donner au ZIP des droits implicites.
 
+### Convertisseur WordPress directement dans Studio
+
+La carte **« Convertir un `.wpress` »**, placée à côté du chargeur ZIP/CSV dans **Studio → Importer une boutique**, traite le fichier **dans le navigateur de l’opérateur** : la sauvegarde brute n’est ni téléversée ni stockée sur MAZIGHO. Elle accepte un fichier `.wpress` jusqu’à **512 Mio**, ou un ZIP jusqu’à **256 Mio** qui contient exactement un seul `.wpress`. Le ZIP MAZIGHO généré est ouvert immédiatement dans l’aperçu normal ; il peut aussi être téléchargé.
+
+La conversion n’importe rien à elle seule. L’opérateur contrôle ensuite les prix et la devise, choisit une boutique, confirme les droits et confirme l’application. Les mêmes garde-fous de l’atelier s’appliquent au ZIP converti : maximum 100 fiches, 40 images liées et 5 Mio par image. Au-delà, la conversion hors ligne assistée reste le parcours approprié.
+
 ## 3. Structure recommandée
 
 ```text

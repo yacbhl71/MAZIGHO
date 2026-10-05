@@ -10,8 +10,13 @@ import {
   studioCatalogueAssetDataUrl,
   type StudioCatalogueArchivePreview,
 } from "@/lib/studioCatalogueArchiveImport";
+import {
+  convertStudioWordpressBackup,
+  StudioWordpressConversionError,
+  type StudioWordpressConversionResult,
+} from "@/lib/studioWordpressWpressConverter";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, FileArchive, FileCheck2, FileUp, ImagePlus, Info, Loader2, LockKeyhole, PackageCheck, ShieldCheck, Store, WandSparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, FileArchive, FileCheck2, FileCog, FileUp, ImagePlus, Info, Loader2, LockKeyhole, PackageCheck, ShieldCheck, Store, WandSparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 
@@ -68,6 +73,9 @@ export default function AdminStudioUniversalImport() {
   const [rightsAcknowledged, setRightsAcknowledged] = useState(false);
   const [applyAcknowledged, setApplyAcknowledged] = useState(false);
   const [reading, setReading] = useState(false);
+  const [convertingWordpress, setConvertingWordpress] = useState(false);
+  const [wordpressCurrency, setWordpressCurrency] = useState("");
+  const [wordpressConversion, setWordpressConversion] = useState<StudioWordpressConversionResult | null>(null);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<{ imported: number; updated: number; images: number; variants: number; failures: string[]; storeId: number } | null>(null);
 
@@ -81,13 +89,14 @@ export default function AdminStudioUniversalImport() {
     .sort((left, right) => left.displayName.localeCompare(right.displayName, "fr-CH")), [inventory.data?.stores]);
   const selectedStore = stores.find(store => String(store.id) === selectedStoreId) || null;
   const hasIssues = Boolean(preview?.issues.length);
-  const canApply = Boolean(preview && preview.rows.length && !hasIssues && selectedStore && rightsAcknowledged && applyAcknowledged && !importProducts.isPending && !reading);
+  const canApply = Boolean(preview && preview.rows.length && !hasIssues && selectedStore && rightsAcknowledged && applyAcknowledged && !importProducts.isPending && !reading && !convertingWordpress);
 
   const readArchive = async (file?: File) => {
     if (!file) return;
     setReading(true);
     setProgress("Lecture locale de l’archive…");
     setResult(null);
+    setWordpressConversion(null);
     try {
       const nextPreview = await parseStudioCatalogueArchive(file);
       setPreview(nextPreview);
@@ -100,6 +109,44 @@ export default function AdminStudioUniversalImport() {
     } finally {
       setReading(false);
     }
+  };
+
+  const convertWordpress = async (file?: File) => {
+    if (!file) return;
+    setConvertingWordpress(true);
+    setProgress("Conversion locale de la sauvegarde WordPress…");
+    setResult(null);
+    try {
+      const conversion = await convertStudioWordpressBackup(file, wordpressCurrency.trim() || undefined);
+      const nextPreview = await parseStudioCatalogueArchive({
+        name: conversion.archiveName,
+        size: conversion.archive.size,
+        arrayBuffer: () => conversion.archive.arrayBuffer(),
+      });
+      setPreview(nextPreview);
+      setRightsAcknowledged(false);
+      setApplyAcknowledged(false);
+      setWordpressConversion(conversion);
+      setProgress("Conversion locale terminée : l’archive MAZIGHO est ouverte en aperçu, sans envoi ni modification.");
+      toast.success("Archive MAZIGHO prête", { description: `${conversion.productCount} fiche(s) détectée(s) : contrôlez l’aperçu avant toute application.` });
+    } catch (error) {
+      setWordpressConversion(null);
+      const message = error instanceof StudioWordpressConversionError || error instanceof Error ? error.message : "Conversion WordPress impossible.";
+      setProgress(message);
+      toast.error("Conversion WordPress interrompue", { description: message });
+    } finally {
+      setConvertingWordpress(false);
+    }
+  };
+
+  const downloadWordpressArchive = () => {
+    if (!wordpressConversion) return;
+    const url = URL.createObjectURL(wordpressConversion.archive);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = wordpressConversion.archiveName;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   const applyImport = async () => {
@@ -176,7 +223,9 @@ export default function AdminStudioUniversalImport() {
 
     <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-950"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">Frontière conservée</p><p className="mt-1">Cet atelier ne publie rien, ne bascule aucun domaine, ne touche pas aux clients, aux commandes, aux paiements, aux abonnements ni aux fournisseurs. Les pages, navigation et identité détectées restent en <strong>brouillon à examiner</strong> : elles ne remplacent jamais une vitrine automatiquement.</p></div></div></section>
 
-    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><div className="space-y-5"><Card className="border-slate-200 shadow-sm"><CardHeader><CardDescription>Étape 1 — archive privée</CardDescription><CardTitle className="mt-1 flex items-center gap-2 text-xl"><FileArchive className="h-5 w-5 text-violet-700" /> Charger un ZIP MAZIGHO ou un CSV</CardTitle><CardDescription className="mt-2 max-w-3xl">Le ZIP peut contenir <code>catalogue.csv</code>, <code>categories.csv</code>, <code>variations.csv</code>, <code>images/</code>, <code>contenus/</code>, <code>marque/</code> et <code>manifest.json</code>. Pour ce premier essai, les produits, catégories, images et variantes sont pris en charge ; contenus et identité sont listés pour validation ultérieure.</CardDescription></CardHeader><CardContent><Label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-violet-300 bg-violet-50 px-4 text-sm font-semibold text-violet-950 hover:bg-violet-100"><FileUp className="mr-2 h-4 w-4" /> {reading ? "Lecture en cours…" : "Choisir une archive"}<input type="file" accept=".zip,.csv,application/zip,text/csv" className="sr-only" disabled={reading} onChange={event => { void readArchive(event.target.files?.[0]); event.currentTarget.value = ""; }} /></Label>{progress ? <p className="mt-3 text-sm leading-6 text-slate-600">{progress}</p> : null}</CardContent></Card>
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]"><div className="space-y-5"><div className="grid gap-5 lg:grid-cols-2"><Card className="border-slate-200 shadow-sm"><CardHeader><CardDescription>Étape 1 — archive privée</CardDescription><CardTitle className="mt-1 flex items-center gap-2 text-xl"><FileArchive className="h-5 w-5 text-violet-700" /> Charger un ZIP MAZIGHO ou un CSV</CardTitle><CardDescription className="mt-2 max-w-3xl">Le ZIP peut contenir <code>catalogue.csv</code>, <code>categories.csv</code>, <code>variations.csv</code>, <code>images/</code>, <code>contenus/</code>, <code>marque/</code> et <code>manifest.json</code>. Pour ce premier essai, les produits, catégories, images et variantes sont pris en charge ; contenus et identité sont listés pour validation ultérieure.</CardDescription></CardHeader><CardContent><Label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-violet-300 bg-violet-50 px-4 text-sm font-semibold text-violet-950 hover:bg-violet-100"><FileUp className="mr-2 h-4 w-4" /> {reading ? "Lecture en cours…" : "Choisir une archive"}<input type="file" accept=".zip,.csv,application/zip,text/csv" className="sr-only" disabled={reading} onChange={event => { void readArchive(event.target.files?.[0]); event.currentTarget.value = ""; }} /></Label>{progress ? <p className="mt-3 text-sm leading-6 text-slate-600">{progress}</p> : null}</CardContent></Card>
+
+      <Card className="border-amber-200 bg-amber-50/70 shadow-sm"><CardHeader><CardDescription>Étape 1 bis — sauvegarde WordPress</CardDescription><CardTitle className="mt-1 flex items-center gap-2 text-xl"><FileCog className="h-5 w-5 text-amber-800" /> Convertir un .wpress</CardTitle><CardDescription className="mt-2 leading-6">Choisissez une sauvegarde All-in-One WP Migration <code>.wpress</code>, ou un ZIP qui contient exactement un <code>.wpress</code>. La conversion se fait dans cet appareil : la sauvegarde brute ne part pas vers MAZIGHO.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_112px]"><div className="space-y-2"><Label htmlFor="wordpress-currency">Devise source <span className="font-normal text-slate-500">(facultatif)</span></Label><input id="wordpress-currency" value={wordpressCurrency} onChange={event => setWordpressCurrency(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))} placeholder="Ex. DZD" inputMode="text" maxLength={3} className="flex h-11 w-full rounded-md border border-input bg-white px-3 text-sm uppercase" /></div><div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs leading-5 text-amber-950">Aucune conversion de prix.</div></div><Label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100"><FileCog className="mr-2 h-4 w-4" /> {convertingWordpress ? "Conversion en cours…" : "Choisir la sauvegarde WordPress"}<input type="file" accept=".wpress,.zip,application/zip" className="sr-only" disabled={convertingWordpress || reading} onChange={event => { void convertWordpress(event.target.files?.[0]); event.currentTarget.value = ""; }} /></Label><p className="text-xs leading-5 text-slate-600">Limite directe : <strong>512 Mio</strong> pour un <code>.wpress</code>. La conversion extrait uniquement les produits, prix, stock et médias explicitement liés ; comptes, clients, commandes, paiements et réglages restent exclus.</p>{wordpressConversion ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">Archive MAZIGHO générée localement</p><p className="mt-1">{wordpressConversion.productCount} fiche(s) · {wordpressConversion.imageCount} visuel(s) lié(s) · source {wordpressConversion.sourceKind} · devise {wordpressConversion.currency}.</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={downloadWordpressArchive} className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-100"><Download className="mr-2 h-4 w-4" /> Télécharger le ZIP</Button><Badge variant="outline" className="border-emerald-200 bg-white text-emerald-800">Aperçu déjà chargé</Badge></div>{wordpressConversion.warnings.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-950">{wordpressConversion.warnings.slice(0, 3).map(warning => <li key={warning}>{warning}</li>)}</ul> : null}</div> : null}</CardContent></Card></div>
 
       {preview ? <ArchivePreviewCard preview={preview} /> : <Card className="border-dashed border-slate-300 bg-slate-50"><CardContent className="p-6 text-sm leading-6 text-slate-600">Chargez l’un de vos ZIP de test. Rien n’est envoyé à la base tant que vous n’avez pas choisi la boutique et confirmé l’application.</CardContent></Card>}
 
