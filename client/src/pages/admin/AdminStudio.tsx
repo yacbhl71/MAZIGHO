@@ -1167,7 +1167,7 @@ export default function AdminStudio() {
           </div>
         </section>
 
-        <section id="studio-ai" className="scroll-mt-6"><StudioAICopilot /></section>
+        <StudioAICopilot />
 
         <section className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5"><p className="flex items-center gap-2 font-semibold text-amber-950"><WandSparkles className="h-5 w-5 text-amber-700" /> Ce qui viendra maintenant</p>              <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-900">Vous pouvez maintenant préparer une future boutique dans Studio sans l’activer. La création réelle — domaine, boutique, invitation du propriétaire et accès — restera une opération distincte, visible et à confirmer séparément.</p></div>

@@ -43,7 +43,7 @@ export default function StudioAICopilot() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-violet-900">Analysez l’état global de la plateforme, préparez un plan d’action et rédigez des messages opérateur. Le copilote ne modifie aucune boutique.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800"><ShieldCheck className="mr-1 h-3.5 w-3.5" /> Données agrégées</Badge>
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800"><ShieldCheck className="mr-1 h-3.5 w-3.5" /> Indicateurs opérateur · sans données client ni secrets</Badge>
           <button type="button" onClick={() => setMessages(initialMessages)} disabled={chat.isPending || messages.length <= 1} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-violet-200 bg-white px-3 text-xs font-semibold text-violet-800 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" /> Nouvelle conversation</button>
         </div>
       </div>
