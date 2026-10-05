@@ -3,8 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
+import { storeFactoryModels, type StoreFactoryModelId } from "@shared/storeFactoryModel";
 import {
   parseStudioCatalogueArchive,
   studioCatalogueAssetDataUrl,
@@ -43,6 +45,28 @@ type CatalogueProduct = {
 
 type VariantOption = { name: string; values: string[] };
 
+type NewStoreDraft = {
+  displayName: string;
+  requestedDomain: string;
+  ownerName: string;
+  ownerEmail: string;
+  factoryModel: StoreFactoryModelId;
+  customBusinessTheme: string;
+  provisioningTemplate: "standard" | "algeria";
+  preferredCurrency: "CHF" | "EUR" | "USD" | "GBP" | "DZD";
+};
+
+const emptyNewStoreDraft: NewStoreDraft = {
+  displayName: "",
+  requestedDomain: "",
+  ownerName: "",
+  ownerEmail: "",
+  factoryModel: "blank",
+  customBusinessTheme: "Catalogue importé à organiser",
+  provisioningTemplate: "standard",
+  preferredCurrency: "CHF",
+};
+
 function normalizedKey(value: string) {
   return value.trim().toLocaleLowerCase("fr-CH");
 }
@@ -67,9 +91,11 @@ function archiveFileLabel(preview: StudioCatalogueArchivePreview) {
 export default function AdminStudioUniversalImport() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
-  const inventory = trpc.admin.studio.getInventory.useQuery({ pageSize: 100 }, { refetchOnWindowFocus: false });
+  const importTargets = trpc.admin.studio.getCatalogueImportTargets.useQuery(undefined, { refetchOnWindowFocus: false });
   const [preview, setPreview] = useState<StudioCatalogueArchivePreview | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState("");
+  const [newStoreDraft, setNewStoreDraft] = useState<NewStoreDraft>(emptyNewStoreDraft);
+  const [preparedDraftId, setPreparedDraftId] = useState<number | null>(null);
   const [rightsAcknowledged, setRightsAcknowledged] = useState(false);
   const [applyAcknowledged, setApplyAcknowledged] = useState(false);
   const [reading, setReading] = useState(false);
@@ -83,13 +109,51 @@ export default function AdminStudioUniversalImport() {
   const uploadProductImage = trpc.admin.studio.uploadOwnerExistingCatalogueProductImage.useMutation();
   const saveProduct = trpc.admin.studio.saveOwnerExistingCatalogueProduct.useMutation();
   const createVariants = trpc.admin.studio.createOwnerExistingCatalogueProductVariantMatrix.useMutation();
+  const createProvisioningDraft = trpc.admin.studio.createProvisioningDraft.useMutation({
+    onSuccess: async (draft) => {
+      setPreparedDraftId(draft.id);
+      await utils.admin.studio.getProvisioningDrafts.invalidate();
+      await utils.admin.studio.getCatalogueImportTargets.invalidate();
+      toast.success("Brouillon de nouvelle boutique prêt", { description: "Aucune boutique publique, aucun domaine, paiement ou e-mail n’a été créé." });
+    },
+    onError: error => toast.error("Préparation impossible", { description: error.message || "Vérifiez les informations de la nouvelle boutique." }),
+  });
 
-  const stores = useMemo(() => ((inventory.data?.stores ?? []) as StoreTarget[])
-    .filter(store => !store.isPlatformStore && store.status !== "closed")
-    .sort((left, right) => left.displayName.localeCompare(right.displayName, "fr-CH")), [inventory.data?.stores]);
+  const stores = useMemo(() => ((importTargets.data ?? []) as StoreTarget[])
+    .filter(store => !store.isPlatformStore && store.status === "setup")
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, "fr-CH")), [importTargets.data]);
   const selectedStore = stores.find(store => String(store.id) === selectedStoreId) || null;
   const hasIssues = Boolean(preview?.issues.length);
+  const selectedFactoryModel = storeFactoryModels.find(model => model.id === newStoreDraft.factoryModel) ?? storeFactoryModels[0];
+  const newStoreNeedsCustomTheme = (selectedFactoryModel.businessType ?? "autre") === "autre";
+  const canPrepareNewStore = Boolean(
+    preview && preview.rows.length && !hasIssues
+    && newStoreDraft.displayName.trim().length >= 2
+    && newStoreDraft.requestedDomain.trim().length >= 3
+    && newStoreDraft.ownerName.trim().length >= 2
+    && newStoreDraft.ownerEmail.includes("@")
+    && (!newStoreNeedsCustomTheme || newStoreDraft.customBusinessTheme.trim().length >= 2)
+    && !createProvisioningDraft.isPending
+  );
   const canApply = Boolean(preview && preview.rows.length && !hasIssues && selectedStore && rightsAcknowledged && applyAcknowledged && !importProducts.isPending && !reading && !convertingWordpress);
+
+  const prepareNewStoreDraft = () => {
+    if (!canPrepareNewStore) return;
+    const model = selectedFactoryModel;
+    createProvisioningDraft.mutate({
+      displayName: newStoreDraft.displayName,
+      requestedDomain: newStoreDraft.requestedDomain,
+      ownerName: newStoreDraft.ownerName,
+      ownerEmail: newStoreDraft.ownerEmail,
+      businessType: model.businessType ?? "autre",
+      customBusinessTheme: model.customBusinessTheme ?? newStoreDraft.customBusinessTheme,
+      themePreset: model.suggestedTheme,
+      factoryModel: model.id,
+      provisioningTemplate: newStoreDraft.provisioningTemplate,
+      preferredCurrency: newStoreDraft.provisioningTemplate === "algeria" ? "DZD" : newStoreDraft.preferredCurrency,
+      notes: `[catalogue_import] Brouillon préparé depuis l’atelier d’import Studio. Archive : ${preview?.sourceName || "non indiquée"}. Produits détectés : ${preview?.rows.length || 0}. L’archive n’est pas conservée en base et devra être rechargée pour l’import après la création contrôlée de la boutique.`,
+    });
+  };
 
   const readArchive = async (file?: File) => {
     if (!file) return;
@@ -219,7 +283,7 @@ export default function AdminStudioUniversalImport() {
   };
 
   return <DashboardLayout><main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><Badge className="border-0 bg-slate-950 text-white hover:bg-slate-950"><LockKeyhole className="mr-1.5 h-3.5 w-3.5" /> Studio privé</Badge><Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-950">Essai d’import universel</Badge></div><h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Importer une boutique</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Un atelier privé pour vos exports Shopify, WooCommerce, PrestaShop, Wix, Etsy, CSV ou boutique sur mesure, une fois rangés dans le format ZIP MAZIGHO. L’archive est lue localement, préparée en aperçu, puis appliquée uniquement à la boutique choisie.</p></div><Button type="button" variant="outline" onClick={() => setLocation("/admin/studio")} className="w-fit border-slate-300 bg-white text-slate-800 hover:bg-slate-50"><ArrowLeft className="mr-2 h-4 w-4" /> Retour au Studio</Button></header>
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><Badge className="border-0 bg-slate-950 text-white hover:bg-slate-950"><LockKeyhole className="mr-1.5 h-3.5 w-3.5" /> Studio privé</Badge><Badge variant="outline" className="border-violet-200 bg-violet-50 text-violet-950">Essai d’import universel</Badge></div><h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">Importer une boutique</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Un atelier privé pour vos exports Shopify, WooCommerce, PrestaShop, Wix, Etsy, CSV ou boutique sur mesure, une fois rangés dans le format ZIP MAZIGHO. L’archive est lue localement, préparée en aperçu, puis appliquée uniquement dans une nouvelle boutique créée depuis ce parcours.</p></div><Button type="button" variant="outline" onClick={() => setLocation("/admin/studio")} className="w-fit border-slate-300 bg-white text-slate-800 hover:bg-slate-50"><ArrowLeft className="mr-2 h-4 w-4" /> Retour au Studio</Button></header>
 
     <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-950"><div className="flex gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">Frontière conservée</p><p className="mt-1">Cet atelier ne publie rien, ne bascule aucun domaine, ne touche pas aux clients, aux commandes, aux paiements, aux abonnements ni aux fournisseurs. Les pages, navigation et identité détectées restent en <strong>brouillon à examiner</strong> : elles ne remplacent jamais une vitrine automatiquement.</p></div></div></section>
 
@@ -227,9 +291,30 @@ export default function AdminStudioUniversalImport() {
 
       <Card className="border-amber-200 bg-amber-50/70 shadow-sm"><CardHeader><CardDescription>Étape 1 bis — sauvegarde WordPress</CardDescription><CardTitle className="mt-1 flex items-center gap-2 text-xl"><FileCog className="h-5 w-5 text-amber-800" /> Convertir un .wpress</CardTitle><CardDescription className="mt-2 leading-6">Choisissez une sauvegarde All-in-One WP Migration <code>.wpress</code>, ou un ZIP qui contient exactement un <code>.wpress</code>. La conversion se fait dans cet appareil : la sauvegarde brute ne part pas vers MAZIGHO.</CardDescription></CardHeader><CardContent className="space-y-4"><div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_112px]"><div className="space-y-2"><Label htmlFor="wordpress-currency">Devise source <span className="font-normal text-slate-500">(facultatif)</span></Label><input id="wordpress-currency" value={wordpressCurrency} onChange={event => setWordpressCurrency(event.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3))} placeholder="Ex. DZD" inputMode="text" maxLength={3} className="flex h-11 w-full rounded-md border border-input bg-white px-3 text-sm uppercase" /></div><div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs leading-5 text-amber-950">Aucune conversion de prix.</div></div><Label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950 hover:bg-amber-100"><FileCog className="mr-2 h-4 w-4" /> {convertingWordpress ? "Conversion en cours…" : "Choisir la sauvegarde WordPress"}<input type="file" accept=".wpress,.zip,application/zip" className="sr-only" disabled={convertingWordpress || reading} onChange={event => { void convertWordpress(event.target.files?.[0]); event.currentTarget.value = ""; }} /></Label><p className="text-xs leading-5 text-slate-600">Limite directe : <strong>512 Mio</strong> pour un <code>.wpress</code>. La conversion extrait uniquement les produits, prix, stock et médias explicitement liés ; comptes, clients, commandes, paiements et réglages restent exclus.</p>{wordpressConversion ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">Archive MAZIGHO générée localement</p><p className="mt-1">{wordpressConversion.productCount} fiche(s) · {wordpressConversion.imageCount} visuel(s) lié(s) · source {wordpressConversion.sourceKind} · devise {wordpressConversion.currency}.</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={downloadWordpressArchive} className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-100"><Download className="mr-2 h-4 w-4" /> Télécharger le ZIP</Button><Badge variant="outline" className="border-emerald-200 bg-white text-emerald-800">Aperçu déjà chargé</Badge></div>{wordpressConversion.warnings.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-950">{wordpressConversion.warnings.slice(0, 3).map(warning => <li key={warning}>{warning}</li>)}</ul> : null}</div> : null}</CardContent></Card></div>
 
-      {preview ? <ArchivePreviewCard preview={preview} /> : <Card className="border-dashed border-slate-300 bg-slate-50"><CardContent className="p-6 text-sm leading-6 text-slate-600">Chargez l’un de vos ZIP de test. Rien n’est envoyé à la base tant que vous n’avez pas choisi la boutique et confirmé l’application.</CardContent></Card>}
+      {preview ? <ArchivePreviewCard preview={preview} /> : <Card className="border-dashed border-slate-300 bg-slate-50"><CardContent className="p-6 text-sm leading-6 text-slate-600">Chargez l’un de vos ZIP de test. Rien n’est envoyé à la base tant que vous n’avez pas préparé une nouvelle boutique et confirmé l’application.</CardContent></Card>}
 
-      {preview && !hasIssues ? <Card className="border-slate-200 shadow-sm"><CardHeader><CardDescription>Étape 2 — appliquer une copie contrôlée</CardDescription><CardTitle className="mt-1 flex items-center gap-2 text-xl"><PackageCheck className="h-5 w-5 text-teal-700" /> Choisir la boutique de test</CardTitle></CardHeader><CardContent className="space-y-4"><div className="space-y-2"><Label htmlFor="universal-import-store">Boutique cible</Label><select id="universal-import-store" value={selectedStoreId} onChange={event => setSelectedStoreId(event.target.value)} className="flex h-11 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Choisir une boutique…</option>{stores.map(store => <option key={store.id} value={store.id}>{store.displayName} · {store.status}</option>)}</select>{inventory.isLoading ? <p className="text-xs text-slate-500">Chargement des boutiques Studio…</p> : null}</div>{selectedStore ? <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-950"><p className="font-semibold">Cible : {selectedStore.displayName}</p><p className="mt-1">Les fiches seront isolées dans cette boutique. Aucun autre catalogue ne sera lu ni modifié.</p></div> : null}<label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><Checkbox checked={rightsAcknowledged} onCheckedChange={value => setRightsAcknowledged(value === true)} /><span>Je confirme disposer des droits nécessaires sur les produits, images, descriptions, logo et autres contenus importés. Les ressources détectées resteront à contrôler.</span></label><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><Checkbox checked={applyAcknowledged} onCheckedChange={value => setApplyAcknowledged(value === true)} /><span>Je confirme importer les <strong>{preview.rows.length} fiche(s)</strong> dans la boutique sélectionnée. Je comprends que les produits existants du même nom peuvent être mis à jour, mais que l’import ne publie pas la boutique et n’active ni vente ni paiement.</span></label><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs leading-5 text-slate-500">Les prix sont importés exactement comme indiqués dans le fichier : aucune conversion de devise n’est effectuée.</p><Button type="button" disabled={!canApply} onClick={() => void applyImport()} className="min-h-11 shrink-0 bg-teal-700 text-white hover:bg-teal-800"><WandSparkles className="mr-2 h-4 w-4" /> Appliquer l’import privé</Button></div></CardContent></Card> : null}
+      {preview && !hasIssues ? <Card className="border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardDescription>Étape 2 — créer la destination isolée</CardDescription>
+          <CardTitle className="mt-1 flex items-center gap-2 text-xl"><PackageCheck className="h-5 w-5 text-violet-700" /> Préparer une nouvelle boutique depuis ce catalogue</CardTitle>
+          <CardDescription className="mt-2">Cet atelier ne propose plus de choisir une boutique existante. L’archive ne peut alimenter qu’une nouvelle boutique créée depuis ce parcours et maintenue en préparation.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 text-sm leading-6 text-violet-950"><p className="font-semibold">Aucune boutique existante ne sera modifiée</p><p className="mt-1">Cette étape enregistre seulement un brouillon Studio lié à l’archive aperçue. Vous contrôlerez ensuite le prévol et confirmerez séparément la création d’une boutique en état <code>setup</code>. Le ZIP reste sur cet appareil et devra être rechargé avant l’import.</p></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2"><Label htmlFor="new-import-store-name">Nom de la future boutique</Label><Input id="new-import-store-name" value={newStoreDraft.displayName} onChange={event => setNewStoreDraft(current => ({ ...current, displayName: event.target.value }))} placeholder="Ex. Maison Azur" /></div>
+            <div className="space-y-2"><Label htmlFor="new-import-store-domain">Domaine ou sous-domaine souhaité</Label><Input id="new-import-store-domain" value={newStoreDraft.requestedDomain} onChange={event => setNewStoreDraft(current => ({ ...current, requestedDomain: event.target.value }))} placeholder="maison-azur.mazigho.ch" autoCapitalize="none" /></div>
+            <div className="space-y-2"><Label htmlFor="new-import-store-owner">Nom du propriétaire</Label><Input id="new-import-store-owner" value={newStoreDraft.ownerName} onChange={event => setNewStoreDraft(current => ({ ...current, ownerName: event.target.value }))} placeholder="Nom et prénom" /></div>
+            <div className="space-y-2"><Label htmlFor="new-import-store-email">E-mail du propriétaire</Label><Input id="new-import-store-email" type="email" value={newStoreDraft.ownerEmail} onChange={event => setNewStoreDraft(current => ({ ...current, ownerEmail: event.target.value }))} placeholder="proprietaire@exemple.ch" autoCapitalize="none" /></div>
+          </div>
+          <div className="space-y-2"><Label>Base visuelle et catégories vides</Label><p className="text-xs leading-5 text-slate-500">Le catalogue aperçu sera importé plus tard ; ce choix ajoute seulement une structure modifiable à la nouvelle boutique.</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{storeFactoryModels.map(model => <button key={model.id} type="button" onClick={() => setNewStoreDraft(current => ({ ...current, factoryModel: model.id, customBusinessTheme: model.customBusinessTheme ?? current.customBusinessTheme }))} className={newStoreDraft.factoryModel === model.id ? "rounded-xl border-2 border-violet-700 bg-violet-50 p-3 text-left ring-2 ring-violet-100" : "rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-violet-300 hover:bg-violet-50/40"}><p className="text-sm font-semibold text-slate-950">{model.label}</p><p className="mt-1 text-xs leading-5 text-slate-600">{model.summary}</p></button>)}</div></div>
+          {newStoreNeedsCustomTheme ? <div className="space-y-2"><Label htmlFor="new-import-store-theme">Univers de la boutique</Label><Input id="new-import-store-theme" value={newStoreDraft.customBusinessTheme} onChange={event => setNewStoreDraft(current => ({ ...current, customBusinessTheme: event.target.value }))} placeholder="Ex. décoration artisanale, thé, beauté…" /></div> : null}
+          <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Base de marché</Label><div className="grid gap-2"><button type="button" onClick={() => setNewStoreDraft(current => ({ ...current, provisioningTemplate: "standard" }))} className={newStoreDraft.provisioningTemplate === "standard" ? "rounded-xl border-2 border-slate-800 bg-slate-50 p-3 text-left" : "rounded-xl border border-slate-200 bg-white p-3 text-left hover:border-slate-300"}><p className="font-semibold text-slate-950">Standard</p><p className="mt-1 text-xs leading-5 text-slate-600">Marchés, livraison et devise seront réglés plus tard.</p></button><button type="button" onClick={() => setNewStoreDraft(current => ({ ...current, provisioningTemplate: "algeria", preferredCurrency: "DZD" }))} className={newStoreDraft.provisioningTemplate === "algeria" ? "rounded-xl border-2 border-emerald-700 bg-emerald-50 p-3 text-left" : "rounded-xl border border-emerald-200 bg-emerald-50/40 p-3 text-left hover:border-emerald-400"}><p className="font-semibold text-emerald-950">Algérie — préparation DZD</p><p className="mt-1 text-xs leading-5 text-emerald-900">Wilayas et COD seront préparés, jamais activés automatiquement.</p></button></div></div><div className="space-y-2"><Label htmlFor="new-import-store-currency">Devise de départ</Label><select id="new-import-store-currency" value={newStoreDraft.preferredCurrency} disabled={newStoreDraft.provisioningTemplate === "algeria"} onChange={event => setNewStoreDraft(current => ({ ...current, preferredCurrency: event.target.value as NewStoreDraft["preferredCurrency"] }))} className="flex h-11 w-full rounded-md border border-input bg-white px-3 text-sm disabled:cursor-not-allowed disabled:bg-slate-100"><option value="CHF">CHF — Franc suisse</option><option value="EUR">EUR — Euro</option><option value="USD">USD — Dollar US</option><option value="GBP">GBP — Livre sterling</option><option value="DZD">DZD — Dinar algérien</option></select><p className="text-xs leading-5 text-slate-500">La devise déclarée dans l’archive est informative : les prix ne seront pas convertis.</p></div></div>
+          {preparedDraftId ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950"><p className="font-semibold">Brouillon Studio prêt</p><p className="mt-1">Ouvrez les brouillons Studio, vérifiez le prévol, puis confirmez la création de la boutique en préparation. Revenez ensuite ici et rechargez l’archive : elle apparaîtra seule dans l’étape d’import dès que la boutique sera créée.</p><Link href="/admin/studio" className="mt-3 inline-flex"><Button type="button" variant="outline" className="border-emerald-300 bg-white text-emerald-950 hover:bg-emerald-100"><Store className="mr-2 h-4 w-4" /> Ouvrir les brouillons Studio</Button></Link></div> : <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs leading-5 text-slate-500">Un brouillon ne réserve pas de domaine et ne crée aucun accès, paiement, e-mail ou publication.</p><Button type="button" disabled={!canPrepareNewStore} onClick={prepareNewStoreDraft} className="min-h-11 shrink-0 bg-violet-700 text-white hover:bg-violet-800">{createProvisioningDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Store className="mr-2 h-4 w-4" />}Préparer la nouvelle boutique</Button></div>}
+
+          <div className="border-t border-slate-100 pt-5"><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-teal-800">Étape 3 — importer dans la nouvelle boutique</p><p className="mt-1 text-sm leading-6 text-slate-600">Seules les boutiques créées depuis cet atelier et encore en préparation sont proposées ci-dessous. Une boutique existante, pilote ou active ne peut pas être sélectionnée.</p>{stores.length ? <div className="mt-4 space-y-4"><div className="space-y-2"><Label htmlFor="universal-import-store">Nouvelle boutique cible</Label><select id="universal-import-store" value={selectedStoreId} onChange={event => setSelectedStoreId(event.target.value)} className="flex h-11 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Choisir la nouvelle boutique créée depuis cet atelier…</option>{stores.map(store => <option key={store.id} value={store.id}>{store.displayName} · préparation</option>)}</select></div>{selectedStore ? <div className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-950"><p className="font-semibold">Destination isolée : {selectedStore.displayName}</p><p className="mt-1">L’archive sera écrite seulement dans cette nouvelle boutique. Les boutiques déjà existantes restent hors périmètre.</p></div> : null}<label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><Checkbox checked={rightsAcknowledged} onCheckedChange={value => setRightsAcknowledged(value === true)} /><span>Je confirme disposer des droits nécessaires sur les produits, images, descriptions, logo et autres contenus importés. Les ressources détectées resteront à contrôler.</span></label><label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700"><Checkbox checked={applyAcknowledged} onCheckedChange={value => setApplyAcknowledged(value === true)} /><span>Je confirme importer les <strong>{preview.rows.length} fiche(s)</strong> dans cette nouvelle boutique isolée. Je comprends que cela ne publie rien et n’active ni vente ni paiement.</span></label><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs leading-5 text-slate-500">Les prix sont importés exactement comme indiqués dans le fichier : aucune conversion de devise n’est effectuée.</p><Button type="button" disabled={!canApply} onClick={() => void applyImport()} className="min-h-11 shrink-0 bg-teal-700 text-white hover:bg-teal-800"><WandSparkles className="mr-2 h-4 w-4" /> Importer dans la nouvelle boutique</Button></div></div> : <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm leading-6 text-slate-600">Aucune nouvelle boutique issue de cet atelier n’est encore prête. Préparez un brouillon ci-dessus, créez la boutique après le prévol Studio, puis revenez ici avec la même archive.</div>}</div>
+        </CardContent>
+      </Card> : null}
 
       {result ? <Card className={result.failures.length ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}><CardContent className="p-5 text-sm leading-6"><div className="flex gap-3"><CheckCircle2 className={result.failures.length ? "mt-0.5 h-5 w-5 shrink-0 text-amber-700" : "mt-0.5 h-5 w-5 shrink-0 text-emerald-700"} /><div><p className="font-bold text-slate-950">Import privé terminé</p><p className="mt-1 text-slate-700">{result.imported} fiche(s) ajoutée(s), {result.updated} mise(s) à jour, {result.images} image(s) téléversée(s), {result.variants} variante(s) ajoutée(s).</p>{result.failures.length ? <ul className="mt-3 list-disc space-y-1 pl-5 text-amber-950">{result.failures.slice(0, 8).map(failure => <li key={failure}>{failure}</li>)}</ul> : null}<div className="mt-4 flex flex-wrap gap-2"><Link href={`/admin/studio/catalogue-existant/${result.storeId}`}><Button type="button" variant="outline" className="border-slate-300 bg-white"><Store className="mr-2 h-4 w-4" /> Vérifier le catalogue</Button></Link><Link href={`/admin/studio/apercu/${result.storeId}`}><Button type="button" variant="outline" className="border-slate-300 bg-white">Voir l’aperçu privé</Button></Link></div></div></div></CardContent></Card> : null}
     </div>

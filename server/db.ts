@@ -348,6 +348,45 @@ export async function getStudioProvisioningDrafts() {
   return db.select().from(storeProvisioningDrafts).orderBy(desc(storeProvisioningDrafts.updatedAt));
 }
 
+const STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX = "[catalogue_import]";
+
+/**
+ * A catalogue archive may only be applied to a dedicated setup store that was
+ * explicitly prepared from the import studio. This intentionally prevents the
+ * archive workflow from mutating an existing client or pilot boutique.
+ */
+export async function getStudioCatalogueImportTargets() {
+  const drafts = await getStudioProvisioningDrafts();
+  const storeIds = drafts
+    .filter(draft => Number.isInteger(draft.provisionedStoreId) && Number(draft.provisionedStoreId) > 0 && draft.notes?.startsWith(STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX))
+    .map(draft => Number(draft.provisionedStoreId));
+  if (!storeIds.length) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: stores.id,
+    displayName: stores.displayName,
+    primaryDomain: stores.primaryDomain,
+    status: stores.status,
+    isPlatformStore: stores.isPlatformStore,
+  }).from(stores)
+    .where(and(inArray(stores.id, storeIds), eq(stores.isPlatformStore, 0), eq(stores.status, "setup")))
+    .orderBy(asc(stores.displayName));
+}
+
+async function assertStudioCatalogueImportTarget(storeId: number) {
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [[store], [draft]] = await Promise.all([
+    db.select({ id: stores.id, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ notes: storeProvisioningDrafts.notes, provisionedStoreId: storeProvisioningDrafts.provisionedStoreId }).from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.provisionedStoreId, storeId)).limit(1),
+  ]);
+  if (!store || store.isPlatformStore || store.status !== "setup" || !draft?.notes?.startsWith(STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX)) {
+    throw new Error("STORE_NOT_CATALOGUE_IMPORT_TARGET");
+  }
+}
+
 export async function getStudioProvisioningDraftReviews() {
   const drafts = await getStudioProvisioningDrafts();
   const domainCounts = new Map<string, number>();
@@ -1912,6 +1951,7 @@ export async function createStudioOwnerExistingCatalogueProduct(input: { storeId
 export async function importStudioOwnerExistingCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[] }) {
   await ensureStoreCatalogScopeSchema();
   await ensureCatalogSectionSchema();
+  await assertStudioCatalogueImportTarget(input.storeId);
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");

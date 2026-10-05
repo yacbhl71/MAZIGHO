@@ -2,7 +2,7 @@
 
 > **État : expérimentation réservée à MAZIGHO Studio.**
 >
-> Cet outil prépare une copie contrôlée dans une boutique choisie. Il ne publie pas de vitrine, n’active aucun panier, paiement, domaine, abonnement ou e-mail.
+> Cet outil prépare une copie contrôlée dans une **nouvelle boutique isolée** créée depuis son propre parcours. Il ne peut pas modifier une boutique existante et n’active aucun panier, paiement, domaine, abonnement ou e-mail.
 
 ## 1. Objectif
 
@@ -10,9 +10,13 @@ Le format **MAZIGHO Import Archive** permet de préparer une migration quel que 
 
 L’archive n’est pas traitée comme un fichier magique : elle est lue **localement dans Studio**, contrôlée, puis appliquée uniquement après que l’opérateur a :
 
-1. sélectionné la boutique cible ;
-2. confirmé qu’il détient les droits sur les contenus ;
-3. confirmé l’ajout ou la mise à jour des fiches.
+1. préparé un brouillon de **nouvelle boutique** depuis l’archive ;
+2. réalisé le prévol et confirmé séparément sa création en état `setup` ;
+3. rechargé l’archive et sélectionné cette nouvelle boutique, seule destination proposée ;
+4. confirmé qu’il détient les droits sur les contenus ;
+5. confirmé l’ajout des fiches dans cette destination isolée.
+
+Les boutiques existantes, pilotes, actives ou limitées ne sont jamais présentées comme destination et la procédure serveur refuse une autre cible.
 
 ## 2. Périmètre de la première expérimentation
 
@@ -32,7 +36,7 @@ Un premier adaptateur **WordPress `.wpress`** est disponible en expérimentation
 
 La carte **« Convertir un `.wpress` »**, placée à côté du chargeur ZIP/CSV dans **Studio → Importer une boutique**, traite le fichier **dans le navigateur de l’opérateur** : la sauvegarde brute n’est ni téléversée ni stockée sur MAZIGHO. Elle accepte un fichier `.wpress` jusqu’à **512 Mio**, ou un ZIP jusqu’à **256 Mio** qui contient exactement un seul `.wpress`. Le ZIP MAZIGHO généré est ouvert immédiatement dans l’aperçu normal ; il peut aussi être téléchargé.
 
-La conversion n’importe rien à elle seule. L’opérateur contrôle ensuite les prix et la devise, choisit une boutique, confirme les droits et confirme l’application. Les mêmes garde-fous de l’atelier s’appliquent au ZIP converti : maximum 100 fiches, 40 images liées et 5 Mio par image. Au-delà, la conversion hors ligne assistée reste le parcours approprié.
+La conversion n’importe rien à elle seule. L’opérateur contrôle ensuite les prix et la devise, prépare une nouvelle boutique, confirme les droits et confirme l’application. Les mêmes garde-fous de l’atelier s’appliquent au ZIP converti : maximum 100 fiches, 40 images liées et 5 Mio par image. Au-delà, la conversion hors ligne assistée reste le parcours approprié.
 
 ## 3. Structure recommandée
 
@@ -142,14 +146,15 @@ productName,label,sku,priceAdjustment,stock,status
 
 ## 8. Procédure d’essai conseillée
 
-1. Créer ou choisir une **boutique de test** dans Studio.
-2. Ouvrir **Studio → Importer une boutique**.
-3. Charger le ZIP : l’aperçu s’affiche avant toute écriture.
-4. Vérifier le nombre de fiches, les chemins d’images et la devise déclarée.
-5. Sélectionner explicitement la boutique cible.
-6. Confirmer les droits sur les contenus et l’application de l’import.
-7. Ouvrir **Vérifier le catalogue**, puis l’**aperçu privé**.
-8. Corriger les contenus détectés ; ne lancer l’ouverture publique qu’au moyen du parcours de publication séparé.
+1. Ouvrir **Studio → Importer une boutique**.
+2. Charger le ZIP : l’aperçu s’affiche avant toute écriture.
+3. Vérifier le nombre de fiches, les chemins d’images et la devise déclarée.
+4. Renseigner la nouvelle boutique, son propriétaire, sa base visuelle et son marché, puis choisir **Préparer la nouvelle boutique**.
+5. Ouvrir les brouillons Studio ; réaliser le prévol puis confirmer la création de cette boutique en état `setup`.
+6. Revenir dans l’atelier, recharger le même ZIP et sélectionner la nouvelle boutique proposée dans l’étape 3.
+7. Confirmer les droits sur les contenus et l’application de l’import.
+8. Ouvrir **Vérifier le catalogue**, puis l’**aperçu privé**.
+9. Corriger les contenus détectés ; ne lancer l’ouverture publique qu’au moyen du parcours de publication séparé.
 
 ## 9. Ce qui ne doit jamais être implicitement importé
 
