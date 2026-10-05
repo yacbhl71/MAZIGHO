@@ -31,7 +31,7 @@ describe("store catalogue CSV import", () => {
 
     expect(result.rows).toHaveLength(1);
     expect(result.issues.map(issue => issue.message)).toEqual(expect.arrayContaining([
-      expect.stringContaining("prix CHF"),
+      expect.stringContaining("prix doit"),
       expect.stringContaining("https://"),
     ]));
   });
@@ -48,6 +48,22 @@ describe("store catalogue CSV import", () => {
       priceCents: 3600,
       featured: true,
       dimensions: ["30×40 cm", "40×50 cm", "50×70 cm"],
+    });
+  });
+
+  it("accepts the universal price column and keeps safe local image paths for Studio ZIP imports", () => {
+    const csv = [
+      "category,name,shortDescription,longDescription,price,stock,dimensions,imageUrl,imagePaths,featured",
+      '"Créations","Affiche forêt","Illustration","Une illustration encadrée.",24.50,3,"30×40 cm","images/foret-1.webp","images/foret-2.webp | images/foret-3.webp",oui',
+    ].join("\n");
+
+    const result = parseStoreCatalogueImportCsv(csv);
+
+    expect(result.issues).toEqual([]);
+    expect(result.rows[0]).toMatchObject({
+      priceCents: 2450,
+      imageUrl: "",
+      localImagePaths: ["images/foret-1.webp", "images/foret-2.webp", "images/foret-3.webp"],
     });
   });
 });

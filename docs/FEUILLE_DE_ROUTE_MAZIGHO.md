@@ -182,6 +182,12 @@ Le Studio permet de retrouver, filtrer et préparer une boutique sans parcourir 
 
 **Statut : Lot 5 clôturé pour le pilotage commercial et la relation client dans Studio.**
 
+### Extension privée Studio — Atelier d’import universel (expérimentation)
+
+Un atelier **« Importer une boutique »** est maintenant disponible exclusivement dans MAZIGHO Studio pour un essai contrôlé sur les boutiques du propriétaire. Il lit localement un CSV ou une archive ZIP au contrat MAZIGHO, affiche un aperçu avant écriture, puis importe seulement les catégories issues du catalogue, les fiches produit, les images locales et les variantes dans la boutique explicitement sélectionnée. Les contenus éditoriaux, éléments de marque et catégories CSV séparées sont détectés mais restent à examiner : ils ne remplacent jamais une vitrine automatiquement. L’opérateur confirme les droits sur les ressources et l’application de l’import ; l’atelier ne touche ni clients, ni commandes, ni paiement, ni domaine, ni e-mail, ni publication. Les limites ZIP et médias, le contrôle de chemins et les tests de refus font partie de la brique. Les futurs adaptateurs Shopify, WooCommerce et autres viendront convertir leurs exports vers ce même contrat, après essais concluants.
+
+Le guide de format et de test est conservé dans [`IMPORT_BOUTIQUE_UNIVERSEL_STUDIO.md`](./IMPORT_BOUTIQUE_UNIVERSEL_STUDIO.md).
+
 ---
 
 ## Lot 6 — Validation qualité de l’Assistant IA

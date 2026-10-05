@@ -58,6 +58,7 @@ const AdminStudioOwnerSetupIsolationReview = lazy(() => import("./pages/admin/Ad
 const AdminStudioOwnerManualCommercialPassageReview = lazy(() => import("./pages/admin/AdminStudioOwnerManualCommercialPassageReview"));
 const AdminStudioOwnerCataloguePublication = lazy(() => import("./pages/admin/AdminStudioOwnerCataloguePublication"));
 const AdminStudioOwnerExistingCatalogueEditor = lazy(() => import("./pages/admin/AdminStudioOwnerExistingCatalogueEditor"));
+const AdminStudioUniversalImport = lazy(() => import("./pages/admin/AdminStudioUniversalImport"));
 const AdminStudioOwnerPublicStorefrontContent = lazy(() => import("./pages/admin/AdminStudioOwnerPublicStorefrontContent"));
 const AdminStudioOwnerActiveStoreManagement = lazy(() => import("./pages/admin/AdminStudioOwnerActiveStoreManagement"));
 const AdminProducts = lazy(() => import("./pages/admin/AdminProducts"));
@@ -471,6 +472,7 @@ function Router() {
         <Route path={"/admin/studio/revue-passage/:storeId"} component={AdminStudioOwnerManualCommercialPassageReview} />
         <Route path={"/admin/studio/publication-catalogue/:storeId"} component={AdminStudioOwnerCataloguePublication} />
         <Route path={"/admin/studio/catalogue-existant/:storeId"} component={AdminStudioOwnerExistingCatalogueEditor} />
+        <Route path={"/admin/studio/importer-boutique"} component={AdminStudioUniversalImport} />
         <Route path={"/admin/studio/contenu-public/:storeId"} component={AdminStudioOwnerPublicStorefrontContent} />
         <Route path={"/admin/studio/gestion-boutique/:storeId"} component={AdminStudioOwnerActiveStoreManagement} />
         <Route path={"/admin/studio/lancement/:storeId"} component={AdminStudioLaunchCenter} />
