@@ -1248,10 +1248,14 @@ export const adminRouter = router({
         } catch {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Décrivez le visuel souhaité en une phrase de 12 à 420 caractères." });
         }
+        let reserved = false;
+        let imageGenerated = false;
         try {
           const usage = await db.reserveStudioImageGeneration(ctx.user.id);
+          reserved = true;
           const generated = await generateImage({ prompt });
           if (!generated.url) throw new Error("STUDIO_IMAGE_GENERATION_EMPTY_RESULT");
+          imageGenerated = true;
           logAudit(ctx, {
             action: "studio.image_generation.create",
             entityType: "image_generation",
@@ -1262,6 +1266,11 @@ export const adminRouter = router({
           return { url: generated.url, usage };
         } catch (error) {
           const code = error instanceof Error ? error.message : "";
+          if (reserved && !imageGenerated) {
+            await db.releaseStudioImageGeneration(ctx.user.id).catch(releaseError => {
+              console.error("[studio-image-generation] quota-release-failed", releaseError);
+            });
+          }
           if (code === "STUDIO_IMAGE_GENERATION_DAILY_LIMIT_REACHED") {
             throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Le plafond quotidien Studio est atteint. Réessayez demain ou utilisez les visuels déjà générés." });
           }

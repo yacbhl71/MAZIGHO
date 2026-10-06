@@ -7,7 +7,7 @@
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 
-export type ImageGenerationModel = "MODEL_GPT_IMAGE_2" | string;
+export type ImageGenerationModel = "gpt-image-2.5" | string;
 export type ImageGenerationQuality = "low" | "medium" | "high";
 
 export type GenerateImageOptions = {
@@ -56,7 +56,9 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
   if (!options.prompt.trim()) throw new Error("Image generation prompt is required");
 
   const payload = {
-    model: options.model || "MODEL_GPT_IMAGE_2",
+    // The current Forge image API uses public model identifiers rather than
+    // the obsolete MODEL_GPT_IMAGE_2 internal enum.
+    model: options.model || "gpt-image-2.5",
     prompt: options.prompt,
     quality: options.quality || "medium",
     response_format: "b64_json",

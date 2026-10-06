@@ -8019,6 +8019,25 @@ export async function reserveStudioImageGeneration(userId: number, date = new Da
   return getStudioImageGenerationUsage(userId, date);
 }
 
+/**
+ * Releases a previously reserved slot when the external image service fails
+ * before an image is saved. This preserves the atomic reservation guard while
+ * ensuring unsuccessful attempts never consume the operator's daily allowance.
+ */
+export async function releaseStudioImageGeneration(userId: number, date = new Date()): Promise<StudioImageGenerationUsageSummary> {
+  if (!Number.isInteger(userId) || userId <= 0) throw new Error("STUDIO_IMAGE_GENERATION_USER_INVALID");
+  await ensureStudioImageGenerationUsageSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const periodKey = getStudioImageGenerationPeriodKey(date);
+  await db.execute(sql`
+    UPDATE \`studioImageGenerationUsage\`
+    SET \`requestCount\` = GREATEST(0, \`requestCount\` - 1)
+    WHERE \`userId\` = ${userId} AND \`periodKey\` = ${periodKey}
+  `);
+  return getStudioImageGenerationUsage(userId, date);
+}
+
 export type StoreDropshippingAccess = {
   enabled: boolean;
   source: "pro_plan" | "studio_grant" | "not_included";
