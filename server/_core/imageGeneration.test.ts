@@ -27,6 +27,7 @@ describe("image generation helper", () => {
     }));
     const request = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(request.body))).not.toHaveProperty("response_format");
+    expect(JSON.parse(String(request.body))).not.toHaveProperty("original_images");
     expect(storage.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^generated\//), Buffer.from("image-data"), "image/png");
   });
 

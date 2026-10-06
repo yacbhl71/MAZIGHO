@@ -80,14 +80,17 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
   if (!ENV.forgeApiKey) throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
   if (!options.prompt.trim()) throw new Error("Image generation prompt is required");
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     // Read from the production Forge catalogue through listImageModels().
     // `gpt-image-2` is the supported image-generation identifier for this key.
     model: options.model || "gpt-image-2",
     prompt: options.prompt,
     quality: options.quality || "medium",
-    original_images: options.originalImages || [],
   };
+  // gpt-image-2 rejects this parameter when it is empty. Keep it absent for
+  // ordinary generation and send it only for an explicit future image-editing
+  // request that actually supplies source material.
+  if (options.originalImages?.length) payload.original_images = options.originalImages;
 
   let lastFailure = "Image generation endpoint unavailable";
   for (const endpoint of getImageGenerationEndpoints()) {
