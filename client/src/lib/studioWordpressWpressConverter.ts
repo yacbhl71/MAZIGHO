@@ -14,6 +14,8 @@ export const STUDIO_WORDPRESS_CONVERSION_LIMITS = {
   maxProducts: 100,
   maxImages: 40,
   maxImageBytes: 5 * 1024 * 1024,
+  maxOutputArchiveBytes: 30 * 1024 * 1024,
+  outputMediaBudgetBytes: 24 * 1024 * 1024,
 } as const;
 
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
@@ -73,8 +75,10 @@ type SqlSnapshot = {
 export type StudioWordpressConversionResult = {
   archive: Blob;
   archiveName: string;
+  archiveBytes: number;
   productCount: number;
   imageCount: number;
+  excludedImageCount: number;
   sourceKind: string;
   currency: string;
   warnings: string[];
@@ -397,7 +401,7 @@ export async function convertStudioWordpressBackup(file: StudioWordpressBackupFi
   if (database.size > STUDIO_WORDPRESS_CONVERSION_LIMITS.maxDatabaseBytes) throw new StudioWordpressConversionError("La base WordPress dépasse 64 Mio : utilisez la conversion hors ligne assistée.");
   const snapshot = parseWordpressDatabase(textDecoder.decode(await reader.read(database.bodyOffset, database.bodyOffset + database.size)), currency);
   const imageSources = new Map<string, { target: string; entry: WpressEntry }>();
-  const imagePaths = new Map<string, string[]>();
+  const candidateImagePaths = new Map<string, string[]>();
   const warnings = [...snapshot.warnings];
   for (const product of snapshot.products) {
     for (const attachmentId of product.attachmentIds) {
@@ -411,10 +415,34 @@ export async function convertStudioWordpressBackup(file: StudioWordpressBackupFi
       const target = `images/wp-${product.id}-${attachmentId}-${slugFileName(relative.split("/").at(-1) || "image", `wordpress-${attachmentId}`)}`;
       if (imageSources.has(target)) continue;
       imageSources.set(target, { target, entry });
-      imagePaths.set(product.id, [...(imagePaths.get(product.id) || []), target]);
+      candidateImagePaths.set(product.id, [...(candidateImagePaths.get(product.id) || []), target]);
     }
   }
   if (!imageSources.size) warnings.push("Aucune image n’a été jointe : aucun lien vérifiable entre les médias et les fiches produit n’a été trouvé.");
+
+  // `unzipSync` is deliberately kept behind a 30 Mio catalogue budget in the
+  // ordinary importer. Preserve that guarantee here: linked media are selected
+  // deterministically until a conservative 24 Mio raw-media budget is reached.
+  // This leaves room for CSV, manifest and ZIP directory overhead even when an
+  // image does not compress at all.
+  const selectedImageSources = new Map<string, { target: string; entry: WpressEntry }>();
+  const imagePaths = new Map<string, string[]>();
+  let selectedMediaBytes = 0;
+  let excludedImageCount = 0;
+  for (const product of snapshot.products) {
+    for (const target of candidateImagePaths.get(product.id) || []) {
+      const source = imageSources.get(target);
+      if (!source) continue;
+      if (selectedMediaBytes + source.entry.size > STUDIO_WORDPRESS_CONVERSION_LIMITS.outputMediaBudgetBytes) {
+        excludedImageCount += 1;
+        continue;
+      }
+      selectedImageSources.set(target, source);
+      selectedMediaBytes += source.entry.size;
+      imagePaths.set(product.id, [...(imagePaths.get(product.id) || []), target]);
+    }
+  }
+  if (excludedImageCount) warnings.push(`${excludedImageCount} visuel(s) lié(s) ont été écartés pour conserver un ZIP catalogue inférieur à 30 Mio. Ils pourront être ajoutés plus tard depuis l’éditeur de catalogue.`);
 
   const archiveFiles: Record<string, Uint8Array> = {};
   archiveFiles["catalogue.csv"] = strToU8(buildCatalogueCsv(snapshot.products, imagePaths));
@@ -425,16 +453,19 @@ export async function convertStudioWordpressBackup(file: StudioWordpressBackupFi
     rightsConfirmed: false,
     catalogue: "catalogue.csv",
     imageMappings: Object.fromEntries(snapshot.products.flatMap(product => imagePaths.get(product.id)?.length ? [[product.name, imagePaths.get(product.id)]] : [])),
-    conversion: { tool: "Studio local converter", products: snapshot.products.length, linkedImages: imageSources.size, excludedData: ["users", "customers", "orders", "payments", "passwords", "plugins", "themes", "settings"] },
+    conversion: { tool: "Studio local converter", products: snapshot.products.length, linkedImages: selectedImageSources.size, excludedLinkedImages: excludedImageCount, mediaBudgetBytes: STUDIO_WORDPRESS_CONVERSION_LIMITS.outputMediaBudgetBytes, excludedData: ["users", "customers", "orders", "payments", "passwords", "plugins", "themes", "settings"] },
   }, null, 2)}\n`);
-  archiveFiles["marque/wordpress-conversion-report.json"] = strToU8(`${JSON.stringify({ source: `WordPress ${snapshot.sourceKind}`, products: snapshot.products.length, linkedImages: imageSources.size, warnings, note: "Ce rapport ne contient ni données clients, ni commandes, ni réglages WordPress." }, null, 2)}\n`);
-  for (const [target, source] of Array.from(imageSources.entries())) archiveFiles[target] = await reader.read(source.entry.bodyOffset, source.entry.bodyOffset + source.entry.size);
+  archiveFiles["marque/wordpress-conversion-report.json"] = strToU8(`${JSON.stringify({ source: `WordPress ${snapshot.sourceKind}`, products: snapshot.products.length, linkedImages: selectedImageSources.size, excludedLinkedImages: excludedImageCount, selectedMediaBytes, mediaBudgetBytes: STUDIO_WORDPRESS_CONVERSION_LIMITS.outputMediaBudgetBytes, warnings, note: "Ce rapport ne contient ni données clients, ni commandes, ni réglages WordPress." }, null, 2)}\n`);
+  for (const [target, source] of Array.from(selectedImageSources.entries())) archiveFiles[target] = await reader.read(source.entry.bodyOffset, source.entry.bodyOffset + source.entry.size);
   const zipped = zipSync(archiveFiles, { level: 9 });
+  if (zipped.byteLength > STUDIO_WORDPRESS_CONVERSION_LIMITS.maxOutputArchiveBytes) throw new StudioWordpressConversionError("Le ZIP catalogue généré dépasse 30 Mio malgré la sélection média. Utilisez la conversion hors ligne assistée.");
   return {
     archive: new Blob([zipped.buffer as ArrayBuffer], { type: "application/zip" }),
     archiveName: archiveOutputName(sourceLabel),
+    archiveBytes: zipped.byteLength,
     productCount: snapshot.products.length,
-    imageCount: imageSources.size,
+    imageCount: selectedImageSources.size,
+    excludedImageCount,
     sourceKind: snapshot.sourceKind,
     currency: snapshot.currency,
     warnings,

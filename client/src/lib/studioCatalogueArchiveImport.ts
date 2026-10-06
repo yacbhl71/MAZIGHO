@@ -39,7 +39,9 @@ export type StudioCatalogueArchiveVariant = {
 
 export type StudioCatalogueArchivePreview = {
   sourceName: string;
-  sourceKind: "csv" | "zip";
+  sourceKind: "csv" | "zip" | "wpress";
+  sourceBytes: number;
+  declaredExtractedBytes: number | null;
   rows: StoreCatalogueImportRow[];
   issues: StoreCatalogueImportIssue[];
   csvPath: string | null;
@@ -55,6 +57,7 @@ export type StudioCatalogueArchivePreview = {
 
 function emptyPreview(input: Pick<StudioCatalogueArchivePreview, "sourceName" | "sourceKind"> & Partial<StudioCatalogueArchivePreview>): StudioCatalogueArchivePreview {
   return {
+    sourceBytes: 0, declaredExtractedBytes: null,
     rows: [], issues: [], csvPath: null, archiveEntryCount: 0, ignoredAssetCount: 0,
     manifest: null, assets: [], categoryCsvFound: false, variants: [], contentPaths: [], brandPaths: [],
     ...input,
@@ -63,6 +66,10 @@ function emptyPreview(input: Pick<StudioCatalogueArchivePreview, "sourceName" | 
 
 function issue(message: string): StoreCatalogueImportIssue {
   return { line: 1, message };
+}
+
+function formatMio(bytes: number) {
+  return `${(bytes / (1024 * 1024)).toLocaleString("fr-CH", { maximumFractionDigits: 1 })} Mio`;
 }
 
 function hasUnsafePath(path: string) {
@@ -151,33 +158,39 @@ function addManifestImages(rows: StoreCatalogueImportRow[], mappings: Record<str
  */
 export async function parseStudioCatalogueArchive(file: StudioCatalogueArchiveFile): Promise<StudioCatalogueArchivePreview> {
   const sourceName = file.name.trim() || "catalogue";
-  const isZip = sourceName.toLocaleLowerCase("fr-CH").endsWith(".zip");
-  if (file.size <= 0) return emptyPreview({ sourceName, sourceKind: isZip ? "zip" : "csv", issues: [issue("Le fichier est vide.")] });
-  if (file.size > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxArchiveBytes) return emptyPreview({ sourceName, sourceKind: isZip ? "zip" : "csv", issues: [issue("Le fichier dépasse 30 Mio. Préparez un ZIP plus léger.")] });
+  const lowerSourceName = sourceName.toLocaleLowerCase("fr-CH");
+  const isZip = lowerSourceName.endsWith(".zip");
+  const isWpress = lowerSourceName.endsWith(".wpress");
+  const base = { sourceName, sourceKind: isWpress ? "wpress" as const : isZip ? "zip" as const : "csv" as const, sourceBytes: file.size };
+  if (file.size <= 0) return emptyPreview({ ...base, issues: [issue("Le fichier est vide.")] });
+  if (isWpress) return emptyPreview({ ...base, issues: [issue(`Cette sauvegarde WordPress mesure ${formatMio(file.size)}. Utilisez « Convertir un .wpress » : la sauvegarde reste locale et le convertisseur générera un catalogue MAZIGHO allégé.`)] });
+  if (file.size > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxArchiveBytes) return emptyPreview({ ...base, issues: [issue(`Le fichier compressé mesure ${formatMio(file.size)}, au-delà de la limite de ${formatMio(STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxArchiveBytes)} du lecteur ZIP navigateur. N’augmentez pas cette limite : si ce ZIP enveloppe un .wpress, utilisez « Convertir un .wpress » ; sinon préparez un catalogue MAZIGHO plus léger.`)] });
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (!isZip) {
-    if (!sourceName.toLocaleLowerCase("fr-CH").endsWith(".csv")) return emptyPreview({ sourceName, sourceKind: "csv", issues: [issue("Choisissez un fichier .zip ou .csv.")] });
-    if (bytes.byteLength > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxCsvBytes) return emptyPreview({ sourceName, sourceKind: "csv", issues: [issue("Le CSV dépasse 2 Mio.")] });
+    if (!lowerSourceName.endsWith(".csv")) return emptyPreview({ ...base, issues: [issue("Choisissez un fichier .zip ou .csv, ou utilisez le convertisseur dédié pour un .wpress.")] });
+    if (bytes.byteLength > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxCsvBytes) return emptyPreview({ ...base, issues: [issue(`Le CSV mesure ${formatMio(bytes.byteLength)}, au-delà de sa limite de ${formatMio(STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxCsvBytes)}.`)] });
     const parsed = parseStoreCatalogueImportCsv(decodeText(bytes));
-    return { ...emptyPreview({ sourceName, sourceKind: "csv" }), ...parsed, csvPath: sourceName, archiveEntryCount: 1 };
+    return { ...emptyPreview(base), ...parsed, csvPath: sourceName, archiveEntryCount: 1, declaredExtractedBytes: bytes.byteLength };
   }
 
   let entryCount = 0;
   let ignoredAssetCount = 0;
   let extractedBytes = 0;
-  let unsafePath = false;
-  let archiveTooLarge = false;
-  let csvTooLarge = false;
-  let assetTooLarge = false;
-  try {
-    const archive = unzipSync(bytes, {
-      filter: entry => {
-        entryCount += 1;
-        if (entryCount > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxEntries) { archiveTooLarge = true; return false; }
-        if (hasUnsafePath(entry.name)) { unsafePath = true; return false; }
-        extractedBytes += entry.originalSize;
-        if (extractedBytes > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxExtractedBytes) { archiveTooLarge = true; return false; }
+    let unsafePath = false;
+    let archiveTooLarge = false;
+    let csvTooLarge = false;
+    let assetTooLarge = false;
+    const wpressEntries: Array<{ name: string; size: number }> = [];
+    try {
+      const archive = unzipSync(bytes, {
+        filter: entry => {
+          entryCount += 1;
+          if (entryCount > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxEntries) { archiveTooLarge = true; return false; }
+          if (hasUnsafePath(entry.name)) { unsafePath = true; return false; }
+          extractedBytes += entry.originalSize;
+          if (entry.name.toLocaleLowerCase("fr-CH").endsWith(".wpress")) { wpressEntries.push({ name: entry.name, size: entry.originalSize }); return false; }
+          if (extractedBytes > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxExtractedBytes) { archiveTooLarge = true; return false; }
         const accepted = isCsvPath(entry.name) || fileName(entry.name) === "manifest.json" || isContentPath(entry.name) || isImagePath(entry.name) || entry.name.startsWith("marque/");
         if (!accepted) { if (!entry.name.endsWith("/")) ignoredAssetCount += 1; return false; }
         if (isCsvPath(entry.name) && entry.originalSize > STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxCsvBytes) { csvTooLarge = true; return false; }
@@ -187,11 +200,13 @@ export async function parseStudioCatalogueArchive(file: StudioCatalogueArchiveFi
       },
     });
 
-    const base = emptyPreview({ sourceName, sourceKind: "zip", archiveEntryCount: entryCount, ignoredAssetCount });
-    if (unsafePath) return { ...base, issues: [issue("Le ZIP contient un chemin de fichier non autorisé.")] };
-    if (archiveTooLarge) return { ...base, issues: [issue("Le ZIP dépasse les limites de sécurité (120 fichiers ou 42 Mio décompressés).") ] };
-    if (csvTooLarge) return { ...base, issues: [issue("Un CSV du ZIP dépasse 2 Mio.")] };
-    if (assetTooLarge) return { ...base, issues: [issue("Une image du ZIP dépasse 5 Mio. Réduisez-la avant l’import.")] };
+    const previewBase = emptyPreview({ ...base, archiveEntryCount: entryCount, ignoredAssetCount, declaredExtractedBytes: extractedBytes });
+    if (unsafePath) return { ...previewBase, issues: [issue("Le ZIP contient un chemin de fichier non autorisé.")] };
+    if (wpressEntries.length === 1) return { ...previewBase, issues: [issue(`Le ZIP contient la sauvegarde WordPress « ${wpressEntries[0].name} » (${formatMio(wpressEntries[0].size)} décompressés). Utilisez « Convertir un .wpress » : elle ne sera pas envoyée et un ZIP catalogue léger sera généré localement.`)] };
+    if (wpressEntries.length > 1) return { ...previewBase, issues: [issue("Le ZIP contient plusieurs sauvegardes .wpress. Utilisez le convertisseur WordPress avec un ZIP qui contient exactement une seule sauvegarde.")] };
+    if (archiveTooLarge) return { ...previewBase, issues: [issue(`Le ZIP annonce ${entryCount} entrées et ${formatMio(extractedBytes)} décompressés. Limites conservées : ${STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxEntries} entrées et ${formatMio(STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxExtractedBytes)}. Préparez un catalogue plus léger ; ne décompressez pas une archive massive dans le navigateur.`)] };
+    if (csvTooLarge) return { ...previewBase, issues: [issue(`Un CSV du ZIP dépasse ${formatMio(STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxCsvBytes)}.`)] };
+    if (assetTooLarge) return { ...previewBase, issues: [issue(`Une image du ZIP dépasse ${formatMio(STUDIO_CATALOGUE_ARCHIVE_LIMITS.maxAssetBytes)}. Réduisez-la avant l’import.`)] };
 
     const manifestPath = Object.keys(archive).find(path => fileName(path) === "manifest.json");
     const manifestData = manifestPath ? parseManifest(decodeText(archive[manifestPath])) : null;
@@ -199,7 +214,7 @@ export async function parseStudioCatalogueArchive(file: StudioCatalogueArchiveFi
     const preferredPath = manifestData?.cataloguePath && archive[manifestData.cataloguePath] ? manifestData.cataloguePath : null;
     const canonicalPath = allCsvPaths.find(path => fileName(path) === "catalogue.csv") || allCsvPaths.find(path => fileName(path) === "products.csv") || null;
     const csvPath = preferredPath || canonicalPath;
-    if (!csvPath) return { ...base, manifest: manifestData ? { source: manifestData.source, currency: manifestData.currency, language: manifestData.language, rightsConfirmed: manifestData.rightsConfirmed } : null, issues: [issue("Aucun catalogue.csv ou products.csv n’a été trouvé dans ce ZIP.")] };
+    if (!csvPath) return { ...previewBase, manifest: manifestData ? { source: manifestData.source, currency: manifestData.currency, language: manifestData.language, rightsConfirmed: manifestData.rightsConfirmed } : null, issues: [issue("Aucun catalogue.csv ou products.csv n’a été trouvé dans ce ZIP.")] };
 
     const parsed = parseStoreCatalogueImportCsv(decodeText(archive[csvPath]));
     const rows = addManifestImages(parsed.rows, manifestData?.imageMappings || {});
@@ -208,7 +223,7 @@ export async function parseStudioCatalogueArchive(file: StudioCatalogueArchiveFi
     const contentPaths = Object.keys(archive).filter(isContentPath).sort((left, right) => left.localeCompare(right, "fr-CH"));
     const brandPaths = Object.keys(archive).filter(path => path.startsWith("marque/")).sort((left, right) => left.localeCompare(right, "fr-CH"));
     return {
-      ...base,
+      ...previewBase,
       rows,
       issues: parsed.issues,
       csvPath,
@@ -220,7 +235,7 @@ export async function parseStudioCatalogueArchive(file: StudioCatalogueArchiveFi
       brandPaths,
     };
   } catch {
-    return emptyPreview({ sourceName, sourceKind: "zip", archiveEntryCount: entryCount, ignoredAssetCount, issues: [issue("Le ZIP ne peut pas être lu. Vérifiez qu’il n’est ni chiffré ni endommagé.")] });
+    return emptyPreview({ ...base, archiveEntryCount: entryCount, ignoredAssetCount, declaredExtractedBytes: extractedBytes || null, issues: [issue("Le ZIP ne peut pas être lu. Vérifiez qu’il n’est ni chiffré ni endommagé.")] });
   }
 }
 

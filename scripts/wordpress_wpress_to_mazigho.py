@@ -45,6 +45,8 @@ MAX_DATABASE_BYTES = 64 * 1024 * 1024
 MAX_PRODUCTS = 100
 MAX_IMAGES = 40
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+MAX_OUTPUT_ARCHIVE_BYTES = 30 * 1024 * 1024
+OUTPUT_MEDIA_BUDGET_BYTES = 24 * 1024 * 1024
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 DEFAULT_CATEGORY = "Catalogue WordPress"
 
@@ -587,6 +589,32 @@ def image_member_map(entries: dict[str, WpressEntry], snapshot: SqlSnapshot) -> 
     return mapping, warnings
 
 
+def fit_image_members_to_studio_archive(
+    entries: dict[str, WpressEntry], image_members: dict[str, list[tuple[str, str]]]
+) -> tuple[dict[str, list[tuple[str, str]]], int, list[str]]:
+    """Keep deterministic linked media within the browser-safe ZIP budget."""
+    selected: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    selected_bytes = 0
+    excluded = 0
+    for product_id, members in image_members.items():
+        for source_path, target_path in members:
+            entry = entries.get(source_path)
+            if not entry:
+                continue
+            if selected_bytes + entry.size > OUTPUT_MEDIA_BUDGET_BYTES:
+                excluded += 1
+                continue
+            selected[product_id].append((source_path, target_path))
+            selected_bytes += entry.size
+    warnings = []
+    if excluded:
+        warnings.append(
+            f"{excluded} visuel(s) lié(s) ont été écartés pour conserver un ZIP catalogue inférieur à 30 Mio. "
+            "Ils pourront être ajoutés plus tard depuis l’éditeur de catalogue."
+        )
+    return dict(selected), excluded, warnings
+
+
 def write_catalogue_csv(products: list[ImportedProduct], image_paths: dict[str, list[str]]) -> bytes:
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=CATALOGUE_HEADERS, lineterminator="\r\n")
@@ -618,6 +646,7 @@ def convert_wordpress_wpress(source: Path, output: Path, currency: str | None = 
     snapshot = parse_wordpress_database(database, currency.upper() if currency else None)
     entry_map = {entry.path: entry for entry in entries}
     image_members, image_warnings = image_member_map(entry_map, snapshot)
+    image_members, output_skipped_image_count, output_budget_warnings = fit_image_members_to_studio_archive(entry_map, image_members)
     image_paths = {product_id: [target for _, target in members] for product_id, members in image_members.items()}
     source_images = {source_path for members in image_members.values() for source_path, _ in members}
     if not source_images:
@@ -636,6 +665,8 @@ def convert_wordpress_wpress(source: Path, output: Path, currency: str | None = 
             "sourceSha256": sha256_file(source),
             "products": len(snapshot.products),
             "linkedImages": sum(len(paths) for paths in image_paths.values()),
+            "excludedLinkedImages": output_skipped_image_count,
+            "mediaBudgetBytes": OUTPUT_MEDIA_BUDGET_BYTES,
             "excludedData": ["users", "customers", "orders", "payments", "passwords", "plugins", "themes", "settings"],
         },
     }
@@ -643,7 +674,9 @@ def convert_wordpress_wpress(source: Path, output: Path, currency: str | None = 
         "source": manifest["source"],
         "products": len(snapshot.products),
         "linkedImages": manifest["conversion"]["linkedImages"],
-        "warnings": snapshot.warnings + image_warnings,
+        "excludedLinkedImages": output_skipped_image_count,
+        "mediaBudgetBytes": OUTPUT_MEDIA_BUDGET_BYTES,
+        "warnings": snapshot.warnings + image_warnings + output_budget_warnings,
         "note": "Ce rapport ne contient ni données clients, ni commandes, ni réglages WordPress.",
     }
 
@@ -658,6 +691,8 @@ def convert_wordpress_wpress(source: Path, output: Path, currency: str | None = 
             for product in snapshot.products:
                 for source_path, target_path in image_members.get(product.post_id, []):
                     archive.writestr(target_path, image_bytes[source_path])
+        if output.stat().st_size > MAX_OUTPUT_ARCHIVE_BYTES:
+            raise ConversionError("Le ZIP catalogue généré dépasse 30 Mio malgré la sélection média. Réduisez les médias ou utilisez une conversion hors ligne assistée.")
     except Exception:
         output.unlink(missing_ok=True)
         raise
@@ -667,10 +702,10 @@ def convert_wordpress_wpress(source: Path, output: Path, currency: str | None = 
         output_path=output,
         product_count=len(snapshot.products),
         image_count=sum(len(paths) for paths in image_paths.values()),
-        skipped_image_count=0,
+        skipped_image_count=output_skipped_image_count,
         source_kind=snapshot.source_kind,
         currency=snapshot.currency,
-        warnings=snapshot.warnings + image_warnings,
+        warnings=snapshot.warnings + image_warnings + output_budget_warnings,
     )
 
 

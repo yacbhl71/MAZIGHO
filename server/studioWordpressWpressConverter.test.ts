@@ -1,6 +1,6 @@
 import { strToU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { convertStudioWordpressBackup, StudioWordpressConversionError } from "../client/src/lib/studioWordpressWpressConverter";
+import { convertStudioWordpressBackup, STUDIO_WORDPRESS_CONVERSION_LIMITS, StudioWordpressConversionError } from "../client/src/lib/studioWordpressWpressConverter";
 
 const encoder = new TextEncoder();
 
@@ -51,7 +51,8 @@ describe("Studio WordPress WPRESS converter", () => {
     const catalogue = new TextDecoder().decode(archive["catalogue.csv"]);
     const manifest = new TextDecoder().decode(archive["manifest.json"]);
 
-    expect(converted).toMatchObject({ productCount: 1, imageCount: 0, sourceKind: "WooCommerce", currency: "DZD" });
+    expect(converted).toMatchObject({ productCount: 1, imageCount: 0, excludedImageCount: 0, sourceKind: "WooCommerce", currency: "DZD" });
+    expect(converted.archiveBytes).toBeLessThanOrEqual(STUDIO_WORDPRESS_CONVERSION_LIMITS.maxOutputArchiveBytes);
     expect(converted.archiveName).toBe("catalogue-mazigho-import.zip");
     expect(catalogue).toContain("Affiche test");
     expect(catalogue).not.toContain("password");

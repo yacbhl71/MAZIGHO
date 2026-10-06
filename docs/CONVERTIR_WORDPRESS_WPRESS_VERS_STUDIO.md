@@ -68,7 +68,8 @@ Le champ `rightsConfirmed` du manifeste est toujours défini à `false` : le scr
 - source `.wpress` ou ZIP externe : **2 Gio** maximum ;
 - analyse : **30 000 entrées** et **1 Gio** de contenu déclaré maximum ;
 - `database.sql` : **64 Mio** maximum ;
-- sortie compatible avec l’atelier Studio : **100 fiches** et **40 images** maximum ;
+- sortie compatible avec l’atelier Studio : **30 Mio** maximum, **100 fiches** et **40 images** maximum ;
+- médias de sortie : budget brut de **24 Mio** ; les visuels liés qui dépassent ce budget sont écartés et déclarés dans le rapport, afin que le ZIP puisse être relu par Studio sans décompression massive ;
 - image : **5 Mio** maximum ;
 - chemins absolus, `..`, `.` et antislashs : refusés ;
 - fichier de sortie existant : refusé pour éviter tout écrasement.

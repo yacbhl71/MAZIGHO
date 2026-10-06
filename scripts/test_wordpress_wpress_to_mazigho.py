@@ -73,6 +73,7 @@ class WordpressWpressConverterTests(unittest.TestCase):
             self.assertEqual(result.product_count, 2)
             self.assertEqual(result.image_count, 1)
             self.assertEqual(result.currency, "CHF")
+            self.assertLessEqual(output.stat().st_size, converter.MAX_OUTPUT_ARCHIVE_BYTES)
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(set(archive.namelist()), {
                     "manifest.json",
@@ -109,6 +110,20 @@ class WordpressWpressConverterTests(unittest.TestCase):
             with self.assertRaises(converter.ConversionError):
                 converter.convert_wordpress_wpress(source, output)
             self.assertEqual(output.read_bytes(), b"do-not-overwrite")
+
+    def test_reserves_a_browser_safe_media_budget(self) -> None:
+        entries = {
+            "uploads/first.jpg": converter.WpressEntry(path="uploads/first.jpg", size=converter.OUTPUT_MEDIA_BUDGET_BYTES),
+            "uploads/second.jpg": converter.WpressEntry(path="uploads/second.jpg", size=1),
+        }
+        selected, excluded, warnings = converter.fit_image_members_to_studio_archive(entries, {
+            "one": [("uploads/first.jpg", "images/first.jpg")],
+            "two": [("uploads/second.jpg", "images/second.jpg")],
+        })
+
+        self.assertEqual(selected, {"one": [("uploads/first.jpg", "images/first.jpg")]})
+        self.assertEqual(excluded, 1)
+        self.assertTrue(warnings)
 
 
 if __name__ == "__main__":

@@ -36,7 +36,9 @@ Un premier adaptateur **WordPress `.wpress`** est disponible en expérimentation
 
 ### Convertisseur WordPress directement dans Studio
 
-La carte **« Convertir un `.wpress` »**, placée à côté du chargeur ZIP/CSV dans **Studio → Importer une boutique**, traite le fichier **dans le navigateur de l’opérateur** : la sauvegarde brute n’est ni téléversée ni stockée sur MAZIGHO. Elle accepte un fichier `.wpress` jusqu’à **512 Mio**, ou un ZIP jusqu’à **256 Mio** qui contient exactement un seul `.wpress`. Le ZIP MAZIGHO généré est ouvert immédiatement dans l’aperçu normal ; il peut aussi être téléchargé.
+La carte **« Convertir un `.wpress` »**, placée à côté du chargeur ZIP/CSV dans **Studio → Importer une boutique**, traite le fichier **dans le navigateur de l’opérateur** : la sauvegarde brute n’est ni téléversée ni stockée sur MAZIGHO. Elle accepte un fichier `.wpress` jusqu’à **512 Mio**, ou un ZIP jusqu’à **256 Mio** qui contient exactement un seul `.wpress`.
+
+Le convertisseur produit ensuite un ZIP MAZIGHO **catalogue léger**, inférieur ou égal à **30 Mio** afin qu’il soit compatible avec le lecteur ZIP sécurisé de l’atelier. Il conserve le catalogue, les variantes et les médias explicitement liés qui entrent dans un budget média de 24 Mio. Les médias liés qui dépassent ce budget sont exclus de l’archive générée et signalés dans le rapport de conversion ; ils peuvent être ajoutés plus tard depuis l’éditeur de catalogue. Le ZIP MAZIGHO généré est ouvert immédiatement dans l’aperçu normal ; il peut aussi être téléchargé.
 
 La conversion n’importe rien à elle seule. L’opérateur contrôle ensuite les prix et la devise, prépare une nouvelle boutique, confirme les droits et confirme l’application. Les mêmes garde-fous de l’atelier s’appliquent au ZIP converti : maximum 100 fiches, 40 images liées et 5 Mio par image. Au-delà, la conversion hors ligne assistée reste le parcours approprié.
 
@@ -145,6 +147,8 @@ productName,label,sku,priceAdjustment,stock,status
 - **120 Kio** maximum par fichier éditorial détecté ;
 - pas de ZIP chiffré, endommagé, ambigu ou contenant un chemin dangereux ;
 - un catalogue de **100 produits maximum** par opération.
+
+Une archive ZIP lourde n’est volontairement pas décompressée dans le navigateur. L’atelier indique sa taille compressée et, lorsqu’elle peut être lue, sa taille décompressée annoncée. Pour un `.wpress` direct ou un ZIP qui contient exactement une sauvegarde `.wpress`, utiliser le convertisseur local au lieu de relever les plafonds. Un import direct d’archives lourdes avec tous les médias nécessiterait ultérieurement une ingestion serveur streaming et du stockage objet ; ce n’est pas activé dans ce parcours privé.
 
 ## 8. Procédure d’essai conseillée
 

@@ -55,5 +55,24 @@ describe("Studio universal archive import", () => {
     expect(preview.sourceKind).toBe("csv");
     expect(preview.issues).toEqual([]);
     expect(preview.rows[0]).toMatchObject({ name: "Forêt violette", priceCents: 2450, localImagePaths: ["images/foret.webp"] });
+    expect(preview.sourceBytes).toBeGreaterThan(0);
+    expect(preview.declaredExtractedBytes).toBeGreaterThan(0);
+  });
+
+  it("guides a local WordPress conversion instead of attempting a direct import", async () => {
+    const preview = await parseStudioCatalogueArchive(asUpload("sauvegarde.wpress", strToU8("wordpress-backup")));
+
+    expect(preview.rows).toEqual([]);
+    expect(preview.issues[0]?.message).toContain("Convertir un .wpress");
+    expect(preview.sourceBytes).toBeGreaterThan(0);
+  });
+
+  it("detects an outer ZIP containing one WordPress backup before importing anything", async () => {
+    const archive = zipSync({ "wordpress/sauvegarde.wpress": strToU8("wordpress-backup") });
+    const preview = await parseStudioCatalogueArchive(asUpload("wordpress.zip", archive));
+
+    expect(preview.rows).toEqual([]);
+    expect(preview.issues[0]?.message).toContain("Convertir un .wpress");
+    expect(preview.declaredExtractedBytes).toBeGreaterThan(0);
   });
 });
