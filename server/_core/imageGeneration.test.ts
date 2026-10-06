@@ -25,7 +25,20 @@ describe("image generation helper", () => {
       method: "POST",
       body: expect.stringContaining("gpt-image-2"),
     }));
+    const request = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).not.toHaveProperty("response_format");
     expect(storage.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^generated\//), Buffer.from("image-data"), "image/png");
+  });
+
+  it("downloads a generated URL into managed storage", async () => {
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ url: "https://images.example.test/generated.png" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(Buffer.from("remote-image"), { status: 200, headers: { "content-type": "image/png" } })) as unknown as typeof fetch;
+    storage.storagePut.mockResolvedValue({ url: "https://storage.example.test/generated/from-url.png" });
+
+    await expect(generateImage({ prompt: "A warm studio flat lay" })).resolves.toEqual({ url: "https://storage.example.test/generated/from-url.png" });
+    expect(global.fetch).toHaveBeenNthCalledWith(2, expect.any(URL));
+    expect(storage.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^generated\//), Buffer.from("remote-image"), "image/png");
   });
 
   it("falls back to the legacy route only when the primary image endpoint is absent", async () => {

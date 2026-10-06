@@ -26,11 +26,12 @@ export type GenerateImageResponse = {
 };
 
 type ForgeImageResponse = {
-  data?: Array<{ b64_json?: string; mime_type?: string }>;
+  data?: Array<{ b64_json?: string; mime_type?: string; url?: string }>;
   image?: { b64Json?: string; mimeType?: string };
 };
 
 const normalizeForgeBase = () => ENV.forgeApiUrl.replace(/\/$/, "");
+const MAX_GENERATED_IMAGE_BYTES = 20 * 1024 * 1024;
 
 function getImageGenerationEndpoints() {
   const base = normalizeForgeBase();
@@ -50,6 +51,30 @@ function parseGeneratedImage(body: ForgeImageResponse) {
   return { buffer: Buffer.from(base64.replace(/^data:[^;]+;base64,/, ""), "base64"), mimeType };
 }
 
+async function persistGeneratedImage(body: ForgeImageResponse): Promise<GenerateImageResponse> {
+  const sourceUrl = body.data?.[0]?.url;
+  if (sourceUrl) {
+    const source = new URL(sourceUrl);
+    if (source.protocol !== "https:") throw new Error("Image generation returned an unsafe image URL");
+    const response = await fetch(source);
+    if (!response.ok) throw new Error(`Generated image download failed: ${response.status} ${response.statusText}`);
+    const mimeType = response.headers.get("content-type")?.split(";", 1)[0] || "image/png";
+    if (!mimeType.startsWith("image/")) throw new Error("Generated image download returned an unsupported content type");
+    const advertisedSize = Number(response.headers.get("content-length") || 0);
+    if (Number.isFinite(advertisedSize) && advertisedSize > MAX_GENERATED_IMAGE_BYTES) throw new Error("Generated image exceeds the size limit");
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > MAX_GENERATED_IMAGE_BYTES) throw new Error("Generated image exceeds the size limit");
+    const extension = mimeType === "image/jpeg" ? "jpg" : "png";
+    const { url } = await storagePut(`generated/${Date.now()}.${extension}`, buffer, mimeType);
+    return { url };
+  }
+
+  const image = parseGeneratedImage(body);
+  const extension = image.mimeType === "image/jpeg" ? "jpg" : "png";
+  const { url } = await storagePut(`generated/${Date.now()}.${extension}`, image.buffer, image.mimeType);
+  return { url };
+}
+
 export async function generateImage(options: GenerateImageOptions): Promise<GenerateImageResponse> {
   if (!ENV.forgeApiUrl) throw new Error("BUILT_IN_FORGE_API_URL is not configured");
   if (!ENV.forgeApiKey) throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
@@ -61,7 +86,6 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     model: options.model || "gpt-image-2",
     prompt: options.prompt,
     quality: options.quality || "medium",
-    response_format: "b64_json",
     original_images: options.originalImages || [],
   };
 
@@ -86,10 +110,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
       throw new Error(`Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`);
     }
 
-    const image = parseGeneratedImage(await response.json() as ForgeImageResponse);
-    const extension = image.mimeType === "image/jpeg" ? "jpg" : "png";
-    const { url } = await storagePut(`generated/${Date.now()}.${extension}`, image.buffer, image.mimeType);
-    return { url };
+    return persistGeneratedImage(await response.json() as ForgeImageResponse);
   }
 
   throw new Error(lastFailure);
