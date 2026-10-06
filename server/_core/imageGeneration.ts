@@ -7,7 +7,7 @@
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 
-export type ImageGenerationModel = "default" | string;
+export type ImageGenerationModel = "gpt-image-2" | string;
 export type ImageGenerationQuality = "low" | "medium" | "high";
 
 export type GenerateImageOptions = {
@@ -56,9 +56,9 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
   if (!options.prompt.trim()) throw new Error("Image generation prompt is required");
 
   const payload = {
-    // The current Manus image service selects its supported production model
-    // behind the documented "default" alias.
-    model: options.model || "default",
+    // Read from the production Forge catalogue through listImageModels().
+    // `gpt-image-2` is the supported image-generation identifier for this key.
+    model: options.model || "gpt-image-2",
     prompt: options.prompt,
     quality: options.quality || "medium",
     response_format: "b64_json",
@@ -111,8 +111,11 @@ export async function listImageModels(): Promise<{ models: Array<{ model: string
     }
     if (!response.ok) throw new Error(`Image model listing failed: ${response.status} ${response.statusText}`);
     const body = await response.json() as { data?: Array<{ id?: string; model?: string }> };
+    const models = (body.data || []).flatMap(item => item.id || item.model ? [{ model: item.model || item.id!, id: item.id || item.model! }] : []);
     return {
-      models: (body.data || []).flatMap(item => item.id || item.model ? [{ model: item.model || item.id!, id: item.id || item.model! }] : []),
+      // The platform can review its usable image models without exposing the
+      // broader text, audio, or video model catalogue.
+      models: models.filter(({ id }) => /(?:^|[\/_-])image(?:[\/_-]|$)|image-generation|flash-image|pro-image/i.test(id)),
     };
   }
 

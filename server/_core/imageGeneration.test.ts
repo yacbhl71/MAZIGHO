@@ -23,7 +23,7 @@ describe("image generation helper", () => {
     await expect(generateImage({ prompt: "A bright creative atelier" })).resolves.toEqual({ url: "https://storage.example.test/generated/image.png" });
     expect(global.fetch).toHaveBeenCalledWith("https://forge.example.test/v1/images/generations", expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining("default"),
+      body: expect.stringContaining("gpt-image-2"),
     }));
     expect(storage.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^generated\//), Buffer.from("image-data"), "image/png");
   });
@@ -47,13 +47,13 @@ describe("image generation helper", () => {
 
   it("lists the model identifiers exposed by the current Forge key", async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: [{ id: "MODEL_GPT_IMAGE_2" }, { model: "MODEL_NANO_BANANA" }],
+      data: [{ id: "gpt-image-2" }, { model: "vertex_ai/gemini-2.5-flash-image" }, { id: "gpt-5.4" }],
     }), { status: 200 })) as unknown as typeof fetch;
 
     await expect(listImageModels()).resolves.toEqual({
       models: [
-        { model: "MODEL_GPT_IMAGE_2", id: "MODEL_GPT_IMAGE_2" },
-        { model: "MODEL_NANO_BANANA", id: "MODEL_NANO_BANANA" },
+        { model: "gpt-image-2", id: "gpt-image-2" },
+        { model: "vertex_ai/gemini-2.5-flash-image", id: "vertex_ai/gemini-2.5-flash-image" },
       ],
     });
     expect(global.fetch).toHaveBeenCalledWith("https://forge.example.test/v1/models", expect.any(Object));
