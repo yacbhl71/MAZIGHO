@@ -4,6 +4,8 @@
 >
 > Cet outil prépare une copie contrôlée dans une **nouvelle boutique isolée** créée depuis son propre parcours. Il ne peut pas modifier une boutique existante et n’active aucun panier, paiement, domaine, abonnement ou e-mail.
 
+Pour repartir d’une **boutique MAZIGHO existante** plutôt que d’une archive externe, utiliser le parcours distinct [Copier une boutique existante](./COPIER_BOUTIQUE_EXISTANTE_STUDIO.md). Les deux parcours créent toujours une nouvelle boutique `setup` isolée ; aucun ne peut importer vers une boutique existante.
+
 ## 1. Objectif
 
 Le format **MAZIGHO Import Archive** permet de préparer une migration quel que soit le point de départ : Shopify, WooCommerce, PrestaShop, Wix, Squarespace, Etsy, CSV/Excel ou ancien site développé sur mesure.

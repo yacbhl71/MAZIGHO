@@ -39,6 +39,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.system.verifyTransactionalEmail()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.sendTransactionalEmailTest()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getStoreCopySources()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getStoreCopySourcePreview({ sourceStoreId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCatalogueImportTargets()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCustomDomainRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getIntegrationRequestRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -79,6 +81,17 @@ describe("MAZIGHO Studio platform guard", () => {
       businessType: "vetements",
       customBusinessTheme: "",
       preferredCurrency: "DZD",
+    })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.createStoreCopyProvisioningDraft({
+      displayName: "Copie cliente",
+      requestedDomain: "copie-client.test",
+      ownerName: "Client Test",
+      ownerEmail: "client@example.test",
+      businessType: "autre",
+      customBusinessTheme: "Base copiée",
+      preferredCurrency: "CHF",
+      copySourceStoreId: 1,
+      copySelection: { storefrontStyle: true },
     })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateProvisioningDraft({
       id: 1,

@@ -885,6 +885,17 @@ export const studioProvisioningDraftInputSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
+const studioStoreCopySelectionSchema = z.object({
+  storefrontStyle: z.boolean().optional(),
+  navigation: z.boolean().optional(),
+  collections: z.boolean().optional(),
+  pages: z.boolean().optional(),
+  categories: z.boolean().optional(),
+  products: z.boolean().optional(),
+  productMedia: z.boolean().optional(),
+  variants: z.boolean().optional(),
+});
+
 const storeCatalogueImportRowSchema = z.object({
   category: z.string().trim().min(2).max(100),
   name: z.string().trim().min(2).max(200),
@@ -1985,6 +1996,17 @@ export const adminRouter = router({
       }
     }),
     getProvisioningDrafts: platformProcedure.query(async () => db.getStudioProvisioningDrafts()),
+    getStoreCopySources: platformProcedure.query(async () => db.getStudioStoreCopySources()),
+    getStoreCopySourcePreview: platformProcedure.input(z.object({ sourceStoreId: z.number().int().positive() })).query(async ({ input }) => {
+      try {
+        return await db.getStudioStoreCopySourcePreview(input.sourceStoreId);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_COPY_SOURCE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique source introuvable." });
+        if (["STORE_COPY_PLATFORM_SOURCE_FORBIDDEN", "STORE_COPY_SOURCE_NOT_ELIGIBLE"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique ne peut pas servir de source à une copie contrôlée." });
+        throw error;
+      }
+    }),
     getCatalogueImportTargets: platformProcedure.query(async () => db.getStudioCatalogueImportTargets()),
     getProvisioningReviews: platformProcedure.query(async () => db.getStudioProvisioningDraftReviews()),
     getLaunchPreflight: platformProcedure.input(z.object({ draftId: z.number().int().positive() })).query(async ({ input }) => db.getStudioStoreLaunchPreflight(input.draftId)),
@@ -2990,6 +3012,8 @@ export const adminRouter = router({
         if (code === "PROVISIONING_DRAFT_ARCHIVED" || code === "PROVISIONING_DRAFT_ALREADY_PROVISIONED") throw new TRPCError({ code: "CONFLICT", message: "Ce brouillon ne peut plus être provisionné." });
         if (code === "PROVISIONING_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer la création." });
         if (code === "PROVISIONING_PREFLIGHT_INCOMPLETE") throw new TRPCError({ code: "CONFLICT", message: "Le prévol local doit être complet et sans conflit avant de créer la boutique." });
+        if (["STORE_COPY_DRAFT_INVALID", "STORE_COPY_SOURCE_NOT_FOUND", "STORE_COPY_SOURCE_NOT_ELIGIBLE", "STORE_COPY_PLATFORM_SOURCE_FORBIDDEN", "STORE_COPY_DESTINATION_NOT_ISOLATED_SETUP", "STORE_COPY_SOURCE_DESTINATION_MATCH"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "La source ou le périmètre de copie n’est plus valide. Actualisez le brouillon et le prévol." });
+        if (code === "STORE_COPY_CATEGORY_MAPPING_MISSING") throw new TRPCError({ code: "CONFLICT", message: "La structure de catégories de la boutique source a changé. Actualisez le brouillon avant de confirmer." });
         throw error;
       }
     }),
@@ -3009,6 +3033,29 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    createStoreCopyProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema.extend({
+      copySourceStoreId: z.number().int().positive(),
+      copySelection: studioStoreCopySelectionSchema,
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const draft = await db.createStudioStoreCopyProvisioningDraft({ ...input, createdByUserId: ctx.user.id });
+        logAudit(ctx, {
+          action: "studio.store_copy.draft.create",
+          entityType: "store_provisioning_draft",
+          entityId: draft.id,
+          summary: "Brouillon de copie contrôlée créé",
+          metadata: { sourceStoreId: draft.sourceStoreId, selectedScopes: Object.entries(draft.selection).filter(([, selected]) => selected).map(([scope]) => scope), destinationDomain: input.requestedDomain },
+        });
+        return draft;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "PROVISIONING_CUSTOM_THEME_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Renseignez la thématique de la nouvelle boutique." });
+        if (code === "STORE_COPY_SOURCE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique source introuvable." });
+        if (["STORE_COPY_PLATFORM_SOURCE_FORBIDDEN", "STORE_COPY_SOURCE_NOT_ELIGIBLE"].includes(code)) throw new TRPCError({ code: "FORBIDDEN", message: "Cette boutique ne peut pas servir de source à une copie contrôlée." });
+        if (code === "STORE_COPY_SELECTION_EMPTY") throw new TRPCError({ code: "BAD_REQUEST", message: "Choisissez au moins un élément autorisé à copier." });
+        throw error;
+      }
+    }),
     updateProvisioningDraft: platformProcedure.input(studioProvisioningDraftInputSchema.extend({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       try {
         const draft = await db.updateStudioProvisioningDraft(input);
@@ -3024,6 +3071,7 @@ export const adminRouter = router({
         const code = error instanceof Error ? error.message : "";
         if (code === "PROVISIONING_DRAFT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Brouillon introuvable." });
         if (code === "PROVISIONING_DRAFT_LOCKED") throw new TRPCError({ code: "CONFLICT", message: "Ce brouillon est déjà provisionné ou archivé et ne peut plus être modifié." });
+        if (code === "STORE_COPY_DRAFT_LOCKED") throw new TRPCError({ code: "CONFLICT", message: "Le périmètre d’une copie contrôlée est immuable. Créez un nouveau brouillon si la source ou les éléments à copier doivent changer." });
         if (code === "PROVISIONING_CUSTOM_THEME_REQUIRED") throw new TRPCError({ code: "BAD_REQUEST", message: "Renseignez la thématique ou niche de la boutique lorsque vous choisissez « Autre univers »." });
         throw error;
       }

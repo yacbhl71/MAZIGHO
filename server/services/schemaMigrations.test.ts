@@ -47,4 +47,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("CREATE UNIQUE INDEX IF NOT EXISTS `categories_store_slug_unique`");
     expect(migration).toContain("(`storeId`, `slug`)");
   });
+
+  it("registers controlled store-copy provenance before deployment", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0045_controlled_store_copy.sql");
+
+    expect(runner).toContain('["0045_controlled_store_copy", "drizzle/0045_controlled_store_copy.sql"]');
+    expect(migration).toContain("`copySourceStoreId` int NULL");
+    expect(migration).toContain("`copySelection` text NULL");
+    expect(migration).toContain("store_provisioning_drafts_copy_source_idx");
+  });
 });

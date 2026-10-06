@@ -25,6 +25,7 @@ const migrations = [
   ["0042_owner_ai_workspace_documents", "drizzle/0042_owner_ai_workspace_documents.sql"],
   ["0043_owner_ai_workspace_team_sharing", "drizzle/0043_owner_ai_workspace_team_sharing.sql"],
   ["0044_store_acquisition_requested_plan", "drizzle/0044_store_acquisition_requested_plan.sql"],
+  ["0045_controlled_store_copy", "drizzle/0045_controlled_store_copy.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

@@ -70,6 +70,9 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
   // Prospect intent only. The active SaaS plan remains assigned from Studio.
   requestedPlan: varchar("requestedPlan", { length: 16 }),
+  // Explicit source and bounded selection for a controlled copy into the new tenant.
+  copySourceStoreId: int("copySourceStoreId"),
+  copySelection: text("copySelection"),
   status: mysqlEnum("status", ["draft", "ready_for_confirmation", "archived"]).default("draft").notNull(),
   notes: text("notes"),
   // Set only by the explicit, atomic gift-provisioning action.

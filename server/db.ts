@@ -26,6 +26,15 @@ import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, mayUsePlatformStoreF
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildAlgeriaStandardStoreTemplate, normalizeStoreProvisioningTemplate, type StoreProvisioningTemplate } from "./services/algeriaStoreTemplate";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
+import {
+  assertStudioStoreCopyDestination,
+  assertStudioStoreCopySource,
+  hasStudioStoreCopyScope,
+  normalizeStudioStoreCopySelection,
+  selectedStudioStoreCopyScopes,
+  type StudioStoreCopySelection,
+  type StudioStoreCopySelectionInput,
+} from "./services/storeCopyPolicy";
 import { buildStoreActivationPreflight } from "./services/storeActivationPreflight";
 import { buildStoreSetupReadiness } from "./services/storeSetupReadiness";
 import { buildStorePreparationChecklist } from "./services/storePreparationChecklist";
@@ -328,15 +337,18 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `copySourceStoreId` int NULL, `copySelection` text NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`), INDEX `store_provisioning_drafts_copy_source_idx` (`copySourceStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `factoryModel` varchar(32) NOT NULL DEFAULT 'blank'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `requestedPlan` varchar(16) NULL"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `copySourceStoreId` int NULL"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `copySelection` text NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisionedAt` timestamp NULL"));
     await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_provisioned_store_idx` ON `storeProvisioningDrafts` (`provisionedStoreId`)"));
+    await db.execute(sql.raw("CREATE INDEX IF NOT EXISTS `store_provisioning_drafts_copy_source_idx` ON `storeProvisioningDrafts` (`copySourceStoreId`)"));
   })();
   return _storeProvisioningDraftSchemaReady;
 }
@@ -346,6 +358,77 @@ export async function getStudioProvisioningDrafts() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(storeProvisioningDrafts).orderBy(desc(storeProvisioningDrafts.updatedAt));
+}
+
+function parseStudioStoreCopySelection(value: string | null | undefined): StudioStoreCopySelection | null {
+  if (!value?.trim()) return null;
+  try {
+    const selection = normalizeStudioStoreCopySelection(JSON.parse(value) as StudioStoreCopySelectionInput);
+    return hasStudioStoreCopyScope(selection) ? selection : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Source list for the controlled-copy studio. It intentionally exposes only
+ * operator-facing identifiers and aggregate catalogue counts, never customers,
+ * memberships, payments, orders, suppliers or secrets.
+ */
+export async function getStudioStoreCopySources() {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) return [];
+  const [storeRows, categoryRows, productRows] = await Promise.all([
+    db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+      .from(stores)
+      .where(and(eq(stores.isPlatformStore, 0), inArray(stores.status, ["setup", "active", "limited"])))
+      .orderBy(asc(stores.displayName)),
+    db.select({ storeId: categories.storeId, total: count() }).from(categories).groupBy(categories.storeId),
+    db.select({ storeId: products.storeId, total: count(), active: sql<number>`SUM(CASE WHEN ${products.status} = 'active' THEN 1 ELSE 0 END)` }).from(products).groupBy(products.storeId),
+  ]);
+  const categoriesByStore = new Map(categoryRows.map(row => [row.storeId, Number(row.total ?? 0)]));
+  const productsByStore = new Map(productRows.map(row => [row.storeId, { total: Number(row.total ?? 0), active: Number(row.active ?? 0) }]));
+  return storeRows.map(store => ({
+    ...store,
+    categoryCount: categoriesByStore.get(store.id) ?? 0,
+    productCount: productsByStore.get(store.id)?.total ?? 0,
+    activeProductCount: productsByStore.get(store.id)?.active ?? 0,
+  }));
+}
+
+/** Bounded, non-sensitive preview used before an operator prepares a copy draft. */
+export async function getStudioStoreCopySourcePreview(sourceStoreId: number) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [source] = await db.select({ id: stores.id, displayName: stores.displayName, primaryDomain: stores.primaryDomain, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, sourceStoreId)).limit(1);
+  if (!source) throw new Error("STORE_COPY_SOURCE_NOT_FOUND");
+  assertStudioStoreCopySource(source);
+  const [categoryRows, productRows, imageRows, variantRows, bannerRows, settingRows] = await Promise.all([
+    db.select({ total: count() }).from(categories).where(eq(categories.storeId, source.id)),
+    db.select({ total: count(), active: sql<number>`SUM(CASE WHEN ${products.status} = 'active' THEN 1 ELSE 0 END)` }).from(products).where(eq(products.storeId, source.id)),
+    db.select({ total: count() }).from(productImages).where(eq(productImages.storeId, source.id)),
+    db.select({ total: count() }).from(ownerProductVariants).where(eq(ownerProductVariants.storeId, source.id)).catch(() => [{ total: 0 }]),
+    db.select({ total: count() }).from(banners).where(eq(banners.storeId, source.id)),
+    db.select({ key: storeSettings.key }).from(storeSettings).where(and(eq(storeSettings.storeId, source.id), inArray(storeSettings.key, ["owner_collection_drafts", "owner_page_drafts", "design_profile"]))),
+  ]);
+  const settings = new Set(settingRows.map(row => row.key));
+  return {
+    source: { id: source.id, displayName: source.displayName, primaryDomain: source.primaryDomain, status: source.status },
+    summary: {
+      categories: Number(categoryRows[0]?.total ?? 0),
+      products: Number(productRows[0]?.total ?? 0),
+      activeProducts: Number(productRows[0]?.active ?? 0),
+      images: Number(imageRows[0]?.total ?? 0),
+      variants: Number(variantRows[0]?.total ?? 0),
+      banners: Number(bannerRows[0]?.total ?? 0),
+      hasStorefrontProfile: settings.has("design_profile"),
+      hasPrivateCollections: settings.has("owner_collection_drafts"),
+      hasPrivatePages: settings.has("owner_page_drafts"),
+    },
+  };
 }
 
 const STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX = "[catalogue_import]";
@@ -409,6 +492,16 @@ export async function getStudioStoreLaunchPreflight(draftId: number) {
   if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
   if (draft.status === "archived") throw new Error("PROVISIONING_DRAFT_ARCHIVED");
   if (draft.provisionedStoreId) throw new Error("PROVISIONING_DRAFT_ALREADY_PROVISIONED");
+  const copySelection = parseStudioStoreCopySelection(draft.copySelection);
+  if (draft.copySourceStoreId) {
+    if (!copySelection) throw new Error("STORE_COPY_DRAFT_INVALID");
+    const [source] = await db.select({ id: stores.id, status: stores.status, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, draft.copySourceStoreId)).limit(1);
+    if (!source) throw new Error("STORE_COPY_SOURCE_NOT_FOUND");
+    assertStudioStoreCopySource(source);
+  } else if (copySelection) {
+    throw new Error("STORE_COPY_DRAFT_INVALID");
+  }
 
   const allDrafts = await getStudioProvisioningDrafts();
   const normalizedDraftDomain = draft.requestedDomain.trim().toLowerCase();
@@ -2709,6 +2802,174 @@ export async function transferStudioStoreOwnership(input: {
   });
 }
 
+function cloneJsonForStudioStoreCopy(value: string | null | undefined, options: { keepCoverImages: boolean }) {
+  if (!value?.trim()) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const clone = structuredClone(parsed) as Record<string, unknown>;
+    if (!options.keepCoverImages) {
+      for (const page of Object.values(clone)) {
+        if (page && typeof page === "object" && "coverImageUrl" in page) {
+          (page as Record<string, unknown>).coverImageUrl = "";
+        }
+      }
+    }
+    return JSON.stringify(clone);
+  } catch {
+    return null;
+  }
+}
+
+async function applyStudioStoreCopyInTransaction(input: {
+  tx: any;
+  sourceStoreId: number;
+  destinationStoreId: number;
+  destinationStatus: string;
+  destinationIsPlatformStore: boolean | number;
+  selection: StudioStoreCopySelection;
+  now: Date;
+}) {
+  const { tx, sourceStoreId, destinationStoreId, selection } = input;
+  const [source] = await tx.select({ id: stores.id, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, sourceStoreId)).limit(1);
+  if (!source) throw new Error("STORE_COPY_SOURCE_NOT_FOUND");
+  assertStudioStoreCopySource(source);
+  assertStudioStoreCopyDestination({
+    sourceStoreId,
+    destinationStoreId,
+    status: input.destinationStatus,
+    isPlatformStore: input.destinationIsPlatformStore,
+  });
+
+  const [sourceSettings, sourceCategories, sourceProducts, sourceImages, sourceVariants] = await Promise.all([
+    tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings)
+      .where(and(eq(storeSettings.storeId, sourceStoreId), inArray(storeSettings.key, ["design_profile", "owner_navigation_draft", "owner_collection_drafts", "owner_page_drafts"]))),
+    selection.categories ? tx.select().from(categories).where(eq(categories.storeId, sourceStoreId)).orderBy(asc(categories.displayOrder), asc(categories.id)) : Promise.resolve([]),
+    selection.products ? tx.select().from(products).where(eq(products.storeId, sourceStoreId)).orderBy(asc(products.createdAt), asc(products.id)) : Promise.resolve([]),
+    selection.productMedia ? tx.select().from(productImages).where(eq(productImages.storeId, sourceStoreId)).orderBy(asc(productImages.displayOrder), asc(productImages.id)) : Promise.resolve([]),
+    selection.variants ? tx.select().from(ownerProductVariants).where(eq(ownerProductVariants.storeId, sourceStoreId)).orderBy(asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id)).catch(() => []) : Promise.resolve([]),
+  ]);
+  const sourceSettingByKey = new Map<string, string>((sourceSettings as Array<{ key: string; value: string }>).map(row => [row.key, row.value]));
+  const report = { categories: 0, products: 0, activeProducts: 0, draftProducts: 0, images: 0, variants: 0, settings: 0 };
+
+  const copiedSettings: Array<{ storeId: number; key: string; value: string; description: string }> = [];
+  if (selection.storefrontStyle) {
+    const profile = cloneJsonForStudioStoreCopy(sourceSettingByKey.get("design_profile"), { keepCoverImages: false });
+    if (profile) {
+      const parsed = JSON.parse(profile) as Record<string, unknown>;
+      // Style is portable, whereas the source identity, copy, banner content,
+      // images and external destinations must never become the new store's identity.
+      const styleProfile = Object.fromEntries([
+        "paletteId", "typographyId", "showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing",
+        "cataloguePageCopyCustomized", "showAnnouncement", "shopPageCopyCustomized", "showShopEditorial", "showShopReassurance", "showProductReassurance",
+        "customColorsEnabled", "customPrimary", "customAccent", "customSoft", "buttonRadius", "headerLayout",
+        "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance", "homeOrder",
+      ].flatMap(key => key in parsed ? [[key, parsed[key]]] : [])) as Record<string, unknown>;
+      copiedSettings.push({ storeId: destinationStoreId, key: "design_profile", value: JSON.stringify(styleProfile), description: "Style storefront copié de manière contrôlée ; identité, textes, bannières, images et URLs externes exclus." });
+    }
+  }
+  if (selection.navigation) {
+    const rawProfile = copiedSettings.find(setting => setting.key === "design_profile")?.value ?? sourceSettingByKey.get("design_profile");
+    if (rawProfile) {
+      try {
+        const profile = JSON.parse(rawProfile) as Record<string, unknown>;
+        const items = Array.isArray(profile.navigationItems) ? profile.navigationItems
+          .filter(item => item && typeof item === "object" && typeof (item as Record<string, unknown>).href === "string" && String((item as Record<string, unknown>).href).startsWith("/"))
+          : [];
+        const navigationProfile = copiedSettings.find(setting => setting.key === "design_profile");
+        if (navigationProfile) navigationProfile.value = JSON.stringify({ ...profile, navigationItems: items });
+        else copiedSettings.push({ storeId: destinationStoreId, key: "design_profile", value: JSON.stringify({ navigationItems: items }), description: "Navigation interne copiée de manière contrôlée ; destinations externes exclues." });
+      } catch { /* malformed historic profile is safely ignored */ }
+    }
+    const privateNavigation = cloneJsonForStudioStoreCopy(sourceSettingByKey.get("owner_navigation_draft"), { keepCoverImages: false });
+    if (privateNavigation) copiedSettings.push({ storeId: destinationStoreId, key: "owner_navigation_draft", value: privateNavigation, description: "Navigation privée interne copiée de manière contrôlée, sans URL externe ni publication automatique." });
+  }
+  if (selection.collections) {
+    const value = cloneJsonForStudioStoreCopy(sourceSettingByKey.get("owner_collection_drafts"), { keepCoverImages: false });
+    if (value) copiedSettings.push({ storeId: destinationStoreId, key: "owner_collection_drafts", value, description: "Brouillon de collection copié dans une nouvelle boutique isolée, sans identité, image ni publication automatique." });
+  }
+  if (selection.pages) {
+    const value = cloneJsonForStudioStoreCopy(sourceSettingByKey.get("owner_page_drafts"), { keepCoverImages: selection.productMedia });
+    if (value) copiedSettings.push({ storeId: destinationStoreId, key: "owner_page_drafts", value, description: "Brouillons de pages copiés dans une nouvelle boutique isolée, sans publication automatique." });
+  }
+  if (copiedSettings.length) {
+    await tx.insert(storeSettings).values(copiedSettings).onDuplicateKeyUpdate({ set: { value: sql`VALUES(value)`, description: sql`VALUES(description)` } });
+    report.settings = copiedSettings.length;
+  }
+
+  const categoryIdBySourceId = new Map<number, number>();
+  if (selection.categories) {
+    const usedCategorySlugs = new Set<string>();
+    for (const category of sourceCategories) {
+      const result = await tx.insert(categories).values({
+        storeId: destinationStoreId,
+        name: category.name,
+        slug: studioExistingCatalogueStoreSlug(category.name, usedCategorySlugs, "categorie", destinationStoreId),
+        description: category.description,
+        publicNotice: category.publicNotice,
+        emptyStateMessage: category.emptyStateMessage,
+        imageUrl: selection.productMedia ? category.imageUrl : null,
+        icon: category.icon,
+        displayOrder: category.displayOrder,
+        catalogSection: category.catalogSection,
+      });
+      const destinationCategoryId = Number((result as any)?.[0]?.insertId ?? (result as any)?.insertId);
+      categoryIdBySourceId.set(category.id, destinationCategoryId);
+      report.categories += 1;
+    }
+  }
+
+  const productIdBySourceId = new Map<number, number>();
+  if (selection.products) {
+    const usedProductSlugs = new Set<string>();
+    const activeLimit = getSaasPlanEntitlements("free").maxActiveProducts;
+    let copiedActiveProducts = 0;
+    for (const product of sourceProducts) {
+      const categoryId = categoryIdBySourceId.get(product.categoryId);
+      if (!categoryId) throw new Error("STORE_COPY_CATEGORY_MAPPING_MISSING");
+      const canRemainActive = product.status !== "active" || activeLimit === null || copiedActiveProducts < activeLimit;
+      const status = canRemainActive ? product.status : "draft";
+      if (status === "active") copiedActiveProducts += 1;
+      const result = await tx.insert(products).values({
+        storeId: destinationStoreId,
+        categoryId,
+        name: product.name,
+        slug: studioExistingCatalogueStoreSlug(product.name, usedProductSlugs, "produit", destinationStoreId),
+        description: product.description,
+        longDescription: product.longDescription,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        stock: product.stock,
+        featured: product.featured,
+        status,
+        options: product.options,
+      });
+      productIdBySourceId.set(product.id, Number((result as any)?.[0]?.insertId ?? (result as any)?.insertId));
+      report.products += 1;
+      if (status === "active") report.activeProducts += 1;
+      else report.draftProducts += 1;
+    }
+  }
+  if (selection.productMedia) {
+    const copyableImages = (sourceImages as Array<{ productId: number; imageUrl: string; displayOrder: number }>).flatMap(image => {
+      const productId = productIdBySourceId.get(image.productId);
+      return productId ? [{ storeId: destinationStoreId, productId, imageUrl: image.imageUrl, displayOrder: image.displayOrder }] : [];
+    });
+    if (copyableImages.length) await tx.insert(productImages).values(copyableImages);
+    report.images = copyableImages.length;
+  }
+  if (selection.variants) {
+    const copyableVariants = (sourceVariants as Array<{ productId: number; label: string; sku: string | null; priceAdjustmentCents: number; stock: number; status: "active" | "inactive"; displayOrder: number }>).flatMap(variant => {
+      const productId = productIdBySourceId.get(variant.productId);
+      return productId ? [{ storeId: destinationStoreId, productId, label: variant.label, sku: variant.sku, priceAdjustmentCents: variant.priceAdjustmentCents, stock: variant.stock, status: variant.status, displayOrder: variant.displayOrder }] : [];
+    });
+    if (copyableVariants.length) await tx.insert(ownerProductVariants).values(copyableVariants);
+    report.variants = copyableVariants.length;
+  }
+  return report;
+}
+
 export async function provisionGiftStoreFromDraft(input: { draftId: number; confirmationName: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
@@ -2721,6 +2982,9 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     if (draft.status === "archived") throw new Error("PROVISIONING_DRAFT_ARCHIVED");
     if (draft.provisionedStoreId) throw new Error("PROVISIONING_DRAFT_ALREADY_PROVISIONED");
     if (input.confirmationName.trim() !== draft.displayName.trim()) throw new Error("PROVISIONING_CONFIRMATION_MISMATCH");
+    const copySelection = parseStudioStoreCopySelection(draft.copySelection);
+    const isControlledCopy = Boolean(draft.copySourceStoreId);
+    if ((isControlledCopy && !copySelection) || (!isControlledCopy && copySelection)) throw new Error("STORE_COPY_DRAFT_INVALID");
 
     const drafts = await tx.select().from(storeProvisioningDrafts);
     const normalizedDomain = draft.requestedDomain.trim().toLowerCase();
@@ -2772,6 +3036,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
       { storeId, key: "currency", value: draft.preferredCurrency, description: "Compatibilité : devise de départ choisie lors du provisionnement." },
       { storeId, key: "provisioning_template", value: normalizeStoreProvisioningTemplate(draft.provisioningTemplate), description: "Base géographique et opérationnelle choisie dans Studio." },
+      ...(isControlledCopy && copySelection ? [{ storeId, key: "store_copy_provenance", value: JSON.stringify({ sourceStoreId: draft.copySourceStoreId, selectedScopes: selectedStudioStoreCopyScopes(copySelection), preparedAt: now.toISOString() }), description: "Provenance d’une copie Studio contrôlée ; aucune donnée client, paiement, accès, secret ou fournisseur n’est copiée." }] : []),
     ];
 
     if (normalizeStoreProvisioningTemplate(draft.provisioningTemplate) === "algeria") {
@@ -2788,8 +3053,19 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       );
     }
     await tx.insert(storeSettings).values(initialSettings);
+    const copyReport = isControlledCopy && copySelection
+      ? await applyStudioStoreCopyInTransaction({
+        tx,
+        sourceStoreId: Number(draft.copySourceStoreId),
+        destinationStoreId: storeId,
+        destinationStatus: "setup",
+        destinationIsPlatformStore: false,
+        selection: copySelection,
+        now,
+      })
+      : null;
     const factoryModel = getStoreFactoryModel(draft.factoryModel);
-    const starterCategories = getStoreFactoryStarterCategories(draft.factoryModel);
+    const starterCategories = isControlledCopy ? [] : getStoreFactoryStarterCategories(draft.factoryModel);
     if (starterCategories.length > 0) {
       await tx.insert(categories).values(starterCategories.map(category => ({
         storeId,
@@ -2808,6 +3084,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       themePreset: draft.themePreset,
       factoryModel: factoryModel.id,
       starterCategories: starterCategories.length,
+      copy: copyReport ? { sourceStoreId: Number(draft.copySourceStoreId), selectedScopes: selectedStudioStoreCopyScopes(copySelection!), report: copyReport } : null,
       billing: "none" as const,
       invitationsSent: 0,
     };
@@ -2862,6 +3139,37 @@ export async function createStudioProvisioningDraft(input: StudioProvisioningDra
   return { id: Number(result.insertId) };
 }
 
+/**
+ * Creates only a preparation record for a copy. No source rows are read into
+ * the new tenant here, and no store, membership, domain, e-mail or payment is
+ * created until the existing preflight and explicit confirmation are completed.
+ */
+export async function createStudioStoreCopyProvisioningDraft(input: StudioProvisioningDraftInput & {
+  createdByUserId: number;
+  copySourceStoreId: number;
+  copySelection: StudioStoreCopySelectionInput;
+}) {
+  await ensureMultiStoreSchema();
+  await ensureStoreProvisioningDraftSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const [source] = await db.select({ id: stores.id, status: stores.status, isPlatformStore: stores.isPlatformStore })
+    .from(stores).where(eq(stores.id, input.copySourceStoreId)).limit(1);
+  if (!source) throw new Error("STORE_COPY_SOURCE_NOT_FOUND");
+  assertStudioStoreCopySource(source);
+  const selection = normalizeStudioStoreCopySelection(input.copySelection);
+  if (!hasStudioStoreCopyScope(selection)) throw new Error("STORE_COPY_SELECTION_EMPTY");
+  const normalized = normalizeStudioProvisioningDraft({ ...input, factoryModel: "blank", themePreset: null });
+  const [result] = await db.insert(storeProvisioningDrafts).values({
+    ...normalized,
+    copySourceStoreId: source.id,
+    copySelection: JSON.stringify(selection),
+    createdByUserId: input.createdByUserId,
+    status: "draft",
+  });
+  return { id: Number(result.insertId), sourceStoreId: source.id, selection };
+}
+
 export async function updateStudioProvisioningDraft(input: StudioProvisioningDraftInput & { id: number }) {
   await ensureStoreProvisioningDraftSchema();
   const db = await getDb();
@@ -2869,6 +3177,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
   const [draft] = await db.select().from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.id, input.id)).limit(1);
   if (!draft) throw new Error("PROVISIONING_DRAFT_NOT_FOUND");
   if (draft.status === "archived" || draft.provisionedStoreId) throw new Error("PROVISIONING_DRAFT_LOCKED");
+  if (draft.copySourceStoreId) throw new Error("STORE_COPY_DRAFT_LOCKED");
   const normalized = normalizeStudioProvisioningDraft(input);
   await db.update(storeProvisioningDrafts).set({
     displayName: normalized.displayName.trim(),
