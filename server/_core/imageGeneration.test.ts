@@ -4,7 +4,7 @@ const storage = vi.hoisted(() => ({ storagePut: vi.fn() }));
 vi.mock("server/storage", () => ({ storagePut: storage.storagePut }));
 vi.mock("./env", () => ({ ENV: { forgeApiUrl: "https://forge.example.test", forgeApiKey: "forge-test-key" } }));
 
-import { generateImage } from "./imageGeneration";
+import { generateImage, listImageModels } from "./imageGeneration";
 
 describe("image generation helper", () => {
   const originalFetch = global.fetch;
@@ -43,5 +43,19 @@ describe("image generation helper", () => {
     global.fetch = vi.fn() as unknown as typeof fetch;
     await expect(generateImage({ prompt: "   " })).rejects.toThrow("Image generation prompt is required");
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("lists the model identifiers exposed by the current Forge key", async () => {
+    global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [{ id: "MODEL_GPT_IMAGE_2" }, { model: "MODEL_NANO_BANANA" }],
+    }), { status: 200 })) as unknown as typeof fetch;
+
+    await expect(listImageModels()).resolves.toEqual({
+      models: [
+        { model: "MODEL_GPT_IMAGE_2", id: "MODEL_GPT_IMAGE_2" },
+        { model: "MODEL_NANO_BANANA", id: "MODEL_NANO_BANANA" },
+      ],
+    });
+    expect(global.fetch).toHaveBeenCalledWith("https://forge.example.test/v1/models", expect.any(Object));
   });
 });

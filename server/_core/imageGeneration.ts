@@ -100,10 +100,21 @@ export async function listImageModels(): Promise<{ models: Array<{ model: string
   if (!ENV.forgeApiKey) throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
   const base = normalizeForgeBase();
   const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
-  const response = await fetch(`${apiBase}/images/models`, { headers: { authorization: `Bearer ${ENV.forgeApiKey}` } });
-  if (!response.ok) throw new Error(`Image model listing failed: ${response.status} ${response.statusText}`);
-  const body = await response.json() as { data?: Array<{ id?: string; model?: string }> };
-  return {
-    models: (body.data || []).flatMap(item => item.id || item.model ? [{ model: item.model || item.id!, id: item.id || item.model! }] : []),
-  };
+  const endpoints = [`${apiBase}/models`, `${apiBase}/images/models`];
+  let lastFailure = "Image model listing endpoint unavailable";
+
+  for (const endpoint of endpoints) {
+    const response = await fetch(endpoint, { headers: { authorization: `Bearer ${ENV.forgeApiKey}` } });
+    if (response.status === 404) {
+      lastFailure = `Image model listing endpoint not found: ${endpoint}`;
+      continue;
+    }
+    if (!response.ok) throw new Error(`Image model listing failed: ${response.status} ${response.statusText}`);
+    const body = await response.json() as { data?: Array<{ id?: string; model?: string }> };
+    return {
+      models: (body.data || []).flatMap(item => item.id || item.model ? [{ model: item.model || item.id!, id: item.id || item.model! }] : []),
+    };
+  }
+
+  throw new Error(lastFailure);
 }

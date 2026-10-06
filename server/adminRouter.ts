@@ -33,7 +33,7 @@ import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { storeFactoryModelIds } from "../shared/storeFactoryModel";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+import { generateImage, listImageModels } from "./_core/imageGeneration";
 import { buildStudioImageGenerationPrompt, studioImageFormats, studioImageStyles } from "./services/studioImageGenerationPolicy";
 
 /** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
@@ -1236,6 +1236,14 @@ export const adminRouter = router({
     assistant: router({
       getImageGenerationUsage: platformProcedure.query(async ({ ctx }) => {
         return await db.getStudioImageGenerationUsage(ctx.user.id);
+      }),
+      getImageGenerationModels: platformProcedure.query(async () => {
+        try {
+          return await listImageModels();
+        } catch (error) {
+          console.error("[studio-image-generation] model-list-unavailable", error);
+          throw new TRPCError({ code: "SERVICE_UNAVAILABLE", message: "Le catalogue des modèles d’image est momentanément indisponible." });
+        }
       }),
       generateStorefrontImage: platformProcedure.input(z.object({
         subject: z.string().trim().min(12).max(420),
