@@ -66,4 +66,16 @@ describe("store catalogue CSV import", () => {
       localImagePaths: ["images/foret-1.webp", "images/foret-2.webp", "images/foret-3.webp"],
     });
   });
+
+  it("accepts an absent price for a private draft while preserving zero cents", () => {
+    const csv = [
+      "category,name,shortDescription,longDescription,price,stock,dimensions,imageUrl,featured",
+      '"Thés sélectionnés","Thé Noir Earl Grey Bleu","Un classique floral.","Texte préparatoire.","",0,"100 g","",non',
+    ].join("\n");
+
+    const result = parseStoreCatalogueImportCsv(csv);
+
+    expect(result.issues).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ priceCents: 0, stock: 0, imageUrl: "" });
+  });
 });

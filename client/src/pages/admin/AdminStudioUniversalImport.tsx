@@ -39,6 +39,7 @@ type CatalogueProduct = {
   price: number;
   stock: number;
   featured: boolean;
+  status: "active" | "draft" | "archived";
   options: string | null;
   images: string[];
 };
@@ -226,7 +227,7 @@ export default function AdminStudioUniversalImport() {
     let variants = 0;
     try {
       setProgress("Création des catégories et fiches produit dans la boutique choisie…");
-      const imported = await importProducts.mutateAsync({ storeId: selectedStore.id, rows: preview.rows, acknowledged: true });
+      const imported = await importProducts.mutateAsync({ storeId: selectedStore.id, rows: preview.rows, status: "active", acknowledged: true });
       const productsByName = new Map((imported.catalogue.products as CatalogueProduct[]).map(product => [normalizedKey(product.name), product]));
       const assetsByPath = new Map(preview.assets.map(asset => [asset.path, asset]));
 
@@ -256,6 +257,7 @@ export default function AdminStudioUniversalImport() {
             priceCents: product.price,
             stock: product.stock,
             featured: product.featured,
+            status: product.status,
             images: urls.slice(0, 8),
             options: parseOptions(product.options),
           });

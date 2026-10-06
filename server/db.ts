@@ -101,6 +101,7 @@ import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot"
 import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
 import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk } from "../shared/studioStoreProjectDesk";
 import { STUDIO_IMAGE_GENERATION_DAILY_LIMIT } from "./services/studioImageGenerationPolicy";
+import { assertStudioCatalogueProductWrite, needsStudioCatalogueActiveCapacity, type StudioCatalogueProductStatus } from "../shared/studioCatalogueDraftPolicy";
 
 const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, studioImageGenerationUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, customCreationRequests, customCreationRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
@@ -2009,30 +2010,33 @@ export async function createStudioOwnerExistingCatalogueCategory(input: { storeI
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
-export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
+export async function saveStudioOwnerExistingCatalogueProduct(input: { storeId: number; productId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; status: StudioCatalogueProductStatus; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const current = snapshot.products.find(product => product.id === input.productId);
   if (!current) throw new Error("PRODUCT_NOT_FOUND");
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
+  assertStudioCatalogueProductWrite(input);
+  if (needsStudioCatalogueActiveCapacity(current.status as StudioCatalogueProductStatus, input.status)) await assertStoreActiveProductCapacity(input.storeId);
   const used = new Set(snapshot.products.filter(product => product.id !== input.productId).map(product => product.slug));
   const slug = studioExistingCatalogueStoreSlug(input.name, used, `produit-${input.productId}`, input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, options: input.options.length ? JSON.stringify(input.options) : null }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
+  await db.update(products).set({ categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: input.status, options: input.options.length ? JSON.stringify(input.options) : null }).where(and(eq(products.storeId, input.storeId), eq(products.id, input.productId)));
   await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, input.productId)));
   if (input.images.length) await db.insert(productImages).values(input.images.map((imageUrl, displayOrder) => ({ storeId: input.storeId, productId: input.productId, imageUrl, displayOrder })));
   await markProductTranslationsStale(input.productId, input.storeId);
   return getStudioOwnerExistingCatalogue(input.storeId);
 }
 
-export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; images: string[]; options: Array<{ name: string; values: string[] }> }) {
+export async function createStudioOwnerExistingCatalogueProduct(input: { storeId: number; categoryId: number; name: string; description: string; longDescription: string; priceCents: number; stock: number; featured: boolean; status: StudioCatalogueProductStatus; images: string[]; options: Array<{ name: string; values: string[] }> }) {
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   if (!snapshot.categories.some(category => category.id === input.categoryId)) throw new Error("CATEGORY_NOT_FOUND");
-  await assertStoreActiveProductCapacity(input.storeId);
+  assertStudioCatalogueProductWrite(input);
+  if (needsStudioCatalogueActiveCapacity(null, input.status)) await assertStoreActiveProductCapacity(input.storeId);
   const slug = studioExistingCatalogueStoreSlug(input.name, new Set(snapshot.products.map(product => product.slug)), "nouveau-produit", input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: "active", options: input.options.length ? JSON.stringify(input.options) : null });
+  const result = await db.insert(products).values({ storeId: input.storeId, categoryId: input.categoryId, name: input.name, slug, description: input.description, longDescription: input.longDescription, price: input.priceCents, stock: input.stock, featured: input.featured ? 1 : 0, status: input.status, options: input.options.length ? JSON.stringify(input.options) : null });
   const productId = Number((result as any)[0].insertId);
   if (input.images.length) await db.insert(productImages).values(input.images.map((imageUrl, displayOrder) => ({ storeId: input.storeId, productId, imageUrl, displayOrder })));
   return { productId, catalogue: await getStudioOwnerExistingCatalogue(input.storeId) };
@@ -2043,10 +2047,11 @@ export async function createStudioOwnerExistingCatalogueProduct(input: { storeId
  * is already normalized and validated by the server router; no supplier,
  * customer, order, payment or cross-store data is accepted here.
  */
-export async function importStudioOwnerExistingCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[] }) {
+export async function importStudioOwnerExistingCatalogueProducts(input: { storeId: number; rows: StoreCatalogueImportRow[]; status: StudioCatalogueProductStatus }) {
   await ensureStoreCatalogScopeSchema();
   await ensureCatalogSectionSchema();
   await assertStudioCatalogueImportTarget(input.storeId);
+  for (const row of input.rows) assertStudioCatalogueProductWrite({ status: input.status, priceCents: row.priceCents });
   const snapshot = await getStudioOwnerExistingCatalogue(input.storeId);
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
@@ -2055,9 +2060,9 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
   const usedCategorySlugs = new Set(snapshot.categories.map(category => category.slug));
   const usedProductSlugs = new Set(snapshot.products.map(product => product.slug));
   const productByNormalizedName = new Map(snapshot.products.map(product => [product.name.trim().toLocaleLowerCase("fr"), product]));
-  const newlyActiveProductKeys = new Set(input.rows
+  const newlyActiveProductKeys = input.status === "active" ? new Set(input.rows
     .filter(row => productByNormalizedName.get(row.name.trim().toLocaleLowerCase("fr"))?.status !== "active")
-    .map(row => row.name.trim().toLocaleLowerCase("fr")));
+    .map(row => row.name.trim().toLocaleLowerCase("fr"))) : new Set<string>();
   await assertStoreActiveProductCapacity(input.storeId, newlyActiveProductKeys.size);
   let nextCategoryOrder = snapshot.categories.reduce((highest, category) => Math.max(highest, Number(category.displayOrder) || 0), -1) + 1;
   let imported = 0;
@@ -2096,7 +2101,7 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
         price: row.priceCents,
         stock: row.stock,
         featured: row.featured ? 1 : 0,
-        status: "active",
+        status: input.status,
         options: options.length ? JSON.stringify(options) : null,
       }).where(and(eq(products.storeId, input.storeId), eq(products.id, productId)));
       await db.delete(productImages).where(and(eq(productImages.storeId, input.storeId), eq(productImages.productId, productId)));
@@ -2114,11 +2119,11 @@ export async function importStudioOwnerExistingCatalogueProducts(input: { storeI
         price: row.priceCents,
         stock: row.stock,
         featured: row.featured ? 1 : 0,
-        status: "active",
+        status: input.status,
         options: options.length ? JSON.stringify(options) : null,
       });
       productId = Number((result as any)[0].insertId);
-      productByNormalizedName.set(row.name.trim().toLocaleLowerCase("fr"), { id: productId, categoryId: category.id, name: row.name, slug, description: row.shortDescription, longDescription: row.longDescription, price: row.priceCents, stock: row.stock, featured: row.featured, status: "active", options: options.length ? JSON.stringify(options) : null, images: row.imageUrl ? [row.imageUrl] : [] });
+      productByNormalizedName.set(row.name.trim().toLocaleLowerCase("fr"), { id: productId, categoryId: category.id, name: row.name, slug, description: row.shortDescription, longDescription: row.longDescription, price: row.priceCents, stock: row.stock, featured: row.featured, status: input.status, options: options.length ? JSON.stringify(options) : null, images: row.imageUrl ? [row.imageUrl] : [] });
       imported += 1;
     }
     if (row.imageUrl) await db.insert(productImages).values({ storeId: input.storeId, productId, imageUrl: row.imageUrl, displayOrder: 0 });

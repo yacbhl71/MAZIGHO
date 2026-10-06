@@ -132,7 +132,7 @@ export function parseStoreCatalogueImportCsv(raw: string): StoreCatalogueImportP
     if (category.length < 2 || category.length > 100) issues.push({ line: lineNumber, message: "La catégorie doit contenir de 2 à 100 caractères." });
     if (name.length < 2 || name.length > 200) issues.push({ line: lineNumber, message: "Le nom doit contenir de 2 à 200 caractères." });
     if (shortDescription.length > 2000 || longDescription.length > 6000) issues.push({ line: lineNumber, message: "Une description dépasse la longueur autorisée." });
-    if (!Number.isFinite(priceCents) || priceCents < 1 || priceCents > 10_000_000) issues.push({ line: lineNumber, message: "Le prix doit être compris entre 0.01 et 100000.00." });
+    if (!Number.isFinite(priceCents) || priceCents < 0 || priceCents > 10_000_000) issues.push({ line: lineNumber, message: "Le prix doit être compris entre 0.00 et 100000.00." });
     if (!Number.isInteger(stock) || stock < 0 || stock > 999_999) issues.push({ line: lineNumber, message: "Le stock doit être un entier entre 0 et 999999." });
     if (dimensions.some(value => value.length > 60)) issues.push({ line: lineNumber, message: "Chaque dimension est limitée à 60 caractères." });
     if (imageSource && !imageUrl && !localImagePaths.length) issues.push({ line: lineNumber, message: "L’image doit être une URL https:// ou un chemin relatif sûr du ZIP." });
