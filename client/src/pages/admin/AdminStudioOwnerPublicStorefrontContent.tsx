@@ -71,7 +71,9 @@ function ImageField({ label, value, onChange, onUpload, uploading }: { label: st
 
 function BannerEditor({ value, onSave, onDelete, onUpload, pending }: { value: BannerDraft; onSave: (value: BannerDraft) => void; onDelete?: () => void; onUpload: (file: File, apply: (url: string) => void) => void; pending: boolean }) {
   const [form, setForm] = useState<BannerDraft>(value);
-  useEffect(() => setForm(value), [value]);
+  // The parent reconstructs this object on every render. Depending on the object
+  // identity would discard local banner edits as soon as an image upload toggles.
+  useEffect(() => setForm(value), [value.active, value.displayOrder, value.id, value.imageUrl, value.linkUrl, value.subtitle, value.title]);
   const canSave = form.title.trim().length >= 2 && form.imageUrl.trim().length > 0 && !pending;
   return <Card className="border-slate-200"><CardHeader className="pb-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="text-base">{value.id ? "Bannière enregistrée" : "Nouvelle bannière"}</CardTitle><CardDescription className="mt-1">Cette bannière ne concerne que cette boutique.</CardDescription></div>{value.id && onDelete && <Button type="button" variant="outline" size="sm" className="border-rose-200 text-rose-700 hover:bg-rose-50" onClick={onDelete}><Trash2 className="mr-1.5 h-4 w-4" /> Retirer</Button>}</div></CardHeader><CardContent className="grid gap-4">
     <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Titre</Label><Input value={form.title} maxLength={180} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="Ex. Des sorties plus sereines" /></div><div className="space-y-2"><Label>Lien du bouton</Label><Input value={form.linkUrl} maxLength={300} onChange={event => setForm(current => ({ ...current, linkUrl: event.target.value }))} placeholder="/boutique" /></div></div>
