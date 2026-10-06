@@ -23,7 +23,7 @@ describe("image generation helper", () => {
     await expect(generateImage({ prompt: "A bright creative atelier" })).resolves.toEqual({ url: "https://storage.example.test/generated/image.png" });
     expect(global.fetch).toHaveBeenCalledWith("https://forge.example.test/v1/images/generations", expect.objectContaining({
       method: "POST",
-      body: expect.stringContaining("gpt-image-2.5"),
+      body: expect.stringContaining("default"),
     }));
     expect(storage.storagePut).toHaveBeenCalledWith(expect.stringMatching(/^generated\//), Buffer.from("image-data"), "image/png");
   });
