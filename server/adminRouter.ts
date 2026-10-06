@@ -33,6 +33,8 @@ import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { storeFactoryModelIds } from "../shared/storeFactoryModel";
 import { invokeLLM } from "./_core/llm";
+import { generateImage } from "./_core/imageGeneration";
+import { buildStudioImageGenerationPrompt, studioImageFormats, studioImageStyles } from "./services/studioImageGenerationPolicy";
 
 /** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
 async function assertDropshippingAccess(storeId: number | undefined) {
@@ -1232,6 +1234,42 @@ export const adminRouter = router({
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
     assistant: router({
+      getImageGenerationUsage: platformProcedure.query(async ({ ctx }) => {
+        return await db.getStudioImageGenerationUsage(ctx.user.id);
+      }),
+      generateStorefrontImage: platformProcedure.input(z.object({
+        subject: z.string().trim().min(12).max(420),
+        format: z.enum(studioImageFormats),
+        style: z.enum(studioImageStyles),
+      })).mutation(async ({ ctx, input }) => {
+        let prompt: string;
+        try {
+          prompt = buildStudioImageGenerationPrompt(input);
+        } catch {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Décrivez le visuel souhaité en une phrase de 12 à 420 caractères." });
+        }
+        try {
+          const usage = await db.reserveStudioImageGeneration(ctx.user.id);
+          const generated = await generateImage({ prompt });
+          if (!generated.url) throw new Error("STUDIO_IMAGE_GENERATION_EMPTY_RESULT");
+          logAudit(ctx, {
+            action: "studio.image_generation.create",
+            entityType: "image_generation",
+            entityId: null,
+            summary: "Visuel de vitrine généré dans Studio, sans rattachement automatique à une boutique.",
+            metadata: { format: input.format, style: input.style, requestCount: usage.used, attachedToStore: false, promptStored: false },
+          });
+          return { url: generated.url, usage };
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "";
+          if (code === "STUDIO_IMAGE_GENERATION_DAILY_LIMIT_REACHED") {
+            throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Le plafond quotidien Studio est atteint. Réessayez demain ou utilisez les visuels déjà générés." });
+          }
+          if (error instanceof TRPCError) throw error;
+          console.error("[studio-image-generation]", code || "unavailable");
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La génération d’image est momentanément indisponible. Aucun visuel n’a été appliqué à une boutique." });
+        }
+      }),
       chat: platformProcedure.input(z.object({
         messages: z.array(z.object({
           role: z.enum(["user", "assistant"]),

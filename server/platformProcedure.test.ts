@@ -41,6 +41,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getInventory()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreCopySources()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getStoreCopySourcePreview({ sourceStoreId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.assistant.getImageGenerationUsage()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.assistant.generateStorefrontImage({ subject: "Un atelier lumineux avec créations colorées et matières naturelles.", format: "hero", style: "editorial" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCatalogueImportTargets()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getCustomDomainRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getIntegrationRequestRegistry()).rejects.toMatchObject({ code: "FORBIDDEN" });

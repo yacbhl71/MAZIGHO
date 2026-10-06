@@ -57,4 +57,15 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("`copySelection` text NULL");
     expect(migration).toContain("store_provisioning_drafts_copy_source_idx");
   });
+
+  it("registers the aggregate-only Studio image generation usage counter", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0046_studio_image_generation_usage.sql");
+
+    expect(runner).toContain('["0046_studio_image_generation_usage", "drizzle/0046_studio_image_generation_usage.sql"]');
+    expect(migration).toContain("CREATE TABLE IF NOT EXISTS `studioImageGenerationUsage`");
+    expect(migration).toContain("`userId` int NOT NULL");
+    expect(migration).toContain("`periodKey` varchar(10) NOT NULL");
+    expect(migration).toContain("studio_image_generation_usage_user_period_unique");
+  });
 });

@@ -115,6 +115,22 @@ export const storeAiMonthlyUsage = mysqlTable("storeAiMonthlyUsage", {
 export type StoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferSelect;
 export type InsertStoreAiMonthlyUsage = typeof storeAiMonthlyUsage.$inferInsert;
 
+// Operator-only image generation counter. It records aggregate daily usage
+// only; no prompt, generated image bytes or boutique data is persisted here.
+export const studioImageGenerationUsage = mysqlTable("studioImageGenerationUsage", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  periodKey: varchar("periodKey", { length: 10 }).notNull(),
+  requestCount: int("requestCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  studioImageGenerationUsageScopeUnique: uniqueIndex("studio_image_generation_usage_user_period_unique").on(table.userId, table.periodKey),
+  studioImageGenerationUsageUserPeriodIndex: index("studio_image_generation_usage_user_period_idx").on(table.userId, table.periodKey),
+}));
+export type StudioImageGenerationUsage = typeof studioImageGenerationUsage.$inferSelect;
+export type InsertStudioImageGenerationUsage = typeof studioImageGenerationUsage.$inferInsert;
+
 // Private knowledge repository for a single store. The original upload is
 // intentionally not retained: normalized extracted text is AES-GCM encrypted
 // before being written, and only the owning store can read its metadata.

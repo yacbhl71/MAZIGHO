@@ -100,8 +100,9 @@ import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds,
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
 import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
 import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk } from "../shared/studioStoreProjectDesk";
+import { STUDIO_IMAGE_GENERATION_DAILY_LIMIT } from "./services/studioImageGenerationPolicy";
 
-const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, customCreationRequests, customCreationRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
+const { accountTokens, users, stores, storeMemberships, storeProvisioningDrafts, storeSettings, storeAiMonthlyUsage, studioImageGenerationUsage, ownerKnowledgeDocuments, ownerAiConversations, ownerAiConversationMessages, ownerAiWorkspaceDocuments, categories, products, productCategories, productImages, ownerProductVariants, productTranslations, publicContentTranslations, productDeliveryProfiles, reviews, contactMessages, orders, orderDecisions, orderItems, orderFulfillmentJobs, orderSupplierOrders, supplierWebhookEvents, accountingEntries, carts, cartItems, banners, settings, promotions, promotionRedemptions, auditLogs, returnRequests, returnRequestItems, returnRequestEvents, customCreationRequests, customCreationRequestEvents, campaigns, stripeConnectedAccounts, stripeLiveConnectedAccounts, lemonSqueezyBillingCheckouts, lemonSqueezySubscriptions, lemonSqueezyWebhookEvents } = schema;
 
 let _db: ReturnType<typeof drizzle<typeof schema, Pool>> | null = null;
 let _passwordHashColumnReady: Promise<void> | null = null;
@@ -133,6 +134,7 @@ let _storeOperationsScopeSchemaReady: Promise<void> | null = null;
 let _storeProvisioningDraftSchemaReady: Promise<void> | null = null;
 let _ownerProductVariantsSchemaReady: Promise<void> | null = null;
 let _storeAiMonthlyUsageSchemaReady: Promise<void> | null = null;
+let _studioImageGenerationUsageSchemaReady: Promise<void> | null = null;
 let _ownerKnowledgeDocumentSchemaReady: Promise<void> | null = null;
 let _ownerAiConversationSchemaReady: Promise<void> | null = null;
 let _ownerAiWorkspaceDocumentSchemaReady: Promise<void> | null = null;
@@ -4169,6 +4171,16 @@ async function ensureStoreAiMonthlyUsageSchema() {
   return _storeAiMonthlyUsageSchemaReady;
 }
 
+async function ensureStudioImageGenerationUsageSchema() {
+  if (_studioImageGenerationUsageSchemaReady) return _studioImageGenerationUsageSchemaReady;
+  _studioImageGenerationUsageSchemaReady = (async () => {
+    const db = await getDb();
+    if (!db) throw new Error("Database unavailable");
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `studioImageGenerationUsage` (`id` int AUTO_INCREMENT PRIMARY KEY, `userId` int NOT NULL, `periodKey` varchar(10) NOT NULL, `requestCount` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `studio_image_generation_usage_user_period_unique` (`userId`, `periodKey`), INDEX `studio_image_generation_usage_user_period_idx` (`userId`, `periodKey`))"));
+  })();
+  return _studioImageGenerationUsageSchemaReady;
+}
+
 async function ensureOwnerKnowledgeDocumentSchema() {
   if (_ownerKnowledgeDocumentSchemaReady) return _ownerKnowledgeDocumentSchemaReady;
   _ownerKnowledgeDocumentSchemaReady = (async () => {
@@ -7949,6 +7961,62 @@ export async function reserveStoreAiRequest(storeId: number, date = new Date()):
   `) as unknown as Array<{ affectedRows?: number }>;
   if (Number(result?.affectedRows ?? 0) === 0) throw new Error("AI_MONTHLY_REQUEST_LIMIT_REACHED");
   return getStoreAiUsageSummary(storeId, date);
+}
+
+export type StudioImageGenerationUsageSummary = {
+  periodKey: string;
+  limit: number;
+  used: number;
+  remaining: number;
+};
+
+function getStudioImageGenerationPeriodKey(date = new Date()) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function makeStudioImageGenerationUsageSummary(input: { periodKey: string; used: number }): StudioImageGenerationUsageSummary {
+  return {
+    periodKey: input.periodKey,
+    limit: STUDIO_IMAGE_GENERATION_DAILY_LIMIT,
+    used: Math.max(0, input.used),
+    remaining: Math.max(0, STUDIO_IMAGE_GENERATION_DAILY_LIMIT - Math.max(0, input.used)),
+  };
+}
+
+/**
+ * Returns the aggregate operator quota for Studio image generation. It never
+ * records visual prompts, inputs, generated URLs or store data.
+ */
+export async function getStudioImageGenerationUsage(userId: number, date = new Date()): Promise<StudioImageGenerationUsageSummary> {
+  if (!Number.isInteger(userId) || userId <= 0) throw new Error("STUDIO_IMAGE_GENERATION_USER_INVALID");
+  await ensureStudioImageGenerationUsageSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const periodKey = getStudioImageGenerationPeriodKey(date);
+  const rows = await db.select({ requestCount: studioImageGenerationUsage.requestCount })
+    .from(studioImageGenerationUsage)
+    .where(and(eq(studioImageGenerationUsage.userId, userId), eq(studioImageGenerationUsage.periodKey, periodKey)))
+    .limit(1);
+  return makeStudioImageGenerationUsageSummary({ periodKey, used: Number(rows[0]?.requestCount ?? 0) });
+}
+
+/**
+ * Reserves one generation atomically before the external image service runs so
+ * concurrent Studio tabs cannot exceed the daily operator safety cap.
+ */
+export async function reserveStudioImageGeneration(userId: number, date = new Date()): Promise<StudioImageGenerationUsageSummary> {
+  if (!Number.isInteger(userId) || userId <= 0) throw new Error("STUDIO_IMAGE_GENERATION_USER_INVALID");
+  await ensureStudioImageGenerationUsageSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+  const periodKey = getStudioImageGenerationPeriodKey(date);
+  const [result] = await db.execute(sql`
+    INSERT INTO \`studioImageGenerationUsage\` (\`userId\`, \`periodKey\`, \`requestCount\`)
+    VALUES (${userId}, ${periodKey}, 1)
+    ON DUPLICATE KEY UPDATE \`requestCount\` = IF(\`requestCount\` < ${STUDIO_IMAGE_GENERATION_DAILY_LIMIT}, \`requestCount\` + 1, \`requestCount\`)
+  `) as unknown as Array<{ affectedRows?: number }>;
+  if (Number(result?.affectedRows ?? 0) === 0) throw new Error("STUDIO_IMAGE_GENERATION_DAILY_LIMIT_REACHED");
+  return getStudioImageGenerationUsage(userId, date);
 }
 
 export type StoreDropshippingAccess = {
