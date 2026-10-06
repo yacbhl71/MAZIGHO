@@ -1,25 +1,19 @@
 /**
- * Image generation helper using internal ImageService
+ * Image generation helper using the configured Manus Forge service.
  *
- * Example usage:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "A serene landscape with mountains"
- *   });
- *
- * For editing:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "Add a rainbow to this landscape",
- *     originalImages: [{
- *       url: "https://example.com/original.jpg",
- *       mimeType: "image/jpeg"
- *     }]
- *   });
+ * Results are written to managed storage and returned as a URL. Call this only
+ * from server-side procedures; callers must never expose Forge credentials.
  */
 import { storagePut } from "server/storage";
 import { ENV } from "./env";
 
+export type ImageGenerationModel = "MODEL_GPT_IMAGE_2" | string;
+export type ImageGenerationQuality = "low" | "medium" | "high";
+
 export type GenerateImageOptions = {
   prompt: string;
+  model?: ImageGenerationModel;
+  quality?: ImageGenerationQuality;
   originalImages?: Array<{
     url?: string;
     b64Json?: string;
@@ -31,62 +25,83 @@ export type GenerateImageResponse = {
   url?: string;
 };
 
-export async function generateImage(
-  options: GenerateImageOptions
-): Promise<GenerateImageResponse> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
-  }
+type ForgeImageResponse = {
+  data?: Array<{ b64_json?: string; mime_type?: string }>;
+  image?: { b64Json?: string; mimeType?: string };
+};
 
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/")
-    ? ENV.forgeApiUrl
-    : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL(
-    "images.v1.ImageService/GenerateImage",
-    baseUrl
-  ).toString();
+const normalizeForgeBase = () => ENV.forgeApiUrl.replace(/\/$/, "");
 
-  const response = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      prompt: options.prompt,
-      original_images: options.originalImages || [],
-    }),
-  });
+function getImageGenerationEndpoints() {
+  const base = normalizeForgeBase();
+  const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
+  // The OpenAI-compatible endpoint is primary. The legacy RPC path is retained
+  // as a compatibility fallback for older Forge environments only.
+  return [
+    `${apiBase}/images/generations`,
+    `${base}/images.v1.ImageService/GenerateImage`,
+  ];
+}
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
-    );
-  }
+function parseGeneratedImage(body: ForgeImageResponse) {
+  const base64 = body.data?.[0]?.b64_json || body.image?.b64Json;
+  const mimeType = body.data?.[0]?.mime_type || body.image?.mimeType || "image/png";
+  if (!base64) throw new Error("Image generation response contained no image data");
+  return { buffer: Buffer.from(base64.replace(/^data:[^;]+;base64,/, ""), "base64"), mimeType };
+}
 
-  const result = (await response.json()) as {
-    image: {
-      b64Json: string;
-      mimeType: string;
-    };
+export async function generateImage(options: GenerateImageOptions): Promise<GenerateImageResponse> {
+  if (!ENV.forgeApiUrl) throw new Error("BUILT_IN_FORGE_API_URL is not configured");
+  if (!ENV.forgeApiKey) throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  if (!options.prompt.trim()) throw new Error("Image generation prompt is required");
+
+  const payload = {
+    model: options.model || "MODEL_GPT_IMAGE_2",
+    prompt: options.prompt,
+    quality: options.quality || "medium",
+    response_format: "b64_json",
+    original_images: options.originalImages || [],
   };
-  const base64Data = result.image.b64Json;
-  const buffer = Buffer.from(base64Data, "base64");
 
-  // Save to S3
-  const { url } = await storagePut(
-    `generated/${Date.now()}.png`,
-    buffer,
-    result.image.mimeType
-  );
+  let lastFailure = "Image generation endpoint unavailable";
+  for (const endpoint of getImageGenerationEndpoints()) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        authorization: `Bearer ${ENV.forgeApiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.status === 404) {
+      lastFailure = `Image generation endpoint not found: ${endpoint}`;
+      continue;
+    }
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`);
+    }
+
+    const image = parseGeneratedImage(await response.json() as ForgeImageResponse);
+    const extension = image.mimeType === "image/jpeg" ? "jpg" : "png";
+    const { url } = await storagePut(`generated/${Date.now()}.${extension}`, image.buffer, image.mimeType);
+    return { url };
+  }
+
+  throw new Error(lastFailure);
+}
+
+export async function listImageModels(): Promise<{ models: Array<{ model: string; id: string }> }> {
+  if (!ENV.forgeApiUrl) throw new Error("BUILT_IN_FORGE_API_URL is not configured");
+  if (!ENV.forgeApiKey) throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  const base = normalizeForgeBase();
+  const apiBase = base.endsWith("/v1") ? base : `${base}/v1`;
+  const response = await fetch(`${apiBase}/images/models`, { headers: { authorization: `Bearer ${ENV.forgeApiKey}` } });
+  if (!response.ok) throw new Error(`Image model listing failed: ${response.status} ${response.statusText}`);
+  const body = await response.json() as { data?: Array<{ id?: string; model?: string }> };
   return {
-    url,
+    models: (body.data || []).flatMap(item => item.id || item.model ? [{ model: item.model || item.id!, id: item.id || item.model! }] : []),
   };
 }

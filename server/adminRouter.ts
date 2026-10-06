@@ -1267,7 +1267,7 @@ export const adminRouter = router({
           }
           if (error instanceof TRPCError) throw error;
           console.error("[studio-image-generation]", code || "unavailable");
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "La génération d’image est momentanément indisponible. Aucun visuel n’a été appliqué à une boutique." });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Le service d’image n’a pas répondu. Réessayez dans un instant : aucun visuel, contenu ou réglage de boutique n’a été modifié." });
         }
       }),
       chat: platformProcedure.input(z.object({
