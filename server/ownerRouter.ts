@@ -383,7 +383,7 @@ const ownerCustomHomepageBlock = z.object({
   buttonUrl: storefrontLink,
   imageUrl: z.union([z.literal(""), visualUrl]),
   imageAlt: z.string().trim().max(180),
-  layout: z.enum(["banner", "split", "spotlight", "roundGallery"]),
+  layout: z.enum(["banner", "split", "framedSplit", "spotlight", "roundGallery"]),
   theme: z.enum(["primary", "dark", "soft", "light"]),
   galleryItems: z.array(ownerRoundGalleryItem).max(6).optional(),
   enabled: z.boolean(),

@@ -39,7 +39,7 @@ export type HomeTextBanner = {
   buttonUrl: string;
   imageUrl?: string;
   imageAlt?: string;
-  layout?: "banner" | "split" | "spotlight" | "roundGallery";
+  layout?: "banner" | "split" | "framedSplit" | "spotlight" | "roundGallery";
   theme?: "primary" | "dark" | "soft" | "light";
   galleryItems?: RoundGalleryItem[];
   enabled: boolean;

@@ -14,6 +14,7 @@ const BASE_SECTION_KEYS = ["highlight", "reassurance", "discovery", "story", "te
 const layoutOptions: Array<{ value: HomeTextBanner["layout"]; label: string; description: string }> = [
   { value: "banner", label: "Bannière", description: "Texte large, image optionnelle en fond." },
   { value: "split", label: "Texte + image", description: "Deux colonnes élégantes, adaptées aux produits ou services." },
+  { value: "framedSplit", label: "Texte + image encadrée", description: "Deux colonnes avec un visuel entouré d’une marge de respiration." },
   { value: "spotlight", label: "Mise en avant", description: "Encart lumineux pour une nouveauté, un atelier ou une offre." },
   { value: "roundGallery", label: "Galerie ronde", description: "Texte éditorial suivi de 2 à 6 visuels ronds, sans cartes." },
 ];
@@ -28,7 +29,7 @@ const themeOptions: Array<{ value: HomeTextBanner["theme"]; label: string }> = [
 type EditableBlock = Omit<HomeTextBanner, "imageUrl" | "imageAlt" | "layout" | "theme"> & {
   imageUrl: string;
   imageAlt: string;
-  layout: "banner" | "split" | "spotlight" | "roundGallery";
+  layout: "banner" | "split" | "framedSplit" | "spotlight" | "roundGallery";
   theme: "primary" | "dark" | "soft" | "light";
   galleryItems: RoundGalleryItem[];
 };

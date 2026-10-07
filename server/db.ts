@@ -11141,7 +11141,7 @@ export type HomeTextBanner = {
   buttonUrl: string;
   imageUrl?: string;
   imageAlt?: string;
-  layout?: "banner" | "split" | "spotlight" | "roundGallery";
+  layout?: "banner" | "split" | "framedSplit" | "spotlight" | "roundGallery";
   theme?: "primary" | "dark" | "soft" | "light";
   galleryItems?: Array<{
     id: string;
@@ -11624,7 +11624,7 @@ export function normalizeDesignProfile(value: unknown): DesignProfile {
       buttonUrl: typeof b.buttonUrl === "string" ? b.buttonUrl.trim().slice(0, 300) : "",
       imageUrl: typeof b.imageUrl === "string" ? b.imageUrl.trim().slice(0, 1000) : "",
       imageAlt: typeof b.imageAlt === "string" ? b.imageAlt.trim().slice(0, 180) : "",
-      layout: ["banner", "split", "spotlight", "roundGallery"].includes(String(b.layout)) ? b.layout as HomeTextBanner["layout"] : "banner",
+      layout: ["banner", "split", "framedSplit", "spotlight", "roundGallery"].includes(String(b.layout)) ? b.layout as HomeTextBanner["layout"] : "banner",
       theme: ["primary", "dark", "soft", "light"].includes(String(b.theme)) ? b.theme as HomeTextBanner["theme"] : "primary",
       galleryItems,
       enabled: typeof b.enabled === "boolean" ? b.enabled : true,

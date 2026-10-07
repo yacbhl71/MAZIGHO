@@ -2305,7 +2305,7 @@ export const adminRouter = router({
         // The Studio storefront editor may update the regional footer title
         // without dropping the rest of the owner-managed footer settings.
         footerDeliveryTitle: z.string().trim().min(2).max(80).optional(),
-        homeOrder: z.array(z.string().max(60)).max(40), textBanners: z.array(z.object({ id: z.string().trim().min(1).max(60), eyebrow: z.string().trim().max(120), title: z.string().trim().min(1).max(180), text: z.string().trim().max(600), buttonLabel: z.string().trim().max(60), buttonUrl: z.string().trim().max(300), imageUrl: z.string().trim().max(1000).optional(), imageAlt: z.string().trim().max(180).optional(), layout: z.enum(["banner", "split", "spotlight", "roundGallery"]).optional(), theme: z.enum(["primary", "dark", "soft", "light"]).optional(), galleryItems: z.array(z.object({ id: z.string().trim().min(4).max(60), label: z.string().trim().min(2).max(80), imageUrl: visualUrlSchema, imageAlt: z.string().trim().min(2).max(180), href: z.string().trim().max(300) })).max(6).optional(), enabled: z.boolean() })).max(8),
+        homeOrder: z.array(z.string().max(60)).max(40), textBanners: z.array(z.object({ id: z.string().trim().min(1).max(60), eyebrow: z.string().trim().max(120), title: z.string().trim().min(1).max(180), text: z.string().trim().max(600), buttonLabel: z.string().trim().max(60), buttonUrl: z.string().trim().max(300), imageUrl: z.string().trim().max(1000).optional(), imageAlt: z.string().trim().max(180).optional(), layout: z.enum(["banner", "split", "framedSplit", "spotlight", "roundGallery"]).optional(), theme: z.enum(["primary", "dark", "soft", "light"]).optional(), galleryItems: z.array(z.object({ id: z.string().trim().min(4).max(60), label: z.string().trim().min(2).max(80), imageUrl: visualUrlSchema, imageAlt: z.string().trim().min(2).max(180), href: z.string().trim().max(300) })).max(6).optional(), enabled: z.boolean() })).max(8),
       }),
     })).mutation(async ({ ctx, input }) => {
       const profile = await db.saveStudioOwnerPublicStorefrontProfile({ storeId: input.storeId, profile: input.profile });
@@ -4768,7 +4768,7 @@ export const adminRouter = router({
         buttonUrl: z.string().trim().max(300).default(""),
         imageUrl: z.string().trim().max(1000).default(""),
         imageAlt: z.string().trim().max(180).default(""),
-        layout: z.enum(["banner", "split", "spotlight", "roundGallery"]).default("banner"),
+        layout: z.enum(["banner", "split", "framedSplit", "spotlight", "roundGallery"]).default("banner"),
         theme: z.enum(["primary", "dark", "soft", "light"]).default("primary"),
         galleryItems: z.array(z.object({
           id: z.string().trim().min(4).max(60),
