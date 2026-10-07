@@ -11435,7 +11435,7 @@ const optimizedBuiltInImageUrls: Record<string, string> = {
   "/assets/home-editorial-divider.jpg": "/assets/home-editorial-divider.webp",
 };
 
-function normalizeDesignProfile(value: unknown): DesignProfile {
+export function normalizeDesignProfile(value: unknown): DesignProfile {
   if (!value || typeof value !== "object") return { ...defaultDesignProfile };
   const source = value as Record<string, unknown>;
   const paletteId = ["terracotta", "sage", "midnight", "rose", "violet"].includes(String(source.paletteId))
@@ -11465,7 +11465,9 @@ function normalizeDesignProfile(value: unknown): DesignProfile {
   for (const field of textFields) {
     if (typeof source[field] !== "string") continue;
     const value = source[field].trim();
-    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl" || field === "closingVisualValue" || field === "closingImageUrl") {
+    // An intentionally empty visual caption must remain empty: otherwise the
+    // generic default caption returns on top of a storefront image.
+    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl" || field === "closingVisualValue" || field === "closingVisualText" || field === "closingImageUrl") {
       normalized[field] = value;
       continue;
     }

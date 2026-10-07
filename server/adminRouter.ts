@@ -2298,6 +2298,9 @@ export const adminRouter = router({
         headerLayout: z.enum(["inline", "split", "searchFirst", "gallery", "market"]),
         navigationItems: z.array(navigationItem).min(1).max(16),
         showDiscovery: z.boolean(), showStory: z.boolean(), showTestimonials: z.boolean(), showEditorial: z.boolean(), showFeatured: z.boolean(),
+        shopPageCopyCustomized: z.boolean(), shopEyebrow: z.string().trim().min(2).max(120), shopTitle: z.string().trim().min(2).max(180), shopIntro: z.string().trim().min(2).max(600),
+        shopProductsEyebrow: z.string().trim().min(2).max(120), shopProductsTitle: z.string().trim().min(2).max(180), showShopEditorial: z.boolean(),
+        shopEditorialEyebrow: z.string().trim().min(2).max(120), shopEditorialTitle: z.string().trim().min(2).max(180), shopEditorialImageUrl: visualUrlSchema, showShopReassurance: z.boolean(),
         customColorsEnabled: z.boolean(), customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), buttonRadius: z.enum(["flat", "rounded", "full"]),
         // The Studio storefront editor may update the regional footer title
         // without dropping the rest of the owner-managed footer settings.
