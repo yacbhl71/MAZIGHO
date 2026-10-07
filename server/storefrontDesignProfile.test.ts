@@ -12,4 +12,15 @@ describe("normalizeDesignProfile", () => {
     expect(profile.closingVisualText).toBe("");
     expect(profile.closingImageUrl).toBe("https://example.com/rituels-packaging.webp");
   });
+
+  it("préserve une légende d’image narrative volontairement vide", () => {
+    const profile = normalizeDesignProfile({
+      ...defaultDesignProfile,
+      storyVisualEyebrow: "",
+      storyVisualTitle: "",
+    });
+
+    expect(profile.storyVisualEyebrow).toBe("");
+    expect(profile.storyVisualTitle).toBe("");
+  });
 });

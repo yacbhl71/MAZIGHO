@@ -11467,7 +11467,7 @@ export function normalizeDesignProfile(value: unknown): DesignProfile {
     const value = source[field].trim();
     // An intentionally empty visual caption must remain empty: otherwise the
     // generic default caption returns on top of a storefront image.
-    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl" || field === "closingVisualValue" || field === "closingVisualText" || field === "closingImageUrl") {
+    if (field === "brandMessage" || field === "brandLogoUrl" || field === "faviconUrl" || field === "storyVisualEyebrow" || field === "storyVisualTitle" || field === "closingVisualValue" || field === "closingVisualText" || field === "closingImageUrl") {
       normalized[field] = value;
       continue;
     }
