@@ -3052,6 +3052,31 @@ export const adminRouter = router({
         throw error;
       }
     }),
+    restoreStoreOwnerMembership: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      confirmationName: z.string().trim().min(2).max(160),
+      ownerEmail: z.string().trim().email().max(320),
+      acknowledged: z.literal(true),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const restored = await db.restoreStudioStoreOwnerMembership(input);
+        logAudit(ctx, {
+          action: "studio.store.owner_membership.restore",
+          entityType: "store",
+          entityId: restored.store.id,
+          summary: `Accès propriétaire restauré : ${restored.store.displayName}`,
+          metadata: { storeScoped: true, ownershipTransferred: false, otherMembershipsChanged: false },
+        });
+        return restored;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "La boutique principale MAZIGHO ne peut pas être modifiée depuis ce contrôle." });
+        if (code === "OWNER_RESTORE_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer la restauration." });
+        if (code === "OWNER_RESTORE_USER_INVALID") throw new TRPCError({ code: "CONFLICT", message: "Ce compte doit être actif avant de pouvoir devenir propriétaire." });
+        throw error;
+      }
+    }),
     provisionGiftStore: platformProcedure.input(z.object({ draftId: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
       try {
         const provisioned = await db.provisionGiftStoreFromDraft(input);

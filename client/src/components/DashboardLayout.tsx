@@ -167,16 +167,18 @@ const ROLE_ALLOWED_PATHS: Record<string, string[]> = {
 };
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrateur",
+  owner: "Propriétaire",
+  manager: "Manager de boutique",
   catalog_editor: "Éditeur catalogue",
   order_operator: "Opérateur commandes",
 };
 function isPathAllowed(role: string, path: string) {
-  if (role === "admin") return true;
+  if (role === "admin" || role === "owner" || role === "manager") return true;
   if (path === "/") return true;
   return (ROLE_ALLOWED_PATHS[role] || []).includes(path);
 }
 function firstAllowedPath(role: string) {
-  if (role === "admin") return "/admin";
+  if (role === "admin" || role === "owner" || role === "manager") return "/admin";
   return (ROLE_ALLOWED_PATHS[role] || [])[0] || "/";
 }
 
@@ -202,6 +204,10 @@ export default function DashboardLayout({
   const studioFaviconUrl = isStudioHost ? (platformIdentityQuery.data?.studio.faviconUrl || APP_LOGO) : "";
   const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: Boolean(user) });
   const isPlatformOperator = Boolean(workspaceQuery.data?.store?.isPlatformStore && user?.role === "admin");
+  const activeClientMembership = !workspaceQuery.data?.store?.isPlatformStore && workspaceQuery.data?.membership?.status === "active" ? workspaceQuery.data.membership : null;
+  const effectiveRole = isPlatformOperator ? user?.role : activeClientMembership?.role || user?.role || "user";
+  const hasClientAdministrationAccess = activeClientMembership?.role === "owner" || activeClientMembership?.role === "manager" || activeClientMembership?.role === "catalog_editor" || activeClientMembership?.role === "order_operator";
+  const administrationLabel = isPlatformOperator ? "MAZIGHO · espace d’administration" : `${workspaceQuery.data?.store?.displayName || "Votre boutique"} · espace d’administration`;
   const isStudioPath = location === "/admin/studio" || location.startsWith("/admin/studio/");
 
   useEffect(() => {
@@ -220,7 +226,11 @@ export default function DashboardLayout({
     return <DashboardLayoutSkeleton />
   }
 
-  if (!user || !STAFF_ROLES.includes(user.role)) {
+  if (workspaceQuery.isLoading && user) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (!user || (!isPlatformOperator && !hasClientAdministrationAccess && !workspaceQuery.data?.store?.isPlatformStore)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl" data-testid="admin-access-gate">
@@ -235,19 +245,31 @@ export default function DashboardLayout({
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">{APP_TITLE}</h1>
               <p className="text-sm text-muted-foreground">
-                {!user ? "Veuillez vous connecter pour continuer" : "Accès réservé à l’équipe MAZIGHO"}
+                {!user ? "Veuillez vous connecter pour continuer" : "Cet espace exige un rôle actif dans cette boutique."}
               </p>
             </div>
           </div>
           <Button
             onClick={() => {
-              window.location.href = !user ? "/login" : isStudioHost ? "https://mazigho.ch/" : "/";
+              window.location.href = !user ? "/login" : "/mon-compte";
             }}
             size="lg"
             className="w-full shadow-lg hover:shadow-xl transition-all bg-orange-500 hover:bg-orange-600"
           >
-            {!user ? "Se connecter" : "Retour à l'accueil"}
+            {!user ? "Se connecter" : "Retour à mon compte"}
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isPlatformOperator && workspaceQuery.data?.store?.isPlatformStore && !STAFF_ROLES.includes(user.role)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl" data-testid="admin-access-gate">
+          <LockKeyhole className="h-10 w-10 text-slate-600" />
+          <div className="text-center space-y-2"><h1 className="text-2xl font-bold tracking-tight">Accès réservé</h1><p className="text-sm text-muted-foreground">Cet espace est réservé à l’équipe MAZIGHO autorisée.</p></div>
+          <Button onClick={() => { window.location.href = "/mon-compte"; }} size="lg" className="w-full bg-orange-500 hover:bg-orange-600">Retour à mon compte</Button>
         </div>
       </div>
     );
@@ -274,7 +296,7 @@ export default function DashboardLayout({
     );
   }
 
-  if (!isPathAllowed(user.role, location)) {
+  if (!isPathAllowed(effectiveRole, location)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-6 p-8 max-w-md w-full bg-white rounded-2xl shadow-xl text-center" data-testid="admin-forbidden-gate">
@@ -282,11 +304,11 @@ export default function DashboardLayout({
           <div className="space-y-2">
             <h1 className="text-2xl font-bold tracking-tight">Accès non autorisé</h1>
             <p className="text-sm text-muted-foreground">
-              Votre rôle « {ROLE_LABELS[user.role] || user.role} » ne donne pas accès à cette page.
+              Votre rôle « {ROLE_LABELS[effectiveRole] || effectiveRole} » ne donne pas accès à cette page.
             </p>
           </div>
           <Button
-            onClick={() => setLocation(firstAllowedPath(user.role))}
+            onClick={() => setLocation(firstAllowedPath(effectiveRole))}
             size="lg"
             className="w-full bg-orange-500 hover:bg-orange-600"
             data-testid="forbidden-redirect-btn"
@@ -306,7 +328,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isPlatformOperator={isPlatformOperator} studioLogoUrl={studioLogoUrl}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} isPlatformOperator={isPlatformOperator} effectiveRole={effectiveRole} studioLogoUrl={studioLogoUrl} administrationLabel={administrationLabel}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -317,14 +339,18 @@ type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
   isPlatformOperator: boolean;
+  effectiveRole: string;
   studioLogoUrl: string;
+  administrationLabel: string;
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
   isPlatformOperator,
+  effectiveRole,
   studioLogoUrl,
+  administrationLabel,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
@@ -434,7 +460,7 @@ function DashboardLayoutContent({
               const items = section.items.filter(item => {
                 const isStudioShortcut = item.path === "/admin/studio" || item.path.startsWith("/admin/studio/") || item.path.startsWith("/admin/studio#");
                 if (isStudioShortcut && !isPlatformOperator) return false;
-                return isPathAllowed((user as any)?.role || "admin", item.path.split("#")[0]);
+                return isPathAllowed(effectiveRole, item.path.split("#")[0]);
               });
               const tone = sidebarToneClasses[section.tone];
               if (items.length === 0) return null;
@@ -533,7 +559,7 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 p-4">
           <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-900">
-            <span className="font-semibold">MAZIGHO · espace d’administration</span>
+            <span className="font-semibold">{administrationLabel}</span>
             <span className="text-orange-700">Données isolées par boutique</span>
           </div>
           {children}

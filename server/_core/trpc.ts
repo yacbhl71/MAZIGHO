@@ -130,11 +130,22 @@ export const adminProcedure = t.procedure.use(
       throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
     }
     rejectSupportMutation(ctx, opts.type, opts.path);
-
-    if (ctx.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
-    }
     requireOpenStoreForPanels(ctx);
+
+    // Platform administration and a client boutique administration are two
+    // different scopes. A global MAZIGHO administrator never inherits access
+    // to a client boutique solely from that global role: client data remains
+    // available only to an active owner or manager membership of that store.
+    if (ctx.store?.isPlatformStore) {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+      }
+    } else {
+      const membership = await getActiveClientStoreMembership(ctx);
+      if (!membership || !["owner", "manager"].includes(membership.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Accès réservé au propriétaire ou au manager actif de cette boutique." });
+      }
+    }
 
     return next({
       ctx: {

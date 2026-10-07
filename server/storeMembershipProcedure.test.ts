@@ -173,6 +173,13 @@ describe("store-scoped management procedure", () => {
     await expect(callerFor("admin").owner.getWorkspace()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("refuses the classic administration dashboard without an active owner or manager membership", async () => {
+    await expect(callerFor("admin").admin.getStats()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: expect.stringContaining("propriétaire ou au manager actif"),
+    });
+  });
+
   it("allows an active owner membership to prepare its setup boutique only through the verified platform panel", async () => {
     membershipState.current = { role: "owner", status: "active" };
     await expect(callerFor("user", "setup", true).owner.getWorkspace()).resolves.toMatchObject({

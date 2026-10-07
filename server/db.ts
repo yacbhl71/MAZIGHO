@@ -3334,6 +3334,39 @@ export async function ensureActiveStoreOwnerByDomain(input: { domain: string; em
   });
 }
 
+/**
+ * Restores one explicitly confirmed owner membership without transferring the
+ * boutique or changing any other member, store data, payment or domain.
+ */
+export async function restoreStudioStoreOwnerMembership(input: { storeId: number; confirmationName: string; ownerEmail: string }) {
+  await ensureMultiStoreSchema();
+  const db = await getDb();
+  if (!db) throw new Error("Database unavailable");
+
+  return await db.transaction(async tx => {
+    const [store] = await tx.select({ id: stores.id, displayName: stores.displayName, isPlatformStore: stores.isPlatformStore })
+      .from(stores).where(eq(stores.id, input.storeId)).limit(1);
+    if (!store) throw new Error("STORE_NOT_FOUND");
+    if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+    if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("OWNER_RESTORE_NAME_CONFIRMATION_MISMATCH");
+
+    const email = normaliseEmail(input.ownerEmail);
+    const [user] = await tx.select({ id: users.id, accountStatus: users.accountStatus }).from(users)
+      .where(sql`LOWER(${users.email}) = ${email}`).limit(1);
+    if (!user || user.accountStatus !== "active") throw new Error("OWNER_RESTORE_USER_INVALID");
+
+    const [membership] = await tx.select({ id: storeMemberships.id }).from(storeMemberships)
+      .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.userId, user.id))).limit(1);
+    if (membership) {
+      await tx.update(storeMemberships).set({ role: "owner", status: "active" }).where(eq(storeMemberships.id, membership.id));
+    } else {
+      await tx.insert(storeMemberships).values({ storeId: store.id, userId: user.id, role: "owner", status: "active" });
+    }
+
+    return { store: { id: store.id, displayName: store.displayName }, userId: user.id };
+  });
+}
+
 /** Returns only team identities and access status for one boutique. */
 export async function getStoreTeamMembers(storeId: number) {
   await ensureMultiStoreSchema();

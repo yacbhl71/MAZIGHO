@@ -127,9 +127,11 @@ function QuickAction({ href, title, detail, icon: Icon }: { href: string; title:
 export default function AdminDashboard() {
   const { data: stats, isLoading, refetch, isFetching } = trpc.admin.getStats.useQuery();
   const settingsQuery = trpc.admin.settings.getAll.useQuery();
+  const workspaceQuery = trpc.workspace.getCurrent.useQuery();
   const currentYear = new Date().getFullYear();
   const accountingOverviewQuery = trpc.admin.accounting.getOverview.useQuery({ year: currentYear });
   const activeCurrency = settingsQuery.data?.find(setting => setting.key === "store_currency_code")?.value?.trim().toUpperCase() || "CHF";
+  const storeName = workspaceQuery.data?.store?.displayName || "Votre boutique";
   const lowStockProducts = stats?.lowStockProducts ?? [];
   const recentOrders = stats?.recentOrders ?? [];
   const productsWithoutDeliveryProfiles = stats?.catalogReadiness?.productsWithoutDeliveryProfiles ?? [];
@@ -251,7 +253,7 @@ export default function AdminDashboard() {
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-orange-700">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" /> Boutique opérationnelle
               </div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Tableau de bord MAZIGHO</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Tableau de bord · {storeName}</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">Vos indicateurs essentiels, vos alertes et vos prochaines actions réunis au même endroit.</p>
               <div className="mt-4 inline-flex min-h-9 items-center rounded-full border border-orange-200 bg-white px-3 text-xs font-semibold text-orange-900">Devise active de la boutique : {activeCurrency}</div>
             </div>
