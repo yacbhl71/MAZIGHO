@@ -68,4 +68,13 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("`periodKey` varchar(10) NOT NULL");
     expect(migration).toContain("studio_image_generation_usage_user_period_unique");
   });
+  it("registers the explicit product new-badge flag before deployment", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0047_product_new_badge.sql");
+
+    expect(runner).toContain('["0047_product_new_badge", "drizzle/0047_product_new_badge.sql"]');
+    expect(migration).toContain("ALTER TABLE `products`");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS `showNewBadge`");
+    expect(migration).toContain("DEFAULT 0");
+  });
 });

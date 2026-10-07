@@ -39,6 +39,7 @@ type CatalogueProduct = {
   price: number;
   stock: number;
   featured: boolean;
+  showNewBadge?: boolean;
   status: "active" | "draft" | "archived";
   options: string | null;
   images: string[];
@@ -257,6 +258,7 @@ export default function AdminStudioUniversalImport() {
             priceCents: product.price,
             stock: product.stock,
             featured: product.featured,
+            showNewBadge: Boolean(product.showNewBadge),
             status: product.status,
             images: urls.slice(0, 8),
             options: parseOptions(product.options),

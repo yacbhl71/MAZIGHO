@@ -266,6 +266,8 @@ export const products = mysqlTable("products", {
   originalPrice: int("originalPrice"), // Original price for discounts
   stock: int("stock").default(0).notNull(),
   featured: int("featured").default(0).notNull(), // 0 or 1 for boolean
+  /** Explicit storefront badge selection. Creation date never creates a public badge automatically. */
+  showNewBadge: int("showNewBadge").default(0).notNull(), // 0 or 1 for boolean
   status: mysqlEnum("status", ["active", "draft", "archived"]).default("active").notNull(),
   supplier: varchar("supplier", { length: 32 }),
   supplierProductId: varchar("supplierProductId", { length: 128 }),

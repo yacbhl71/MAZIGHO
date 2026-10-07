@@ -27,6 +27,7 @@ const migrations = [
   ["0044_store_acquisition_requested_plan", "drizzle/0044_store_acquisition_requested_plan.sql"],
   ["0045_controlled_store_copy", "drizzle/0045_controlled_store_copy.sql"],
   ["0046_studio_image_generation_usage", "drizzle/0046_studio_image_generation_usage.sql"],
+  ["0047_product_new_badge", "drizzle/0047_product_new_badge.sql"],
 ];
 
 const databaseUrl = process.env.DATABASE_URL?.trim();

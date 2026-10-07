@@ -15,7 +15,6 @@ import { categoryT, t } from "@/lib/i18n";
 import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLocalizedCountryName } from "@/lib/countryLocale";
 import { getShopControlsCopy } from "@/lib/shopControlsCopy";
-import { isNewProduct } from "@/lib/isNewProduct";
 import { isProductPurchasableForStorefront, isProductVisibleForStorefront } from "@shared/storefrontProductVisibility";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import StorefrontCatalogueFilters from "@/components/StorefrontCatalogueFilters";
@@ -210,7 +209,7 @@ export default function Category() {
                             -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
                           </div>
                         )}
-                                {isNewProduct((product as any).createdAt) && (
+                                {Boolean((product as any).showNewBadge) && (
                           <span className="absolute top-3 left-3 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white" data-testid="badge-new">{shopControls.newBadge}</span>
                         )}
                       </div>
