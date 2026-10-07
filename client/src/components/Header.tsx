@@ -33,7 +33,7 @@ export default function Header() {
   const cartCount = getItemCount();
   const favoritesCount = favorites.length;
   const { user, isAuthenticated } = useAuth();
-  const isAdmin = isAuthenticated && user?.role === "admin";
+  const workspaceQuery = trpc.workspace.getCurrent.useQuery(undefined, { enabled: isAuthenticated });
   const { countryCode, setCountryCode } = useDeliveryCountry();
   const { locale, setLocale } = useLocale();
   const categoriesQuery = trpc.categories.getAll.useQuery(locale);
@@ -68,6 +68,11 @@ export default function Header() {
   const brandName = profile.brandName?.trim() || "MAZIGHO";
   const brandMessage = profile.brandMessage?.trim() || "";
   const brandLogoUrl = profile.brandLogoUrl?.trim() || "";
+  const activeStoreMembership = workspaceQuery.data?.membership?.status === "active" ? workspaceQuery.data.membership : null;
+  const hasCurrentStoreManagementAccess = isPlatformStore
+    ? user?.role === "admin"
+    : ["owner", "manager", "catalog_editor", "order_operator"].includes(activeStoreMembership?.role || "");
+  const managementLabel = isPlatformStore ? "MAZIGHO Studio" : `Gérer ${brandName}`;
   const headerLayout = profile.headerLayout || "inline";
   const usesGalleryHeader = headerLayout === "gallery";
   const usesMarketHeader = headerLayout === "market";
@@ -207,7 +212,7 @@ export default function Header() {
               <User className="h-4 w-4" aria-hidden="true" />
               <span>{t(locale, "account")}</span>
             </Link>
-            {isAdmin && <Button asChild variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /><span>{t(locale, "admin")}</span></Link></Button>}
+            {hasCurrentStoreManagementAccess && <Button asChild variant="outline" className="hidden 2xl:inline-flex gap-2 border-slate-300 bg-slate-900 text-sm text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /><span>{managementLabel}</span></Link></Button>}
 
             {/* Mobile Menu Button */}
             <button
@@ -244,7 +249,7 @@ export default function Header() {
             {showCustomCreationNavigation && <Link href="/demande-sur-mesure"><div onClick={() => setIsMenuOpen(false)} className="flex min-h-11 cursor-pointer items-center gap-2 rounded px-4 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-50"><Sparkles className="h-4 w-4" aria-hidden="true" /> {customCreationNavigationLabel}</div></Link>}
 
             <Button asChild className="mt-4 min-h-11 w-full gap-2 text-sm text-white" style={{ backgroundColor: palette.accent }}><Link href="/mon-compte"><User className="h-4 w-4" /> {t(locale, "account")}</Link></Button>
-            {isAdmin && <Button asChild variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /> {t(locale, "admin")}</Link></Button>}
+            {hasCurrentStoreManagementAccess && <Button asChild variant="outline" className="mt-2 w-full gap-2 border-slate-300 bg-slate-900 text-white hover:bg-slate-800 hover:text-white"><Link href="/admin"><LayoutDashboard className="h-4 w-4" /> {managementLabel}</Link></Button>}
           </div>
         )}
       </nav>
