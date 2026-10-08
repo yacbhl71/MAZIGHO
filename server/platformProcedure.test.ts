@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { DEFAULT_KEY_IN_HAND_LANDING_CONTENT, DEFAULT_PRO_LANDING_CONTENT } from "../shared/keyInHandLanding";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -35,6 +36,8 @@ function createContext(input: { role: "admin" | "user"; isPlatformStore: number 
 describe("MAZIGHO Studio platform guard", () => {
   it("refuses platform controls and the Studio inventory from a client storefront administrator", async () => {
     const caller = appRouter.createCaller(createContext({ role: "admin", isPlatformStore: 0 }));
+    await expect(caller.admin.platformLanding.savePro(DEFAULT_PRO_LANDING_CONTENT)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.platformLanding.saveKeyInHand(DEFAULT_KEY_IN_HAND_LANDING_CONTENT)).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.health()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.verifyTransactionalEmail()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.system.sendTransactionalEmailTest()).rejects.toMatchObject({ code: "FORBIDDEN" });

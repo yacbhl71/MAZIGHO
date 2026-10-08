@@ -96,6 +96,7 @@ import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type Retur
 import { getStoreSystemPages } from "./storeSystemPagesDb";
 import { normalizeStoreMaintenanceMode, parseStoreMaintenanceMode, type StoreMaintenanceMode } from "../shared/storeMaintenanceMode";
 import { parsePlatformIdentity, type PlatformIdentity } from "../shared/platformIdentity";
+import { parseKeyInHandLandingContent, parseProLandingContent, type KeyInHandLandingContent, type ProLandingContent } from "../shared/keyInHandLanding";
 import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProductBundle } from "../shared/storeProductBundles";
 import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds, parsePromotionTargetProductIds } from "../shared/promotionTargetProducts";
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
@@ -11887,6 +11888,8 @@ export async function deleteAccountingEntry(id: number, storeId?: number) {
 
 // --- Generic settings (key/value) helpers ---
 const PLATFORM_IDENTITY_SETTING_KEY = "platform.identity.v1";
+const KEY_IN_HAND_LANDING_SETTING_KEY = "platform.key_in_hand_landing.v1";
+const PRO_LANDING_SETTING_KEY = "platform.pro_landing.v1";
 
 /**
  * Operator-wide visual identity for Studio and the SaaS landing. This is
@@ -11903,6 +11906,39 @@ export async function savePlatformIdentity(identity: PlatformIdentity) {
     PLATFORM_IDENTITY_SETTING_KEY,
     JSON.stringify(normalized),
     "Logos et favicons de MAZIGHO Studio et de la landing Pro.",
+  );
+  return normalized;
+}
+
+/**
+ * Public, operator-owned copy for the two MAZIGHO marketing landings. It is
+ * intentionally separate from every tenant setting: a boutique owner never
+ * receives a procedure capable of changing platform marketing content.
+ */
+export async function getKeyInHandLandingContent(): Promise<KeyInHandLandingContent> {
+  return parseKeyInHandLandingContent(await getSettingValue(KEY_IN_HAND_LANDING_SETTING_KEY));
+}
+
+export async function saveKeyInHandLandingContent(content: KeyInHandLandingContent) {
+  const normalized = parseKeyInHandLandingContent(content);
+  await setSettingValue(
+    KEY_IN_HAND_LANDING_SETTING_KEY,
+    JSON.stringify(normalized),
+    "Contenu public de la landing MAZIGHO Création de boutique clé en main.",
+  );
+  return normalized;
+}
+
+export async function getProLandingContent(): Promise<ProLandingContent> {
+  return parseProLandingContent(await getSettingValue(PRO_LANDING_SETTING_KEY));
+}
+
+export async function saveProLandingContent(content: ProLandingContent) {
+  const normalized = parseProLandingContent(content);
+  await setSettingValue(
+    PRO_LANDING_SETTING_KEY,
+    JSON.stringify(normalized),
+    "Contenu public de la landing MAZIGHO Pro.",
   );
   return normalized;
 }

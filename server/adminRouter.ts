@@ -35,6 +35,7 @@ import { storeFactoryModelIds } from "../shared/storeFactoryModel";
 import { invokeLLM } from "./_core/llm";
 import { generateImage, listImageModels } from "./_core/imageGeneration";
 import { buildStudioImageGenerationPrompt, studioImageFormats, studioImageStyles } from "./services/studioImageGenerationPolicy";
+import { keyInHandLandingContentSchema, proLandingContentSchema } from "../shared/keyInHandLanding";
 
 /** Supplier imports are a Pro benefit unless Studio explicitly grants one client store. */
 async function assertDropshippingAccess(storeId: number | undefined) {
@@ -1211,6 +1212,33 @@ export async function applyStorefrontTheme(ctx: any, storeId: number, themeId: S
 }
 
 export const adminRouter = router({
+  // Public reads live in appRouter.platformLanding; only Studio may write this
+  // operator-wide marketing content, with an audit record and no tenant scope.
+  platformLanding: router({
+    saveKeyInHand: platformProcedure.input(keyInHandLandingContentSchema).mutation(async ({ ctx, input }) => {
+      const content = await db.saveKeyInHandLandingContent(input);
+      logAudit(ctx, {
+        action: "studio.platform_landing.key_in_hand.save",
+        entityType: "platform_landing",
+        entityId: 1,
+        summary: "Contenu de la landing Création clé en main mis à jour.",
+        metadata: { phoneConfigured: Boolean(content.contactPhone), emailConfigured: Boolean(content.contactEmail), whatsappConfigured: Boolean(content.whatsappNumber) },
+      });
+      return content;
+    }),
+    savePro: platformProcedure.input(proLandingContentSchema).mutation(async ({ ctx, input }) => {
+      const content = await db.saveProLandingContent(input);
+      logAudit(ctx, {
+        action: "studio.platform_landing.pro.save",
+        entityType: "platform_landing",
+        entityId: 2,
+        summary: "Contenu de la landing MAZIGHO Pro mis à jour.",
+        metadata: { serviceMode: content.serviceMode, pricingVisible: content.showPricing, phoneConfigured: Boolean(content.contactPhone), emailConfigured: Boolean(content.contactEmail), whatsappConfigured: Boolean(content.whatsappNumber) },
+      });
+      return content;
+    }),
+  }),
+
   // Suivi Odoo (ERP) — strictly admin-only.
   odoo: router({
     status: platformProcedure.query(() => getOdooStatus()),

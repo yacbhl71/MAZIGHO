@@ -89,6 +89,19 @@ export const appRouter = router({
     }),
   }),
 
+  // Public reads are safe marketing copy only. Writes remain platform-scoped:
+  // no customer storefront or boutique owner can alter MAZIGHO Pro content.
+  platformLanding: router({
+    getKeyInHand: publicProcedure.query(async () => {
+      const { getKeyInHandLandingContent } = await import("./db");
+      return await getKeyInHandLandingContent();
+    }),
+    getPro: publicProcedure.query(async () => {
+      const { getProLandingContent } = await import("./db");
+      return await getProLandingContent();
+    }),
+  }),
+
   // Minimal host-scoped availability signal used before rendering any public or admin shell.
   // It deliberately exposes no brand, catalogue, domain, customer, order or integration data.
   storefront: router({

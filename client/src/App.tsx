@@ -20,6 +20,12 @@ import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
 const BoutiqueKeyInHandLanding = lazy(() => import("./pages/BoutiqueKeyInHandLanding"));
+const ProContactPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.ProContactPage })));
+const ProPrivacyPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.ProPrivacyPage })));
+const ProTermsPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.ProTermsPage })));
+const KeyInHandContactPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.KeyInHandContactPage })));
+const KeyInHandPrivacyPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.KeyInHandPrivacyPage })));
+const KeyInHandTermsPage = lazy(() => import("./pages/ProLandingInfoPage").then(module => ({ default: module.KeyInHandTermsPage })));
 const StoreAcquisitionWizard = lazy(() => import("./pages/StoreAcquisitionWizard"));
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
@@ -37,6 +43,7 @@ const OwnerStorePanel = lazy(() => import("./pages/OwnerStorePanel"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminStudio = lazy(() => import("./pages/admin/AdminStudio"));
 const AdminStudioBranding = lazy(() => import("./pages/admin/AdminStudioBranding"));
+const AdminStudioLandingContent = lazy(() => import("./pages/admin/AdminStudioLandingContent"));
 const AdminStudioSaasBilling = lazy(() => import("./pages/admin/AdminStudioSaasBilling"));
 const AdminStudioSupportTickets = lazy(() => import("./pages/admin/AdminStudioSupportTickets"));
 const AdminStudioCustomDomains = lazy(() => import("./pages/admin/AdminStudioCustomDomains"));
@@ -368,7 +375,7 @@ function StorefrontMarketing() {
   const [location] = useLocation();
   const pathname = location.split("?")[0];
   const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  if (pathname === "/mazigho-saas" || pathname === "/creation-boutique" || hostname === "pro.mazigho.ch") return null;
+  if (pathname === "/mazigho-saas" || pathname.startsWith("/creation-boutique") || hostname === "pro.mazigho.ch") return null;
   return <><MarketingPixels /><MarketingConsentBanner /></>;
 }
 
@@ -383,7 +390,7 @@ function Router() {
   const isStudioHost = currentHostname === "studio.mazigho.ch";
   const isSaasLandingHost = currentHostname === "pro.mazigho.ch";
   const isPrimaryMazighoHost = currentHostname === "mazigho.ch" || currentHostname === "www.mazigho.ch";
-  const isPublicSaasLanding = path === "/mazigho-saas" || path === "/creation-boutique" || isSaasLandingHost;
+  const isPublicSaasLanding = path === "/mazigho-saas" || path.startsWith("/creation-boutique") || isSaasLandingHost;
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -458,6 +465,9 @@ function Router() {
       <Route path={"/"} component={isSaasLandingHost ? MazighoSaasLanding : Home} />
       <Route path={"/mazigho-saas"} component={MazighoSaasLanding} />
       <Route path={"/creation-boutique"} component={BoutiqueKeyInHandLanding} />
+      <Route path={"/creation-boutique/contact"} component={KeyInHandContactPage} />
+      <Route path={"/creation-boutique/confidentialite"} component={KeyInHandPrivacyPage} />
+      <Route path={"/creation-boutique/conditions"} component={KeyInHandTermsPage} />
       <Route path={"/demarrer-boutique"} component={StoreAcquisitionWizard} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />
@@ -465,7 +475,7 @@ function Router() {
       <Route path={"/categorie/:slug"} component={Category} />
       <Route path={"/produit/:key"} component={Product} />
       <Route path={"/a-propos"} component={About} />
-      <Route path={"/contact"} component={Contact} />
+      <Route path={"/contact"} component={isSaasLandingHost ? ProContactPage : Contact} />
       <Route path={"/panier"} component={Cart} />
       <Route path={"/commander"} component={Checkout} />
       <Route path={"/commande-confirmation/:id"} component={OrderConfirmation} />
@@ -485,8 +495,8 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/faq" component={FAQ} />
       <Route path="/mentions-legales" component={LegalNotice} />
-      <Route path="/confidentialite" component={PrivacyPolicy} />
-      <Route path="/conditions-generales" component={TermsAndConditions} />
+      <Route path="/confidentialite" component={isSaasLandingHost ? ProPrivacyPage : PrivacyPolicy} />
+      <Route path="/conditions-generales" component={isSaasLandingHost ? ProTermsPage : TermsAndConditions} />
       <Route path="/livraison-retours" component={ShippingReturns} />
         <Route path={"/admin/studio/collections/:storeId"} component={AdminStudioOwnerCollections} />
         <Route path={"/admin/studio/produits/:storeId"} component={AdminStudioOwnerProducts} />
@@ -517,6 +527,7 @@ function Router() {
         <Route path={"/admin/studio/integrations"} component={AdminStudioIntegrationRequests} />
         <Route path={"/admin/studio/themes"} component={AdminStudioThemes} />
         <Route path={"/admin/studio/identite"} component={AdminStudioBranding} />
+        <Route path={"/admin/studio/landings"} component={AdminStudioLandingContent} />
         <Route path={"/admin/studio/sante"} component={AdminSystemHealth} />
         <Route path={"/admin/studio"} component={AdminStudio} />
         <Route path={"/admin/produits"} component={AdminProducts} />
