@@ -44,6 +44,7 @@ export default function Header() {
   // ajouter une catégorie illustrée suffit pour ajouter sa carte ronde.
   const marketCategoryRail = standardCategories;
   const usesCompactMarketRail = marketCategoryRail.length <= 6;
+  const usesScrollableMarketRail = marketCategoryRail.length > 10;
   const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
@@ -246,7 +247,7 @@ export default function Header() {
         </div>
 
         {usesMarketHeader && marketCategoryRail.length > 0 && <div className="border-t border-slate-100 bg-white py-3.5" data-testid="market-category-rail" aria-label="Rayons de la boutique">
-          <div className={`container flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 xl:overflow-visible ${usesCompactMarketRail ? "xl:justify-center xl:gap-8" : "xl:justify-between xl:gap-5"} [&::-webkit-scrollbar]:hidden`}>
+          <div className={`container flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-4 ${usesScrollableMarketRail ? "xl:overflow-x-auto" : "xl:overflow-visible"} ${usesCompactMarketRail ? "xl:justify-center xl:gap-8" : "xl:justify-between xl:gap-5"} [&::-webkit-scrollbar]:hidden`}>
             {marketCategoryRail.map(category => <Link key={category.id} href={`/categorie/${category.slug}`} className="group flex w-[5.15rem] shrink-0 snap-start flex-col items-center text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mazigho-accent)] focus-visible:ring-offset-2 sm:w-[5.45rem]">
               <span className="relative block h-[4.55rem] w-[4.55rem] overflow-hidden rounded-full border-2 border-white bg-[var(--mazigho-soft)] shadow-sm ring-1 ring-slate-200 transition duration-200 group-hover:-translate-y-0.5 group-hover:ring-[var(--mazigho-accent)] sm:h-[4.8rem] sm:w-[4.8rem]">
                 {category.imageUrl ? <img src={category.imageUrl} alt="" width={140} height={140} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-xl" aria-hidden="true">✦</span>}
