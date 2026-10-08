@@ -23,6 +23,8 @@ describe("provisionGiftStoreFromDraft schema prerequisites", () => {
     const end = databaseSource.indexOf("async function ensureStoreRelationshipScopeSchema", start);
     const implementation = databaseSource.slice(start, end);
 
+    expect(implementation).toContain("SHOW INDEX FROM `categories`");
+    expect(implementation).toContain("isLegacyGlobalSlugUnique");
     expect(implementation).toContain("DROP INDEX IF EXISTS `categories_slug_unique`");
     expect(implementation).toContain("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
   });

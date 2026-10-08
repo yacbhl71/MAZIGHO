@@ -4834,6 +4834,37 @@ async function ensureStoreCatalogScopeSchema() {
     await addAndBackfill("productTranslations", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productTranslations`.`productId` LIMIT 1)");
     await addAndBackfill("productDeliveryProfiles", "(SELECT p.`storeId` FROM `products` p WHERE p.`id` = `productDeliveryProfiles`.`productId` LIMIT 1)");
 
+    // A few early TiDB installations generated a global unique category-slug
+    // index under a driver-defined name (for example `categories.slug`) rather
+    // than the original migration name. Discover and remove every one-column
+    // unique `slug` index before installing the tenant-scoped replacement.
+    const [categoryIndexRows] = await db.execute(sql.raw("SHOW INDEX FROM `categories`")) as unknown as [Array<{
+      Key_name?: string;
+      Non_unique?: number;
+      Seq_in_index?: number;
+      Column_name?: string;
+    }>];
+    const categoryIndexColumns = new Map<string, Array<{ position: number; column: string }>>();
+    for (const row of categoryIndexRows) {
+      const name = String(row.Key_name || "");
+      if (!name) continue;
+      const columns = categoryIndexColumns.get(name) || [];
+      columns.push({ position: Number(row.Seq_in_index || 0), column: String(row.Column_name || "") });
+      categoryIndexColumns.set(name, columns);
+    }
+    for (const [name, indexedColumns] of Array.from(categoryIndexColumns.entries())) {
+      const orderedColumns = indexedColumns.slice()
+        .sort((left, right) => left.position - right.position)
+        .map(column => column.column);
+      const isLegacyGlobalSlugUnique = name !== "categories_store_slug_unique"
+        && name !== "PRIMARY"
+        && categoryIndexRows.some(row => String(row.Key_name || "") === name && Number(row.Non_unique) === 0)
+        && orderedColumns.length === 1
+        && orderedColumns[0] === "slug";
+      if (isLegacyGlobalSlugUnique) {
+        await db.execute(sql.raw(`ALTER TABLE \`categories\` DROP INDEX IF EXISTS \`${name.replace(/`/g, "``")}\``));
+      }
+    }
     // TiDB does not always include an English "doesn't exist" marker in a failed
     // DROP INDEX error. Use the database-level idempotent syntax instead of relying
     // on fragile text matching, so already-migrated installations keep serving.
