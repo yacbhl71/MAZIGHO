@@ -67,6 +67,8 @@ export const storeProvisioningDrafts = mysqlTable("storeProvisioningDrafts", {
   factoryModel: varchar("factoryModel", { length: 32 }).default("blank").notNull(),
   // Optional geography and operations starting point selected in Studio.
   provisioningTemplate: varchar("provisioningTemplate", { length: 32 }).default("standard").notNull(),
+  // Operator-selected route to prepare. It never enables payment by itself.
+  paymentRoute: varchar("paymentRoute", { length: 32 }).default("stripe_connect").notNull(),
   preferredCurrency: varchar("preferredCurrency", { length: 3 }).default("CHF").notNull(),
   // Prospect intent only. The active SaaS plan remains assigned from Studio.
   requestedPlan: varchar("requestedPlan", { length: 16 }),

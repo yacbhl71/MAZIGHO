@@ -971,6 +971,7 @@ export const studioProvisioningDraftInputSchema = z.object({
   themePreset: storefrontThemeIdSchema.optional().nullable(),
   factoryModel: z.enum(storeFactoryModelIds).default("blank"),
   provisioningTemplate: z.enum(["standard", "algeria"]).default("standard"),
+  paymentRoute: z.enum(["stripe_connect", "algeria_cash_on_delivery", "both"]).default("stripe_connect"),
   preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -3206,7 +3207,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: `Brouillon de mise en service créé pour ${input.displayName}`,
-          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate },
+          metadata: { requestedDomain: input.requestedDomain, businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate, paymentRoute: input.paymentRoute },
         });
         return draft;
       } catch (error) {
@@ -3245,7 +3246,7 @@ export const adminRouter = router({
           entityType: "store_provisioning_draft",
           entityId: draft.id,
           summary: "Brouillon de mise en service modifié",
-          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate },
+          metadata: { businessType: input.businessType, preferredCurrency: input.preferredCurrency, themePreset: input.themePreset ?? null, factoryModel: input.factoryModel, provisioningTemplate: input.provisioningTemplate, paymentRoute: input.paymentRoute },
         });
         return draft;
       } catch (error) {

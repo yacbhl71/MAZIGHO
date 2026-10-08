@@ -28,4 +28,15 @@ describe("provisionGiftStoreFromDraft schema prerequisites", () => {
     expect(implementation).toContain("DROP INDEX IF EXISTS `categories_slug_unique`");
     expect(implementation).toContain("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
   });
+
+  it("records an operator-selected payment route without enabling a payment method", () => {
+    const start = databaseSource.indexOf("export async function provisionGiftStoreFromDraft");
+    const end = databaseSource.indexOf("export type StudioProvisioningDraftInput", start);
+    const implementation = databaseSource.slice(start, end);
+
+    expect(implementation).toContain('key: "payment_route"');
+    expect(implementation).toContain('value: draft.paymentRoute || "stripe_connect"');
+    expect(implementation).toContain("aucune méthode n’est activée automatiquement");
+    expect(implementation).not.toContain("stripeAccountId");
+  });
 });

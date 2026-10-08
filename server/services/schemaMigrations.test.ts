@@ -87,4 +87,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("ADD COLUMN IF NOT EXISTS `imageUrl` varchar(500) NULL");
     expect(migration).not.toContain("blob");
   });
+
+  it("registers the operator-selected payment route without payment credentials", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0049_store_provisioning_payment_route.sql");
+
+    expect(runner).toContain('["0049_store_provisioning_payment_route", "drizzle/0049_store_provisioning_payment_route.sql"]');
+    expect(migration).toContain("ALTER TABLE `storeProvisioningDrafts`");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect'");
+    expect(migration).not.toMatch(/secret|api[_ -]?key|token/i);
+  });
 });

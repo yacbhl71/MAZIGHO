@@ -335,11 +335,12 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `copySourceStoreId` int NULL, `copySelection` text NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`), INDEX `store_provisioning_drafts_copy_source_idx` (`copySourceStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `copySourceStoreId` int NULL, `copySelection` text NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`), INDEX `store_provisioning_drafts_copy_source_idx` (`copySourceStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `factoryModel` varchar(32) NOT NULL DEFAULT 'blank'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `requestedPlan` varchar(16) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `copySourceStoreId` int NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `copySelection` text NULL"));
@@ -2975,6 +2976,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
       { storeId, key: "currency", value: draft.preferredCurrency, description: "Compatibilité : devise de départ choisie lors du provisionnement." },
       { storeId, key: "provisioning_template", value: normalizeStoreProvisioningTemplate(draft.provisioningTemplate), description: "Base géographique et opérationnelle choisie dans Studio." },
+      { storeId, key: "payment_route", value: draft.paymentRoute || "stripe_connect", description: "Route d’encaissement choisie par l’opérateur dans Studio ; aucune méthode n’est activée automatiquement." },
       ...(isControlledCopy && copySelection ? [{ storeId, key: "store_copy_provenance", value: JSON.stringify({ sourceStoreId: draft.copySourceStoreId, selectedScopes: selectedStudioStoreCopyScopes(copySelection), preparedAt: now.toISOString() }), description: "Provenance d’une copie Studio contrôlée ; aucune donnée client, paiement, accès, secret ou fournisseur n’est copiée." }] : []),
     ];
 
@@ -3056,6 +3058,7 @@ export type StudioProvisioningDraftInput = {
   themePreset?: StorefrontThemeId | null;
   factoryModel?: StoreFactoryModelId | null;
   provisioningTemplate?: StoreProvisioningTemplate;
+  paymentRoute?: "stripe_connect" | "algeria_cash_on_delivery" | "both";
   preferredCurrency: string;
   /** Intent only: the active SaaS plan remains a Studio-only assignment. */
   requestedPlan?: "free" | "basic" | "pro" | null;
@@ -3065,6 +3068,7 @@ export type StudioProvisioningDraftInput = {
 function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
   const customBusinessTheme = input.businessType === "autre" ? input.customBusinessTheme?.trim() || null : null;
   if (input.businessType === "autre" && !customBusinessTheme) throw new Error("PROVISIONING_CUSTOM_THEME_REQUIRED");
+  const paymentRoute = input.paymentRoute === "algeria_cash_on_delivery" || input.paymentRoute === "both" ? input.paymentRoute : "stripe_connect";
   const provisioningTemplate = normalizeStoreProvisioningTemplate(input.provisioningTemplate);
   const factoryModel = normalizeStoreFactoryModelId(input.factoryModel);
   return {
@@ -3075,6 +3079,7 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
     themePreset: input.themePreset ?? getStoreFactoryModel(factoryModel).suggestedTheme,
     factoryModel,
     provisioningTemplate,
+    paymentRoute,
     preferredCurrency: provisioningTemplate === "algeria" ? "DZD" : input.preferredCurrency,
     requestedPlan: input.requestedPlan ?? null,
     notes: input.notes?.trim() || null,
@@ -3144,6 +3149,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     themePreset: normalized.themePreset,
     factoryModel: normalized.factoryModel,
     provisioningTemplate: normalized.provisioningTemplate,
+    paymentRoute: normalized.paymentRoute,
     preferredCurrency: normalized.preferredCurrency,
     requestedPlan: normalized.requestedPlan,
     notes: normalized.notes,
