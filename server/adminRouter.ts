@@ -2417,6 +2417,12 @@ export const adminRouter = router({
       logAudit(ctx, { action: "studio.storefront.home_sections.save", entityType: "design", entityId: 1, summary: "Sections d’accueil enregistrées depuis Studio", metadata: { storeId: input.storeId, publicStorefront: true } });
       return profile;
     }),
+    getStorefrontThemeAccess: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => await db.getStorefrontThemeAccess(input.storeId)),
+    saveStorefrontThemeAccess: platformProcedure.input(z.object({ storeId: z.number().int().positive(), themeIds: z.array(storefrontThemeIdSchema).min(1).max(storefrontThemeIds.length) })).mutation(async ({ ctx, input }) => {
+      const saved = await db.saveStorefrontThemeAccess(input.storeId, { themeIds: input.themeIds });
+      logAudit(ctx, { action: "studio.storefront.theme_access.save", entityType: "store", entityId: input.storeId, summary: "Bibliothèque de thèmes attribuée à la boutique", metadata: { storeId: input.storeId, themeCount: saved.themeIds.length } });
+      return saved;
+    }),
     applyStorefrontTheme: platformProcedure.input(z.object({ storeId: z.number().int().positive(), themeId: storefrontThemeIdSchema })).mutation(async ({ ctx, input }) => applyStorefrontTheme(ctx, input.storeId, input.themeId)),
     // Compatibility endpoint for the first published Studio preset.
     applyVioletCraftStorefrontTemplate: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).mutation(async ({ ctx, input }) => applyStorefrontTheme(ctx, input.storeId, "violetCraft")),

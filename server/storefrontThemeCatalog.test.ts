@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { storefrontThemeCatalog, storefrontThemeIds, storefrontThemeLabels } from "../shared/storefrontThemeCatalog";
+import { isPremiumStorefrontTheme, premiumStorefrontThemeIds, storefrontThemeCatalog, storefrontThemeIds, storefrontThemeLabels } from "../shared/storefrontThemeCatalog";
 
 describe("shared storefront theme catalog", () => {
   it("exposes thirteen unique owner-selectable theme identifiers", () => {
@@ -7,6 +7,13 @@ describe("shared storefront theme catalog", () => {
     expect(new Set(storefrontThemeIds).size).toBe(13);
     expect(storefrontThemeCatalog.map(theme => theme.id)).toEqual(storefrontThemeIds);
     expect(storefrontThemeIds).toEqual(expect.arrayContaining(["gallerySignature", "studioFlux", "glamourNoir"]));
+  });
+
+  it("marks the curated premium themes without removing them from the preview catalog", () => {
+    expect(premiumStorefrontThemeIds).toEqual(["gallerySignature", "studioFlux", "glamourNoir"]);
+    expect(premiumStorefrontThemeIds.every(themeId => storefrontThemeIds.includes(themeId))).toBe(true);
+    expect(isPremiumStorefrontTheme("glamourNoir")).toBe(true);
+    expect(isPremiumStorefrontTheme("coffee")).toBe(false);
   });
 
   it("provides complete visual presentation metadata for every theme", () => {

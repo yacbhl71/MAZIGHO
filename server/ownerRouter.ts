@@ -2195,9 +2195,11 @@ export const ownerRouter = router({
     if (publicCopyFields.some(field => current[field] !== saved[field])) await db.markPublicContentTranslationsStale("design", 1, ctx.store!.id);
     return saved;
   }),
+  getStorefrontThemeAccess: storeOwnerProcedure.query(async ({ ctx }) => await db.getStorefrontThemeAccess(ctx.store!.id)),
   applyStorefrontTheme: storeOwnerProcedure.input(z.object({
     themeId: z.enum(storefrontThemeIds),
   })).mutation(async ({ ctx, input }) => {
+    if (!await db.isStorefrontThemeAllowedForStore(ctx.store!.id, input.themeId)) throw new TRPCError({ code: "FORBIDDEN", message: "Ce thème n’est pas inclus dans la bibliothèque attribuée à votre boutique." });
     const { applyStorefrontTheme } = await import("./adminRouter");
     return await applyStorefrontTheme(ctx, ctx.store!.id, input.themeId, "owner");
   }),

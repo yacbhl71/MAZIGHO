@@ -16,6 +16,10 @@ export const storefrontThemeIds = [
 
 export type StorefrontThemeId = (typeof storefrontThemeIds)[number];
 
+/** Curated premium templates. Their preview remains visible when not attributed; only Studio can authorize use. */
+export const premiumStorefrontThemeIds = ["gallerySignature", "studioFlux", "glamourNoir"] as const satisfies readonly StorefrontThemeId[];
+export const isPremiumStorefrontTheme = (themeId: StorefrontThemeId) => premiumStorefrontThemeIds.includes(themeId as typeof premiumStorefrontThemeIds[number]);
+
 export type StorefrontThemeCatalogItem = {
   id: StorefrontThemeId;
   label: string;

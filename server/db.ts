@@ -89,7 +89,7 @@ import { paginateStudioCustomDomainRegistry, type StudioCustomDomainRegistryQuer
 import { paginateStudioIntegrationRequestRegistry, type StudioIntegrationRequestRegistryQuery } from "../shared/studioIntegrationRequestRegistry";
 import { makeOwnerCatalogueCsvExport, makeOwnerOrdersCsvExport, makeOwnerStockCsvExport, type OwnerCsvExportKind } from "./services/ownerCsvExport";
 import type { StoreCatalogueImportRow } from "../shared/storeCatalogueImport";
-import type { StorefrontThemeId } from "../shared/storefrontThemeCatalog";
+import { storefrontThemeIds, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { hashPassword } from "./localAuth";
 import { getReturnRequestActionLabel, getReturnRequestNextStatus, getReturnRequestStatusLabel, type ReturnRequestAction, type ReturnRequestStatus } from "./services/returnRequestWorkflow";
 import { getReturnExternalCaseEventNote, normalizeReturnExternalCase, type ReturnExternalCaseInput } from "./services/returnExternalCase";
@@ -11698,6 +11698,66 @@ export function normalizeDesignProfile(value: unknown): DesignProfile {
   }
 
   return normalized;
+}
+
+const STOREFRONT_THEME_ACCESS_SETTING_KEY = "storefront_theme_access";
+
+type StorefrontThemeAccess = {
+  themeIds: StorefrontThemeId[];
+  source: "all" | "selected";
+};
+
+function normalizeStorefrontThemeAccess(raw: string | null | undefined): StorefrontThemeAccess {
+  if (!raw) return { themeIds: [...storefrontThemeIds], source: "all" };
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const candidates = Array.isArray(parsed) ? parsed : Array.isArray((parsed as { themeIds?: unknown })?.themeIds) ? (parsed as { themeIds: unknown[] }).themeIds : [];
+    const themeIds = storefrontThemeIds.filter(themeId => candidates.includes(themeId));
+    return themeIds.length > 0 ? { themeIds, source: "selected" } : { themeIds: [...storefrontThemeIds], source: "all" };
+  } catch {
+    return { themeIds: [...storefrontThemeIds], source: "all" };
+  }
+}
+
+/** Store-scoped theme entitlement. Legacy stores safely retain the whole library until Studio narrows it. */
+export async function getStorefrontThemeAccess(storeId: number): Promise<StorefrontThemeAccess> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [store, row] = await Promise.all([
+    db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
+    db.select({ value: storeSettings.value }).from(storeSettings).where(and(eq(storeSettings.storeId, storeId), eq(storeSettings.key, STOREFRONT_THEME_ACCESS_SETTING_KEY))).limit(1),
+  ]);
+  if (!store[0]) throw new Error("STORE_NOT_FOUND");
+  if (store[0].isPlatformStore) return { themeIds: [...storefrontThemeIds], source: "all" };
+  return normalizeStorefrontThemeAccess(row[0]?.value);
+}
+
+/** Studio-only write. At least one authorized template remains available to the owner. */
+export async function saveStorefrontThemeAccess(storeId: number, input: { themeIds: StorefrontThemeId[] }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [store] = await db.select({ id: stores.id, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1);
+  if (!store) throw new Error("STORE_NOT_FOUND");
+  if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
+  const themeIds = storefrontThemeIds.filter(themeId => input.themeIds.includes(themeId));
+  if (themeIds.length === 0) throw new Error("STOREFRONT_THEME_ACCESS_EMPTY");
+  await db.insert(storeSettings).values({
+    storeId,
+    key: STOREFRONT_THEME_ACCESS_SETTING_KEY,
+    value: JSON.stringify({ themeIds }),
+    description: "Bibliothèque de thèmes attribuée par MAZIGHO Studio à cette boutique ; le propriétaire ne peut utiliser que cette sélection.",
+  }).onDuplicateKeyUpdate({
+    set: {
+      value: JSON.stringify({ themeIds }),
+      description: "Bibliothèque de thèmes attribuée par MAZIGHO Studio à cette boutique ; le propriétaire ne peut utiliser que cette sélection.",
+    },
+  });
+  return { themeIds, source: "selected" as const };
+}
+
+export async function isStorefrontThemeAllowedForStore(storeId: number, themeId: StorefrontThemeId) {
+  const access = await getStorefrontThemeAccess(storeId);
+  return access.themeIds.includes(themeId);
 }
 
 export async function getDesignProfile(storeId?: number): Promise<DesignProfile> {
