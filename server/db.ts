@@ -465,9 +465,14 @@ async function assertStudioCatalogueImportTarget(storeId: number) {
   if (!db) throw new Error("Database unavailable");
   const [[store], [draft]] = await Promise.all([
     db.select({ id: stores.id, status: stores.status, isPlatformStore: stores.isPlatformStore }).from(stores).where(eq(stores.id, storeId)).limit(1),
-    db.select({ notes: storeProvisioningDrafts.notes, provisionedStoreId: storeProvisioningDrafts.provisionedStoreId }).from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.provisionedStoreId, storeId)).limit(1),
+    db.select({ provisionedStoreId: storeProvisioningDrafts.provisionedStoreId }).from(storeProvisioningDrafts).where(eq(storeProvisioningDrafts.provisionedStoreId, storeId)).limit(1),
   ]);
-  if (!store || store.isPlatformStore || store.status !== "setup" || !draft?.notes?.startsWith(STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX)) {
+  // A catalogue may be imported for any new store provisioned from a Studio
+  // draft while it remains in setup. The former notes-prefix check only served
+  // the archive workshop and incorrectly blocked standard Studio creations.
+  // The provisionedStoreId lookup keeps the write bound to one Studio-created
+  // store; pilot, platform and already-opened stores remain excluded.
+  if (!store || store.isPlatformStore || store.status !== "setup" || draft?.provisionedStoreId !== storeId) {
     throw new Error("STORE_NOT_CATALOGUE_IMPORT_TARGET");
   }
 }

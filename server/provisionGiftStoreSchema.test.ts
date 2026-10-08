@@ -51,4 +51,15 @@ describe("provisionGiftStoreFromDraft schema prerequisites", () => {
     expect(implementation).toContain("aucune méthode n’est activée automatiquement");
     expect(implementation).not.toContain("stripeAccountId");
   });
+
+  it("accepts a catalogue import for any Studio-provisioned store still in setup", () => {
+    const start = databaseSource.indexOf("async function assertStudioCatalogueImportTarget");
+    const end = databaseSource.indexOf("export async function getStudioProvisioningDraftReviews", start);
+    const implementation = databaseSource.slice(start, end);
+
+    expect(implementation).toContain("draft?.provisionedStoreId !== storeId");
+    expect(implementation).toContain('store.status !== "setup"');
+    expect(implementation).toContain("store.isPlatformStore");
+    expect(implementation).not.toContain("STUDIO_CATALOGUE_IMPORT_DRAFT_PREFIX");
+  });
 });
