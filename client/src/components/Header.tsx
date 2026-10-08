@@ -40,6 +40,7 @@ export default function Header() {
   const categories = (categoriesQuery.data || []).map(category => getLocalizedCategoryPresentation(locale, category));
   const standardCategories = categories.filter(category => category.catalogSection !== "creations");
   const creativeCategories = categories.filter(category => category.catalogSection === "creations");
+  const marketCategoryRail = standardCategories.slice(0, 8);
   const { profile, palette, isLoading: designProfileLoading } = useDesignProfile(locale);
   const storeAvailability = trpc.storefront.getAvailability.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
   const marketSettings = trpc.storefront.getMarketSettings.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
@@ -178,7 +179,7 @@ export default function Header() {
           </div>}
 
           {/* Search Bar - Desktop */}
-          <div className={`hidden flex-none xl:ml-auto xl:block ${usesMarketHeader ? "w-72" : usesGalleryHeader ? "w-40" : usesSearchFirstHeader ? "w-60" : usesSplitHeader ? "w-48" : "w-32"}`}>
+          <div className={`hidden xl:block ${usesMarketHeader ? "min-w-0 flex-1 xl:ml-0 xl:max-w-[56rem]" : "flex-none xl:ml-auto"} ${usesGalleryHeader ? "w-40" : usesSearchFirstHeader ? "w-60" : usesSplitHeader ? "w-48" : "w-32"}`}>
             <SearchBar />
           </div>
 
@@ -240,6 +241,17 @@ export default function Header() {
         <div className="md:hidden mt-3">
           <SearchBar />
         </div>
+
+        {usesMarketHeader && marketCategoryRail.length > 0 && <div className="border-t border-slate-100 py-3" data-testid="market-category-rail" aria-label="Rayons de la boutique">
+          <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {marketCategoryRail.map(category => <Link key={category.id} href={`/categorie/${category.slug}`} className="group flex w-[4.9rem] shrink-0 snap-start flex-col items-center text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mazigho-accent)] focus-visible:ring-offset-2">
+              <span className="relative block h-[4.35rem] w-[4.35rem] overflow-hidden rounded-full border-2 border-white bg-[var(--mazigho-soft)] shadow-sm ring-1 ring-slate-200 transition duration-200 group-hover:-translate-y-0.5 group-hover:ring-[var(--mazigho-accent)]">
+                {category.imageUrl ? <img src={category.imageUrl} alt="" width={140} height={140} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-xl" aria-hidden="true">✦</span>}
+              </span>
+              <span className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-700 transition-colors group-hover:text-[var(--mazigho-primary)]">{category.name}</span>
+            </Link>)}
+          </div>
+        </div>}
 
         {/* Mobile Menu */}
         {isMenuOpen && (

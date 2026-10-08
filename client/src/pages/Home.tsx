@@ -95,6 +95,7 @@ export default function Home() {
   const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
   const closingVisualValue = profile.closingVisualValue.trim();
   const usesGlamourNoir = profile.headerLayout === "glamour";
+  const usesMarketStorefront = profile.headerLayout === "market";
   const visualAccent = usesGlamourNoir ? palette.accent : palette.primary;
   const closingVisualFontFamilies = {
     inherit: undefined,
@@ -184,9 +185,9 @@ export default function Home() {
         )}
 
         {profile.showDiscovery && (
-        <section style={{ order: orderIndex("discovery") }} className={usesGlamourNoir ? "bg-[#15141a] py-16 md:py-24" : "bg-white py-16 md:py-24"}>
+        <section style={{ order: orderIndex("discovery") }} className={usesGlamourNoir ? "bg-[#15141a] py-16 md:py-24" : usesMarketStorefront ? "bg-white py-10 md:py-14" : "bg-white py-16 md:py-24"}>
           <div className="container">
-            <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className={`flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between ${usesMarketStorefront ? "mb-7" : "mb-10"}`}>
               <div className="max-w-2xl">
                 <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: visualAccent }}>{copy.discovery.eyebrow}</p>
                 <h2 className={`text-3xl font-semibold tracking-tight md:text-4xl ${usesGlamourNoir ? "text-white" : "text-slate-950"}`}>{copy.discovery.title}</h2>
@@ -194,11 +195,10 @@ export default function Home() {
               </div>
               {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-800"}`}>{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
             </div>
-            {localizedDiscoveryTiles.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {localizedDiscoveryTiles.length > 0 ? <div className={`grid gap-4 sm:grid-cols-2 ${usesMarketStorefront ? "lg:grid-cols-5" : "lg:grid-cols-3"}`} data-storefront-discovery={usesMarketStorefront ? "market" : "standard"}>
               {localizedDiscoveryTiles.map(tile => (
-                <Link key={tile.href} href={tile.href} className={`group overflow-hidden rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl ${usesGlamourNoir ? "border-white/10 bg-[#22212a]" : "border-[#e5e1d4] bg-[var(--mazigho-soft)]"}`}>
-                  <div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div>
-                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className={`text-lg font-semibold group-hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-900"}`}>{tile.title}</h3><p className={`mt-2 text-sm leading-6 ${usesGlamourNoir ? "text-white/60" : "text-slate-600"}`}>{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div>
+                <Link key={tile.href} href={tile.href} className={`group overflow-hidden border transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl ${usesMarketStorefront ? "relative min-h-[255px] rounded-xl border-slate-200 bg-slate-950" : `rounded-2xl ${usesGlamourNoir ? "border-white/10 bg-[#22212a]" : "border-[#e5e1d4] bg-[var(--mazigho-soft)]"}`}`}>
+                  {usesMarketStorefront ? <><div className={`absolute inset-0 bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 50vw, (max-width: 1023px) 33vw, 20vw" alt={tile.title} width={960} height={1200} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div><div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent p-5 pt-14 text-white"><p className="text-base font-bold leading-tight">{tile.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-white/75">{tile.description}</p><span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: palette.accent }}>Voir le rayon <ChevronRight className="h-3.5 w-3.5" /></span></div></> : <><div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div><div className="flex items-start justify-between gap-3 p-5"><div><h3 className={`text-lg font-semibold group-hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-900"}`}>{tile.title}</h3><p className={`mt-2 text-sm leading-6 ${usesGlamourNoir ? "text-white/60" : "text-slate-600"}`}>{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div></>}
                 </Link>
               ))}
             </div> : <div className={`rounded-2xl border border-dashed px-6 py-10 text-center text-sm leading-6 ${usesGlamourNoir ? "border-white/20 bg-white/5 text-white/65" : "border-slate-300 bg-slate-50 text-slate-600"}`}>Ajoutez vos catégories dans le catalogue pour les présenter ici.</div>}

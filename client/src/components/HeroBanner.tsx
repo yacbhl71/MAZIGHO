@@ -125,32 +125,28 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
     return <div className="relative flex h-[520px] w-full items-end overflow-hidden bg-slate-950 px-6 py-10 text-white md:h-[560px] md:px-10 lg:h-[640px] lg:px-16"><div className="absolute inset-0 opacity-30" style={{ background: `linear-gradient(135deg, ${palette.primary}, #020617)` }} /><div className="relative z-10 max-w-xl"><p className="text-xs font-bold uppercase tracking-[0.28em] text-white/70">{profile.brandMessage || "Votre boutique"}</p><h1 className="mt-4 text-4xl font-semibold leading-tight md:text-6xl">{profile.brandName}</h1><p className="mt-4 text-base leading-7 text-white/80">Préparez une bannière personnalisée depuis votre panneau de gestion.</p></div></div>;
   }
 
-  // Studio Flux is intentionally a different composition: copy and visual
-  // sit side by side on larger screens, rather than layering text over an
-  // image. The layout stays responsive and uses each store's own carousel.
+  // The market composition keeps the catalogue immediately legible: a large
+  // visual slide, a clear search-first header and a single focal call to action.
+  // It remains fully driven by each boutique's own carousel content.
   if (profile.headerLayout === "market") {
     return (
-      <div className="relative overflow-hidden bg-slate-950 text-white">
-        <div className="grid min-h-[560px] md:min-h-[620px] md:grid-cols-[0.82fr_1.18fr]">
-          <div className="relative z-10 flex items-center bg-slate-950 px-6 py-16 sm:px-10 lg:px-16">
-            <div className="max-w-xl">
-              <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.accent }}>{heroEyebrow}</p>
-              <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-5xl lg:text-6xl">{currentBanner.title}</h1>
-              <p className="mb-8 max-w-xl text-base leading-7 text-white/75 md:text-lg">{currentBanner.subtitle}</p>
-              <div className="flex flex-col justify-start gap-3 sm:flex-row">
-                <Link href={currentBanner.buttonLink}><Button className="px-7 py-3 text-base font-semibold text-white hover:brightness-95" style={{ backgroundColor: palette.accent }}>{primaryCtaLabel}</Button></Link>
-                <Button asChild variant="outline" className="border-white/30 bg-white/5 px-7 py-3 text-base font-semibold text-white hover:bg-white/15 hover:text-white"><Link href="/best-sellers">{secondaryCtaLabel}</Link></Button>
-              </div>
+      <div className="relative min-h-[430px] overflow-hidden bg-slate-950 text-white md:min-h-[560px] lg:min-h-[620px]" data-storefront-hero="market">
+        {currentBanner.imageUrl && (isCarouselVideoUrl(currentBanner.imageUrl) ? <video key={currentBanner.id} src={currentBanner.imageUrl} autoPlay loop muted={!videoSoundEnabled} playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" aria-label={currentBanner.title} /> : <img key={currentBanner.id} src={currentBanner.imageUrl} alt="" width={1920} height={1080} fetchPriority={currentSlide === 0 ? "high" : "auto"} loading="eager" decoding="async" className="absolute inset-0 h-full w-full object-cover" />)}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/52 to-slate-950/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-slate-950/10" />
+        <div className="container relative z-10 flex min-h-[430px] items-center px-6 py-14 sm:px-10 md:min-h-[560px] lg:min-h-[620px] lg:px-16">
+          <div className="max-w-xl">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.accent }}>{heroEyebrow}</p>
+            <h1 className="mb-5 text-4xl font-semibold leading-[1.03] tracking-tight md:text-6xl lg:text-7xl">{currentBanner.title}</h1>
+            <p className="mb-8 max-w-lg text-base leading-7 text-white/85 md:text-lg">{currentBanner.subtitle}</p>
+            <div className="flex flex-col justify-start gap-3 sm:flex-row">
+              <Link href={currentBanner.buttonLink}><Button className="px-7 py-3 text-base font-semibold text-white shadow-lg hover:brightness-95" style={{ backgroundColor: palette.accent }}>{primaryCtaLabel}</Button></Link>
+              <Button asChild variant="outline" className="border-white/60 bg-white/10 px-7 py-3 text-base font-semibold text-white backdrop-blur-sm hover:bg-white/20 hover:text-white"><Link href="/best-sellers">{secondaryCtaLabel}</Link></Button>
             </div>
-            {banners.length > 1 && <div className="absolute bottom-7 left-6 flex gap-2 sm:left-10 lg:left-16">{banners.map((banner, index) => <button key={banner.id} onClick={() => selectSlide(index)} className={`h-3 w-10 rounded-full transition-colors ${index === currentSlide ? "bg-white" : "bg-white/25 hover:bg-white/50"}`} aria-label={t(locale, "showBanner", { index: index + 1 })} />)}</div>}
-          </div>
-          <div className="relative min-h-[360px] overflow-hidden bg-slate-900 md:min-h-full">
-            {currentBanner.imageUrl && (isCarouselVideoUrl(currentBanner.imageUrl) ? <video key={currentBanner.id} src={currentBanner.imageUrl} autoPlay loop muted={!videoSoundEnabled} playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" aria-label={currentBanner.title} /> : <img key={currentBanner.id} src={currentBanner.imageUrl} alt="" width={1920} height={1080} fetchPriority={currentSlide === 0 ? "high" : "auto"} loading="eager" decoding="async" className="absolute inset-0 h-full w-full object-cover" />)}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/30 via-transparent to-slate-950/10 md:bg-gradient-to-r md:from-slate-950/20 md:via-transparent" />
-            {banners.length > 1 && <><button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/45 text-white hover:bg-slate-950/70" aria-label={t(locale, "previousBanner")}><ChevronLeft className="h-6 w-6" /></button><button onClick={goToNext} className="absolute right-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/45 text-white hover:bg-slate-950/70" aria-label={t(locale, "nextBanner")}><ChevronRight className="h-6 w-6" /></button></>}
-            {isCarouselVideoUrl(currentBanner.imageUrl) && <button type="button" onClick={() => setVideoSoundEnabled(enabled => !enabled)} className="absolute bottom-5 right-5 z-30 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/65 px-4 text-xs font-bold text-white shadow-lg backdrop-blur hover:bg-slate-950/85" aria-pressed={videoSoundEnabled}>{videoSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{videoSoundEnabled ? "Couper le son" : "Activer le son"}</button>}
           </div>
         </div>
+        {banners.length > 1 && <><button onClick={goToPrevious} className="absolute left-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/45 text-white transition hover:bg-slate-950/70" aria-label={t(locale, "previousBanner")}><ChevronLeft className="h-6 w-6" /></button><button onClick={goToNext} className="absolute right-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/45 text-white transition hover:bg-slate-950/70" aria-label={t(locale, "nextBanner")}><ChevronRight className="h-6 w-6" /></button><div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">{banners.map((banner, index) => <button key={banner.id} onClick={() => selectSlide(index)} className={`h-2.5 w-9 rounded-full transition-colors ${index === currentSlide ? "bg-white" : "bg-white/35 hover:bg-white/65"}`} aria-label={t(locale, "showBanner", { index: index + 1 })} />)}</div></>}
+        {isCarouselVideoUrl(currentBanner.imageUrl) && <button type="button" onClick={() => setVideoSoundEnabled(enabled => !enabled)} className="absolute bottom-5 right-5 z-30 inline-flex min-h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-950/65 px-4 text-xs font-bold text-white shadow-lg backdrop-blur hover:bg-slate-950/85" aria-pressed={videoSoundEnabled}>{videoSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}{videoSoundEnabled ? "Couper le son" : "Activer le son"}</button>}
       </div>
     );
   }
