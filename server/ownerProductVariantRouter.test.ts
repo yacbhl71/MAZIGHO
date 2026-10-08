@@ -255,6 +255,18 @@ describe("owner product variant routes", () => {
       customPrimary: "#183B73",
       homeOrder: ["featured", "text:flux-drop", "discovery", "text:flux-service", "story", "editorial", "highlight", "reassurance"],
     }), 77);
+
+    await expect(caller.owner.applyStorefrontTheme({ themeId: "glamourNoir" })).resolves.toMatchObject({
+      themeId: "glamourNoir",
+      heroApplied: true,
+      categoryImageCount: 3,
+    });
+    expect(db.updateDesignProfile).toHaveBeenLastCalledWith(expect.objectContaining({
+      brandName: "Glamour Noir",
+      headerLayout: "glamour",
+      customPrimary: "#17151D",
+      homeOrder: ["text:glamour-intro", "featured", "text:glamour-sale", "discovery", "story", "text:glamour-ritual", "editorial", "reassurance"],
+    }), 77);
   });
 
   it("keeps integration requests visible to managers but writable only by the current store owner", async () => {

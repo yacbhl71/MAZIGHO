@@ -215,6 +215,7 @@ const storefrontThemePresetBusinessTypes: Record<StorefrontThemePreset, Provisio
   coffee: "autre",
   gallerySignature: "autre",
   studioFlux: "autre",
+  glamourNoir: "autre",
 };
 
 const storeStatusPresentation = {

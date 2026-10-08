@@ -11,6 +11,7 @@ export const storefrontThemeIds = [
   "coffee",
   "gallerySignature",
   "studioFlux",
+  "glamourNoir",
 ] as const;
 
 export type StorefrontThemeId = (typeof storefrontThemeIds)[number];
@@ -157,6 +158,16 @@ export const storefrontThemeCatalog: readonly StorefrontThemeCatalogItem[] = [
     visualAlt: "Sélection d’objets contemporains sur des socles bleu cobalt et orange",
     benefits: ["Recherche large et navigation utilitaire", "Nouveautés mises en avant avant le récit", "Blocs modulaires au rythme graphique"],
     palette: { card: "border-blue-200 bg-blue-50/60", label: "text-blue-800", title: "text-slate-950", text: "text-slate-700", button: "bg-[#183B73] hover:bg-[#102B57]", badge: "bg-orange-100 text-orange-900" },
+  },
+  {
+    id: "glamourNoir",
+    label: "Glamour Noir — beauté premium",
+    eyebrow: "Beauté, parfum & rituels",
+    description: "Un décor noir éditorial illuminé de cyan et de rose, pensé pour la beauté, le parfum, les accessoires et les lancements de collection.",
+    visual: "/assets/themes/glamour-noir/glamour-noir-hero.webp",
+    visualAlt: "Produits de beauté premium devant un halo cyan sur fond noir",
+    benefits: ["Hero immersif avec espace de titre", "Navigation sombre et minimaliste", "Blocs éditoriaux et catégories illustrées"],
+    palette: { card: "border-slate-700 bg-[#191820]", label: "text-cyan-300", title: "text-white", text: "text-slate-300", button: "bg-cyan-500 text-slate-950 hover:bg-cyan-400", badge: "bg-fuchsia-500/15 text-fuchsia-200" },
   },
 ] as const;
 

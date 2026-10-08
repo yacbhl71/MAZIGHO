@@ -94,6 +94,8 @@ export default function Home() {
   const storyImageUrl = getOptimizedHomeImageUrl(profile.storyImageUrl);
   const editorialImageUrl = getOptimizedHomeImageUrl(profile.editorialImageUrl);
   const closingVisualValue = profile.closingVisualValue.trim();
+  const usesGlamourNoir = profile.headerLayout === "glamour";
+  const visualAccent = usesGlamourNoir ? palette.accent : palette.primary;
   const closingVisualFontFamilies = {
     inherit: undefined,
     editorial: "var(--mazigho-heading-font)",
@@ -143,7 +145,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen text-slate-900" style={{ backgroundColor: palette.soft }}>
+    <div className={`min-h-screen ${usesGlamourNoir ? "text-white" : "text-slate-900"}`} style={{ backgroundColor: palette.soft }}>
       <Header />
 
       <main>
@@ -156,7 +158,7 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-slate-950/35 to-transparent" />
             <div className="relative flex min-h-[230px] items-center px-7 py-8 text-white md:min-h-[300px] md:px-12">
               <div className="max-w-md">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.highlight.eyebrow}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: visualAccent }}>{copy.highlight.eyebrow}</p>
                 <h2 className="text-2xl font-semibold leading-tight md:text-4xl">{copy.highlight.title}</h2>
                 <p className="mt-3 text-sm leading-6 text-white/80 md:text-base">{copy.highlight.text}</p>
               </div>
@@ -165,16 +167,16 @@ export default function Home() {
         </section>
 
         {profile.showReassurance && (
-        <section style={{ order: orderIndex("reassurance") }} className="border-y border-[#eadfd2] bg-white/80">
+        <section style={{ order: orderIndex("reassurance") }} className={usesGlamourNoir ? "border-y border-white/10 bg-[#1a1921]" : "border-y border-[#eadfd2] bg-white/80"}>
           <div className="container grid gap-0 md:grid-cols-3">
             {copy.reassurance.slice(0, 3).map((item, index) => {
               const icon = useManagedPublicTranslation ? profile.reassuranceItems[index]?.icon : ["sparkles", "check", "arrow"][index];
-              const iconStyle = index === 0 ? "bg-[var(--mazigho-soft)] text-[var(--mazigho-accent)]" : index === 1 ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700";
-              return <div key={`${item.title}-${index}`} className={`flex items-center gap-4 py-5 ${index < 2 ? "border-b border-[#eadfd2] md:border-b-0 md:border-r" : ""} ${index === 0 ? "md:pr-8" : index === 1 ? "md:px-8" : "md:pl-8"}`}>
+              const iconStyle = usesGlamourNoir ? "bg-white/10 text-[var(--mazigho-accent)]" : index === 0 ? "bg-[var(--mazigho-soft)] text-[var(--mazigho-accent)]" : index === 1 ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700";
+              return <div key={`${item.title}-${index}`} className={`flex items-center gap-4 py-5 ${index < 2 ? usesGlamourNoir ? "border-b border-white/10 md:border-b-0 md:border-r" : "border-b border-[#eadfd2] md:border-b-0 md:border-r" : ""} ${index === 0 ? "md:pr-8" : index === 1 ? "md:px-8" : "md:pl-8"}`}>
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconStyle}`}>
                   {icon === "check" ? <Check className="h-5 w-5" /> : icon === "arrow" ? <ArrowRight className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                 </div>
-                <div><p className="text-sm font-semibold text-slate-900">{item.title}</p><p className="mt-1 text-xs text-slate-500">{item.text}</p></div>
+                <div><p className={`text-sm font-semibold ${usesGlamourNoir ? "text-white" : "text-slate-900"}`}>{item.title}</p><p className={`mt-1 text-xs ${usesGlamourNoir ? "text-white/60" : "text-slate-500"}`}>{item.text}</p></div>
               </div>;
             })}
           </div>
@@ -182,25 +184,25 @@ export default function Home() {
         )}
 
         {profile.showDiscovery && (
-        <section style={{ order: orderIndex("discovery") }} className="bg-white py-16 md:py-24">
+        <section style={{ order: orderIndex("discovery") }} className={usesGlamourNoir ? "bg-[#15141a] py-16 md:py-24" : "bg-white py-16 md:py-24"}>
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-2xl">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.discovery.eyebrow}</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{copy.discovery.title}</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">{copy.discovery.text}</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: visualAccent }}>{copy.discovery.eyebrow}</p>
+                <h2 className={`text-3xl font-semibold tracking-tight md:text-4xl ${usesGlamourNoir ? "text-white" : "text-slate-950"}`}>{copy.discovery.title}</h2>
+                <p className={`mt-3 text-sm leading-6 md:text-base ${usesGlamourNoir ? "text-white/65" : "text-slate-600"}`}>{copy.discovery.text}</p>
               </div>
-              {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-[var(--mazigho-accent)]">{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
+              {copy.discovery.allShop && profile.discoveryAllShopUrl ? <a href={useManagedPublicTranslation ? profile.discoveryAllShopUrl : "/boutique"} className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-800"}`}>{copy.discovery.allShop} <ArrowUpRight className="h-4 w-4" /></a> : null}
             </div>
             {localizedDiscoveryTiles.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {localizedDiscoveryTiles.map(tile => (
-                <Link key={tile.href} href={tile.href} className="group overflow-hidden rounded-2xl border border-[#e5e1d4] bg-[var(--mazigho-soft)] transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl">
+                <Link key={tile.href} href={tile.href} className={`group overflow-hidden rounded-2xl border transition-all duration-200 hover:-translate-y-1 hover:border-[var(--mazigho-accent)] hover:shadow-xl ${usesGlamourNoir ? "border-white/10 bg-[#22212a]" : "border-[#e5e1d4] bg-[var(--mazigho-soft)]"}`}>
                   <div className={`aspect-[16/10] overflow-hidden bg-gradient-to-br ${tile.accent}`}>{tile.image ? <img src={tile.image} srcSet={responsiveHomeImageSources[tile.image]} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 33vw" alt={tile.title} width={960} height={540} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="grid h-full place-items-center"><Sparkles className="h-10 w-10 text-slate-500/50" aria-hidden="true" /></div>}</div>
-                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className="text-lg font-semibold text-slate-900 group-hover:text-[var(--mazigho-primary)]">{tile.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div>
+                  <div className="flex items-start justify-between gap-3 p-5"><div><h3 className={`text-lg font-semibold group-hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-900"}`}>{tile.title}</h3><p className={`mt-2 text-sm leading-6 ${usesGlamourNoir ? "text-white/60" : "text-slate-600"}`}>{tile.description}</p></div><ChevronRight className="mt-1 h-5 w-5 shrink-0" style={{ color: palette.accent }} /></div>
                 </Link>
               ))}
-            </div> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-600">Ajoutez vos catégories dans le catalogue pour les présenter ici.</div>}
-            {copy.discovery.browseShop && profile.discoveryBrowseShopUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className="border-[#d9cbbc] bg-white text-slate-800 hover:border-[var(--mazigho-accent)] hover:text-[var(--mazigho-primary)]"><a href={useManagedPublicTranslation ? profile.discoveryBrowseShopUrl : "/boutique"}>{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
+            </div> : <div className={`rounded-2xl border border-dashed px-6 py-10 text-center text-sm leading-6 ${usesGlamourNoir ? "border-white/20 bg-white/5 text-white/65" : "border-slate-300 bg-slate-50 text-slate-600"}`}>Ajoutez vos catégories dans le catalogue pour les présenter ici.</div>}
+            {copy.discovery.browseShop && profile.discoveryBrowseShopUrl ? <div className="mt-8 text-center"><Button asChild variant="outline" className={usesGlamourNoir ? "border-white/25 bg-white/5 text-white hover:border-[var(--mazigho-accent)] hover:bg-white/10 hover:text-white" : "border-[#d9cbbc] bg-white text-slate-800 hover:border-[var(--mazigho-accent)] hover:text-[var(--mazigho-primary)]"}><a href={useManagedPublicTranslation ? profile.discoveryBrowseShopUrl : "/boutique"}>{copy.discovery.browseShop} <ArrowRight className="ml-2 h-4 w-4" /></a></Button></div> : null}
           </div>
         </section>
         )}
@@ -211,20 +213,18 @@ export default function Home() {
           <div aria-hidden="true" className="absolute -right-24 bottom-0 h-72 w-72 rounded-full blur-3xl" style={{ backgroundColor: "color-mix(in srgb, var(--mazigho-accent) 18%, transparent)" }} />
           <div className="container relative grid items-center gap-12 lg:grid-cols-[1.04fr_0.96fr] lg:gap-20">
             <div className="order-2 lg:order-1">
-              <div className="inline-flex items-center gap-2 rounded-full border bg-white/75 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em]" style={{ borderColor: "color-mix(in srgb, var(--mazigho-primary) 24%, white)", color: palette.primary }}><Sparkles className="h-3.5 w-3.5" /> {copy.story.eyebrow}</div>
-              <h2 className="mt-5 max-w-xl text-4xl font-semibold leading-[1.04] tracking-tight text-slate-950 md:text-6xl">{copy.story.title}</h2>
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 md:text-lg">{copy.story.text}</p>
-              <p className="mt-4 max-w-xl text-base leading-7 text-slate-600">{copy.story.followup}</p>
+              <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] ${usesGlamourNoir ? "border-white/10 bg-white/5" : "bg-white/75"}`} style={{ borderColor: usesGlamourNoir ? undefined : "color-mix(in srgb, var(--mazigho-primary) 24%, white)", color: visualAccent }}><Sparkles className="h-3.5 w-3.5" /> {copy.story.eyebrow}</div>
+              <h2 className={`mt-5 max-w-xl text-4xl font-semibold leading-[1.04] tracking-tight md:text-6xl ${usesGlamourNoir ? "text-white" : "text-slate-950"}`}>{copy.story.title}</h2>
+              <p className={`mt-6 max-w-xl text-base leading-7 md:text-lg ${usesGlamourNoir ? "text-white/70" : "text-slate-600"}`}>{copy.story.text}</p>
+              <p className={`mt-4 max-w-xl text-base leading-7 ${usesGlamourNoir ? "text-white/70" : "text-slate-600"}`}>{copy.story.followup}</p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>01</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[0]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>02</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[1]}</p></div>
-                <div className="rounded-2xl border border-white/90 bg-white/80 p-4 shadow-sm"><p className="text-2xl font-semibold" style={{ color: palette.primary }}>03</p><p className="mt-2 text-sm font-semibold text-slate-800">{copy.story.points[2]}</p></div>
+                {[copy.story.points[0], copy.story.points[1], copy.story.points[2]].map((point, index) => <div key={`${point}-${index}`} className={`rounded-2xl border p-4 shadow-sm ${usesGlamourNoir ? "border-white/10 bg-white/5" : "border-white/90 bg-white/80"}`}><p className="text-2xl font-semibold" style={{ color: palette.accent }}>{`0${index + 1}`}</p><p className={`mt-2 text-sm font-semibold ${usesGlamourNoir ? "text-white" : "text-slate-800"}`}>{point}</p></div>)}
               </div>
               {copy.story.cta && profile.storyCtaUrl ? <Button asChild className="text-white shadow-lg shadow-fuchsia-700/20 hover:brightness-95"><Link href={useManagedPublicTranslation ? profile.storyCtaUrl : "/boutique"} className="mt-8 inline-block" style={{ backgroundColor: palette.accent }}>{copy.story.cta} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button> : null}
             </div>
             <div className="relative order-1 mx-auto w-full max-w-[570px] lg:order-2">
-              <div className="relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] border-white bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px]"><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle || copy.story.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />{(copy.story.visualEyebrow || copy.story.visualTitle) ? <><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5" style={{ color: "#F2C36B" }} /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: "#F2C36B" }}>{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></> : null}</div>
-              <div className="absolute -bottom-11 -left-3 rounded-2xl border bg-white px-5 py-4 shadow-xl md:-left-9" style={{ borderColor: "color-mix(in srgb, var(--mazigho-primary) 18%, white)" }}><p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: palette.primary }}>{copy.story.promiseEyebrow}</p><p className="mt-1 text-sm font-semibold text-slate-800">{copy.story.promise}</p></div>
+              <div className={`relative min-h-[420px] overflow-hidden rounded-[2.25rem] border-[10px] bg-slate-900 shadow-2xl shadow-slate-900/15 md:min-h-[520px] ${usesGlamourNoir ? "border-[#24232b]" : "border-white"}`}><img src={storyImageUrl} srcSet={responsiveHomeImageSources[storyImageUrl]} sizes="(min-width: 1024px) 570px, 100vw" alt={copy.story.visualTitle || copy.story.title} width={1600} height={900} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />{(copy.story.visualEyebrow || copy.story.visualTitle) ? <><div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/10 to-transparent" /><div className="absolute left-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/25 bg-slate-950/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-white backdrop-blur-sm"><Sparkles className="h-3.5 w-3.5" style={{ color: palette.accent }} /> {copy.story.visualEyebrow}</div><div className="absolute bottom-7 left-7 right-7"><p className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: palette.accent }}>{copy.story.visualEyebrow}</p><p className="mt-2 max-w-sm text-xl font-semibold leading-tight text-white md:text-2xl">{copy.story.visualTitle}</p></div></> : null}</div>
+              <div className={`absolute -bottom-11 -left-3 rounded-2xl border px-5 py-4 shadow-xl md:-left-9 ${usesGlamourNoir ? "border-white/10 bg-[#22212a]" : "bg-white"}`} style={{ borderColor: usesGlamourNoir ? undefined : "color-mix(in srgb, var(--mazigho-primary) 18%, white)" }}><p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: palette.accent }}>{copy.story.promiseEyebrow}</p><p className={`mt-1 text-sm font-semibold ${usesGlamourNoir ? "text-white" : "text-slate-800"}`}>{copy.story.promise}</p></div>
               <div className="absolute -right-3 top-12 hidden rounded-2xl p-3 text-white shadow-lg md:flex" style={{ backgroundColor: palette.accent }}><ArrowUpRight className="h-5 w-5" /></div>
             </div>
           </div>
@@ -248,7 +248,7 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#3a281f]/75 via-[#3a281f]/25 to-transparent" />
             <div className="relative flex min-h-[180px] items-center px-7 py-8 text-white md:px-12">
               <div className="max-w-sm">
-                <p className="text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{copy.editorial.eyebrow}</p>
+                <p className="text-xs font-bold uppercase tracking-[0.28em]" style={{ color: visualAccent }}>{copy.editorial.eyebrow}</p>
                 <p className="mt-3 text-xl font-semibold md:text-3xl">{copy.editorial.title}</p>
               </div>
             </div>
@@ -261,11 +261,11 @@ export default function Home() {
           <div className="container">
             <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: palette.primary }}>{limitedShowcase ? limitedCopy.homeEyebrow : copy.featured.eyebrow}</p>
-                <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-4xl">{limitedShowcase ? limitedCopy.homeTitle : copy.featured.title}</h2>
-                {(limitedShowcase || !hasSingleActiveMarket) && <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 md:text-base">{limitedShowcase ? limitedCopy.homeText : interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>}
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.28em]" style={{ color: visualAccent }}>{limitedShowcase ? limitedCopy.homeEyebrow : copy.featured.eyebrow}</p>
+                <h2 className={`text-3xl font-semibold tracking-tight md:text-4xl ${usesGlamourNoir ? "text-white" : "text-slate-950"}`}>{limitedShowcase ? limitedCopy.homeTitle : copy.featured.title}</h2>
+                {(limitedShowcase || !hasSingleActiveMarket) && <p className={`mt-3 max-w-xl text-sm leading-6 md:text-base ${usesGlamourNoir ? "text-white/65" : "text-slate-600"}`}>{limitedShowcase ? limitedCopy.homeText : interpolatePublicCopy(copy.featured.text, { country: countryLabel })}</p>}
               </div>
-              <Link href="/boutique" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-orange-600">
+              <Link href="/boutique" className={`inline-flex items-center gap-2 text-sm font-semibold hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-800"}`}>
                 {limitedShowcase ? limitedCopy.catalogueLink : copy.featured.catalogue} <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
@@ -277,7 +277,7 @@ export default function Home() {
                   const hasDiscount = Boolean(product.originalPrice && product.originalPrice > product.price);
                   return (
                     <Link key={product.id} href={`/produit/${product.slug}`}>
-                      <Card className="group h-full overflow-hidden border border-[#e5d8cb] bg-white shadow-none transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+                      <Card className={`group h-full overflow-hidden border shadow-none transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${usesGlamourNoir ? "border-white/10 bg-[#22212a]" : "border-[#e5d8cb] bg-white"}`}>
                         <CardContent className="p-0">
                           <div className="relative aspect-[4/3] overflow-hidden bg-[#f5f0ea]">
                             {imageUrl ? (
@@ -288,13 +288,13 @@ export default function Home() {
                             {hasDiscount && <span className="absolute left-3 top-3 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white" style={{ backgroundColor: palette.accent }}>{copy.featured.new}</span>}
                           </div>
                           <div className="space-y-3 p-5">
-                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                            <div className={`flex items-center gap-1 text-xs ${usesGlamourNoir ? "text-white/55" : "text-slate-500"}`}>
                               <Star className="h-3.5 w-3.5" style={{ fill: palette.accent, color: palette.accent }} />
                               <span>{(product as any).averageRating || copy.featured.new}</span>
                             </div>
-                            <h3 className="line-clamp-2 min-h-[3.5rem] text-base font-semibold leading-6 text-slate-900 transition-colors group-hover:text-[var(--mazigho-primary)]">{product.name}</h3>
+                            <h3 className={`line-clamp-2 min-h-[3.5rem] text-base font-semibold leading-6 transition-colors group-hover:text-[var(--mazigho-accent)] ${usesGlamourNoir ? "text-white" : "text-slate-900"}`}>{product.name}</h3>
                             <div className="flex items-baseline gap-2">
-                              <span className="text-lg font-bold" style={{ color: palette.primary }}>{formatPrice(product.price, locale)}</span>
+                              <span className="text-lg font-bold" style={{ color: visualAccent }}>{formatPrice(product.price, locale)}</span>
                               {hasDiscount && <span className="text-sm text-slate-400 line-through">{formatPrice(product.originalPrice!, locale)}</span>}
                             </div>
                           </div>
@@ -305,7 +305,7 @@ export default function Home() {
                 })}
               </div>
             ) : (
-              <div className="border border-dashed border-[#d9cbbc] bg-white/70 px-6 py-12 text-center text-sm leading-6 text-slate-600">{limitedShowcase ? limitedCopy.productsText : interpolatePublicCopy(copy.featured.unavailable, { country: countryLabel })}</div>
+              <div className={`border border-dashed px-6 py-12 text-center text-sm leading-6 ${usesGlamourNoir ? "border-white/20 bg-white/5 text-white/65" : "border-[#d9cbbc] bg-white/70 text-slate-600"}`}>{limitedShowcase ? limitedCopy.productsText : interpolatePublicCopy(copy.featured.unavailable, { country: countryLabel })}</div>
             )}
           </div>
         </section>

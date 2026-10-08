@@ -56,6 +56,7 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
   const heroEyebrow = profile.brandMessage?.trim() || profile.brandName?.trim() || copy.hero.eyebrow;
   const primaryCtaLabel = profile.discoveryBrowseShopLabel?.trim() || copy.discovery.browseShop;
   const secondaryCtaLabel = profile.discoveryAllShopLabel?.trim() || copy.hero.secondaryCta;
+  const heroAccent = profile.headerLayout === "glamour" ? palette.accent : palette.primary;
 
   const banners = useMemo<HeroSlide[]>(() => {
     if (remoteBanners.data && remoteBanners.data.length > 0) {
@@ -189,7 +190,7 @@ export default function HeroBanner({ allowPlatformFallback = true }: { allowPlat
 
         <div className="relative flex h-full items-center justify-start px-6 sm:px-10 lg:px-16">
           <div className="z-10 max-w-2xl text-left text-white">
-            <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: palette.primary }}>{heroEyebrow}</p>
+            <p className="mb-5 text-xs font-bold uppercase tracking-[0.3em]" style={{ color: heroAccent }}>{heroEyebrow}</p>
             <h1 className="mb-5 text-4xl font-semibold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">{currentBanner.title}</h1>
             <p className="mb-8 max-w-xl text-base leading-7 text-white/85 md:text-xl">{currentBanner.subtitle}</p>
             <div className="flex flex-col justify-start gap-3 sm:flex-row">

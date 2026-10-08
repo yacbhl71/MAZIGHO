@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { storefrontThemeCatalog, storefrontThemeIds, storefrontThemeLabels } from "../shared/storefrontThemeCatalog";
 
 describe("shared storefront theme catalog", () => {
-  it("exposes twelve unique owner-selectable theme identifiers", () => {
-    expect(storefrontThemeIds).toHaveLength(12);
-    expect(new Set(storefrontThemeIds).size).toBe(12);
+  it("exposes thirteen unique owner-selectable theme identifiers", () => {
+    expect(storefrontThemeIds).toHaveLength(13);
+    expect(new Set(storefrontThemeIds).size).toBe(13);
     expect(storefrontThemeCatalog.map(theme => theme.id)).toEqual(storefrontThemeIds);
-    expect(storefrontThemeIds).toEqual(expect.arrayContaining(["gallerySignature", "studioFlux"]));
+    expect(storefrontThemeIds).toEqual(expect.arrayContaining(["gallerySignature", "studioFlux", "glamourNoir"]));
   });
 
   it("provides complete visual presentation metadata for every theme", () => {

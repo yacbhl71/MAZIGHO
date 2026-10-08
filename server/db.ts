@@ -11285,7 +11285,7 @@ export type DesignProfile = {
   customAccent: string;
   customSoft: string;
   buttonRadius: ButtonRadius;
-  headerLayout: "inline" | "split" | "searchFirst" | "gallery" | "market";
+  headerLayout: "inline" | "split" | "searchFirst" | "gallery" | "market" | "glamour";
   footerDescription: string;
   footerNavigationTitle: string;
   footerCategoriesTitle: string;
@@ -11610,7 +11610,7 @@ export function normalizeDesignProfile(value: unknown): DesignProfile {
   if (["flat", "rounded", "full"].includes(String(source.buttonRadius))) {
     normalized.buttonRadius = source.buttonRadius as ButtonRadius;
   }
-  if (["inline", "split", "searchFirst", "gallery", "market"].includes(String(source.headerLayout))) {
+  if (["inline", "split", "searchFirst", "gallery", "market", "glamour"].includes(String(source.headerLayout))) {
     normalized.headerLayout = source.headerLayout as DesignProfile["headerLayout"];
   }
 
