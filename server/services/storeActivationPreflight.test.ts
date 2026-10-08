@@ -24,10 +24,10 @@ describe("store activation preflight", () => {
     expect(result.blockedCount).toBe(0);
     expect(result.locallyReadyForManualActivation).toBe(true);
     expect(result.publicActivationExecuted).toBe(false);
-    expect(result.checks.filter(check => check.state === "manual").map(check => check.key)).toEqual(["domain_manual", "variants_manual", "shipping_returns_manual", "operator_confirmation"]);
+    expect(result.checks.filter(check => check.state === "manual").map(check => check.key)).toEqual(["domain_manual", "variants_manual", "shipping_returns_manual", "owner_responsibility_manual", "operator_confirmation"]);
   });
 
-  it("blocks a setup boutique until owner, own branding, legal profile and catalogue are complete", () => {
+  it("blocks a setup boutique until owner, own branding and catalogue are complete", () => {
     const result = buildStoreActivationPreflight({
       ...readyAnimalGift,
       hasActiveOwner: false,
@@ -40,7 +40,8 @@ describe("store activation preflight", () => {
       activeProductWithImageCount: 0,
     });
     expect(result.locallyReadyForManualActivation).toBe(false);
-    expect(result.checks.filter(check => check.state === "blocked").map(check => check.key)).toEqual(expect.arrayContaining(["owner", "brand", "legal", "catalogue", "sellable_catalogue", "product_images"]));
+    expect(result.checks.filter(check => check.state === "blocked").map(check => check.key)).toEqual(expect.arrayContaining(["owner", "brand", "catalogue", "sellable_catalogue", "product_images"]));
+    expect(result.checks.find(check => check.key === "owner_responsibility_manual")?.state).toBe("manual");
   });
 
   it("rejects a local or test domain while allowing every configured boutique universe", () => {

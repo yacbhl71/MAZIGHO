@@ -33,6 +33,17 @@ describe("store opening readiness", () => {
     expect(result.incompleteItems).toEqual([{ id: "catalogue", label: "Catalogue" }]);
   });
 
+  it("keeps owner declarations visible without using them as a technical opening blocker", () => {
+    const result = buildStoreOpeningReadiness({
+      status: "setup",
+      items: [...readyItems, { id: "legal", label: "Informations légales", ready: false, openingBlocking: false }],
+    });
+
+    expect(result.localRequirementsComplete).toBe(true);
+    expect(result.preOpeningTotal).toBe(3);
+    expect(result.incompleteItems).toEqual([]);
+  });
+
   it("recognizes an already active public storefront without implying a payment activation", () => {
     const result = buildStoreOpeningReadiness({
       status: "active",

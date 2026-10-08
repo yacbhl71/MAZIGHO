@@ -4,6 +4,13 @@ export type StoreOpeningReadinessItem = {
   id: string;
   label: string;
   ready: boolean;
+  /**
+   * A false value keeps an owner declaration visible in the preparation view
+   * without turning it into a server-side technical blocker. Its content is
+   * confirmed manually by the operator and the responsible store owner when
+   * the public storefront is opened.
+   */
+  openingBlocking?: boolean;
 };
 
 export type StoreOpeningReadinessState = "action_required" | "ready_for_studio_review" | "opened" | "unavailable";
@@ -17,7 +24,7 @@ export function buildStoreOpeningReadiness(input: {
   status: StoreOpeningStatus;
   items: readonly StoreOpeningReadinessItem[];
 }) {
-  const preOpeningItems = input.items.filter(item => item.id !== "public_view");
+  const preOpeningItems = input.items.filter(item => item.id !== "public_view" && item.openingBlocking !== false);
   const incompleteItems = preOpeningItems.filter(item => !item.ready);
   const publicView = input.items.find(item => item.id === "public_view");
   const localRequirementsComplete = incompleteItems.length === 0 && preOpeningItems.length > 0;

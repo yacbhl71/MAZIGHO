@@ -69,12 +69,6 @@ export function buildStoreActivationPreflight(input: StoreActivationPreflightInp
       detail: input.hasOwnDesignProfile && input.brandName.trim().length >= 2 && input.brandName.trim().toLowerCase() !== "mazigho" ? "Un profil visuel propre à la boutique est enregistré." : "Personnalisez le nom et le profil visuel afin de ne jamais publier l’identité MAZIGHO par défaut.",
     },
     {
-      key: "legal",
-      label: "Informations légales propres",
-      state: input.hasOwnLegalProfile ? "ready" : "blocked",
-      detail: input.hasOwnLegalProfile ? "Une fiche légale dédiée est enregistrée pour cette boutique." : "Les informations légales doivent être renseignées avant l’ouverture publique.",
-    },
-    {
       key: "catalogue",
       label: "Catalogue prêt",
       state: input.categoryCount >= 1 && input.activeProductCount >= 1 ? "ready" : "blocked",
@@ -103,6 +97,12 @@ export function buildStoreActivationPreflight(input: StoreActivationPreflightInp
       label: "Livraison et retours revus",
       state: "manual",
       detail: "Vérifiez manuellement les règles de livraison, délais, retours et information client avant l’ouverture ; ce prévol ne crée aucune règle logistique.",
+    },
+    {
+      key: "owner_responsibility_manual",
+      label: "Responsabilité réglementaire du propriétaire",
+      state: "manual",
+      detail: input.hasOwnLegalProfile ? "Une fiche légale dédiée est renseignée. Confirmez néanmoins que le propriétaire assume ses obligations pour ses produits et marchés." : "Le propriétaire doit confirmer qu’il assume les obligations applicables à ses produits, prix, fournisseurs, livraisons, retours, fiscalité et marchés. MAZIGHO ne les valide pas automatiquement.",
     },
     {
       key: "currency",

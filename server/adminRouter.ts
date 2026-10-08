@@ -2113,6 +2113,7 @@ export const adminRouter = router({
       confirmationOwnerEmail: z.string().trim().email().max(320),
       domainVerified: z.literal(true),
       readinessVerified: z.literal(true),
+      ownerResponsibilityAcknowledged: z.literal(true),
       activationAcknowledged: z.literal(true),
     })).mutation(async ({ ctx, input }) => {
       try {
@@ -2122,7 +2123,7 @@ export const adminRouter = router({
           entityType: "store",
           entityId: activated.store.id,
           summary: "Boutique cliente ouverte après confirmation manuelle du domaine et de la préparation.",
-          metadata: { domainVerifiedManually: true, readinessVerifiedManually: true, paymentActivated: false, subscriptionChanged: false, dnsChanged: false },
+          metadata: { domainVerifiedManually: true, readinessVerifiedManually: true, ownerResponsibilityAcknowledged: true, paymentActivated: false, subscriptionChanged: false, dnsChanged: false },
         });
         return activated;
       } catch (error) {
@@ -2133,7 +2134,7 @@ export const adminRouter = router({
         if (code === "STORE_ACTIVATION_READINESS_INCOMPLETE") throw new TRPCError({ code: "CONFLICT", message: "La préparation commerciale n’est pas complète. Corrigez les éléments du panneau propriétaire avant l’ouverture." });
         if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique avant l’ouverture." });
         if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "L’e-mail ne correspond pas à un propriétaire actif de cette boutique." });
-        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmez la vérification du domaine, la préparation et l’ouverture publique." });
+        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Confirmez le domaine, la préparation technique, la responsabilité du propriétaire et l’ouverture publique." });
         if (code === "STORE_ACTIVATION_CONFLICT") throw new TRPCError({ code: "CONFLICT", message: "Le statut a changé entre-temps. Actualisez avant de réessayer." });
         throw error;
       }
@@ -3032,6 +3033,7 @@ export const adminRouter = router({
       domainVerified: z.literal(true),
       variantsReviewed: z.literal(true),
       shippingReturnsReviewed: z.literal(true),
+      ownerResponsibilityAcknowledged: z.literal(true),
       activationAcknowledged: z.literal(true),
     })).mutation(async ({ ctx, input }) => {
       try {
@@ -3041,7 +3043,7 @@ export const adminRouter = router({
           entityType: "store",
           entityId: activated.store.id,
           summary: `Boutique offerte activée après prévol manuel : ${activated.store.displayName}`,
-          metadata: { domain: activated.store.primaryDomain, status: "active", billing: "none", invitationsSent: 0 },
+          metadata: { domain: activated.store.primaryDomain, status: "active", ownerResponsibilityAcknowledged: true, billing: "none", invitationsSent: 0 },
         });
         return activated;
       } catch (error) {
@@ -3049,7 +3051,7 @@ export const adminRouter = router({
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
         if (code === "ACTIVATION_NAME_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique pour confirmer l’activation." });
         if (code === "ACTIVATION_OWNER_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Le propriétaire actif ne correspond pas à l’e-mail confirmé." });
-        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les confirmations de domaine, variantes, livraison et activation sont obligatoires." });
+        if (code === "ACTIVATION_CONFIRMATION_INCOMPLETE") throw new TRPCError({ code: "BAD_REQUEST", message: "Les confirmations de domaine, variantes, informations client, responsabilité du propriétaire et activation sont obligatoires." });
         if (["STORE_NOT_ELIGIBLE_FOR_ACTIVATION", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "ACTIVATION_PREFLIGHT_INCOMPLETE", "STORE_ACTIVATION_CONFLICT"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Les critères de sécurité de l’activation ne sont pas tous remplis." });
         throw error;
       }

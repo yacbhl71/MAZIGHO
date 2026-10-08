@@ -2471,10 +2471,11 @@ export async function getStudioGiftStoreSetupReadiness(storeId: number) {
 /**
  * Activates one gift-provisioned store only after a Studio operator has
  * completed the explicit preflight and confirmations. It is universe-neutral:
- * the required catalogue, identity, legal, owner and domain checks remain the
- * same for every client boutique.
+ * the required catalogue, identity, owner and domain checks remain the same
+ * for every client boutique. Regulatory obligations remain the owner's
+ * responsibility and require an explicit operator acknowledgement.
  */
-export async function activateGiftStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; variantsReviewed: boolean; shippingReturnsReviewed: boolean; activationAcknowledged: boolean }) {
+export async function activateGiftStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; variantsReviewed: boolean; shippingReturnsReviewed: boolean; ownerResponsibilityAcknowledged: boolean; activationAcknowledged: boolean }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
   const db = await getDb();
@@ -2485,7 +2486,7 @@ export async function activateGiftStore(input: { storeId: number; confirmationNa
     if (!store) throw new Error("STORE_NOT_FOUND");
     if (store.isPlatformStore || (store.status !== "setup" && store.status !== "limited")) throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
     if (input.confirmationName.trim() !== store.displayName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
-    if (!input.domainVerified || !input.variantsReviewed || !input.shippingReturnsReviewed || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
+    if (!input.domainVerified || !input.variantsReviewed || !input.shippingReturnsReviewed || !input.ownerResponsibilityAcknowledged || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
 
     const settingRows = await tx.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id));
     const settingsByKey = new Map(settingRows.map(row => [row.key, row.value]));
@@ -2547,9 +2548,9 @@ export async function activateGiftStore(input: { storeId: number; confirmationNa
     await tx.insert(storeSettings).values({
       storeId: store.id,
       key: "public_activation_record",
-      value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, previousStatus: store.status }),
+      value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, ownerResponsibilityAcknowledged: true, previousStatus: store.status }),
       description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio.",
-    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, previousStatus: store.status }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio." } });
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: now.toISOString(), source: "mazigho_studio_manual_confirmation", domainVerifiedManually: true, ownerResponsibilityAcknowledged: true, previousStatus: store.status }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio." } });
 
     return { store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: "active" as const }, activatedAt: now };
   });
@@ -9096,12 +9097,12 @@ export async function restoreStudioStoreRecoveryDomain(input: { storeId: number;
  * domain and explicitly confirmed the owner and commercial readiness. It never
  * configures a payment, modifies DNS, sends email or creates a subscription.
  */
-export async function activateStudioClientStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; readinessVerified: boolean; activationAcknowledged: boolean }) {
+export async function activateStudioClientStore(input: { storeId: number; confirmationName: string; confirmationOwnerEmail: string; domainVerified: boolean; readinessVerified: boolean; ownerResponsibilityAcknowledged: boolean; activationAcknowledged: boolean }) {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   const readiness = await getOwnerCommercialReadiness(input.storeId);
-  const nonPublicChecksReady = readiness.items.filter(item => item.id !== "public_view").every(item => item.ready);
+  const nonPublicChecksReady = readiness.opening.localRequirementsComplete;
   if (!nonPublicChecksReady) throw new Error("STORE_ACTIVATION_READINESS_INCOMPLETE");
 
   return db.transaction(async tx => {
@@ -9111,7 +9112,7 @@ export async function activateStudioClientStore(input: { storeId: number; confir
     if (store.isPlatformStore) throw new Error("PLATFORM_STORE_PROTECTED");
     if (store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_ACTIVATION");
     if (store.displayName.trim() !== input.confirmationName.trim()) throw new Error("ACTIVATION_NAME_CONFIRMATION_MISMATCH");
-    if (!input.domainVerified || !input.readinessVerified || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
+    if (!input.domainVerified || !input.readinessVerified || !input.ownerResponsibilityAcknowledged || !input.activationAcknowledged) throw new Error("ACTIVATION_CONFIRMATION_INCOMPLETE");
     const ownerEmail = normaliseEmail(input.confirmationOwnerEmail);
     const ownerRows = await tx.select({ email: users.email }).from(storeMemberships).innerJoin(users, eq(users.id, storeMemberships.userId))
       .where(and(eq(storeMemberships.storeId, store.id), eq(storeMemberships.role, "owner"), eq(storeMemberships.status, "active"), eq(users.accountStatus, "active")));
@@ -9124,9 +9125,9 @@ export async function activateStudioClientStore(input: { storeId: number; confir
     await tx.insert(storeSettings).values({
       storeId: store.id,
       key: "public_activation_record",
-      value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true }),
+      value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true, ownerResponsibilityAcknowledged: true }),
       description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio ; aucun paiement n’est activé.",
-    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio ; aucun paiement n’est activé." } });
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ activatedAt: activatedAt.toISOString(), source: "mazigho_studio_client_store_manual_confirmation", domainVerifiedManually: true, readinessVerifiedManually: true, ownerResponsibilityAcknowledged: true }), description: "Trace d’activation publique confirmée manuellement depuis MAZIGHO Studio ; aucun paiement n’est activé." } });
     return { store: { ...store, status: "active" as const }, activatedAt };
   });
 }
@@ -9239,6 +9240,7 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       id: "operations",
       label: "Livraison et retours",
       ready: shippingReady,
+      openingBlocking: false,
       detail: shippingReady
         ? `${shipping.servedCountries.length} pays ou zone${shipping.servedCountries.length > 1 ? "s" : ""} annoncé${shipping.servedCountries.length > 1 ? "s" : ""}, délai et retours renseignés.`
         : "Indiquez les pays servis, le délai annoncé et le résumé des retours.",
@@ -9247,18 +9249,21 @@ export async function getOwnerCommercialReadiness(storeId: number) {
       id: "legal",
       label: "Informations légales",
       ready: legalReady,
+      openingBlocking: false,
       detail: legalReady ? "Exploitant, contact et politique publique renseignés." : "Complétez les coordonnées publiques et la politique de retours.",
     },
     {
       id: "markets",
       label: "Marchés et langues",
       ready: marketsReady,
+      openingBlocking: false,
       detail: marketsReady ? `${markets.activeLanguages.length} langue${markets.activeLanguages.length > 1 ? "s" : ""} et ${markets.activeCountries.length} pays actif${markets.activeCountries.length > 1 ? "s" : ""}.` : "Choisissez au moins une langue et un pays cohérents avec le marché principal.",
     },
     {
       id: "legal",
       label: "Fiscalité par marché",
       ready: taxDisclosureReadiness.ready,
+      openingBlocking: false,
       detail: taxDisclosureReadiness.ready
         ? `${taxDisclosureReadiness.configuredCountries.length} mention${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} fiscale${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} publique${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""} vérifiée${taxDisclosureReadiness.configuredCountries.length > 1 ? "s" : ""}.`
         : `Ajoutez une mention fiscale validée pour : ${taxDisclosureReadiness.missingCountries.join(", ") || "chaque marché visible"}.`,
