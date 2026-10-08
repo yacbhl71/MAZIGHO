@@ -2907,6 +2907,10 @@ async function applyStudioStoreCopyInTransaction(input: {
 export async function provisionGiftStoreFromDraft(input: { draftId: number; confirmationName: string }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
+  // A gift store can receive starter categories whose slugs already exist in
+  // another tenant. Repair the legacy global category index before the
+  // transaction so the write remains scoped by (storeId, slug).
+  await ensureStoreCatalogScopeSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
 
