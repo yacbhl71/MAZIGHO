@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   membership: { role: "manager", status: "active" } as { role: string; status: string } | null,
-  variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
+  variants: [{ id: 5, label: "Bleu · M", sku: "BLEU-M", imageUrl: "https://cdn.example.test/bleu-m.webp", priceAdjustmentCents: 250, stock: 3, status: "active", displayOrder: 0 }],
   team: [{ membershipId: 9, role: "manager", status: "active", name: "Manager test", email: "manager@example.test", accountStatus: "active" }],
   markets: { primaryLanguage: "fr", activeLanguages: ["fr", "en"], showLanguageSelector: true, primaryCountry: "CH", activeCountries: ["CH", "FR"], showCountrySelector: true },
   commercialReadiness: { store: { displayName: "Boutique test", status: "active", primaryDomain: "boutique.test" }, summary: { completed: 9, total: 9, baseCommerciallyPrepared: true, paymentStatus: "not_activated" as const }, inventory: { totalProducts: 2, activeProducts: 2, sellableProducts: 2, productsWithoutImages: 0, productsWithoutStock: 0, activeVariants: 2, outOfStockVariants: 0 }, items: [] },
@@ -155,9 +155,14 @@ describe("owner product variant routes", () => {
 
     await expect(caller.owner.createProductVariant({
       productId: 41,
-      variant: { label: "Sauge · L", sku: "SAUGE-L", priceAdjustmentCents: 0, stock: 4, status: "active" },
+      variant: { label: "Sauge · L", sku: "SAUGE-L", imageUrl: "https://cdn.example.test/sauge-l.webp", priceAdjustmentCents: 0, stock: 4, status: "active" },
     })).resolves.toEqual({ id: 6 });
-    expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", stock: 4 }), 77);
+    expect(db.createOwnerProductVariant).toHaveBeenCalledWith(41, expect.objectContaining({ label: "Sauge · L", imageUrl: "https://cdn.example.test/sauge-l.webp", stock: 4 }), 77);
+
+    await expect(caller.owner.createProductVariant({
+      productId: 41,
+      variant: { label: "URL non sûre", imageUrl: "http://unsafe.example/variant.webp", priceAdjustmentCents: 0, stock: 1, status: "active" },
+    })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("lists only the connected user’s active management boutiques for the switcher", async () => {

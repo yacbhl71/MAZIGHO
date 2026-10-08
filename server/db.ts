@@ -2967,9 +2967,9 @@ async function applyStudioStoreCopyInTransaction(input: {
     report.images = copyableImages.length;
   }
   if (selection.variants) {
-    const copyableVariants = (sourceVariants as Array<{ productId: number; label: string; sku: string | null; priceAdjustmentCents: number; stock: number; status: "active" | "inactive"; displayOrder: number }>).flatMap(variant => {
+    const copyableVariants = (sourceVariants as Array<{ productId: number; label: string; sku: string | null; imageUrl: string | null; priceAdjustmentCents: number; stock: number; status: "active" | "inactive"; displayOrder: number }>).flatMap(variant => {
       const productId = productIdBySourceId.get(variant.productId);
-      return productId ? [{ storeId: destinationStoreId, productId, label: variant.label, sku: variant.sku, priceAdjustmentCents: variant.priceAdjustmentCents, stock: variant.stock, status: variant.status, displayOrder: variant.displayOrder }] : [];
+      return productId ? [{ storeId: destinationStoreId, productId, label: variant.label, sku: variant.sku, imageUrl: selection.productMedia ? variant.imageUrl : null, priceAdjustmentCents: variant.priceAdjustmentCents, stock: variant.stock, status: variant.status, displayOrder: variant.displayOrder }] : [];
     });
     if (copyableVariants.length) await tx.insert(ownerProductVariants).values(copyableVariants);
     report.variants = copyableVariants.length;
@@ -5130,7 +5130,13 @@ async function ensureOwnerProductVariantsSchema() {
   _ownerProductVariantsSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerProductVariants` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `productId` int NOT NULL, `label` varchar(160) NOT NULL, `sku` varchar(100) NULL, `priceAdjustmentCents` int NOT NULL DEFAULT 0, `stock` int NOT NULL DEFAULT 0, `status` enum('active','inactive') NOT NULL DEFAULT 'active', `displayOrder` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `owner_product_variants_store_product_label_unique` (`storeId`, `productId`, `label`), INDEX `owner_product_variants_store_product_order_idx` (`storeId`, `productId`, `displayOrder`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `ownerProductVariants` (`id` int AUTO_INCREMENT PRIMARY KEY, `storeId` int NOT NULL, `productId` int NOT NULL, `label` varchar(160) NOT NULL, `sku` varchar(100) NULL, `imageUrl` varchar(500) NULL, `priceAdjustmentCents` int NOT NULL DEFAULT 0, `stock` int NOT NULL DEFAULT 0, `status` enum('active','inactive') NOT NULL DEFAULT 'active', `displayOrder` int NOT NULL DEFAULT 0, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY `owner_product_variants_store_product_label_unique` (`storeId`, `productId`, `label`), INDEX `owner_product_variants_store_product_order_idx` (`storeId`, `productId`, `displayOrder`))"));
+    try {
+      await db.execute(sql.raw("ALTER TABLE `ownerProductVariants` ADD COLUMN IF NOT EXISTS `imageUrl` varchar(500) NULL AFTER `sku`"));
+    } catch (error) {
+      const message = String(error).toLowerCase();
+      if (!message.includes("duplicate column") && !message.includes("already exists")) throw error;
+    }
   })();
   return _ownerProductVariantsSchemaReady;
 }
@@ -7108,6 +7114,7 @@ export async function getOwnerProductVariants(productId: number, storeId: number
       id: ownerProductVariants.id,
       label: ownerProductVariants.label,
       sku: ownerProductVariants.sku,
+      imageUrl: ownerProductVariants.imageUrl,
       priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
       stock: ownerProductVariants.stock,
       status: ownerProductVariants.status,
@@ -7139,6 +7146,7 @@ export async function getOwnerVariantStockOverview(storeId: number) {
       id: ownerProductVariants.id,
       label: ownerProductVariants.label,
       sku: ownerProductVariants.sku,
+      imageUrl: ownerProductVariants.imageUrl,
       priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
       stock: ownerProductVariants.stock,
       status: ownerProductVariants.status,
@@ -7164,15 +7172,16 @@ export async function getOwnerVariantStockOverview(storeId: number) {
  * optional table still renders its normal catalogue.
  */
 export async function getPublicOwnerProductVariantsForProducts(productIds: number[], storeId: number) {
-  if (productIds.length === 0) return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+  if (productIds.length === 0) return new Map<number, Array<{ id: number; label: string; imageUrl: string | null; priceAdjustmentCents: number; stock: number }>>();
   const db = await getDb();
-  if (!db) return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+  if (!db) return new Map<number, Array<{ id: number; label: string; imageUrl: string | null; priceAdjustmentCents: number; stock: number }>>();
 
   try {
     const rows = await db.select({
       id: ownerProductVariants.id,
       productId: ownerProductVariants.productId,
       label: ownerProductVariants.label,
+      imageUrl: ownerProductVariants.imageUrl,
       priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
       stock: ownerProductVariants.stock,
     }).from(ownerProductVariants).where(and(
@@ -7181,16 +7190,16 @@ export async function getPublicOwnerProductVariantsForProducts(productIds: numbe
       eq(ownerProductVariants.status, "active"),
     )).orderBy(asc(ownerProductVariants.displayOrder), asc(ownerProductVariants.id));
 
-    const byProduct = new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+    const byProduct = new Map<number, Array<{ id: number; label: string; imageUrl: string | null; priceAdjustmentCents: number; stock: number }>>();
     for (const row of rows) {
       const variants = byProduct.get(row.productId) ?? [];
-      variants.push({ id: row.id, label: row.label, priceAdjustmentCents: row.priceAdjustmentCents, stock: row.stock });
+      variants.push({ id: row.id, label: row.label, imageUrl: row.imageUrl, priceAdjustmentCents: row.priceAdjustmentCents, stock: row.stock });
       byProduct.set(row.productId, variants);
     }
     return byProduct;
   } catch (error) {
     console.warn("[OwnerVariants] Optional variant table unavailable for storefront; returning no variants", error);
-    return new Map<number, Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }>>();
+    return new Map<number, Array<{ id: number; label: string; imageUrl: string | null; priceAdjustmentCents: number; stock: number }>>();
   }
 }
 
@@ -9388,12 +9397,13 @@ export async function getOwnerPrivateCartSimulation(input: {
   const store = storeRows[0];
   if (!store) throw new Error("STORE_NOT_FOUND");
 
-  let variants: Array<{ id: number; productId: number; label: string; priceAdjustmentCents: number; stock: number }> = [];
+  let variants: Array<{ id: number; productId: number; label: string; imageUrl: string | null; priceAdjustmentCents: number; stock: number }> = [];
   try {
     variants = await db.select({
       id: ownerProductVariants.id,
       productId: ownerProductVariants.productId,
       label: ownerProductVariants.label,
+      imageUrl: ownerProductVariants.imageUrl,
       priceAdjustmentCents: ownerProductVariants.priceAdjustmentCents,
       stock: ownerProductVariants.stock,
     }).from(ownerProductVariants).where(and(

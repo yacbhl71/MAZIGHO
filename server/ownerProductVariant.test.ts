@@ -13,14 +13,20 @@ describe("owner product variants", () => {
     expect(normalizeOwnerProductVariantDraft({
       label: "Bleu · M",
       sku: "  TSHIRT-BLU-M  ",
+      imageUrl: " https://cdn.example.test/bleu-m.webp ",
       priceAdjustmentCents: 250,
       stock: 6,
       status: "active",
-    })).toEqual({ label: "Bleu · M", sku: "TSHIRT-BLU-M", priceAdjustmentCents: 250, stock: 6, status: "active" });
+    })).toEqual({ label: "Bleu · M", sku: "TSHIRT-BLU-M", imageUrl: "https://cdn.example.test/bleu-m.webp", priceAdjustmentCents: 250, stock: 6, status: "active" });
   });
 
   it("rejects unsafe stock and price values", () => {
     expect(normalizeOwnerProductVariantDraft({ label: "Test", priceAdjustmentCents: 0, stock: -1, status: "active" })).toBeNull();
     expect(normalizeOwnerProductVariantDraft({ label: "Test", priceAdjustmentCents: 10_000_001, stock: 1, status: "active" })).toBeNull();
+  });
+
+  it("accepts only HTTPS or internal media URLs for a variant image", () => {
+    expect(normalizeOwnerProductVariantDraft({ label: "Boîte", imageUrl: "/api/files/boite.webp", priceAdjustmentCents: 0, stock: 1, status: "active" })?.imageUrl).toBe("/api/files/boite.webp");
+    expect(normalizeOwnerProductVariantDraft({ label: "Boîte", imageUrl: "http://unsafe.example/boite.webp", priceAdjustmentCents: 0, stock: 1, status: "active" })).toBeNull();
   });
 });

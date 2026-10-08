@@ -77,4 +77,14 @@ describe("deployment schema migrations", () => {
     expect(migration).toContain("ADD COLUMN IF NOT EXISTS `showNewBadge`");
     expect(migration).toContain("DEFAULT 0");
   });
+
+  it("registers optional variant media without storing image bytes", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0048_owner_product_variant_image.sql");
+
+    expect(runner).toContain('["0048_owner_product_variant_image", "drizzle/0048_owner_product_variant_image.sql"]');
+    expect(migration).toContain("ALTER TABLE `ownerProductVariants`");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS `imageUrl` varchar(500) NULL");
+    expect(migration).not.toContain("blob");
+  });
 });

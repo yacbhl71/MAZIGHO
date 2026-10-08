@@ -108,7 +108,7 @@ export default function Product() {
   const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const [isAdding, setIsAdding] = useState(false);
-  const productVariants = Array.isArray((product as any)?.variants) ? (product as any).variants as Array<{ id: number; label: string; priceAdjustmentCents: number; stock: number }> : [];
+  const productVariants = Array.isArray((product as any)?.variants) ? (product as any).variants as Array<{ id: number; label: string; imageUrl?: string | null; priceAdjustmentCents: number; stock: number }> : [];
   const hasProductVariants = productVariants.length > 0;
   const selectedVariant = selectedVariantId === null ? null : productVariants.find(variant => variant.id === selectedVariantId) ?? null;
   const effectivePrice = product ? Number(product.price) + Number(selectedVariant?.priceAdjustmentCents ?? 0) : 0;
@@ -173,7 +173,7 @@ export default function Product() {
       return;
     }
     setIsAdding(true);
-    const imageUrl = product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined;
+    const imageUrl = selectedVariant?.imageUrl || (product.images && product.images.length > 0 ? product.images[0].imageUrl : undefined);
     addToCart(product.id, product.name, effectivePrice, quantity, selectedOptions, imageUrl, selectedVariant ? { id: selectedVariant.id, label: selectedVariant.label } : undefined);
     
     toast.success(`${product.name} · ${commerceT(locale, "added")}`, {
@@ -243,7 +243,7 @@ export default function Product() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Left: Image Gallery */}
             <div>
-              <ImageGallery images={product.images} productName={product.name} />
+              <ImageGallery images={product.images} productName={product.name} activeImageUrl={selectedVariant?.imageUrl} />
             </div>
 
             {/* Right: Product Info */}
@@ -323,7 +323,7 @@ export default function Product() {
                 <div className="space-y-3 rounded-xl border border-orange-100 bg-orange-50/50 p-4">
                   <div>
                     <p className="font-semibold text-gray-900">Variante</p>
-                    <p className="mt-1 text-sm text-gray-600">Choisissez la déclinaison souhaitée. Le prix et le stock sont propres à chaque variante.</p>
+                    <p className="mt-1 text-sm text-gray-600">Choisissez la déclinaison souhaitée. Le prix, le stock et, lorsqu’il est associé, le visuel sont propres à chaque variante.</p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {productVariants.map(variant => {
@@ -331,7 +331,7 @@ export default function Product() {
                       const available = variant.stock > 0;
                       const variantPrice = Number(product.price) + Number(variant.priceAdjustmentCents || 0);
                       return <button key={variant.id} type="button" onClick={() => { if (!available) return; setSelectedVariantId(variant.id); setQuantity(1); }} disabled={!available} className={`min-h-16 rounded-xl border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 ${selected ? "border-orange-500 bg-white ring-1 ring-orange-400" : available ? "border-orange-200 bg-white hover:border-orange-400" : "cursor-not-allowed border-slate-200 bg-slate-100 opacity-60"}`}>
-                        <span className="block font-semibold text-slate-950">{variant.label}</span>
+                        <span className="flex items-center gap-2 font-semibold text-slate-950">{variant.imageUrl ? <img src={variant.imageUrl} alt="" className="h-8 w-8 rounded-md border border-orange-100 object-cover" /> : null}{variant.label}</span>
                         <span className="mt-1 block text-xs text-slate-600">{formatPrice(variantPrice, locale)} · {available ? `${variant.stock} en stock` : "Rupture"}</span>
                       </button>;
                     })}

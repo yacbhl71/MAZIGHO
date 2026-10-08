@@ -326,6 +326,7 @@ export const ownerProductVariants = mysqlTable("ownerProductVariants", {
   productId: int("productId").notNull(),
   label: varchar("label", { length: 160 }).notNull(),
   sku: varchar("sku", { length: 100 }),
+  imageUrl: varchar("imageUrl", { length: 500 }),
   priceAdjustmentCents: int("priceAdjustmentCents").default(0).notNull(),
   stock: int("stock").default(0).notNull(),
   status: mysqlEnum("status", ["active", "inactive"]).default("active").notNull(),

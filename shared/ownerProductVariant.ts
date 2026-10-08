@@ -3,6 +3,8 @@ export type OwnerProductVariantStatus = "active" | "inactive";
 export type OwnerProductVariantDraft = {
   label: string;
   sku?: string | null;
+  /** Public product-media URL displayed when this variant is selected. */
+  imageUrl?: string | null;
   priceAdjustmentCents: number;
   stock: number;
   status: OwnerProductVariantStatus;
@@ -23,15 +25,17 @@ export function getOwnerProductVariantStockState(
 export function normalizeOwnerProductVariantDraft(input: Partial<OwnerProductVariantDraft>): OwnerProductVariantDraft | null {
   const label = input.label?.trim() || "";
   const sku = input.sku?.trim() || null;
+  const imageUrl = input.imageUrl?.trim() || null;
   const priceAdjustmentCents = Number(input.priceAdjustmentCents);
   const stock = Number(input.stock);
   const status = input.status;
 
   if (label.length < 1 || label.length > 160) return null;
   if (sku && sku.length > 100) return null;
+  if (imageUrl && (imageUrl.length > 500 || (!imageUrl.startsWith("/") && !/^https:\/\//i.test(imageUrl)))) return null;
   if (!Number.isInteger(priceAdjustmentCents) || priceAdjustmentCents < -10_000_000 || priceAdjustmentCents > 10_000_000) return null;
   if (!Number.isInteger(stock) || stock < 0 || stock > 1_000_000) return null;
   if (status !== "active" && status !== "inactive") return null;
 
-  return { label, sku, priceAdjustmentCents, stock, status };
+  return { label, sku, imageUrl, priceAdjustmentCents, stock, status };
 }

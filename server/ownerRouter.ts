@@ -670,6 +670,7 @@ function assertOwnerProductPromotion(input: { price?: number; originalPrice?: nu
 export const ownerProductVariantFields = z.object({
   label: z.string().trim().min(1, "Indiquez le libellé de la variante.").max(160),
   sku: z.string().trim().max(100).optional().nullable(),
+  imageUrl: z.union([z.literal(""), z.string().trim().max(500).refine(value => value.startsWith("/") || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin média interne.")]).optional().nullable(),
   priceAdjustmentCents: z.number().int().min(-10_000_000).max(10_000_000),
   stock: z.number().int().min(0).max(1_000_000),
   status: z.enum(["active", "inactive"]),

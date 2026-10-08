@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useLocale } from "@/contexts/LocaleContext";
@@ -7,9 +7,10 @@ import { t } from "@/lib/i18n";
 interface ImageGalleryProps {
   images: Array<{ id: number; imageUrl: string; displayOrder: number }>;
   productName: string;
+  activeImageUrl?: string | null;
 }
 
-export default function ImageGallery({ images, productName }: ImageGalleryProps) {
+export default function ImageGallery({ images, productName, activeImageUrl }: ImageGalleryProps) {
   const { locale } = useLocale();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -19,6 +20,12 @@ export default function ImageGallery({ images, productName }: ImageGalleryProps)
     : [{ id: 0, imageUrl: "", displayOrder: 0 }];
 
   const currentImage = displayImages[selectedImageIndex] ?? displayImages[0];
+
+  useEffect(() => {
+    if (!activeImageUrl) return;
+    const index = displayImages.findIndex(image => image.imageUrl === activeImageUrl);
+    if (index >= 0) setSelectedImageIndex(index);
+  }, [activeImageUrl]);
 
   const goToPrevious = () => {
     setSelectedImageIndex((prev) => prev === 0 ? displayImages.length - 1 : prev - 1);
@@ -91,4 +98,3 @@ export default function ImageGallery({ images, productName }: ImageGalleryProps)
     </>
   );
 }
-
