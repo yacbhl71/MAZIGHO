@@ -3009,14 +3009,25 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       // category tables. The transaction remains atomic, while individual
       // inserts avoid the unsupported batched DEFAULT primary-key path.
       for (const category of starterCategories) {
-        await tx.insert(categories).values({
-          storeId,
-          name: category.name,
-          slug: category.slug,
-          description: category.description,
-          displayOrder: category.displayOrder,
-          catalogSection: "standard" as const,
-        });
+        try {
+          await tx.insert(categories).values({
+            storeId,
+            name: category.name,
+            slug: category.slug,
+            description: category.description,
+            displayOrder: category.displayOrder,
+            catalogSection: "standard" as const,
+          });
+        } catch (error) {
+          // The public mutation deliberately returns a generic database error;
+          // retain the driver cause only in server logs for safe diagnosis.
+          console.error("[StudioProvisioning] Starter category insert failed", {
+            error,
+            cause: error instanceof Error ? (error as Error & { cause?: unknown }).cause : undefined,
+            categorySlug: category.slug,
+          });
+          throw error;
+        }
       }
     }
     await tx.update(storeProvisioningDrafts).set({ provisionedStoreId: storeId, provisionedAt: now }).where(eq(storeProvisioningDrafts.id, draft.id));
