@@ -9,6 +9,9 @@ export const deliveryCountries = [
   { code: "BE", label: "Belgique" },
   { code: "NL", label: "Pays-Bas" },
   { code: "ES", label: "Espagne" },
+  { code: "PT", label: "Portugal" },
+  { code: "MA", label: "Maroc" },
+  { code: "MX", label: "Mexique" },
   { code: "DZ", label: "Algérie" },
 ] as const;
 

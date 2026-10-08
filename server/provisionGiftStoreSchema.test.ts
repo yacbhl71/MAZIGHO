@@ -29,6 +29,18 @@ describe("provisionGiftStoreFromDraft schema prerequisites", () => {
     expect(implementation).toContain("CREATE UNIQUE INDEX `categories_store_slug_unique` ON `categories` (`storeId`, `slug`)");
   });
 
+  it("persists a bounded launch-market profile without inferring payment, carrier or legal data", () => {
+    const start = databaseSource.indexOf("export async function provisionGiftStoreFromDraft");
+    const end = databaseSource.indexOf("export type StudioProvisioningDraftInput", start);
+    const implementation = databaseSource.slice(start, end);
+
+    expect(implementation).toContain('key: "provisioning_launch_market"');
+    expect(implementation).toContain('key: "owner_market_settings"');
+    expect(implementation).toContain('key: "store_currency_rate_review_required"');
+    expect(implementation).not.toContain("stripeAccountId");
+    expect(implementation).not.toContain("carrierAccount");
+  });
+
   it("records an operator-selected payment route without enabling a payment method", () => {
     const start = databaseSource.indexOf("export async function provisionGiftStoreFromDraft");
     const end = databaseSource.indexOf("export type StudioProvisioningDraftInput", start);

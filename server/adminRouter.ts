@@ -32,6 +32,7 @@ import { SUPPORTED_STORE_CURRENCIES } from "../shared/storeCurrency";
 import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from "./ownerRouter";
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { storeFactoryModelIds } from "../shared/storeFactoryModel";
+import { storeLaunchMarketIds } from "../shared/storeLaunchMarket";
 import { invokeLLM } from "./_core/llm";
 import { generateImage, listImageModels } from "./_core/imageGeneration";
 import { buildStudioImageGenerationPrompt, studioImageFormats, studioImageStyles } from "./services/studioImageGenerationPolicy";
@@ -972,8 +973,9 @@ export const studioProvisioningDraftInputSchema = z.object({
   themePreset: storefrontThemeIdSchema.optional().nullable(),
   factoryModel: z.enum(storeFactoryModelIds).default("blank"),
   provisioningTemplate: z.enum(["standard", "algeria"]).default("standard"),
+  launchMarket: z.enum(storeLaunchMarketIds).default("custom"),
   paymentRoute: z.enum(["stripe_connect", "algeria_cash_on_delivery", "both"]).default("stripe_connect"),
-  preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "DZD"]).default("CHF"),
+  preferredCurrency: z.enum(["CHF", "EUR", "USD", "GBP", "CAD", "MAD", "MXN", "DZD"]).default("CHF"),
   notes: z.string().trim().max(2000).optional(),
 });
 

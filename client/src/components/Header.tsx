@@ -20,7 +20,7 @@ import ThemeToggle from "./ThemeToggle";
 import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
 import { hasVisibleCountrySelector, hasVisibleLanguageSelector } from "@shared/storeMarketSettings";
 
-const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸", DZ: "🇩🇿" };
+const countryFlags: Record<string, string> = { CH: "🇨🇭", FR: "🇫🇷", DE: "🇩🇪", IT: "🇮🇹", AT: "🇦🇹", BE: "🇧🇪", NL: "🇳🇱", ES: "🇪🇸", PT: "🇵🇹", MA: "🇲🇦", MX: "🇲🇽", DZ: "🇩🇿" };
 const languageFlags: Record<string, string> = { fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", en: "🇬🇧", es: "🇪🇸", nl: "🇳🇱", ar: "🌐" };
 
 export default function Header() {

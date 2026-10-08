@@ -89,7 +89,7 @@ function OwnerDeferredModuleFallback() {
 }
 
 const servedCountryChoices = [
-  ["CH", "Suisse"], ["FR", "France"], ["DE", "Allemagne"], ["IT", "Italie"], ["AT", "Autriche"], ["BE", "Belgique"], ["NL", "Pays-Bas"], ["ES", "Espagne"], ["DZ", "Algérie"], ["GB", "Royaume-Uni"], ["US", "États-Unis"], ["CA", "Canada"],
+  ["CH", "Suisse"], ["FR", "France"], ["DE", "Allemagne"], ["IT", "Italie"], ["AT", "Autriche"], ["BE", "Belgique"], ["NL", "Pays-Bas"], ["ES", "Espagne"], ["PT", "Portugal"], ["MA", "Maroc"], ["MX", "Mexique"], ["DZ", "Algérie"], ["GB", "Royaume-Uni"], ["US", "États-Unis"], ["CA", "Canada"],
 ] as const;
 
 const emptyShippingReturns: ShippingReturnsForm = { mode: "included", flatShippingRate: "", freeShippingThreshold: "", servedCountries: [], deliveryLeadTime: "", returnsSummary: "", returnRequestsEnabled: false };

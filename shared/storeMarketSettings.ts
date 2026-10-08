@@ -1,7 +1,7 @@
 export const storefrontLanguageCodes = ["fr", "de", "it", "en", "es", "nl", "ar"] as const;
 export type StorefrontLanguageCode = (typeof storefrontLanguageCodes)[number];
 
-export const storefrontCountryCodes = ["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES", "DZ"] as const;
+export const storefrontCountryCodes = ["CH", "FR", "DE", "IT", "AT", "BE", "NL", "ES", "PT", "MA", "MX", "DZ"] as const;
 export type StorefrontCountryCode = (typeof storefrontCountryCodes)[number];
 
 export const storefrontLanguageChoices: Array<{ code: StorefrontLanguageCode; label: string; nativeLabel: string }> = [
@@ -23,6 +23,9 @@ export const storefrontCountryChoices: Array<{ code: StorefrontCountryCode; labe
   { code: "BE", label: "Belgique" },
   { code: "NL", label: "Pays-Bas" },
   { code: "ES", label: "Espagne" },
+  { code: "PT", label: "Portugal" },
+  { code: "MA", label: "Maroc" },
+  { code: "MX", label: "Mexique" },
   { code: "DZ", label: "Algérie" },
 ];
 

@@ -88,6 +88,16 @@ describe("deployment schema migrations", () => {
     expect(migration).not.toContain("blob");
   });
 
+  it("registers the launch-market selection without legal, payment or customer data", () => {
+    const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
+    const migration = worktreeFile("drizzle/0050_store_provisioning_launch_market.sql");
+
+    expect(runner).toContain('["0050_store_provisioning_launch_market", "drizzle/0050_store_provisioning_launch_market.sql"]');
+    expect(migration).toContain("ALTER TABLE `storeProvisioningDrafts`");
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS `launchMarket` varchar(32) NOT NULL DEFAULT 'custom'");
+    expect(migration).not.toMatch(/ADD COLUMN.*(?:secret|api[_ -]?key|token|customer)/i);
+  });
+
   it("registers the operator-selected payment route without payment credentials", () => {
     const runner = worktreeFile("scripts/apply-schema-migrations.mjs");
     const migration = worktreeFile("drizzle/0049_store_provisioning_payment_route.sql");

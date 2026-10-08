@@ -20,11 +20,12 @@ import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureRea
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
 import { normalizeStoreMarketSettings, parseStoreMarketSettings, type StoreMarketSettings } from "../shared/storeMarketSettings";
 import { getStoreTaxPolicyForCountry, normalizeStoreTaxPolicies, parseStoreTaxPolicies, type StoreTaxPolicy } from "../shared/storeTaxPolicy";
-import { calculateConvertedCartTotals, convertChfCents, convertToChfCents, currencyConfigFromSettings, type StoreCurrencyConfig } from "../shared/storeCurrency";
+import { calculateConvertedCartTotals, convertChfCents, convertToChfCents, currencyConfigFromSettings, isStoreCurrencyCode, type StoreCurrencyConfig } from "../shared/storeCurrency";
 import { createAlgeriaWilayaReferenceSettings, getAlgeriaWilayaDeliveryQuote, isAlgeriaWilayaDeliveryConfigured, normalizeAlgeriaWilayaDeliverySettings, parseAlgeriaWilayaDeliverySettings, type AlgeriaDeliveryMode, type AlgeriaWilayaDeliverySettings } from "../shared/algeriaWilayaDelivery";
 import { getStoreRecoveryHost, getStoreSlugForRecoveryHost, mayUsePlatformStoreFallback, normalizeStoreHost } from "./services/storeScope";
 import { reviewStoreProvisioningDraft } from "./services/storeProvisioningReview";
 import { buildAlgeriaStandardStoreTemplate, normalizeStoreProvisioningTemplate, type StoreProvisioningTemplate } from "./services/algeriaStoreTemplate";
+import { getStoreLaunchMarket, normalizeStoreLaunchMarket, type StoreLaunchMarketId } from "../shared/storeLaunchMarket";
 import { buildStoreLaunchPreflight, suggestStoreSlug } from "./services/storeLaunchPreflight";
 import {
   assertStudioStoreCopyDestination,
@@ -336,11 +337,12 @@ async function ensureStoreProvisioningDraftSchema() {
   _storeProvisioningDraftSchemaReady = (async () => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `copySourceStoreId` int NULL, `copySelection` text NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`), INDEX `store_provisioning_drafts_copy_source_idx` (`copySourceStoreId`))"));
+    await db.execute(sql.raw("CREATE TABLE IF NOT EXISTS `storeProvisioningDrafts` (`id` int AUTO_INCREMENT PRIMARY KEY, `displayName` varchar(160) NOT NULL, `requestedDomain` varchar(255) NOT NULL, `ownerName` varchar(160) NOT NULL, `ownerEmail` varchar(320) NOT NULL, `businessType` enum('animalier','bijoux','vetements','autre') NOT NULL DEFAULT 'autre', `customBusinessTheme` varchar(160) NULL, `themePreset` varchar(32) NULL, `factoryModel` varchar(32) NOT NULL DEFAULT 'blank', `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard', `launchMarket` varchar(32) NOT NULL DEFAULT 'custom', `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect', `preferredCurrency` varchar(3) NOT NULL DEFAULT 'CHF', `requestedPlan` varchar(16) NULL, `copySourceStoreId` int NULL, `copySelection` text NULL, `status` enum('draft','ready_for_confirmation','archived') NOT NULL DEFAULT 'draft', `notes` text, `provisionedStoreId` int NULL, `provisionedAt` timestamp NULL, `createdByUserId` int NOT NULL, `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX `store_provisioning_drafts_status_updated_idx` (`status`,`updatedAt`), INDEX `store_provisioning_drafts_domain_idx` (`requestedDomain`), INDEX `store_provisioning_drafts_provisioned_store_idx` (`provisionedStoreId`), INDEX `store_provisioning_drafts_copy_source_idx` (`copySourceStoreId`))"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `customBusinessTheme` varchar(160) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `themePreset` varchar(32) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `factoryModel` varchar(32) NOT NULL DEFAULT 'blank'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `provisioningTemplate` varchar(32) NOT NULL DEFAULT 'standard'"));
+    await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `launchMarket` varchar(32) NOT NULL DEFAULT 'custom'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `paymentRoute` varchar(32) NOT NULL DEFAULT 'stripe_connect'"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `requestedPlan` varchar(16) NULL"));
     await db.execute(sql.raw("ALTER TABLE `storeProvisioningDrafts` ADD COLUMN IF NOT EXISTS `copySourceStoreId` int NULL"));
@@ -2925,6 +2927,7 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     if (input.confirmationName.trim() !== draft.displayName.trim()) throw new Error("PROVISIONING_CONFIRMATION_MISMATCH");
     const copySelection = parseStudioStoreCopySelection(draft.copySelection);
     const isControlledCopy = Boolean(draft.copySourceStoreId);
+    const launchMarket = getStoreLaunchMarket(draft.launchMarket);
     if ((isControlledCopy && !copySelection) || (!isControlledCopy && copySelection)) throw new Error("STORE_COPY_DRAFT_INVALID");
 
     const drafts = await tx.select().from(storeProvisioningDrafts);
@@ -2977,6 +2980,9 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
       { storeId, key: "store_currency_code", value: draft.preferredCurrency, description: "Devise de départ choisie lors du provisionnement." },
       { storeId, key: "currency", value: draft.preferredCurrency, description: "Compatibilité : devise de départ choisie lors du provisionnement." },
       { storeId, key: "provisioning_template", value: normalizeStoreProvisioningTemplate(draft.provisioningTemplate), description: "Base géographique et opérationnelle choisie dans Studio." },
+      { storeId, key: "provisioning_launch_market", value: launchMarket.id, description: "Profil de marché de vitrine choisi dans Studio ; il reste modifiable par le propriétaire." },
+      ...(launchMarket.market && normalizeStoreProvisioningTemplate(draft.provisioningTemplate) !== "algeria" ? [{ storeId, key: "owner_market_settings", value: JSON.stringify(launchMarket.market), description: `Marché ${launchMarket.label} prérempli par Studio ; pays et langues restent modifiables par le propriétaire.` }] : []),
+      ...(draft.preferredCurrency !== "CHF" ? [{ storeId, key: "store_currency_rate_review_required", value: "true", description: "La devise de départ est préremplie ; le propriétaire doit définir et contrôler son taux manuel avant une vente." }] : []),
       { storeId, key: "payment_route", value: draft.paymentRoute || "stripe_connect", description: "Route d’encaissement choisie par l’opérateur dans Studio ; aucune méthode n’est activée automatiquement." },
       ...(isControlledCopy && copySelection ? [{ storeId, key: "store_copy_provenance", value: JSON.stringify({ sourceStoreId: draft.copySourceStoreId, selectedScopes: selectedStudioStoreCopyScopes(copySelection), preparedAt: now.toISOString() }), description: "Provenance d’une copie Studio contrôlée ; aucune donnée client, paiement, accès, secret ou fournisseur n’est copiée." }] : []),
     ];
@@ -3059,6 +3065,7 @@ export type StudioProvisioningDraftInput = {
   themePreset?: StorefrontThemeId | null;
   factoryModel?: StoreFactoryModelId | null;
   provisioningTemplate?: StoreProvisioningTemplate;
+  launchMarket?: StoreLaunchMarketId;
   paymentRoute?: "stripe_connect" | "algeria_cash_on_delivery" | "both";
   preferredCurrency: string;
   /** Intent only: the active SaaS plan remains a Studio-only assignment. */
@@ -3070,8 +3077,13 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
   const customBusinessTheme = input.businessType === "autre" ? input.customBusinessTheme?.trim() || null : null;
   if (input.businessType === "autre" && !customBusinessTheme) throw new Error("PROVISIONING_CUSTOM_THEME_REQUIRED");
   const paymentRoute = input.paymentRoute === "algeria_cash_on_delivery" || input.paymentRoute === "both" ? input.paymentRoute : "stripe_connect";
-  const provisioningTemplate = normalizeStoreProvisioningTemplate(input.provisioningTemplate);
+  const launchMarket = normalizeStoreLaunchMarket(input.launchMarket);
+  const provisioningTemplate = launchMarket === "algeria" ? "algeria" : normalizeStoreProvisioningTemplate(input.provisioningTemplate);
+  const market = getStoreLaunchMarket(launchMarket);
   const factoryModel = normalizeStoreFactoryModelId(input.factoryModel);
+  const preferredCurrency = provisioningTemplate === "algeria"
+    ? "DZD"
+    : market.currency ?? (isStoreCurrencyCode(input.preferredCurrency) ? input.preferredCurrency : "CHF");
   return {
     ...input,
     requestedDomain: input.requestedDomain.trim().toLowerCase(),
@@ -3080,8 +3092,9 @@ function normalizeStudioProvisioningDraft(input: StudioProvisioningDraftInput) {
     themePreset: input.themePreset ?? getStoreFactoryModel(factoryModel).suggestedTheme,
     factoryModel,
     provisioningTemplate,
+    launchMarket,
     paymentRoute,
-    preferredCurrency: provisioningTemplate === "algeria" ? "DZD" : input.preferredCurrency,
+    preferredCurrency,
     requestedPlan: input.requestedPlan ?? null,
     notes: input.notes?.trim() || null,
   };
@@ -3150,6 +3163,7 @@ export async function updateStudioProvisioningDraft(input: StudioProvisioningDra
     themePreset: normalized.themePreset,
     factoryModel: normalized.factoryModel,
     provisioningTemplate: normalized.provisioningTemplate,
+    launchMarket: normalized.launchMarket,
     paymentRoute: normalized.paymentRoute,
     preferredCurrency: normalized.preferredCurrency,
     requestedPlan: normalized.requestedPlan,

@@ -1,4 +1,4 @@
-export const SUPPORTED_STORE_CURRENCIES = ["CHF", "EUR", "USD", "GBP", "CAD", "DZD"] as const;
+export const SUPPORTED_STORE_CURRENCIES = ["CHF", "EUR", "USD", "GBP", "CAD", "MAD", "MXN", "DZD"] as const;
 
 export type StoreCurrencyCode = (typeof SUPPORTED_STORE_CURRENCIES)[number];
 
@@ -16,6 +16,8 @@ export const STORE_CURRENCY_LABELS: Record<StoreCurrencyCode, string> = {
   USD: "Dollar américain (USD)",
   GBP: "Livre sterling (GBP)",
   CAD: "Dollar canadien (CAD)",
+  MAD: "Dirham marocain (MAD)",
+  MXN: "Peso mexicain (MXN)",
   DZD: "Dinar algérien (DZD)",
 };
 
