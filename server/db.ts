@@ -75,7 +75,7 @@ import { createStoreCommissionOverride, parseStoreCommissionOverride, type Store
 import { applyStoreQuotaOverride, createStoreQuotaOverride, parseStoreQuotaOverride, type StoreQuotaOverride, type StoreQuotaOverrideInput } from "../shared/storeQuotaOverride";
 import { isMissingProductCategoryIdentityError, withExplicitProductCategoryIds } from "../shared/productCategoryIdentity";
 import { getStoreFactoryModel, getStoreFactoryStarterCategories, normalizeStoreFactoryModelId, type StoreFactoryModelId } from "../shared/storeFactoryModel";
-import { giftDemoLibraryKits, getGiftDemoLibraryKitForDraft, type GiftDemoLibraryKitId } from "../shared/giftDemoLibrary";
+import { giftDemoLibraryInternalSupplier, giftDemoLibraryKits, getGiftDemoLibraryKitForDraft, type GiftDemoLibraryKitId } from "../shared/giftDemoLibrary";
 import { getLifetimePriceCents, getMazighoSaasPlan, isMazighoSaasPlanId, type MazighoSaasPlanId } from "../shared/mazighoSaasPlans";
 import { getSaasPlanEntitlements, type SaasPlanEntitlements } from "../shared/saasEntitlements";
 import { getStripeConnectPaymentReadiness, type StripeConnectAccountState } from "./services/stripeConnectPayment";
@@ -673,6 +673,13 @@ export async function getGiftDemoLibraryCandidates() {
     const draft = draftById.get(Number(settings?.get("provisioning_draft_id")));
     const kit = draft ? getGiftDemoLibraryKitForDraft({ businessType: draft.businessType, factoryModel: normalizeStoreFactoryModelId(draft.factoryModel) }) : undefined;
     if (!kit || !draft) return [];
+    const rawSetup = settings?.get(kit.setupKey);
+    let installedVersion = 0;
+    try {
+      installedVersion = Number(JSON.parse(rawSetup || "{}").version) || 0;
+    } catch {
+      // An old or malformed marker never grants a current-installation state.
+    }
     return [{
       id: store.id,
       displayName: store.displayName,
@@ -680,7 +687,8 @@ export async function getGiftDemoLibraryCandidates() {
       businessType: draft.businessType,
       kitId: kit.id,
       kitLabel: kit.label,
-      demoInstalled: settings?.has(kit.setupKey) ?? false,
+      demoInstalled: installedVersion >= 2,
+      demoVersion: installedVersion,
     }];
   });
 }
@@ -688,6 +696,9 @@ export async function getGiftDemoLibraryCandidates() {
 export async function installGiftDemoLibrarySetup(input: { storeId: number; confirmationName: string; acknowledged: boolean }) {
   await ensureMultiStoreSchema();
   await ensureStoreProvisioningDraftSchema();
+  // Variants are part of every full demo kit. Ensure the additive, tenant-scoped
+  // table exists before opening the data transaction.
+  await ensureOwnerProductVariantsSchema();
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
   return db.transaction(async tx => {
@@ -705,7 +716,14 @@ export async function installGiftDemoLibrarySetup(input: { storeId: number; conf
       .where(eq(storeProvisioningDrafts.id, draftId)).limit(1);
     const kit = draft ? getGiftDemoLibraryKitForDraft({ businessType: draft.businessType, factoryModel: normalizeStoreFactoryModelId(draft.factoryModel) }) : undefined;
     if (!kit) throw new Error("STORE_NOT_DEMO_LIBRARY_ELIGIBLE");
-    if (settingsByKey.has(kit.setupKey)) throw new Error("DEMO_LIBRARY_SETUP_ALREADY_INSTALLED");
+    let existingVersion = 0;
+    try {
+      existingVersion = Number(JSON.parse(settingsByKey.get(kit.setupKey) || "{}").version) || 0;
+    } catch {
+      // A legacy marker may be plain text. It is safely upgraded by adding only
+      // missing demo records; user-created records are never altered here.
+    }
+    if (existingVersion >= 2) throw new Error("DEMO_LIBRARY_SETUP_ALREADY_INSTALLED");
     const profile = getGiftDemoLibraryProfile(kit.id, store.displayName);
     await tx.insert(storeSettings).values({
       storeId: store.id,
@@ -721,46 +739,69 @@ export async function installGiftDemoLibrarySetup(input: { storeId: number; conf
       const result = await tx.insert(categories).values({ ...category, storeId: store.id, catalogSection: "standard" });
       categoryBySlug.set(category.slug, Number((result as any)[0].insertId));
     }
-    const [demoProduct] = await tx.select({ id: products.id }).from(products)
-      .where(and(eq(products.storeId, store.id), eq(products.slug, kit.product.slug))).limit(1);
-    if (!demoProduct) {
-      const categoryId = categoryBySlug.get(kit.product.categorySlug);
+    const existingProducts = await tx.select({ id: products.id, slug: products.slug }).from(products)
+      .where(and(eq(products.storeId, store.id), inArray(products.slug, kit.products.map(product => product.slug))));
+    const existingProductSlugs = new Set(existingProducts.map(product => product.slug));
+    let createdProducts = 0;
+    let createdVariants = 0;
+    for (const product of kit.products) {
+      if (existingProductSlugs.has(product.slug)) continue;
+      const categoryId = categoryBySlug.get(product.categorySlug);
       if (!categoryId) throw new Error("DEMO_LIBRARY_CATEGORY_MISSING");
-      await tx.insert(products).values({
+      const result = await tx.insert(products).values({
         storeId: store.id,
         categoryId,
-        name: kit.product.name,
-        slug: kit.product.slug,
-        description: kit.product.description,
-        longDescription: kit.product.longDescription,
-        price: 0,
-        originalPrice: null,
-        stock: 0,
-        featured: 0,
-        status: "draft",
-        supplier: null,
-        supplierProductId: null,
-        supplierUrl: null,
-        supplierPrice: null,
-        supplierWeightG: null,
+        name: product.name,
+        slug: product.slug,
+        description: product.description,
+        longDescription: product.longDescription,
+        price: product.priceCents,
+        originalPrice: product.originalPriceCents,
+        stock: product.stock,
+        featured: product.featured ? 1 : 0,
+        showNewBadge: product.showNewBadge ? 1 : 0,
+        status: "active",
+        supplier: giftDemoLibraryInternalSupplier.name,
+        supplierProductId: `DEMO-${kit.id.toUpperCase()}-${product.slug.toUpperCase()}`.slice(0, 128),
+        supplierUrl: giftDemoLibraryInternalSupplier.url,
+        supplierPrice: product.supplierPriceCents,
+        supplierWeightG: product.supplierWeightG,
         supplierVariantMappings: null,
-        options: null,
+        options: JSON.stringify(product.options),
       });
+      const productId = Number((result as any)[0]?.insertId ?? (result as any).insertId);
+      if (!Number.isInteger(productId) || productId <= 0) throw new Error("DEMO_LIBRARY_PRODUCT_CREATION_FAILED");
+      await tx.insert(productImages).values({ storeId: store.id, productId, imageUrl: product.imageUrl, displayOrder: 0 });
+      await tx.insert(ownerProductVariants).values(product.variants.map((variant, displayOrder) => ({
+        storeId: store.id,
+        productId,
+        label: variant.label,
+        sku: variant.sku,
+        imageUrl: product.imageUrl,
+        priceAdjustmentCents: variant.priceAdjustmentCents,
+        stock: variant.stock,
+        status: "active" as const,
+        displayOrder,
+      })));
+      createdProducts += 1;
+      createdVariants += product.variants.length;
     }
     const now = new Date();
-    const description = `Kit de démonstration ${kit.label} installé avant personnalisation commerciale.`;
+    const description = `Kit de démonstration ${kit.label} : fiches fictives complètes à remplacer avant ouverture.`;
     await tx.insert(storeSettings).values({
       storeId: store.id,
       key: kit.setupKey,
-      value: JSON.stringify({ version: 1, kitId: kit.id, installedAt: now.toISOString(), commercialReadiness: "not_for_sale" }),
+      value: JSON.stringify({ version: 2, kitId: kit.id, installedAt: now.toISOString(), commercialReadiness: "demo_data_only" }),
       description,
-    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ version: 1, kitId: kit.id, installedAt: now.toISOString(), commercialReadiness: "not_for_sale" }), description } });
+    }).onDuplicateKeyUpdate({ set: { value: JSON.stringify({ version: 2, kitId: kit.id, installedAt: now.toISOString(), commercialReadiness: "demo_data_only" }), description } });
     return {
       store: { id: store.id, displayName: store.displayName, status: store.status },
       businessType: draft.businessType,
       kit: { id: kit.id, label: kit.label },
       createdCategories: kit.categories.length,
-      activeDemoProduct: !demoProduct,
+      createdProducts,
+      createdVariants,
+      upgradedFromVersion: existingVersion || null,
       installedAt: now,
     };
   });
