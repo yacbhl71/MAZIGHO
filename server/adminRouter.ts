@@ -2839,28 +2839,28 @@ export const adminRouter = router({
         throw error;
       }
     }),
-    getGiftRetailDemoSetupCandidates: platformProcedure.query(async () => db.getGiftRetailDemoSetupCandidates()),
-    installGiftRetailDemoSetup: platformProcedure.input(z.object({
+    getGiftDemoLibraryCandidates: platformProcedure.query(async () => db.getGiftDemoLibraryCandidates()),
+    installGiftDemoLibrarySetup: platformProcedure.input(z.object({
       storeId: z.number().int().positive(),
       confirmationName: z.string().trim().min(2).max(160),
       acknowledged: z.literal(true),
     })).mutation(async ({ ctx, input }) => {
       try {
-        const installed = await db.installGiftRetailDemoSetup(input);
+        const installed = await db.installGiftDemoLibrarySetup(input);
         logAudit(ctx, {
-          action: "studio.gift_store.retail_demo.install",
+          action: "studio.gift_store.demo_library.install",
           entityType: "store",
           entityId: installed.store.id,
-          summary: `Kit de démonstration ${installed.businessType} installé : ${installed.store.displayName}`,
-          metadata: { status: "setup", businessType: installed.businessType, billing: "none", invitationsSent: 0, externalCalls: 0 },
+          summary: `Kit de démonstration ${installed.kit.label} installé : ${installed.store.displayName}`,
+          metadata: { status: "setup", kitId: installed.kit.id, businessType: installed.businessType, billing: "none", invitationsSent: 0, externalCalls: 0 },
         });
         return installed;
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
-        if (code === "RETAIL_DEMO_SETUP_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
-        if (["STORE_NOT_ELIGIBLE_FOR_RETAIL_DEMO_SETUP", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_RETAIL_DEMO_ELIGIBLE", "RETAIL_DEMO_SETUP_ALREADY_INSTALLED"].includes(code)) {
-          throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir un kit de démonstration bijoux ou vêtements." });
+        if (code === "DEMO_LIBRARY_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
+        if (["STORE_NOT_ELIGIBLE_FOR_DEMO_LIBRARY", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_DEMO_LIBRARY_ELIGIBLE", "DEMO_LIBRARY_SETUP_ALREADY_INSTALLED"].includes(code)) {
+          throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir ce kit de démonstration." });
         }
         throw error;
       }
@@ -2883,8 +2883,8 @@ export const adminRouter = router({
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
-        if (code === "PET_SETUP_CONFIRMATION_MISMATCH") throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
-        if (["STORE_NOT_ELIGIBLE_FOR_PET_SETUP", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir le kit animalier de démonstration." });
+        if (["PET_SETUP_CONFIRMATION_MISMATCH", "DEMO_LIBRARY_CONFIRMATION_MISMATCH"].includes(code)) throw new TRPCError({ code: "BAD_REQUEST", message: "Recopiez exactement le nom de la boutique et confirmez l’installation du kit." });
+        if (["STORE_NOT_ELIGIBLE_FOR_PET_SETUP", "STORE_NOT_ELIGIBLE_FOR_DEMO_LIBRARY", "STORE_NOT_GIFT_PROVISIONED", "STORE_PROVISIONING_SOURCE_MISSING", "STORE_NOT_ANIMALIER", "STORE_NOT_DEMO_LIBRARY_ELIGIBLE", "DEMO_LIBRARY_SETUP_ALREADY_INSTALLED"].includes(code)) throw new TRPCError({ code: "CONFLICT", message: "Cette boutique ne peut pas recevoir le kit animalier de démonstration." });
         throw error;
       }
     }),

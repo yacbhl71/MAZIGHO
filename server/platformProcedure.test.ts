@@ -157,8 +157,8 @@ describe("MAZIGHO Studio platform guard", () => {
     await expect(caller.admin.studio.getGiftStorePreparationChecklist({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.getGiftStoreActivityTimeline({ storeId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.updateGiftStorePrimaryDomain({ storeId: 1, confirmationName: "Boutique cliente", primaryDomain: "animalerie.exemple.ch", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.admin.studio.getGiftRetailDemoSetupCandidates()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.admin.studio.installGiftRetailDemoSetup({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.getGiftDemoLibraryCandidates()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.studio.installGiftDemoLibrarySetup({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.installGiftPetDemoSetup({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.copyPlatformLegalProfileToGiftStore({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.studio.openGiftStoreShowcase({ storeId: 1, confirmationName: "Boutique cliente", acknowledged: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
