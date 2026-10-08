@@ -3005,14 +3005,19 @@ export async function provisionGiftStoreFromDraft(input: { draftId: number; conf
     const factoryModel = getStoreFactoryModel(draft.factoryModel);
     const starterCategories = isControlledCopy ? [] : getStoreFactoryStarterCategories(draft.factoryModel);
     if (starterCategories.length > 0) {
-      await tx.insert(categories).values(starterCategories.map(category => ({
-        storeId,
-        name: category.name,
-        slug: category.slug,
-        description: category.description,
-        displayOrder: category.displayOrder,
-        catalogSection: "standard" as const,
-      })));
+      // Keep the newly provisioned tenant write compatible with legacy TiDB
+      // category tables. The transaction remains atomic, while individual
+      // inserts avoid the unsupported batched DEFAULT primary-key path.
+      for (const category of starterCategories) {
+        await tx.insert(categories).values({
+          storeId,
+          name: category.name,
+          slug: category.slug,
+          description: category.description,
+          displayOrder: category.displayOrder,
+          catalogSection: "standard" as const,
+        });
+      }
     }
     await tx.update(storeProvisioningDrafts).set({ provisionedStoreId: storeId, provisionedAt: now }).where(eq(storeProvisioningDrafts.id, draft.id));
 

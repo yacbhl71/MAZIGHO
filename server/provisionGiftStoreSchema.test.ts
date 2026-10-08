@@ -14,6 +14,8 @@ describe("provisionGiftStoreFromDraft schema prerequisites", () => {
     expect(implementation.indexOf("await ensureStoreCatalogScopeSchema();")).toBeLessThan(
       implementation.indexOf("return db.transaction"),
     );
+    expect(implementation).toContain("for (const category of starterCategories)");
+    expect(implementation).not.toContain("values(starterCategories.map");
   });
 
   it("removes the legacy global category slug index as part of the catalogue repair", () => {
