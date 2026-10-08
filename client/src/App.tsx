@@ -19,6 +19,7 @@ import { MaintenancePage } from "./components/MaintenancePage";
 import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
+const BoutiqueKeyInHandLanding = lazy(() => import("./pages/BoutiqueKeyInHandLanding"));
 const StoreAcquisitionWizard = lazy(() => import("./pages/StoreAcquisitionWizard"));
 const Shop = lazy(() => import("./pages/Shop"));
 const Creations = lazy(() => import("./pages/Creations"));
@@ -201,6 +202,26 @@ function BrowserTitle() {
   useEffect(() => {
     const pathname = location.split("?")[0];
     const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+    if (pathname === "/creation-boutique") {
+      const title = "Création de boutique clé en main | MAZIGHO";
+      document.title = title;
+      const description = "MAZIGHO prépare des boutiques e-commerce clé en main, prêtes à être transmises puis administrées par leur propriétaire.";
+      const setMeta = (attribute: "name" | "property", key: string, value: string) => {
+        let element = document.head.querySelector(`meta[${attribute}="${key}"]`) as HTMLMetaElement | null;
+        if (!element) {
+          element = document.createElement("meta");
+          element.setAttribute(attribute, key);
+          document.head.appendChild(element);
+        }
+        element.content = value;
+      };
+      setMeta("name", "description", description);
+      setMeta("property", "og:title", title);
+      setMeta("property", "og:description", description);
+      setMeta("name", "twitter:title", title);
+      setMeta("name", "twitter:description", description);
+      return;
+    }
     if (pathname === "/mazigho-saas" || (hostname === "pro.mazigho.ch" && pathname === "/")) {
       const title = "MAZIGHO | Créez et pilotez votre boutique en ligne";
       document.title = title;
@@ -347,7 +368,7 @@ function StorefrontMarketing() {
   const [location] = useLocation();
   const pathname = location.split("?")[0];
   const hostname = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
-  if (pathname === "/mazigho-saas" || hostname === "pro.mazigho.ch") return null;
+  if (pathname === "/mazigho-saas" || pathname === "/creation-boutique" || hostname === "pro.mazigho.ch") return null;
   return <><MarketingPixels /><MarketingConsentBanner /></>;
 }
 
@@ -362,7 +383,7 @@ function Router() {
   const isStudioHost = currentHostname === "studio.mazigho.ch";
   const isSaasLandingHost = currentHostname === "pro.mazigho.ch";
   const isPrimaryMazighoHost = currentHostname === "mazigho.ch" || currentHostname === "www.mazigho.ch";
-  const isPublicSaasLanding = path === "/mazigho-saas" || isSaasLandingHost;
+  const isPublicSaasLanding = path === "/mazigho-saas" || path === "/creation-boutique" || isSaasLandingHost;
   const isPrivateSetupOwnerPanel = typeof window !== "undefined" && isPrivateSetupOwnerPanelPath(path, window.location.search);
   const STAFF_ROLES = ["admin", "catalog_editor", "order_operator", "support_agent"];
   const isStaff = !!user && STAFF_ROLES.includes((user as any).role);
@@ -436,6 +457,7 @@ function Router() {
         <Switch>
       <Route path={"/"} component={isSaasLandingHost ? MazighoSaasLanding : Home} />
       <Route path={"/mazigho-saas"} component={MazighoSaasLanding} />
+      <Route path={"/creation-boutique"} component={BoutiqueKeyInHandLanding} />
       <Route path={"/demarrer-boutique"} component={StoreAcquisitionWizard} />
       <Route path={"/boutique"} component={Shop} />
       <Route path={"/creations"} component={Creations} />

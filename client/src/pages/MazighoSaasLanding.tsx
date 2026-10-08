@@ -25,6 +25,7 @@ import { trpc } from "@/lib/trpc";
 import SaasAICopilotSection from "@/components/SaasAICopilotSection";
 
 const navigation = [
+  { label: "Clé en main", href: "/creation-boutique" },
   { label: "Pourquoi MAZIGHO", href: "#pourquoi" },
   { label: "Votre espace", href: "#espace" },
   { label: "Assistant IA", href: "#assistant-ia" },
