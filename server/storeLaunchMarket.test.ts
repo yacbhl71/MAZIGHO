@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getStoreLaunchMarket, normalizeStoreLaunchMarket, storeLaunchMarketIds } from "../shared/storeLaunchMarket";
+import { getStoreLaunchMarket, isStoreLaunchMarketId, normalizeStoreLaunchMarket, storeLaunchMarketIds } from "../shared/storeLaunchMarket";
 
 describe("Studio launch market profiles", () => {
   it("keeps the operator-selected launch profiles strictly within supported storefront markets", () => {
@@ -24,6 +24,16 @@ describe("Studio launch market profiles", () => {
       id: "custom",
       currency: null,
       market: null,
+    });
+  });
+
+  it("accepts a generic ISO country without introducing a profile per country", () => {
+    expect(isStoreLaunchMarketId("country:JP")).toBe(true);
+    expect(isStoreLaunchMarketId("country:XX")).toBe(false);
+    expect(getStoreLaunchMarket("country:JP")).toMatchObject({
+      id: "country:JP",
+      currency: null,
+      market: { primaryCountry: "JP", activeCountries: ["JP"], activeLanguages: ["en"] },
     });
   });
 });

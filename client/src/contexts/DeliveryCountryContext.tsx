@@ -1,21 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { getStorefrontCountryLabel, storefrontCountryChoices, type StorefrontCountryCode } from "@shared/storeMarketSettings";
 
-export const deliveryCountries = [
-  { code: "CH", label: "Suisse" },
-  { code: "FR", label: "France" },
-  { code: "DE", label: "Allemagne" },
-  { code: "IT", label: "Italie" },
-  { code: "AT", label: "Autriche" },
-  { code: "BE", label: "Belgique" },
-  { code: "NL", label: "Pays-Bas" },
-  { code: "ES", label: "Espagne" },
-  { code: "PT", label: "Portugal" },
-  { code: "MA", label: "Maroc" },
-  { code: "MX", label: "Mexique" },
-  { code: "DZ", label: "Algérie" },
-] as const;
-
-export type DeliveryCountryCode = (typeof deliveryCountries)[number]["code"];
+/** Shared ISO catalogue: the visible subset is still controlled per storefront. */
+export const deliveryCountries = storefrontCountryChoices;
+export type DeliveryCountryCode = StorefrontCountryCode;
 
 export type DeliveryProfile = {
   countryCode: string;
@@ -40,14 +28,12 @@ export function DeliveryCountryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const savedCountry = window.localStorage.getItem(storageKey);
-    if (deliveryCountries.some(country => country.code === savedCountry)) {
-      setCountryCode(savedCountry as DeliveryCountryCode);
-    }
+    if (deliveryCountries.some(country => country.code === savedCountry)) setCountryCode(savedCountry as DeliveryCountryCode);
   }, []);
 
   const value = useMemo(() => ({
     countryCode,
-    countryLabel: deliveryCountries.find(country => country.code === countryCode)?.label || "Suisse",
+    countryLabel: getStorefrontCountryLabel(countryCode),
     setCountryCode: (nextCountry: DeliveryCountryCode) => {
       setCountryCode(nextCountry);
       window.localStorage.setItem(storageKey, nextCountry);

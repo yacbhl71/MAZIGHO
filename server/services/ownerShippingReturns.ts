@@ -22,7 +22,7 @@ export const DEFAULT_OWNER_SHIPPING_RETURNS_SETTINGS: OwnerShippingReturnsSettin
 };
 
 const MAX_MONEY_CENTS = 10_000_000;
-const MAX_COUNTRIES = 25;
+const MAX_COUNTRIES = 249;
 
 function normalizeMoneyCents(value: unknown): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > MAX_MONEY_CENTS) return 0;

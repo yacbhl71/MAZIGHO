@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_STORE_MARKET_SETTINGS, normalizeStoreMarketSettings, parseStoreMarketSettings } from "../shared/storeMarketSettings";
+import { DEFAULT_STORE_MARKET_SETTINGS, getStorefrontCountryLabel, normalizeStoreMarketSettings, parseStoreMarketSettings, storefrontCountryCodes } from "../shared/storeMarketSettings";
 
 describe("store market settings", () => {
   it("keeps the legacy storefront configuration as a safe default", () => {
@@ -67,5 +67,17 @@ describe("store market settings", () => {
       primaryCountry: "CH",
       activeCountries: ["FR"],
     } as any)).toMatchObject({ primaryLanguage: "de", activeLanguages: ["de"], primaryCountry: "FR", activeCountries: ["FR"] });
+  });
+
+  it("accepts the full ISO country catalogue and presents localized labels", () => {
+    expect(storefrontCountryCodes).toHaveLength(249);
+    expect(storefrontCountryCodes).toEqual(expect.arrayContaining(["CH", "DZ", "MA", "MX", "PT", "JP", "ZA"]));
+    expect(getStorefrontCountryLabel("JP")).toBe("Japon");
+    expect(normalizeStoreMarketSettings({
+      primaryLanguage: "en",
+      activeLanguages: ["en"],
+      primaryCountry: "JP",
+      activeCountries: ["JP", "ZA"],
+    })).toMatchObject({ primaryCountry: "JP", activeCountries: ["JP", "ZA"] });
   });
 });

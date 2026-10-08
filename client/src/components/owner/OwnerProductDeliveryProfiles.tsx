@@ -12,7 +12,7 @@ export type OwnerProductDeliveryProfileDraft = {
   maxDeliveryDays: string;
 };
 
-type CountryChoice = readonly [string, string];
+type CountryChoice = { code: string; label: string };
 
 type Props = {
   value: OwnerProductDeliveryProfileDraft[];
@@ -43,7 +43,7 @@ function displayAmount(value: number, currencyCode: string) {
 }
 
 export default function OwnerProductDeliveryProfiles({ value, countries, currencyCode, sourcePrice, onChange }: Props) {
-  const availableCountries = countries.filter(([code]) => !value.some(profile => profile.countryCode === code));
+  const availableCountries = countries.filter(country => !value.some(profile => profile.countryCode === country.code));
   const update = (countryCode: string, patch: Partial<OwnerProductDeliveryProfileDraft>) => onChange(value.map(profile => profile.countryCode === countryCode ? { ...profile, ...patch } : profile));
   const sourceAmount = parseAmount(sourcePrice);
 
@@ -61,7 +61,7 @@ export default function OwnerProductDeliveryProfiles({ value, countries, currenc
         <Label htmlFor="owner-product-delivery-country">Ajouter une destination</Label>
         <select id="owner-product-delivery-country" defaultValue="" onChange={event => { const code = event.target.value; if (code) { onChange([...value, emptyProfile(code)]); event.currentTarget.value = ""; } }} disabled={availableCountries.length === 0} className="h-11 w-full rounded-md border border-emerald-200 bg-white px-3 text-sm text-slate-900 disabled:cursor-not-allowed disabled:opacity-60">
           <option value="">{availableCountries.length ? "Choisir un pays" : "Toutes les destinations sont ajoutées"}</option>
-          {availableCountries.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+          {availableCountries.map(country => <option key={country.code} value={country.code}>{country.label}</option>)}
         </select>
       </div>
       <div className="hidden sm:block"><span className="inline-flex h-11 items-center rounded-md border border-emerald-200 bg-white px-3 text-sm font-medium text-emerald-800"><Plus className="mr-1.5 h-4 w-4" /> Ajouter</span></div>
@@ -69,7 +69,7 @@ export default function OwnerProductDeliveryProfiles({ value, countries, currenc
 
     {value.length === 0 ? <div className="mt-4 flex gap-3 rounded-xl border border-dashed border-emerald-300 bg-white/75 p-4 text-sm leading-6 text-emerald-950"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /><p>Aucune destination par produit. La boutique peut conserver sa règle générale de livraison ; ajoutez une destination ici lorsqu’un produit a des frais ou un délai particulier.</p></div> : <div className="mt-4 space-y-4">
       {value.map(profile => {
-        const countryLabel = countries.find(([code]) => code === profile.countryCode)?.[1] || profile.countryCode;
+        const countryLabel = countries.find(country => country.code === profile.countryCode)?.label || profile.countryCode;
         const supplierShipping = parseAmount(profile.supplierShippingCost) ?? 0;
         const customerShipping = parseAmount(profile.customerShippingCost) ?? 0;
         const sourceTotal = sourceAmount == null ? null : sourceAmount + supplierShipping;
