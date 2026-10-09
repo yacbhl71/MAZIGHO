@@ -57,8 +57,8 @@ vi.mock("./db", () => ({
   getOwnerPrivateCartSimulation: vi.fn(async (input) => ({ ...input, privateCartSimulation: true, persistedCart: false, paymentAvailable: false, orderCreated: false })),
   getDesignProfile: vi.fn(async () => state.profile),
   updateDesignProfile: vi.fn(async (input) => input),
-  getStorefrontThemeAccess: vi.fn(async () => ({ themeIds: ["coffee", "gallerySignature", "studioFlux", "glamourNoir"], source: "selected" })),
-  isStorefrontThemeAllowedForStore: vi.fn(async (_storeId, themeId) => ["coffee", "gallerySignature", "studioFlux", "glamourNoir"].includes(themeId)),
+  getStorefrontThemeAccess: vi.fn(async () => ({ themeIds: ["coffee", "marketExpress", "gallerySignature", "studioFlux", "glamourNoir"], source: "selected" })),
+  isStorefrontThemeAllowedForStore: vi.fn(async (_storeId, themeId) => ["coffee", "marketExpress", "gallerySignature", "studioFlux", "glamourNoir"].includes(themeId)),
   applyStorefrontThemeCategoryImages: vi.fn(async () => ({ updatedCategoryIds: [31, 32, 33] })),
   importOwnerCatalogueProducts: vi.fn(async () => ({ imported: 2, updated: 1 })),
   createProduct: vi.fn(async () => ({ id: 108 })),
@@ -269,6 +269,27 @@ describe("owner product variant routes", () => {
       customPrimary: "#17151D",
       homeOrder: ["text:glamour-intro", "featured", "text:glamour-sale", "discovery", "story", "text:glamour-ritual", "editorial", "reassurance"],
     }), 77);
+  });
+
+  it("applies Market Express with market navigation and grocery category visuals", async () => {
+    state.membership = { role: "owner", status: "active" };
+
+    await expect(callerFor().owner.applyStorefrontTheme({ themeId: "marketExpress" })).resolves.toMatchObject({
+      themeId: "marketExpress",
+      heroApplied: true,
+      categoryImageCount: 3,
+    });
+    expect(db.updateDesignProfile).toHaveBeenLastCalledWith(expect.objectContaining({
+      brandName: "Market Express",
+      headerLayout: "market",
+      customPrimary: "#0F4C5C",
+      homeOrder: ["featured", "text:market-delivery", "discovery", "text:market-services", "story", "editorial", "highlight", "reassurance"],
+    }), 77);
+    expect(db.applyStorefrontThemeCategoryImages).toHaveBeenLastCalledWith(77, expect.arrayContaining([
+      "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/WaMbgzmrIlHmcPBr.webp",
+      "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/cnAowZRkPshafOHJ.webp",
+      "https://files.manuscdn.com/user_upload_by_module/session_file/310519663209309444/MXImLWcePpQzSEtj.webp",
+    ]));
   });
 
   it("keeps integration requests visible to managers but writable only by the current store owner", async () => {

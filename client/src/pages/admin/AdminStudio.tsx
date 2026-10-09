@@ -220,6 +220,7 @@ const storefrontThemePresetBusinessTypes: Record<StorefrontThemePreset, Provisio
   sport: "autre",
   jewelry: "bijoux",
   coffee: "autre",
+  marketExpress: "autre",
   gallerySignature: "autre",
   studioFlux: "autre",
   glamourNoir: "autre",
