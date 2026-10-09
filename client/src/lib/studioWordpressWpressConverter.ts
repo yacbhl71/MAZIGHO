@@ -130,7 +130,7 @@ function slugFileName(value: string, fallback: string) {
 
 function readInt(value: string, message: string) {
   const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new StudioWordpressConversionError(message);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) throw new StudioWordpressConversionError("Une entrée WPRESS possède une taille invalide.");
   return parsed;
 }
 
@@ -139,15 +139,30 @@ async function scanWpressEntries(reader: ByteReader) {
   let offset = 0;
   let entryCount = 0;
   let declaredBytes = 0;
+  let headerWindowStart = -1;
+  let headerWindow: Uint8Array<ArrayBufferLike> = new Uint8Array();
+  const readHeader = async (headerOffset: number) => {
+    const headerEnd = headerOffset + WPRESS_HEADER_SIZE;
+    const windowEnd = headerWindowStart + headerWindow.byteLength;
+    if (headerOffset >= headerWindowStart && headerEnd <= windowEnd) {
+      return headerWindow.slice(headerOffset - headerWindowStart, headerEnd - headerWindowStart);
+    }
+    headerWindowStart = headerOffset;
+    headerWindow = await reader.read(headerOffset, Math.min(reader.size, headerOffset + 1024 * 1024));
+    return headerWindow.slice(0, WPRESS_HEADER_SIZE);
+  };
   while (offset < reader.size) {
     if (reader.size - offset < WPRESS_HEADER_SIZE) throw new StudioWordpressConversionError("L’en-tête WPRESS est incomplet.");
-    const header = await reader.read(offset, offset + WPRESS_HEADER_SIZE);
+    const header = await readHeader(offset);
     if (header.every(value => value === 0)) break;
     const name = decodeHeaderField(header, 0, WPRESS_NAME_END);
-    const size = readInt(decodeHeaderField(header, WPRESS_NAME_END, WPRESS_SIZE_END), "Une entrée WPRESS possède une taille invalide.");
     const prefix = decodeHeaderField(header, WPRESS_MTIME_END, WPRESS_HEADER_SIZE).replace(/\/+$/, "");
-    const path = safeArchivePath(prefix ? `${prefix}/${name}` : name);
     const bodyOffset = offset + WPRESS_HEADER_SIZE;
+    // All-in-One WP Migration may finish with a metadata footer. It has no path
+    // and begins exactly at the end of the payload; it is not an archive entry.
+    if (!name && !prefix && bodyOffset === reader.size) break;
+    const size = readInt(decodeHeaderField(header, WPRESS_NAME_END, WPRESS_SIZE_END), "Une entrée WPRESS possède une taille invalide.");
+    const path = safeArchivePath(prefix ? `${prefix}/${name}` : name);
     if (size > reader.size - bodyOffset) throw new StudioWordpressConversionError("Une entrée WPRESS dépasse les limites de la sauvegarde.");
     entryCount += 1;
     declaredBytes += size;

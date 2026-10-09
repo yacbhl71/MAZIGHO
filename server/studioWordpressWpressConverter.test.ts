@@ -25,6 +25,13 @@ function wpressEntry(path: string, content: string) {
   return bytes(header, body);
 }
 
+function wpressTerminalFooter(payloadBytes: number) {
+  const footer = new Uint8Array(4377);
+  footer.set(encoder.encode(String(payloadBytes)), 255);
+  footer.set(encoder.encode("checksum"), 4369);
+  return footer;
+}
+
 function asUpload(name: string, content: Uint8Array) {
   const blob = new Blob([content.buffer as ArrayBuffer]);
   return {
@@ -58,6 +65,15 @@ describe("Studio WordPress WPRESS converter", () => {
     expect(catalogue).not.toContain("password");
     expect(manifest).toContain('"rightsConfirmed": false');
     expect(Object.keys(archive)).toEqual(expect.arrayContaining(["catalogue.csv", "manifest.json", "marque/wordpress-conversion-report.json"]));
+  });
+
+  it("accepts the All-in-One WP Migration terminal metadata footer", async () => {
+    const payload = wpressEntry("database.sql", wordpressSql());
+    const backup = bytes(payload, wpressTerminalFooter(payload.byteLength));
+
+    const converted = await convertStudioWordpressBackup(asUpload("catalogue.wpress", backup));
+
+    expect(converted).toMatchObject({ productCount: 1, sourceKind: "WooCommerce" });
   });
 
   it("refuses a WordPress backup containing unsafe traversal paths", async () => {
