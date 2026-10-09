@@ -937,6 +937,8 @@ describe("owner product variant routes", () => {
 
   it("saves footer settings only through the current resolved store", async () => {
     const input = {
+      footerBackgroundColor: "#ffffff",
+      footerTextColor: "#0f172a",
       footerDescription: "Une boutique créative à votre image.",
       footerNavigationTitle: "Explorer",
       footerCategoriesTitle: "Univers",
@@ -963,9 +965,9 @@ describe("owner product variant routes", () => {
         { id: "linkedin" as const, url: "" },
       ],
     };
-    await expect(callerFor().owner.saveFooter(input)).resolves.toMatchObject({ footerDescription: input.footerDescription });
+    await expect(callerFor().owner.saveFooter(input)).resolves.toMatchObject({ footerBackgroundColor: input.footerBackgroundColor, footerTextColor: input.footerTextColor, footerDescription: input.footerDescription });
     expect(db.getDesignProfile).toHaveBeenCalledWith(77);
-    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ footerDescription: input.footerDescription, footerSocialLinks: input.footerSocialLinks }), 77);
+    expect(db.updateDesignProfile).toHaveBeenCalledWith(expect.objectContaining({ footerBackgroundColor: input.footerBackgroundColor, footerTextColor: input.footerTextColor, footerDescription: input.footerDescription, footerSocialLinks: input.footerSocialLinks }), 77);
   });
 
   it("saves homepage content only through the current resolved store", async () => {

@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { hasReadableTextContrast } from "@/lib/colorContrast";
 import { toast } from "sonner";
 
 type FooterDraft = Pick<DesignProfile,
+  | "footerBackgroundColor" | "footerTextColor"
   | "footerDescription" | "footerNavigationTitle" | "footerCategoriesTitle" | "footerHelpTitle"
   | "footerContactText" | "footerContactUrl"
   | "footerDeliveryTitle" | "footerDeliveryText" | "footerSecureTitle" | "footerSecureText" | "footerServiceTitle" | "footerServiceText"
@@ -27,6 +29,8 @@ const socialLabels: Record<FooterSocialLink["id"], string> = {
 
 function toDraft(profile: DesignProfile): FooterDraft {
   return {
+    footerBackgroundColor: profile.footerBackgroundColor,
+    footerTextColor: profile.footerTextColor,
     footerDescription: profile.footerDescription,
     footerNavigationTitle: profile.footerNavigationTitle,
     footerCategoriesTitle: profile.footerCategoriesTitle,
@@ -70,6 +74,9 @@ export default function OwnerFooterSettingsEditor({ profile, onSaved }: { profil
     ...current,
     footerSocialLinks: current.footerSocialLinks.map(link => link.id === id ? { ...link, url } : link),
   }));
+  const footerBackgroundColor = draft.footerBackgroundColor || (profile.customColorsEnabled ? profile.customPrimary : "#0f766e");
+  const footerTextColor = draft.footerTextColor || "#ffffff";
+  const footerContrastIsReadable = hasReadableTextContrast(footerBackgroundColor, footerTextColor);
 
   return <Card className="border-slate-200">
     <CardHeader>
@@ -83,6 +90,8 @@ export default function OwnerFooterSettingsEditor({ profile, onSaved }: { profil
         <FooterToggle checked={draft.footerShowHelp} label="Aide et contact visibles" description="Affiche FAQ et votre lien de contact." onChange={footerShowHelp => setDraft(current => ({ ...current, footerShowHelp }))} />
         <FooterToggle checked={draft.footerShowReassurance} label="Réassurance visible" description="Les trois messages de fin de page." onChange={footerShowReassurance => setDraft(current => ({ ...current, footerShowReassurance }))} />
       </div>
+
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-indigo-950">Couleurs du pied de page</p><p className="mt-1 max-w-2xl text-xs leading-5 text-indigo-900">Choisissez séparément le fond et le texte. Le contrôle ci-dessous signale immédiatement une combinaison difficile à lire.</p></div><Button type="button" size="sm" variant="outline" className="min-h-10 border-indigo-300 bg-white text-indigo-900 hover:bg-indigo-100" onClick={() => setDraft(current => ({ ...current, footerBackgroundColor: "", footerTextColor: "" }))}>Utiliser la couleur de marque</Button></div><div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label htmlFor="footer-background-color">Fond du footer</Label><div className="flex items-center gap-2"><input id="footer-background-color" type="color" value={footerBackgroundColor} onChange={event => setDraft(current => ({ ...current, footerBackgroundColor: event.target.value }))} className="h-11 w-14 shrink-0 cursor-pointer rounded-md border border-slate-200 bg-white p-1" /><Input value={draft.footerBackgroundColor} maxLength={7} placeholder={footerBackgroundColor} onChange={event => setDraft(current => ({ ...current, footerBackgroundColor: event.target.value }))} className="font-mono uppercase" /></div></div><div className="space-y-2"><Label htmlFor="footer-text-color">Texte du footer</Label><div className="flex items-center gap-2"><input id="footer-text-color" type="color" value={footerTextColor} onChange={event => setDraft(current => ({ ...current, footerTextColor: event.target.value }))} className="h-11 w-14 shrink-0 cursor-pointer rounded-md border border-slate-200 bg-white p-1" /><Input value={draft.footerTextColor} maxLength={7} placeholder={footerTextColor} onChange={event => setDraft(current => ({ ...current, footerTextColor: event.target.value }))} className="font-mono uppercase" /></div></div></div><div className="mt-4 rounded-xl border p-4" style={{ backgroundColor: footerBackgroundColor, color: footerTextColor, borderColor: footerTextColor }}><p className="font-semibold">Aperçu du footer</p><p className="mt-1 text-sm opacity-80">Titre, textes et liens restent lisibles avec la combinaison choisie.</p></div>{!footerContrastIsReadable && <p role="alert" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950"><strong>Contraste insuffisant :</strong> choisissez un texte plus foncé ou un fond plus sombre avant d’enregistrer.</p>}</div>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div className="grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Description courte de la marque</Label><Textarea rows={3} value={draft.footerDescription} maxLength={420} onChange={event => setDraft(current => ({ ...current, footerDescription: event.target.value }))} /></div><div className="grid gap-4 sm:grid-cols-3"><div className="space-y-2"><Label>Titre du menu</Label><Input value={draft.footerNavigationTitle} maxLength={60} onChange={event => setDraft(current => ({ ...current, footerNavigationTitle: event.target.value }))} /></div><div className="space-y-2"><Label>Titre catégories</Label><Input value={draft.footerCategoriesTitle} maxLength={60} onChange={event => setDraft(current => ({ ...current, footerCategoriesTitle: event.target.value }))} /></div><div className="space-y-2"><Label>Titre aide</Label><Input value={draft.footerHelpTitle} maxLength={60} onChange={event => setDraft(current => ({ ...current, footerHelpTitle: event.target.value }))} /></div></div></div>

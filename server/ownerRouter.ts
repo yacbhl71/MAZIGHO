@@ -475,7 +475,10 @@ const ownerCheckoutPageCopy = z.object({
 });
 
 const footerSocialIds = ["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"] as const;
+const footerHexColor = z.string().trim().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Utilisez une couleur hexadécimale, par exemple #0F172A.");
 const ownerFooterSettings = z.object({
+  footerBackgroundColor: footerHexColor.or(z.literal("")),
+  footerTextColor: footerHexColor.or(z.literal("")),
   footerDescription: z.string().trim().max(420),
   footerNavigationTitle: z.string().trim().max(60),
   footerCategoriesTitle: z.string().trim().max(60),

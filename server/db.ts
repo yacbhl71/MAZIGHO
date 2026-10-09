@@ -2811,7 +2811,7 @@ async function applyStudioStoreCopyInTransaction(input: {
         "paletteId", "typographyId", "showDiscovery", "showStory", "showTestimonials", "showEditorial", "showFeatured", "showReassurance", "showClosing",
         "cataloguePageCopyCustomized", "showAnnouncement", "shopPageCopyCustomized", "showShopEditorial", "showShopReassurance", "showProductReassurance",
         "customColorsEnabled", "customPrimary", "customAccent", "customSoft", "buttonRadius", "headerLayout",
-        "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance", "homeOrder",
+        "footerBackgroundColor", "footerTextColor", "footerShowNavigation", "footerShowCategories", "footerShowHelp", "footerShowReassurance", "homeOrder",
       ].flatMap(key => key in parsed ? [[key, parsed[key]]] : [])) as Record<string, unknown>;
       copiedSettings.push({ storeId: destinationStoreId, key: "design_profile", value: JSON.stringify(styleProfile), description: "Style storefront copié de manière contrôlée ; identité, textes, bannières, images et URLs externes exclus." });
     }
@@ -11320,6 +11320,8 @@ export type DesignProfile = {
   customSoft: string;
   buttonRadius: ButtonRadius;
   headerLayout: "inline" | "split" | "searchFirst" | "gallery" | "market" | "glamour";
+  footerBackgroundColor: string;
+  footerTextColor: string;
   footerDescription: string;
   footerNavigationTitle: string;
   footerCategoriesTitle: string;
@@ -11456,6 +11458,8 @@ export const defaultDesignProfile: DesignProfile = {
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
   headerLayout: "inline",
+  footerBackgroundColor: "",
+  footerTextColor: "",
   footerDescription: "Votre destination pour des produits premium de qualité exceptionnelle.",
   footerNavigationTitle: "Navigation",
   footerCategoriesTitle: "Catégories",
@@ -11533,6 +11537,11 @@ export function normalizeDesignProfile(value: unknown): DesignProfile {
   }
   if (typeof source.closingVisualColor === "string" && /^#[0-9a-f]{6}$/i.test(source.closingVisualColor.trim())) {
     normalized.closingVisualColor = source.closingVisualColor.trim().toLowerCase();
+  }
+  for (const field of ["footerBackgroundColor", "footerTextColor"] as const) {
+    if (typeof source[field] === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(source[field].trim())) {
+      normalized[field] = source[field].trim().toLowerCase();
+    }
   }
   const navigationTranslations = source.navigationTranslations;
   if (navigationTranslations && typeof navigationTranslations === "object") {

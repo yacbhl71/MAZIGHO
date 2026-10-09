@@ -44,61 +44,65 @@ export default function Footer() {
   };
   const socialLinks = (profile.footerSocialLinks || []).filter(link => link.url);
   const brandName = profile.brandName?.trim() || "Boutique";
-  const linkClass = "cursor-pointer text-sm text-white/80 transition-colors hover:text-white";
+  const footerBackgroundColor = profile.footerBackgroundColor || palette.primary;
+  const footerTextColor = profile.footerTextColor || "#ffffff";
+  const mutedTextClass = "text-inherit opacity-80";
+  const linkClass = "cursor-pointer text-sm text-inherit opacity-80 transition-opacity hover:opacity-100";
+  const dividerStyle = { borderColor: `color-mix(in srgb, ${footerTextColor} 20%, transparent)` };
 
   if (designProfileLoading || storeAvailability.isLoading) {
     return <footer className="mt-20 bg-slate-900" aria-busy="true" aria-label="Chargement du pied de page"><div className="container mx-auto h-52 animate-pulse px-4 py-12"><div className="h-5 w-40 rounded bg-white/15" /><div className="mt-6 grid gap-6 md:grid-cols-4"><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /><div className="h-16 rounded bg-white/10" /></div></div></footer>;
   }
 
   return (
-    <footer className="mt-20 text-white" style={{ backgroundColor: palette.primary }}>
+    <footer className="mt-20" style={{ backgroundColor: footerBackgroundColor, color: footerTextColor }}>
       <div className="container mx-auto px-4 py-12">
         <div className={`grid grid-cols-1 gap-8 ${[profile.footerShowNavigation && visibleNavigation.length > 0, profile.footerShowCategories && categories.length > 0, profile.footerShowHelp].filter(Boolean).length >= 3 ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
           <div className="space-y-4">
             <StorefrontFooterLink href="/" className="inline-flex items-center gap-3">
               {profile.brandLogoUrl ? <img src={profile.brandLogoUrl} alt="" className="h-10 w-10 rounded-lg border border-white/20 bg-white object-contain p-0.5" /> : null}
-              <span className="text-xl font-semibold tracking-[0.11em] text-white">{brandName}</span>
+              <span className="text-xl font-semibold tracking-[0.11em] text-inherit">{brandName}</span>
             </StorefrontFooterLink>
-            {profile.footerDescription ? <p className="max-w-xs text-sm leading-6 text-white/80">{profile.footerDescription}</p> : null}
+            {profile.footerDescription ? <p className={`max-w-xs text-sm leading-6 ${mutedTextClass}`}>{profile.footerDescription}</p> : null}
             {socialLinks.length > 0 ? <div className="flex flex-wrap gap-2 pt-1">{socialLinks.map(link => {
               const meta = socialMeta[link.id];
               const Icon = meta.icon;
-              return <a key={link.id} href={link.url} target="_blank" rel="noreferrer" aria-label={meta.label} title={meta.label} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-white transition-colors hover:bg-white/15"><Icon className="h-4 w-4" /></a>;
+              return <a key={link.id} href={link.url} target="_blank" rel="noreferrer" aria-label={meta.label} title={meta.label} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-current text-inherit transition-opacity hover:opacity-75"><Icon className="h-4 w-4" /></a>;
             })}</div> : null}
           </div>
 
           {profile.footerShowNavigation && visibleNavigation.length > 0 ? <div>
-            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerNavigationTitle}</h3>
+            <h3 className="mb-4 text-lg font-semibold text-inherit">{profile.footerNavigationTitle}</h3>
             <ul className="space-y-2">{visibleNavigation.map(item => <li key={item.id}><StorefrontFooterLink href={item.href} className={linkClass}>{item.label?.trim() || fallbackNavigationLabels[item.id] || "Menu"}</StorefrontFooterLink></li>)}</ul>
           </div> : null}
 
           {profile.footerShowCategories && categories.length > 0 ? <div>
-            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerCategoriesTitle}</h3>
+            <h3 className="mb-4 text-lg font-semibold text-inherit">{profile.footerCategoriesTitle}</h3>
             <ul className="space-y-2">{categories.map(category => <li key={category.id}><StorefrontFooterLink href={`/categorie/${category.slug}`} className={linkClass}>{category.name}</StorefrontFooterLink></li>)}</ul>
           </div> : null}
 
           {profile.footerShowHelp ? <div>
-            <h3 className="mb-4 text-lg font-semibold text-white">{profile.footerHelpTitle}</h3>
+            <h3 className="mb-4 text-lg font-semibold text-inherit">{profile.footerHelpTitle}</h3>
             <ul className="space-y-3">
               <li><StorefrontFooterLink href="/faq" className={linkClass}>{t(locale, "faq")}</StorefrontFooterLink></li>
-              {profile.footerContactText ? <li><StorefrontFooterLink href={profile.footerContactUrl} className={`flex items-start gap-2 ${linkClass}`}><Mail className="mt-0.5 h-4 w-4 shrink-0 text-white" />{profile.footerContactText}</StorefrontFooterLink></li> : null}
+              {profile.footerContactText ? <li><StorefrontFooterLink href={profile.footerContactUrl} className={`flex items-start gap-2 ${linkClass}`}><Mail className="mt-0.5 h-4 w-4 shrink-0 text-inherit" />{profile.footerContactText}</StorefrontFooterLink></li> : null}
             </ul>
           </div> : null}
         </div>
 
-        {profile.footerShowReassurance ? <div className="mt-8 grid grid-cols-1 gap-4 border-t border-white/20 pt-8 md:grid-cols-3">
-          <div className="text-center md:text-left"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerDeliveryTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerDeliveryText}</p></div>
-          <div className="text-center"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerSecureTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerSecureText}</p></div>
-          <div className="text-center md:text-right"><h4 className="mb-2 text-sm font-semibold text-white">{profile.footerServiceTitle}</h4><p className="text-xs leading-5 text-white/80">{profile.footerServiceText}</p></div>
+        {profile.footerShowReassurance ? <div className="mt-8 grid grid-cols-1 gap-4 border-t pt-8 md:grid-cols-3" style={dividerStyle}>
+          <div className="text-center md:text-left"><h4 className="mb-2 text-sm font-semibold text-inherit">{profile.footerDeliveryTitle}</h4><p className={`text-xs leading-5 ${mutedTextClass}`}>{profile.footerDeliveryText}</p></div>
+          <div className="text-center"><h4 className="mb-2 text-sm font-semibold text-inherit">{profile.footerSecureTitle}</h4><p className={`text-xs leading-5 ${mutedTextClass}`}>{profile.footerSecureText}</p></div>
+          <div className="text-center md:text-right"><h4 className="mb-2 text-sm font-semibold text-inherit">{profile.footerServiceTitle}</h4><p className={`text-xs leading-5 ${mutedTextClass}`}>{profile.footerServiceText}</p></div>
         </div> : null}
 
-        <div className="mt-8 border-t border-white/20 pt-6 text-center">
-          <p className="mb-2 text-sm text-white/80">© {new Date().getFullYear()} {brandName}. {profile.footerCopyrightText}</p>
-          <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-white/75">
-            <StorefrontFooterLink href="/conditions-generales" className="cursor-pointer hover:text-white">{copy.footer.terms}</StorefrontFooterLink><span aria-hidden="true">•</span>
-            <StorefrontFooterLink href="/livraison-retours" className="cursor-pointer hover:text-white">{copy.footer.returns}</StorefrontFooterLink><span aria-hidden="true">•</span>
-            <StorefrontFooterLink href="/confidentialite" className="cursor-pointer hover:text-white">{copy.footer.privacy}</StorefrontFooterLink><span aria-hidden="true">•</span>
-            <StorefrontFooterLink href="/mentions-legales" className="cursor-pointer hover:text-white">{copy.footer.legal}</StorefrontFooterLink>
+        <div className="mt-8 border-t pt-6 text-center" style={dividerStyle}>
+          <p className={`mb-2 text-sm ${mutedTextClass}`}>© {new Date().getFullYear()} {brandName}. {profile.footerCopyrightText}</p>
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-2 text-xs text-inherit opacity-75">
+            <StorefrontFooterLink href="/conditions-generales" className="cursor-pointer transition-opacity hover:opacity-100">{copy.footer.terms}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/livraison-retours" className="cursor-pointer transition-opacity hover:opacity-100">{copy.footer.returns}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/confidentialite" className="cursor-pointer transition-opacity hover:opacity-100">{copy.footer.privacy}</StorefrontFooterLink><span aria-hidden="true">•</span>
+            <StorefrontFooterLink href="/mentions-legales" className="cursor-pointer transition-opacity hover:opacity-100">{copy.footer.legal}</StorefrontFooterLink>
           </div>
         </div>
       </div>

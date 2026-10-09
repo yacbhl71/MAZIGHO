@@ -169,6 +169,8 @@ export type DesignProfile = {
   customSoft: string;
   buttonRadius: ButtonRadius;
   headerLayout: HeaderLayout;
+  footerBackgroundColor: string;
+  footerTextColor: string;
   footerDescription: string;
   footerNavigationTitle: string;
   footerCategoriesTitle: string;
@@ -315,6 +317,8 @@ export const defaultDesignProfile: DesignProfile = {
   customSoft: "#fbf7f2",
   buttonRadius: "rounded",
   headerLayout: "inline",
+  footerBackgroundColor: "",
+  footerTextColor: "",
   footerDescription: "Votre destination pour des produits premium de qualité exceptionnelle.",
   footerNavigationTitle: "Navigation",
   footerCategoriesTitle: "Catégories",

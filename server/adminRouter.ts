@@ -2517,9 +2517,12 @@ export const adminRouter = router({
         shopProductsEyebrow: z.string().trim().min(2).max(120), shopProductsTitle: z.string().trim().min(2).max(180), showShopEditorial: z.boolean(),
         shopEditorialEyebrow: z.string().trim().min(2).max(120), shopEditorialTitle: z.string().trim().min(2).max(180), shopEditorialImageUrl: visualUrlSchema, showShopReassurance: z.boolean(),
         customColorsEnabled: z.boolean(), customPrimary: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customAccent: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), customSoft: z.string().trim().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/), buttonRadius: z.enum(["flat", "rounded", "full"]),
-        // The Studio storefront editor may update the regional footer title
-        // without dropping the rest of the owner-managed footer settings.
-        footerDeliveryTitle: z.string().trim().min(2).max(80).optional(),
+        footerBackgroundColor: z.string().trim().regex(/^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$/), footerTextColor: z.string().trim().regex(/^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$/),
+        footerDescription: z.string().trim().max(420), footerNavigationTitle: z.string().trim().max(60), footerCategoriesTitle: z.string().trim().max(60), footerHelpTitle: z.string().trim().max(60),
+        footerContactText: z.string().trim().max(160), footerContactUrl: z.string().trim().max(300).refine(value => value === "" || (value.startsWith("/") && !value.startsWith("//")) || /^https:\/\//i.test(value), "Utilisez une URL https:// ou un chemin interne."),
+        footerDeliveryTitle: z.string().trim().max(80), footerDeliveryText: z.string().trim().max(220), footerSecureTitle: z.string().trim().max(80), footerSecureText: z.string().trim().max(220), footerServiceTitle: z.string().trim().max(80), footerServiceText: z.string().trim().max(220), footerCopyrightText: z.string().trim().max(160),
+        footerShowNavigation: z.boolean(), footerShowCategories: z.boolean(), footerShowHelp: z.boolean(), footerShowReassurance: z.boolean(),
+        footerSocialLinks: z.array(z.object({ id: z.enum(["instagram", "facebook", "tiktok", "youtube", "pinterest", "linkedin"]), url: z.string().trim().max(500).refine(value => value === "" || /^https:\/\//i.test(value), "Utilisez une URL https:// ou laissez le réseau social vide."), })).length(6),
         homeOrder: z.array(z.string().max(60)).max(40), textBanners: z.array(z.object({ id: z.string().trim().min(1).max(60), eyebrow: z.string().trim().max(120), title: z.string().trim().min(1).max(180), text: z.string().trim().max(600), buttonLabel: z.string().trim().max(60), buttonUrl: z.string().trim().max(300), imageUrl: z.string().trim().max(1000).optional(), imageAlt: z.string().trim().max(180).optional(), layout: z.enum(["banner", "split", "framedSplit", "spotlight", "roundGallery"]).optional(), theme: z.enum(["primary", "dark", "soft", "light"]).optional(), galleryItems: z.array(z.object({ id: z.string().trim().min(4).max(60), label: z.string().trim().min(2).max(80), imageUrl: visualUrlSchema, imageAlt: z.string().trim().min(2).max(180), href: z.string().trim().max(300) })).max(6).optional(), enabled: z.boolean() })).max(8),
       }),
     })).mutation(async ({ ctx, input }) => {
@@ -4985,6 +4988,8 @@ export const adminRouter = router({
       buttonRadius: z.enum(["flat", "rounded", "full"]).default("rounded"),
       headerLayout: z.enum(["inline", "split", "searchFirst", "gallery", "market", "glamour"]).default("inline"),
       navigationItems: z.array(navigationItem).min(1).max(16).default([]),
+      footerBackgroundColor: z.string().trim().regex(/^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$/).default(""),
+      footerTextColor: z.string().trim().regex(/^(|#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}))$/).default(""),
       footerDescription: z.string().trim().max(420).default(""),
       footerNavigationTitle: z.string().trim().max(60).default("Navigation"),
       footerCategoriesTitle: z.string().trim().max(60).default("Catégories"),
