@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import StudioSaasPlanCatalog from "@/components/StudioSaasPlanCatalog";
 import StudioStorePlanAssignment from "@/components/StudioStorePlanAssignment";
@@ -52,8 +52,17 @@ function lemonBillingPresentation(access: string) {
   return { label: "Plan requis", className: "border-slate-200 bg-slate-50 text-slate-700" };
 }
 
+function storeIdFromLocation(location: string) {
+  const query = location.split("?", 2)[1]?.split("#", 1)[0] ?? "";
+  const value = new URLSearchParams(query).get("store");
+  return value && /^\d+$/.test(value) ? value : "";
+}
+
 export default function AdminStudioSaasBilling() {
   const utils = trpc.useUtils();
+  const [location] = useLocation();
+  const requestedStoreId = storeIdFromLocation(location);
+  const autoScrolledStoreId = useRef<string | null>(null);
   const [portfolioSearch, setPortfolioSearch] = useState("");
   const [portfolioStatus, setPortfolioStatus] = useState<BillingStatusFilter>("all");
   const [portfolioOffer, setPortfolioOffer] = useState<BillingOfferFilter>("all");
@@ -89,8 +98,21 @@ export default function AdminStudioSaasBilling() {
   useEffect(() => {
     const stores = dashboardQuery.data?.stores ?? [];
     if (stores.length === 0) { if (selectedStoreId) setSelectedStoreId(""); return; }
+    if (requestedStoreId && stores.some(store => String(store.id) === requestedStoreId)) {
+      if (selectedStoreId !== requestedStoreId) setSelectedStoreId(requestedStoreId);
+      return;
+    }
     if (!stores.some(store => String(store.id) === selectedStoreId)) setSelectedStoreId(String(stores[0].id));
-  }, [dashboardQuery.data?.stores, selectedStoreId]);
+  }, [dashboardQuery.data?.stores, requestedStoreId, selectedStoreId]);
+
+  useEffect(() => {
+    if (!requestedStoreId || selectedStoreId !== requestedStoreId || autoScrolledStoreId.current === requestedStoreId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("studio-plan-assignment")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      autoScrolledStoreId.current = requestedStoreId;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [requestedStoreId, selectedStoreId]);
 
   useEffect(() => {
     if (!selectedStore) return;
