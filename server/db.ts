@@ -2226,13 +2226,16 @@ export async function saveStudioOwnerNavigationDraft(input: { storeId: number; i
  * preparation checklist and readiness signals without invoking activation.
  */
 export async function getStudioGiftStoreLaunchCenter(storeId: number) {
-  const [checklist, readiness] = await Promise.all([
+  const [checklist, readiness, planAssignment, quotaOverride] = await Promise.all([
     getStudioGiftStorePreparationChecklist(storeId),
     getStudioGiftStoreSetupReadiness(storeId),
+    getOwnerSaasPlanAssignment(storeId),
+    getStoreQuotaOverride(storeId),
   ]);
   return {
     ...buildStoreLaunchCenter({ checklist: checklist.items, readinessChecks: readiness.readiness.checks }),
     store: checklist.store,
+    capacities: { planAssignment, quotaOverride },
   };
 }
 
