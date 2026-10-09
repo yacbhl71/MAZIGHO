@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import StudioSaasPlanCatalog from "@/components/StudioSaasPlanCatalog";
 import StudioStorePlanAssignment from "@/components/StudioStorePlanAssignment";
@@ -53,15 +53,13 @@ function lemonBillingPresentation(access: string) {
 }
 
 function storeIdFromLocation(location: string) {
-  const query = location.split("?", 2)[1]?.split("#", 1)[0] ?? "";
-  const value = new URLSearchParams(query).get("store");
+  const value = new URLSearchParams(location).get("store");
   return value && /^\d+$/.test(value) ? value : "";
 }
 
 export default function AdminStudioSaasBilling() {
   const utils = trpc.useUtils();
-  const [location] = useLocation();
-  const requestedStoreId = storeIdFromLocation(location);
+  const requestedStoreId = storeIdFromLocation(typeof window === "undefined" ? "" : window.location.search);
   const autoScrolledStoreId = useRef<string | null>(null);
   const [portfolioSearch, setPortfolioSearch] = useState("");
   const [portfolioStatus, setPortfolioStatus] = useState<BillingStatusFilter>("all");
