@@ -283,6 +283,7 @@ describe("owner product variant routes", () => {
       brandName: "Market Express",
       headerLayout: "market",
       customPrimary: "#0F4C5C",
+      footerDeliveryTitle: "Livraison & retrait",
       homeOrder: ["featured", "text:market-delivery", "discovery", "text:market-services", "story", "editorial", "highlight", "reassurance"],
     }), 77);
     expect(db.applyStorefrontThemeCategoryImages).toHaveBeenLastCalledWith(77, expect.arrayContaining([
