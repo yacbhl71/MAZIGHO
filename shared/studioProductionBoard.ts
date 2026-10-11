@@ -50,6 +50,7 @@ export type StudioProductionBoardQuery = {
   query?: string;
   stage?: StudioStoreProjectStage;
   needsAttention?: boolean;
+  hasOpenReminder?: boolean;
   page?: number;
   pageSize?: StudioProductionBoardPageSize;
 };
@@ -76,6 +77,7 @@ export type StudioProductionBoard = {
     query: string | null;
     stage: StudioStoreProjectStage | null;
     needsAttention: boolean | null;
+    hasOpenReminder: boolean | null;
   };
 };
 
@@ -116,7 +118,8 @@ function normalizeQuery(input: StudioProductionBoardQuery = {}) {
     : 10;
   const page = Number.isInteger(input.page) && (input.page ?? 0) > 0 ? input.page as number : 1;
   const needsAttention = input.needsAttention === true ? true : undefined;
-  return { query, stage, needsAttention, page, pageSize };
+  const hasOpenReminder = input.hasOpenReminder === true ? true : undefined;
+  return { query, stage, needsAttention, hasOpenReminder, page, pageSize };
 }
 
 /**
@@ -163,7 +166,8 @@ export function buildStudioProductionBoard(sources: readonly StudioProductionBoa
       .some(value => value.toLocaleLowerCase("fr-CH").includes(normalizedQuery));
     return matchesQuery
       && (!filters.stage || store.stage === filters.stage)
-      && (!filters.needsAttention || store.attention.length > 0);
+      && (!filters.needsAttention || store.attention.length > 0)
+      && (!filters.hasOpenReminder || store.pendingReminderCount > 0);
   });
   const total = filteredStores.length;
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
@@ -188,6 +192,11 @@ export function buildStudioProductionBoard(sources: readonly StudioProductionBoa
       from: total === 0 ? 0 : offset + 1,
       to: Math.min(offset + filters.pageSize, total),
     },
-    filters: { query: filters.query ?? null, stage: filters.stage ?? null, needsAttention: filters.needsAttention ?? null },
+    filters: {
+      query: filters.query ?? null,
+      stage: filters.stage ?? null,
+      needsAttention: filters.needsAttention ?? null,
+      hasOpenReminder: filters.hasOpenReminder ?? null,
+    },
   };
 }

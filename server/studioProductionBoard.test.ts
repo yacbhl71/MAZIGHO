@@ -84,4 +84,17 @@ describe("Studio production board", () => {
     expect(board.pagination).toMatchObject({ total: 1, from: 1, to: 1 });
     expect(board.stores.map(store => store.displayName)).toEqual(["À traiter"]);
   });
+
+  it("filters to boutiques with an open reminder without exposing its title", () => {
+    const desk = createStudioStoreProjectDesk("2026-10-11T00:00:00.000Z");
+    desk.reminders = [{ id: "reminder-01", title: "Information privée", dueDate: "2026-10-18", completed: false, createdAt: "2026-10-11T00:00:00.000Z" }];
+    const board = buildStudioProductionBoard([
+      makeStore({ id: 1, displayName: "Avec rappel", desk }),
+      makeStore({ id: 2, displayName: "Sans rappel" }),
+    ], { hasOpenReminder: true });
+
+    expect(board.filters).toMatchObject({ hasOpenReminder: true });
+    expect(board.stores.map(store => store.displayName)).toEqual(["Avec rappel"]);
+    expect(JSON.stringify(board)).not.toContain("Information privée");
+  });
 });
