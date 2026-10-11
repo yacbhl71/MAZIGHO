@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import Stripe from "stripe";
-import { protectedProcedure, router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
+import { catalogEditorProcedure, protectedProcedure, router, storeManagementProcedure, storeOwnerProcedure } from "./_core/trpc";
 import * as db from "./db";
 import { getStoreMediaUsage, storagePut } from "./storage";
+import { importedProductInputSchema, normalizeImportedProduct, previewProductInput, previewSupplierProduct, previewSupplierProductFromHtml } from "./dropshipping";
 import { getAccountInvitationLink, sendStudioSupportTicketAlert } from "./transactionalEmail";
 import { sendOrderShippedEmail } from "./emails";
 import { storefrontCountryCodes, storefrontLanguageCodes } from "../shared/storeMarketSettings";
@@ -57,6 +58,17 @@ function ownerAiQuotaError(error: unknown) {
   return error instanceof Error && error.message === "AI_MONTHLY_REQUEST_LIMIT_REACHED"
     ? "Le quota mensuel de l’Assistant IA de cette boutique est atteint. Il se renouvellera automatiquement au début du mois prochain."
     : null;
+}
+
+async function assertOwnerDropshippingAccess(storeId: number) {
+  const access = await db.getStoreDropshippingAccess(storeId);
+  if (!access.enabled) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "L’import fournisseur n’est pas attribué à cette boutique. Demandez à MAZIGHO Studio de l’activer pour cette boutique uniquement.",
+    });
+  }
+  return access;
 }
 
 function ownerKnowledgeDocumentError(error: unknown): never {
@@ -1195,6 +1207,19 @@ export const ownerRouter = router({
   }),
   getSaasPlanAssignment: storeOwnerProcedure.query(async ({ ctx }) => {
     return await db.getOwnerSaasPlanAssignment(ctx.store!.id);
+  }),
+  getDropshippingAccess: catalogEditorProcedure.query(async ({ ctx }) => {
+    return await db.getStoreDropshippingAccess(ctx.store!.id);
+  }),
+  previewDropshippingImport: catalogEditorProcedure.input(previewProductInput).mutation(async ({ ctx, input }) => {
+    await assertOwnerDropshippingAccess(ctx.store!.id);
+    if (input.rawHtml?.trim()) return await previewSupplierProductFromHtml(input.rawHtml, input.url);
+    if (!input.url) throw new TRPCError({ code: "BAD_REQUEST", message: "Ajoutez l’URL de la fiche fournisseur ou son HTML de secours." });
+    return await previewSupplierProduct(input.url);
+  }),
+  importDropshippingProduct: catalogEditorProcedure.input(importedProductInputSchema()).mutation(async ({ ctx, input }) => {
+    await assertOwnerDropshippingAccess(ctx.store!.id);
+    return await db.createProduct(normalizeImportedProduct(input), ctx.store!.id);
   }),
   prepareTeamInvitation: storeOwnerProcedure.input(z.object({
     name: z.string().trim().min(2).max(160),

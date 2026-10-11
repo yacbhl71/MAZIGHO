@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   trackingResult: { success: true, statusChanged: false },
   orderContact: null as null | { paymentMethod: string; userName: string; userEmail: string; trackingNumber: string | null },
   bundles: [] as Array<{ id: string; name: string; description: string; productIds: number[]; promoCode: string | null; enabled: boolean }>,
+  dropshippingAccess: { enabled: true, source: "studio_grant" } as { enabled: boolean; source: "pro_plan" | "studio_grant" | "not_included" },
 }));
 
 vi.mock("./db", () => ({
@@ -39,6 +40,7 @@ vi.mock("./db", () => ({
   getOwnerProductBundles: vi.fn(async () => state.bundles),
   saveOwnerProductBundles: vi.fn(async (_storeId, bundles) => { state.bundles = bundles; return bundles; }),
   getOwnerSaasPlanAssignment: vi.fn(async () => ({ planId: "basic", planName: "Basic", features: ["brand_customization", "team_access"], status: "draft", assignedAt: "2026-09-26T00:00:00.000Z" })),
+  getStoreDropshippingAccess: vi.fn(async () => state.dropshippingAccess),
   getStoreStripeConnectSetup: vi.fn(async (storeId) => ({ schemaReady: true, account: null, plan: { id: "basic", name: "BASIC", commissionRateBps: 250 }, paymentReadiness: { enabled: false, reason: "connect_account_missing" }, storeId })),
   upsertStoreStripeConnectAccount: vi.fn(async input => input),
   getOwnerSupportTickets: vi.fn(async () => ({ tickets: [] })),
@@ -146,6 +148,7 @@ describe("owner product variant routes", () => {
     state.profile = { paletteId: "terracotta", customColorsEnabled: false, customPrimary: "#C2410C", customAccent: "#0F766E", customSoft: "#FFF7ED" };
     state.trackingResult = { success: true, statusChanged: false };
     state.orderContact = null;
+    state.dropshippingAccess = { enabled: true, source: "studio_grant" };
     delete process.env.MAZIGHO_ENABLE_STRIPE_LIVE_ORDER_EMAILS;
     vi.clearAllMocks();
   });
@@ -423,6 +426,26 @@ describe("owner product variant routes", () => {
 
     state.membership = { role: "manager", status: "active" };
     await expect(callerFor().owner.getSaasPlanAssignment()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("reads supplier-import access only for the resolved boutique catalogue role", async () => {
+    state.membership = { role: "catalog_editor", status: "active" };
+    await expect(callerFor().owner.getDropshippingAccess()).resolves.toEqual({ enabled: true, source: "studio_grant" });
+    expect(db.getStoreDropshippingAccess).toHaveBeenCalledWith(77);
+    state.membership = { role: "support_agent", status: "active" };
+    await expect(callerFor().owner.getDropshippingAccess()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps supplier imports in the resolved boutique and refuses an unassigned boutique", async () => {
+    state.membership = { role: "catalog_editor", status: "active" };
+    const input = { url: "https://www.aliexpress.com/item/1005000000001.html", categoryId: 12, marginPercent: 50, name: "Produit fournisseur test", slug: "produit-fournisseur-test", description: "Description prête à être vérifiée avant publication.", priceCents: 2490, sourcePriceCents: 1490, stock: 0, images: ["https://cdn.example.test/produit.webp"] };
+    state.dropshippingAccess = { enabled: false, source: "not_included" };
+    await expect(callerFor().owner.importDropshippingProduct(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(db.createProduct).not.toHaveBeenCalled();
+
+    state.dropshippingAccess = { enabled: true, source: "studio_grant" };
+    await expect(callerFor().owner.importDropshippingProduct(input)).resolves.toEqual({ id: 108 });
+    expect(db.createProduct).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 12, name: "Produit fournisseur test", status: "draft" }), 77);
   });
 
   it("keeps Stripe Connect readiness scoped to the resolved boutique", async () => {

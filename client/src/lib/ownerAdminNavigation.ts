@@ -1,11 +1,11 @@
-export type OwnerModule = "overview" | "assistant" | "readiness" | "help" | "simulation" | "public_view" | "team" | "catalogue" | "catalogue_pages" | "shop_page" | "stock" | "themes" | "vitrine" | "navigation" | "pages" | "orders" | "returns" | "customers" | "customer_relations" | "custom_requests" | "marketing" | "emails" | "support" | "markets" | "operations" | "algeria_payments" | "legal" | "seo" | "integrations" | "exports" | "settings";
+export type OwnerModule = "overview" | "assistant" | "readiness" | "help" | "simulation" | "public_view" | "team" | "catalogue" | "dropshipping" | "catalogue_pages" | "shop_page" | "stock" | "themes" | "vitrine" | "navigation" | "pages" | "orders" | "returns" | "customers" | "customer_relations" | "custom_requests" | "marketing" | "emails" | "support" | "markets" | "operations" | "algeria_payments" | "legal" | "seo" | "integrations" | "exports" | "settings";
 
 export type OwnerMenuItem = { id: string; label: string; href: string; visible: boolean; kind: "system" | "custom"; parentId?: string };
 export type OwnerCatalogueItem = { id: number; name: string; slug: string; description?: string | null; catalogSection?: "standard" | "creations" | null };
 export type OwnerAdminTarget = { module: OwnerModule; categoryId?: number; productId?: number };
 
 const ownerModules: OwnerModule[] = [
-  "overview", "assistant", "readiness", "help", "simulation", "public_view", "team", "catalogue", "catalogue_pages", "shop_page", "stock", "themes", "vitrine", "navigation", "pages", "orders", "returns", "customers", "customer_relations", "custom_requests", "marketing", "emails", "support", "markets", "operations", "algeria_payments", "legal", "seo", "integrations", "exports", "settings",
+  "overview", "assistant", "readiness", "help", "simulation", "public_view", "team", "catalogue", "dropshipping", "catalogue_pages", "shop_page", "stock", "themes", "vitrine", "navigation", "pages", "orders", "returns", "customers", "customer_relations", "custom_requests", "marketing", "emails", "support", "markets", "operations", "algeria_payments", "legal", "seo", "integrations", "exports", "settings",
 ];
 
 export function readOwnerPanelModule(search: string): OwnerModule {
@@ -69,7 +69,7 @@ export function moveOwnerSearchSelection(index: number, count: number, direction
 }
 
 const moduleKeywords: Partial<Record<OwnerModule, string>> = {
-  catalogue: "fiches produits catégories assortiment prix création nouveau best sellers", vitrine: "accueil boutique hero bannière blocs logo images contenu",
+  catalogue: "fiches produits catégories assortiment prix création nouveau best sellers", dropshipping: "fournisseur import fournisseur aliexpress cj brouillon sourcing produit", vitrine: "accueil boutique hero bannière blocs logo images contenu",
   catalogue_pages: "nouveautés best sellers promotions titres textes pages", shop_page: "boutique grille produits textes catalogue",
   pages: "contact faq à propos page retours", navigation: "menu onglets sous menu lien",
   marketing: "promotions nouveautés meilleures ventes promos campagne", stock: "inventaire quantité",
