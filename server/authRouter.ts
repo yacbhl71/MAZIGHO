@@ -293,6 +293,10 @@ export const authRouter = router({
   logout: publicProcedure.mutation(({ ctx }) => {
     const cookieOptions = getSessionCookieOptions(ctx.req);
     ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    if (cookieOptions.domain) {
+      const { domain: _domain, ...hostOnlyCookieOptions } = cookieOptions;
+      ctx.res.clearCookie(COOKIE_NAME, { ...hostOnlyCookieOptions, maxAge: -1 });
+    }
     return { success: true } as const;
   }),
 });

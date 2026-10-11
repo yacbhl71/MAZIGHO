@@ -97,4 +97,28 @@ describe("connexion propriétaire sur une boutique cliente", () => {
       ownerStore: null,
     });
   });
+
+  it("efface la session MAZIGHO partagée et une éventuelle ancienne session locale", async () => {
+    const clearedCookies: Array<{ name: string; options: Record<string, unknown> }> = [];
+    const client = authRouter.createCaller({
+      user: null,
+      store: null,
+      req: {
+        protocol: "http",
+        hostname: "bhll-boutique.mazigho.ch",
+        headers: { "x-forwarded-proto": "https" },
+      },
+      res: {
+        cookie: vi.fn(),
+        clearCookie: (name: string, options: Record<string, unknown>) => clearedCookies.push({ name, options }),
+      },
+    } as any);
+
+    await expect(client.logout()).resolves.toEqual({ success: true });
+    expect(clearedCookies).toEqual([
+      { name: "app_session_id", options: expect.objectContaining({ domain: ".mazigho.ch", maxAge: -1, secure: true }) },
+      { name: "app_session_id", options: expect.objectContaining({ maxAge: -1, secure: true }) },
+    ]);
+    expect(clearedCookies[1]?.options).not.toHaveProperty("domain");
+  });
 });
