@@ -49,6 +49,7 @@ export type StudioProductionBoardPageSize = (typeof studioProductionBoardPageSiz
 export type StudioProductionBoardQuery = {
   query?: string;
   stage?: StudioStoreProjectStage;
+  needsAttention?: boolean;
   page?: number;
   pageSize?: StudioProductionBoardPageSize;
 };
@@ -74,6 +75,7 @@ export type StudioProductionBoard = {
   filters: {
     query: string | null;
     stage: StudioStoreProjectStage | null;
+    needsAttention: boolean | null;
   };
 };
 
@@ -113,7 +115,8 @@ function normalizeQuery(input: StudioProductionBoardQuery = {}) {
     ? input.pageSize as StudioProductionBoardPageSize
     : 10;
   const page = Number.isInteger(input.page) && (input.page ?? 0) > 0 ? input.page as number : 1;
-  return { query, stage, page, pageSize };
+  const needsAttention = input.needsAttention === true ? true : undefined;
+  return { query, stage, needsAttention, page, pageSize };
 }
 
 /**
@@ -158,7 +161,9 @@ export function buildStudioProductionBoard(sources: readonly StudioProductionBoa
   const filteredStores = allStores.filter(store => {
     const matchesQuery = !normalizedQuery || [store.displayName, store.primaryDomain]
       .some(value => value.toLocaleLowerCase("fr-CH").includes(normalizedQuery));
-    return matchesQuery && (!filters.stage || store.stage === filters.stage);
+    return matchesQuery
+      && (!filters.stage || store.stage === filters.stage)
+      && (!filters.needsAttention || store.attention.length > 0);
   });
   const total = filteredStores.length;
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
@@ -183,6 +188,6 @@ export function buildStudioProductionBoard(sources: readonly StudioProductionBoa
       from: total === 0 ? 0 : offset + 1,
       to: Math.min(offset + filters.pageSize, total),
     },
-    filters: { query: filters.query ?? null, stage: filters.stage ?? null },
+    filters: { query: filters.query ?? null, stage: filters.stage ?? null, needsAttention: filters.needsAttention ?? null },
   };
 }

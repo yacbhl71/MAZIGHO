@@ -72,4 +72,16 @@ describe("Studio production board", () => {
     expect(board.pagination).toEqual({ page: 2, pageSize: 10, total: 12, totalPages: 2, from: 11, to: 12 });
     expect(board.stores.map(store => store.id)).toEqual([11, 12]);
   });
+
+  it("filters to actionable stores without changing the global portfolio summary", () => {
+    const board = buildStudioProductionBoard([
+      makeStore({ id: 1, displayName: "À traiter", needsAttention: true }),
+      makeStore({ id: 2, displayName: "Sans alerte" }),
+    ], { needsAttention: true });
+
+    expect(board.summary).toMatchObject({ total: 2, needsAttention: 1 });
+    expect(board.filters).toMatchObject({ needsAttention: true });
+    expect(board.pagination).toMatchObject({ total: 1, from: 1, to: 1 });
+    expect(board.stores.map(store => store.displayName)).toEqual(["À traiter"]);
+  });
 });

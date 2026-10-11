@@ -1450,6 +1450,7 @@ export const adminRouter = router({
     getProductionBoard: platformProcedure.input(z.object({
       query: z.string().trim().max(80).optional(),
       stage: z.enum(["new_project", "to_analyze", "to_prepare", "ready", "handed_over"]).optional(),
+      needsAttention: z.boolean().optional(),
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(10), z.literal(20), z.literal(50)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioProductionBoard(input ?? {})),
