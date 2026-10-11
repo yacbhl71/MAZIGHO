@@ -34,4 +34,22 @@ describe("store factory models", () => {
     first[0].name = "Modified only locally";
     expect(second[0].name).toBe("Femme");
   });
+
+  it("provides a local market structure without adding products or commercial data", () => {
+    const model = getStoreFactoryModel("local_market");
+    const categories = getStoreFactoryStarterCategories("local_market");
+
+    expect(model).toMatchObject({
+      label: "Épicerie & livraison locale",
+      suggestedTheme: "marketExpress",
+      customBusinessTheme: "Épicerie, produits frais et livraison locale",
+    });
+    expect(categories.map(category => category.name)).toEqual([
+      "Fruits & légumes",
+      "Épicerie & boissons",
+      "Frais, boucherie & poissonnerie",
+      "Pizza & traiteur",
+      "Maison & hygiène",
+    ]);
+  });
 });

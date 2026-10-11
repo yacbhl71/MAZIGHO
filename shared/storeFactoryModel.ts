@@ -8,6 +8,7 @@ export const storeFactoryModelIds = [
   "pet",
   "beauty",
   "home",
+  "local_market",
   "gourmet",
 ] as const;
 
@@ -120,6 +121,21 @@ export const storeFactoryModels: readonly StoreFactoryModel[] = [
       { name: "Décoration", slug: "decoration", description: "Objets et idées décoratives à compléter.", displayOrder: 1 },
       { name: "Table & cuisine", slug: "table-cuisine", description: "Arts de la table et cuisine à compléter.", displayOrder: 2 },
       { name: "Textiles", slug: "textiles", description: "Linge, coussins et matières à compléter.", displayOrder: 3 },
+    ],
+  },
+  {
+    id: "local_market",
+    label: "Épicerie & livraison locale",
+    summary: "Produits frais, épicerie, maison et livraison de proximité dans une structure prête à adapter.",
+    businessType: "autre",
+    customBusinessTheme: "Épicerie, produits frais et livraison locale",
+    suggestedTheme: "marketExpress",
+    categories: [
+      { name: "Fruits & légumes", slug: "fruits-legumes", description: "Produits frais, saisonniers et paniers à compléter.", displayOrder: 1 },
+      { name: "Épicerie & boissons", slug: "epicerie-boissons", description: "Placard, boissons et produits du quotidien à compléter.", displayOrder: 2 },
+      { name: "Frais, boucherie & poissonnerie", slug: "frais-boucherie-poissonnerie", description: "Rayons frais et spécialités à compléter.", displayOrder: 3 },
+      { name: "Pizza & traiteur", slug: "pizza-traiteur", description: "Plats préparés, pizza et service de proximité à compléter.", displayOrder: 4 },
+      { name: "Maison & hygiène", slug: "maison-hygiene", description: "Entretien, hygiène et essentiels de la maison à compléter.", displayOrder: 5 },
     ],
   },
   {
