@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ClipboardCheck, Copy, FileText, Loader2, MessageSquareText, RefreshCw, Save, TimerReset } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Copy, Download, FileText, Loader2, MessageSquareText, Printer, RefreshCw, Save, TimerReset } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  buildStudioStoreDeliveryPack,
   buildStudioStoreProjectTemplates,
   createStudioStoreProjectDesk,
   studioStoreHandoverKeys,
@@ -40,7 +41,7 @@ function dateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-CH", { dateStyle: "medium" });
 }
 
-export default function StudioStoreProjectDesk({ storeId, storeName, domain, onRefresh }: { storeId: number; storeName: string; domain: string; onRefresh?: () => void }) {
+export default function StudioStoreProjectDesk({ storeId, storeName, domain, recoveryDomain, onRefresh }: { storeId: number; storeName: string; domain: string; recoveryDomain?: string | null; onRefresh?: () => void }) {
   const utils = trpc.useUtils();
   const deskQuery = trpc.admin.studio.getStoreProjectDesk.useQuery({ storeId }, { enabled: storeId > 0, refetchOnWindowFocus: false });
   const [desk, setDesk] = useState<StudioStoreProjectDesk>(() => createStudioStoreProjectDesk());
@@ -63,6 +64,7 @@ export default function StudioStoreProjectDesk({ storeId, storeName, domain, onR
   });
 
   const templates = useMemo(() => buildStudioStoreProjectTemplates({ storeName, domain }), [storeName, domain]);
+  const deliveryPack = useMemo(() => buildStudioStoreDeliveryPack({ storeName, publicDomain: domain, recoveryDomain, stage: desk.stage, handover: desk.handover }), [desk.handover, desk.stage, domain, recoveryDomain, storeName]);
   const activeTemplate = templates.find(template => template.kind === selectedTemplate) ?? null;
   const handoverDone = studioStoreHandoverKeys.filter(key => desk.handover[key]).length;
   const outstandingReminders = desk.reminders.filter(reminder => !reminder.completed).length;
@@ -90,6 +92,39 @@ export default function StudioStoreProjectDesk({ storeId, storeName, domain, onR
     }
   };
 
+  const copyDeliveryPack = async () => {
+    try {
+      await navigator.clipboard.writeText(deliveryPack.content);
+      toast.success("Pack de livraison copié. Il n’a été ni envoyé ni enregistré comme document client.");
+    } catch {
+      toast.error("Copie impossible dans ce navigateur. Téléchargez le pack ou sélectionnez le texte manuellement.");
+    }
+  };
+
+  const downloadDeliveryPack = () => {
+    const blob = new Blob([deliveryPack.content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pack-livraison-${storeName.trim().toLocaleLowerCase("fr-CH").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "boutique"}.txt`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    toast.success("Pack de livraison téléchargé localement.");
+  };
+
+  const printDeliveryPack = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return toast.error("L’aperçu d’impression a été bloqué par le navigateur.");
+    printWindow.opener = null;
+    const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const escapedTitle = escapeHtml(deliveryPack.title);
+    const escapedContent = escapeHtml(deliveryPack.content);
+    printWindow.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${escapedTitle}</title><style>body{margin:0;color:#172033;font-family:Arial,sans-serif;background:#fff}main{max-width:760px;margin:0 auto;padding:48px 36px}h1{font-size:25px;margin:0 0 10px}p{color:#526079;line-height:1.6}pre{white-space:pre-wrap;font:15px/1.65 Arial,sans-serif;color:#172033;border-top:2px solid #6d28d9;padding-top:24px}@media print{main{padding:0}}</style></head><body><main><h1>${escapedTitle}</h1><p>Préparé localement depuis MAZIGHO Studio · à remettre et expliquer par un humain.</p><pre>${escapedContent}</pre></main></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    window.setTimeout(() => printWindow.print(), 150);
+  };
+
   if (deskQuery.isLoading && !deskQuery.data) return <Card className="border-sky-200"><CardContent className="grid min-h-64 place-items-center"><Loader2 className="h-7 w-7 animate-spin text-sky-700" /></CardContent></Card>;
   if (deskQuery.isError) return <Card className="border-rose-200 bg-rose-50"><CardContent className="p-5 text-sm leading-6 text-rose-950"><strong>Suivi Studio indisponible.</strong><p className="mt-1">Aucune note, étape ou échéance n’a été modifiée.</p></CardContent></Card>;
 
@@ -110,6 +145,8 @@ export default function StudioStoreProjectDesk({ storeId, storeName, domain, onR
       </div>
 
       <section className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="flex items-center gap-2 font-semibold text-emerald-950"><CheckCircle2 className="h-5 w-5 text-emerald-700" /> Checklist de remise</p><p className="mt-1 text-xs leading-5 text-emerald-900">Prépare la transmission ; elle ne remet aucun accès, n’envoie aucun message et ne change pas le statut public.</p></div><Badge variant="outline" className="border-emerald-200 bg-white text-emerald-900">{handoverDone}/{studioStoreHandoverKeys.length} préparés</Badge></div><div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">{studioStoreHandoverKeys.map(key => <label key={key} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 text-xs leading-5 ${desk.handover[key] ? "border-emerald-200 bg-white text-emerald-950" : "border-emerald-100 bg-white/70 text-slate-700"}`}><input type="checkbox" className="mt-0.5 h-4 w-4" checked={desk.handover[key]} onChange={() => setDesk(current => ({ ...current, handover: { ...current.handover, [key]: !current.handover[key] } }))} /><span>{studioStoreHandoverLabels[key]}</span></label>)}</div></section>
+
+      <section className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4" data-testid="studio-store-delivery-pack"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="flex items-center gap-2 font-semibold text-indigo-950"><FileText className="h-5 w-5 text-indigo-700" /> Pack de livraison client</p><p className="mt-1 max-w-3xl text-xs leading-5 text-indigo-950">Un récapitulatif local de la boutique, de ses adresses, de la checklist et des prochaines étapes. Il ne contient aucun identifiant, donnée client, paiement ou secret.</p></div><Badge variant="outline" className="w-fit border-indigo-200 bg-white text-indigo-900">{deliveryPack.completeItems}/{studioStoreHandoverKeys.length} éléments revus</Badge></div><div className="mt-4 grid gap-3 text-sm sm:grid-cols-3"><div className="rounded-xl border border-indigo-100 bg-white p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Boutique</p><p className="mt-1 font-semibold text-slate-950">{storeName}</p></div><div className="rounded-xl border border-indigo-100 bg-white p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Adresse</p><p className="mt-1 break-all text-xs font-semibold text-slate-900">{domain ? `https://${domain}` : "À communiquer"}</p></div><div className="rounded-xl border border-indigo-100 bg-white p-3"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">À compléter</p><p className="mt-1 font-semibold text-slate-950">{deliveryPack.remainingItems.length ? `${deliveryPack.remainingItems.length} point(s)` : "Aucun point"}</p></div></div><div className="mt-4 flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" className="min-h-10 border-indigo-300 bg-white text-indigo-950 hover:bg-indigo-100" onClick={() => void copyDeliveryPack()}><Copy className="mr-1.5 h-4 w-4" /> Copier le pack</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-indigo-300 bg-white text-indigo-950 hover:bg-indigo-100" onClick={downloadDeliveryPack}><Download className="mr-1.5 h-4 w-4" /> Télécharger</Button><Button type="button" size="sm" variant="outline" className="min-h-10 border-indigo-300 bg-white text-indigo-950 hover:bg-indigo-100" onClick={printDeliveryPack}><Printer className="mr-1.5 h-4 w-4" /> Imprimer / PDF</Button></div><p className="mt-3 text-xs leading-5 text-indigo-950">Télécharger, imprimer ou copier ne remet aucun accès et n’envoie aucun message : vous choisissez ensuite comment remettre le pack au client.</p></section>
 
       <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><p className="flex items-center gap-2 font-semibold text-slate-950"><FileText className="h-5 w-5 text-slate-700" /> Brouillons prêts à adapter</p><p className="mt-1 text-xs leading-5 text-slate-600">Devis, contrat de création et remise : à relire et valider par un humain avant tout partage.</p></div><div className="flex flex-wrap gap-2">{templates.map(template => <Button key={template.kind} type="button" size="sm" variant={selectedTemplate === template.kind ? "default" : "outline"} className={selectedTemplate === template.kind ? "bg-slate-900 hover:bg-slate-800" : "bg-white"} onClick={() => setSelectedTemplate(template.kind)}>{template.label}</Button>)}</div></div>{activeTemplate && <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center justify-between gap-3"><p className="font-semibold text-slate-950">{activeTemplate.title}</p><Button type="button" size="sm" variant="outline" className="min-h-10" onClick={copyTemplate}><Copy className="mr-1.5 h-4 w-4" /> Copier le brouillon</Button></div><pre className="mt-4 whitespace-pre-wrap font-sans text-sm leading-6 text-slate-700">{activeTemplate.content}</pre></div>}<p className="mt-3 text-xs leading-5 text-slate-600">Les modèles ne sont ni des documents juridiques, ni des factures. Ils ne sont jamais envoyés depuis ce bureau.</p></section>
 

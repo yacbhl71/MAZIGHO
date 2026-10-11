@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildStudioStoreDeliveryPack,
   buildStudioStoreProjectTemplates,
   createStudioStoreProjectDesk,
   normalizeStudioStoreProjectDesk,
@@ -35,5 +36,24 @@ describe("Studio project desk contract", () => {
     expect(templates.every(template => template.content.includes("brouillon") || template.content.includes("Brouillon"))).toBe(true);
     expect(templates.every(template => template.content.includes("Atelier Nord"))).toBe(true);
     expect(templates.every(template => !template.content.includes("envoyé automatiquement"))).toBe(true);
+  });
+
+  it("builds a scoped handover pack without credentials or payment data", () => {
+    const pack = buildStudioStoreDeliveryPack({
+      storeName: "Atelier Nord",
+      publicDomain: "atelier-nord.mazigho.ch",
+      recoveryDomain: "secours-atelier-nord.mazigho.ch",
+      stage: "ready",
+      handover: { owner_access: true, store_identity: true, catalogue: false, operations: false, domain: true },
+    });
+
+    expect(pack.title).toContain("Atelier Nord");
+    expect(pack.completeItems).toBe(3);
+    expect(pack.remainingItems).toEqual(["Catalogue et contenu transmis", "Livraison, retours et opérations expliqués"]);
+    expect(pack.content).toContain("https://atelier-nord.mazigho.ch");
+    expect(pack.content).toContain("https://secours-atelier-nord.mazigho.ch");
+    expect(pack.content).toContain("Prêt");
+    expect(pack.content).toContain("ne figurent volontairement pas");
+    expect(pack.content).not.toMatch(/mot de passe\s*:|client\s*:|iban|stripe secret/i);
   });
 });

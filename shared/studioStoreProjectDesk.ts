@@ -147,6 +147,13 @@ export type StudioStoreProjectTemplate = {
   content: string;
 };
 
+export type StudioStoreDeliveryPack = {
+  title: string;
+  content: string;
+  completeItems: number;
+  remainingItems: string[];
+};
+
 /** Plain-text drafts, deliberately copied by an operator and never sent here. */
 export function buildStudioStoreProjectTemplates(input: { storeName: string; domain: string }) : StudioStoreProjectTemplate[] {
   const storeName = normalizeText(input.storeName, 160) || "[Nom de la boutique]";
@@ -171,4 +178,58 @@ export function buildStudioStoreProjectTemplates(input: { storeName: string; dom
       content: `Brouillon de remise de boutique\n\nBoutique : ${storeName}\nAdresse : ${domain}\n\nÉléments à remettre / expliquer :\n- Accès propriétaire et procédure de récupération\n- Identité, vitrine, catégories et fiches produit\n- Gestion de stock, livraison, retours et commandes\n- Adresse de secours MAZIGHO si applicable\n- Étapes restant à faire : [à compléter]\n\nConfirmation opérateur : [à compléter]\nConfirmation propriétaire : [à compléter]\n\nCe document est préparé pour relecture : aucune transmission, ouverture de boutique, modification de domaine ou activation de paiement n’est déclenchée.`,
     },
   ];
+}
+
+/**
+ * A deliberately local, printable recap for an operator to hand to a store
+ * owner. It contains no credentials, customer data, payment data or secrets;
+ * sending it remains an explicit human action outside Studio.
+ */
+export function buildStudioStoreDeliveryPack(input: {
+  storeName: string;
+  publicDomain?: string | null;
+  recoveryDomain?: string | null;
+  stage: StudioStoreProjectStage;
+  handover: Record<StudioStoreHandoverKey, boolean>;
+}): StudioStoreDeliveryPack {
+  const storeName = normalizeText(input.storeName, 160) || "[Nom de la boutique]";
+  const publicDomain = normalizeText(input.publicDomain, 253);
+  const recoveryDomain = normalizeText(input.recoveryDomain, 253);
+  const completeItems = studioStoreHandoverKeys.filter(key => input.handover[key]).length;
+  const remainingItems = studioStoreHandoverKeys
+    .filter(key => !input.handover[key])
+    .map(key => studioStoreHandoverLabels[key]);
+  const publicAddress = publicDomain ? `https://${publicDomain}` : "[à communiquer après configuration]";
+  const recoveryAddress = recoveryDomain
+    ? `https://${recoveryDomain}${recoveryDomain === publicDomain ? " (identique à l’adresse ci-dessus)" : ""}`
+    : "[à communiquer si une adresse de secours existe]";
+
+  return {
+    title: `Pack de livraison — ${storeName}`,
+    completeItems,
+    remainingItems,
+    content: `PACK DE LIVRAISON — ${storeName}
+
+Ce récapitulatif est préparé par MAZIGHO Studio pour une remise humaine. Il ne transmet aucun accès, n’envoie aucun e-mail, n’ouvre pas la boutique et ne modifie aucun paiement.
+
+1. BOUTIQUE
+Nom : ${storeName}
+Adresse publique : ${publicAddress}
+Adresse de secours MAZIGHO : ${recoveryAddress}
+Étape de suivi Studio : ${studioStoreProjectStageLabels[input.stage]}
+
+2. ÉLÉMENTS REVUS (${completeItems}/${studioStoreHandoverKeys.length})
+${studioStoreHandoverKeys.map(key => `- [${input.handover[key] ? "x" : " "}] ${studioStoreHandoverLabels[key]}`).join("\n")}
+
+3. POINTS RESTANT À TRAITER
+${remainingItems.length ? remainingItems.map(item => `- ${item}`).join("\n") : "- Aucun point de la checklist de remise n’est en attente."}
+
+4. PROCHAINE ÉTAPE DU PROPRIÉTAIRE
+- Se connecter à son espace propriétaire par le lien fourni séparément.
+- Revoir l’identité, les produits, les stocks, la livraison et les retours avant toute décision d’ouverture.
+- Conserver les identifiants en lieu sûr ; ils ne figurent volontairement pas dans ce pack.
+
+NOTE IMPORTANTE
+Les identifiants, mots de passe, données clients, données bancaires, clés, secrets et informations de paiement ne figurent pas dans ce document. Toute ouverture publique, connexion de domaine, activation de paiement ou modification commerciale reste une décision distincte et explicite.`,
+  };
 }
