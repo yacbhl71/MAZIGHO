@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
 vi.mock("./db", () => ({
   getStudioStoreProjectDesk: vi.fn(async (storeId: number) => ({ store: { id: storeId, displayName: "Boutique test", primaryDomain: "boutique.test", status: "active" }, desk: state.desk })),
   saveStudioStoreProjectDesk: vi.fn(async (input) => ({ store: { id: input.storeId, displayName: "Boutique test", primaryDomain: "boutique.test" }, desk: input.desk })),
+  updateStudioStoreProjectStage: vi.fn(async (input) => ({ store: { id: input.storeId, displayName: "Boutique test", primaryDomain: "boutique.test" }, stage: input.stage, updatedAt: "2026-10-04T20:00:00.000Z", storefrontChanged: false, domainChanged: false, ownerAccessChanged: false, paymentChanged: false })),
   recordAuditLog: vi.fn(async () => undefined),
 }));
 
@@ -43,6 +44,24 @@ describe("Studio project desk routes", () => {
     })).resolves.toMatchObject({ store: { id: 77 }, desk: { stage: "to_prepare" } });
     expect(db.saveStudioStoreProjectDesk).toHaveBeenCalledWith(expect.objectContaining({ storeId: 77, desk: expect.objectContaining({ notes: "Préparer le catalogue." }) }));
     expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({ entityId: 77, action: "studio.store.project_desk.save", metadata: expect.objectContaining({ noteStoredEncrypted: true, emailSent: false }) }));
+  });
+
+  it("changes only the internal production stage of the targeted store", async () => {
+    const caller = callerFor();
+    await expect(caller.studio.updateStoreProjectStage({ storeId: 77, stage: "to_prepare" })).resolves.toMatchObject({
+      store: { id: 77 },
+      stage: "to_prepare",
+      storefrontChanged: false,
+      domainChanged: false,
+      ownerAccessChanged: false,
+      paymentChanged: false,
+    });
+    expect(db.updateStudioStoreProjectStage).toHaveBeenCalledWith({ storeId: 77, stage: "to_prepare" });
+    expect(db.recordAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      entityId: 77,
+      action: "studio.store.project_desk.stage.update",
+      metadata: expect.objectContaining({ stage: "to_prepare", emailSent: false, storefrontChanged: false, paymentChanged: false }),
+    }));
   });
 
   it("does not expose the Studio desk to a non-platform role", async () => {

@@ -102,8 +102,8 @@ import { normalizeStoreProductBundles, parseStoreProductBundles, type StoreProdu
 import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds, parsePromotionTargetProductIds } from "../shared/promotionTargetProducts";
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
 import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
-import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk } from "../shared/studioStoreProjectDesk";
-import { buildStudioProductionBoard } from "../shared/studioProductionBoard";
+import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk, type StudioStoreProjectStage } from "../shared/studioStoreProjectDesk";
+import { buildStudioProductionBoard, type StudioProductionBoardQuery } from "../shared/studioProductionBoard";
 import { STUDIO_IMAGE_GENERATION_DAILY_LIMIT } from "./services/studioImageGenerationPolicy";
 import { assertStudioCatalogueProductWrite, needsStudioCatalogueActiveCapacity, type StudioCatalogueProductStatus } from "../shared/studioCatalogueDraftPolicy";
 
@@ -3490,7 +3490,10 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
   });
 
   const statusCount = (status: schema.Store["status"]) => inventory.filter(store => store.status === status).length;
-  const page = paginateStudioInventory(inventory, input);
+  const pagedInventory = paginateStudioInventory(inventory, input);
+  const page = input.includeAllForInternalProjection === true
+    ? { ...pagedInventory, stores: inventory }
+    : pagedInventory;
   const highlights = [...inventory].sort((left, right) => right.attentionScore - left.attentionScore || left.displayName.localeCompare(right.displayName, "fr-CH")).slice(0, 6);
   const giftSetupStores = inventory.filter(store => store.status === "setup" && store.giftProvisioned);
   return {
@@ -3518,16 +3521,17 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
  * Read-only production board across client boutiques. It reuses the existing
  * Studio inventory and only projects project-stage/checklist/reminder dates.
  * Encrypted notes, reminder titles, customer data, payment data and secrets
- * are never returned here.
+ * are never returned here. The returned cards remain paginated even when the
+ * internal aggregate projection must inspect the full portfolio.
  */
-export async function getStudioProductionBoard() {
+export async function getStudioProductionBoard(input: StudioProductionBoardQuery = {}) {
   await ensureMultiStoreSchema();
-  const inventory = await getStudioStoreInventory({ page: 1, pageSize: 100 });
+  const inventory = await getStudioStoreInventory({ includeAllForInternalProjection: true });
   const clientStores = inventory.stores.filter(store => !Boolean(store.isPlatformStore));
-  if (clientStores.length === 0) return buildStudioProductionBoard([]);
+  if (clientStores.length === 0) return buildStudioProductionBoard([], input);
 
   const db = await getDb();
-  if (!db) return buildStudioProductionBoard([]);
+  if (!db) return buildStudioProductionBoard([], input);
   const deskRows = await db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
     .from(storeSettings)
     .where(and(eq(storeSettings.key, "studio_project_desk"), inArray(storeSettings.storeId, clientStores.map(store => store.id))));
@@ -3557,7 +3561,7 @@ export async function getStudioProductionBoard() {
       stockSignal: store.stockSignal,
       desk,
     };
-  }));
+  }), input);
 }
 
 /**
@@ -4136,6 +4140,33 @@ export async function saveStudioStoreProjectDesk(input: { storeId: number; desk:
   return {
     store: { id: store.id, displayName: store.displayName, primaryDomain: store.primaryDomain, status: store.status },
     desk,
+  };
+}
+
+/**
+ * Moves only the internal Studio production stage for one client boutique.
+ * The existing encrypted notes, reminders and handover checklist are retained;
+ * no storefront, domain, owner, payment or commercial setting is changed.
+ */
+export async function updateStudioStoreProjectStage(input: { storeId: number; stage: StudioStoreProjectStage }) {
+  const current = await getStudioStoreProjectDesk(input.storeId);
+  const saved = await saveStudioStoreProjectDesk({
+    storeId: input.storeId,
+    desk: {
+      stage: input.stage,
+      notes: current.desk.notes,
+      reminders: current.desk.reminders,
+      handover: current.desk.handover,
+    },
+  });
+  return {
+    store: saved.store,
+    stage: saved.desk.stage,
+    updatedAt: saved.desk.updatedAt,
+    storefrontChanged: false as const,
+    domainChanged: false as const,
+    ownerAccessChanged: false as const,
+    paymentChanged: false as const,
   };
 }
 

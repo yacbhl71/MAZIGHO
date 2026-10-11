@@ -1447,7 +1447,12 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
-    getProductionBoard: platformProcedure.query(async () => db.getStudioProductionBoard()),
+    getProductionBoard: platformProcedure.input(z.object({
+      query: z.string().trim().max(80).optional(),
+      stage: z.enum(["new_project", "to_analyze", "to_prepare", "ready", "handed_over"]).optional(),
+      page: z.number().int().positive().max(10_000).optional(),
+      pageSize: z.union([z.literal(10), z.literal(20), z.literal(50)]).optional(),
+    }).optional()).query(async ({ input }) => db.getStudioProductionBoard(input ?? {})),
     assistant: router({
       getImageGenerationUsage: platformProcedure.query(async ({ ctx }) => {
         return await db.getStudioImageGenerationUsage(ctx.user.id);
@@ -2172,6 +2177,29 @@ export const adminRouter = router({
           metadata: { stage: saved.desk.stage, reminderCount: saved.desk.reminders.length, noteStoredEncrypted: true, emailSent: false, paymentChanged: false, domainChanged: false, storefrontActivated: false },
         });
         return saved;
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });
+        if (code === "PLATFORM_STORE_PROTECTED") throw new TRPCError({ code: "FORBIDDEN", message: "Le suivi de projet Studio est réservé aux boutiques clientes." });
+        if (code === "STUDIO_PROJECT_DESK_ENCRYPTION_NOT_CONFIGURED") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Le chiffrement des notes Studio n’est pas disponible pour le moment." });
+        if (code === "STUDIO_PROJECT_DESK_UNREADABLE") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Les notes internes de cette boutique ne peuvent pas être relues de manière sûre." });
+        throw error;
+      }
+    }),
+    updateStoreProjectStage: platformProcedure.input(z.object({
+      storeId: z.number().int().positive(),
+      stage: z.enum(["new_project", "to_analyze", "to_prepare", "ready", "handed_over"]),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        const updated = await db.updateStudioStoreProjectStage(input);
+        logAudit(ctx, {
+          action: "studio.store.project_desk.stage.update",
+          entityType: "store",
+          entityId: updated.store.id,
+          summary: "Étape de production Studio mise à jour.",
+          metadata: { stage: updated.stage, emailSent: false, paymentChanged: false, domainChanged: false, storefrontChanged: false, ownerAccessChanged: false },
+        });
+        return updated;
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
         if (code === "STORE_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "Boutique introuvable." });

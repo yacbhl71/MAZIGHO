@@ -13,6 +13,8 @@ export type StudioInventoryQuery = {
   needsAttention?: boolean;
   page?: number;
   pageSize?: StudioInventoryPageSize;
+  /** Usage serveur interne uniquement : permet une projection paginée dérivée sans exposer ce tableau complet à l’API générique. */
+  includeAllForInternalProjection?: boolean;
 };
 
 export type RegistryStore = {

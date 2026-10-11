@@ -42,6 +42,17 @@ export type StudioProductionBoardItem = {
   updatedAt: string;
 };
 
+export const studioProductionBoardPageSizes = [10, 20, 50] as const;
+
+export type StudioProductionBoardPageSize = (typeof studioProductionBoardPageSizes)[number];
+
+export type StudioProductionBoardQuery = {
+  query?: string;
+  stage?: StudioStoreProjectStage;
+  page?: number;
+  pageSize?: StudioProductionBoardPageSize;
+};
+
 export type StudioProductionBoard = {
   summary: {
     total: number;
@@ -52,6 +63,18 @@ export type StudioProductionBoard = {
     byStage: Record<StudioStoreProjectStage, number>;
   };
   stores: StudioProductionBoardItem[];
+  pagination: {
+    page: number;
+    pageSize: StudioProductionBoardPageSize;
+    total: number;
+    totalPages: number;
+    from: number;
+    to: number;
+  };
+  filters: {
+    query: string | null;
+    stage: StudioStoreProjectStage | null;
+  };
 };
 
 const stageRank = new Map<StudioStoreProjectStage, number>(
@@ -81,13 +104,26 @@ function getAttention(source: StudioProductionBoardStoreSource) {
   return Array.from(new Set(attention)).slice(0, 3);
 }
 
+function normalizeQuery(input: StudioProductionBoardQuery = {}) {
+  const query = input.query?.trim().replace(/\s+/g, " ").slice(0, 80) || undefined;
+  const stage = studioStoreProjectStages.includes(input.stage as StudioStoreProjectStage)
+    ? input.stage as StudioStoreProjectStage
+    : undefined;
+  const pageSize = studioProductionBoardPageSizes.includes(input.pageSize as StudioProductionBoardPageSize)
+    ? input.pageSize as StudioProductionBoardPageSize
+    : 10;
+  const page = Number.isInteger(input.page) && (input.page ?? 0) > 0 ? input.page as number : 1;
+  return { query, stage, page, pageSize };
+}
+
 /**
  * Produces a read-only, operator-facing production board. Notes, reminder
  * titles, client data, credentials, payments and private catalogue content are
  * intentionally excluded from this compact projection.
  */
-export function buildStudioProductionBoard(sources: readonly StudioProductionBoardStoreSource[]): StudioProductionBoard {
-  const stores = sources
+export function buildStudioProductionBoard(sources: readonly StudioProductionBoardStoreSource[], input: StudioProductionBoardQuery = {}): StudioProductionBoard {
+  const filters = normalizeQuery(input);
+  const allStores = sources
     .map(source => {
       const pendingReminders = source.desk.reminders
         .filter(reminder => !reminder.completed)
@@ -117,17 +153,36 @@ export function buildStudioProductionBoard(sources: readonly StudioProductionBoa
     });
 
   const byStage = Object.fromEntries(studioStoreProjectStages.map(stage => [stage, 0])) as Record<StudioStoreProjectStage, number>;
-  for (const store of stores) byStage[store.stage] += 1;
+  for (const store of allStores) byStage[store.stage] += 1;
+  const normalizedQuery = filters.query?.toLocaleLowerCase("fr-CH");
+  const filteredStores = allStores.filter(store => {
+    const matchesQuery = !normalizedQuery || [store.displayName, store.primaryDomain]
+      .some(value => value.toLocaleLowerCase("fr-CH").includes(normalizedQuery));
+    return matchesQuery && (!filters.stage || store.stage === filters.stage);
+  });
+  const total = filteredStores.length;
+  const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
+  const page = Math.min(filters.page, totalPages);
+  const offset = (page - 1) * filters.pageSize;
 
   return {
     summary: {
-      total: stores.length,
-      needsAttention: stores.filter(store => store.attention.length > 0).length,
+      total: allStores.length,
+      needsAttention: allStores.filter(store => store.attention.length > 0).length,
       readyForHandover: byStage.ready,
       handedOver: byStage.handed_over,
-      withUpcomingReminder: stores.filter(store => store.nextReminderDueDate !== null).length,
+      withUpcomingReminder: allStores.filter(store => store.nextReminderDueDate !== null).length,
       byStage,
     },
-    stores,
+    stores: filteredStores.slice(offset, offset + filters.pageSize),
+    pagination: {
+      page,
+      pageSize: filters.pageSize,
+      total,
+      totalPages,
+      from: total === 0 ? 0 : offset + 1,
+      to: Math.min(offset + filters.pageSize, total),
+    },
+    filters: { query: filters.query ?? null, stage: filters.stage ?? null },
   };
 }

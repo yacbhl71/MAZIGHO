@@ -60,4 +60,16 @@ describe("Studio production board", () => {
 
     expect(board.stores[0]?.attention).toEqual(["Suivi opérateur requis", "Propriétaire à confirmer", "Catalogue à compléter"]);
   });
+
+  it("paginates visible cards while retaining the complete portfolio summary", () => {
+    const sources = Array.from({ length: 12 }, (_, index) => makeStore({
+      id: index + 1,
+      displayName: `Boutique ${String(index + 1).padStart(2, "0")}`,
+    }));
+    const board = buildStudioProductionBoard(sources, { page: 2, pageSize: 10 });
+
+    expect(board.summary.total).toBe(12);
+    expect(board.pagination).toEqual({ page: 2, pageSize: 10, total: 12, totalPages: 2, from: 11, to: 12 });
+    expect(board.stores.map(store => store.id)).toEqual([11, 12]);
+  });
 });
