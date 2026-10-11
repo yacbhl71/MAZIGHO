@@ -10,6 +10,7 @@ import {
   createPasswordUser,
   getUserByEmail,
   getFirstActiveOwnerStoreForUser,
+  getStoreMembershipForUser,
   markUserSignedIn,
   requestPasswordResetToken,
   resetPasswordFromToken,
@@ -78,6 +79,18 @@ async function createSession(
     ...cookieOptions,
     maxAge: 1000 * 60 * 60 * 24 * 30,
   });
+}
+
+async function getCurrentStoreOwnerDestination(ctx: { store?: { id: number; isPlatformStore: number; status: string; primaryDomain: string } | null }, userId: number) {
+  const store = ctx.store;
+  if (!store || store.isPlatformStore) return null;
+  const membership = await getStoreMembershipForUser(store.id, userId);
+  if (membership?.role !== "owner" || membership.status !== "active") return null;
+  return {
+    id: store.id,
+    primaryDomain: store.primaryDomain,
+    status: store.status,
+  };
 }
 
 export const authRouter = router({
@@ -273,7 +286,8 @@ export const authRouter = router({
       clearAuthRateLimit("login", ctx.req, email);
       await markUserSignedIn(user.openId);
       await createSession(ctx, user);
-      return { user: safeUser(user) };
+      const ownerStore = await getCurrentStoreOwnerDestination(ctx, user.id);
+      return { user: safeUser(user), ownerStore };
     }),
 
   logout: publicProcedure.mutation(({ ctx }) => {

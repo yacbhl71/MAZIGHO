@@ -42,6 +42,10 @@ export default function Login() {
         order_operator: "/admin/operations-commandes",
         admin: typeof window !== "undefined" && window.location.hostname.toLowerCase() === "studio.mazigho.ch" ? "/admin/studio" : "/admin",
       };
+      if (data.ownerStore) {
+        window.location.assign("/gestion-boutique");
+        return;
+      }
       setLocation(hasBoutiqueAccessIntent ? returnTo : staffDestinations[data.user.role] || "/mon-compte");
     },
     onError: error => toast.error(error.message || copy.login.error),

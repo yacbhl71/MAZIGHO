@@ -1,11 +1,10 @@
 import type { CookieOptions, Request } from "express";
 
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-
-function isIpAddress(host: string) {
-  // Basic IPv4 check and IPv6 presence detection.
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(":");
+function getMazighoSessionDomain(hostname: string | undefined) {
+  const normalized = hostname?.trim().toLowerCase().replace(/:\d+$/, "") || "";
+  return normalized === "mazigho.ch" || normalized.endsWith(".mazigho.ch")
+    ? ".mazigho.ch"
+    : undefined;
 }
 
 function isSecureRequest(req: Request) {
@@ -24,25 +23,14 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
-
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
-
-  // Lax keeps the session available after normal top-level GET returns from
-  // Stripe or OAuth while withholding it from cross-site POST requests.
+  // A normal account may own several MAZIGHO subdomain boutiques. Sharing the
+  // signed session only across the MAZIGHO parent domain keeps sign-in stable
+  // while every server operation remains checked against the current store's
+  // active membership. Custom client domains stay host-only.
   const secure = isSecureRequest(req);
+  const domain = getMazighoSessionDomain(req.hostname || req.headers.host);
   return {
+    ...(domain ? { domain } : {}),
     httpOnly: true,
     path: "/",
     sameSite: "lax",
