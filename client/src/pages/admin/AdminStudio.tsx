@@ -207,6 +207,7 @@ const demoLibraryPresentation: Record<GiftDemoLibraryKitId, { icon: typeof Palet
   jewelry: { icon: Sparkles, accent: "text-amber-800", soft: "border-amber-200 bg-amber-50" },
   beauty: { icon: Sparkles, accent: "text-rose-800", soft: "border-rose-200 bg-rose-50" },
   home: { icon: Store, accent: "text-emerald-800", soft: "border-emerald-200 bg-emerald-50" },
+  local_market: { icon: Store, accent: "text-teal-800", soft: "border-teal-200 bg-teal-50" },
   gourmet: { icon: Gift, accent: "text-orange-800", soft: "border-orange-200 bg-orange-50" },
 };
 
