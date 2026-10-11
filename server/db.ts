@@ -103,6 +103,7 @@ import { getPromotionTargetProductsSubtotal, normalizePromotionTargetProductIds,
 import { buildOwnerCommercialSnapshot } from "../shared/ownerCommercialSnapshot";
 import { CUSTOM_CREATION_REQUEST_LIMITS, normalizeStoreCustomCreationRequestSettings, parseStoreCustomCreationRequestSettings, type CustomCreationRequestKind, type CustomCreationRequestStatus, type StoreCustomCreationRequestSettings } from "../shared/customCreationRequests";
 import { createStudioStoreProjectDesk, normalizeStudioStoreProjectDesk, type StudioStoreProjectDesk } from "../shared/studioStoreProjectDesk";
+import { buildStudioProductionBoard } from "../shared/studioProductionBoard";
 import { STUDIO_IMAGE_GENERATION_DAILY_LIMIT } from "./services/studioImageGenerationPolicy";
 import { assertStudioCatalogueProductWrite, needsStudioCatalogueActiveCapacity, type StudioCatalogueProductStatus } from "../shared/studioCatalogueDraftPolicy";
 
@@ -3511,6 +3512,52 @@ export async function getStudioStoreInventory(input: StudioInventoryQuery = {}) 
     highlights,
     giftSetupStores,
   };
+}
+
+/**
+ * Read-only production board across client boutiques. It reuses the existing
+ * Studio inventory and only projects project-stage/checklist/reminder dates.
+ * Encrypted notes, reminder titles, customer data, payment data and secrets
+ * are never returned here.
+ */
+export async function getStudioProductionBoard() {
+  await ensureMultiStoreSchema();
+  const inventory = await getStudioStoreInventory({ page: 1, pageSize: 100 });
+  const clientStores = inventory.stores.filter(store => !Boolean(store.isPlatformStore));
+  if (clientStores.length === 0) return buildStudioProductionBoard([]);
+
+  const db = await getDb();
+  if (!db) return buildStudioProductionBoard([]);
+  const deskRows = await db.select({ storeId: storeSettings.storeId, value: storeSettings.value })
+    .from(storeSettings)
+    .where(and(eq(storeSettings.key, "studio_project_desk"), inArray(storeSettings.storeId, clientStores.map(store => store.id))));
+  const deskByStoreId = new Map(deskRows.map(row => [row.storeId, row.value]));
+
+  return buildStudioProductionBoard(clientStores.map(store => {
+    const rawDesk = deskByStoreId.get(store.id);
+    let desk = createStudioStoreProjectDesk();
+    if (rawDesk) {
+      try {
+        desk = parseStudioStoreProjectDesk(rawDesk);
+      } catch {
+        // A corrupted private desk must not expose its contents nor prevent the
+        // operator from seeing the rest of the production portfolio.
+        desk = createStudioStoreProjectDesk();
+      }
+    }
+    return {
+      id: store.id,
+      displayName: store.displayName,
+      primaryDomain: store.primaryDomain,
+      status: store.status,
+      giftProvisioned: store.giftProvisioned,
+      activeOwners: store.activeOwners,
+      activeProductCount: store.activeProductCount,
+      needsAttention: store.needsAttention,
+      stockSignal: store.stockSignal,
+      desk,
+    };
+  }));
 }
 
 /**

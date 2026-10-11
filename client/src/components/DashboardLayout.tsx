@@ -81,6 +81,7 @@ const menuSections: Array<{ label: string; tone: SidebarTone; items: Array<{ ico
       { icon: Palette, label: "Identité Studio & Pro", path: "/admin/studio/identite" },
       { icon: PencilLine, label: "Contenu des landings", path: "/admin/studio/landings" },
       { icon: Building2, label: "Gestion des boutiques", path: "/admin/studio#studio-boutiques" },
+      { icon: Workflow, label: "Production boutiques", path: "/admin/studio/production" },
       { icon: Import, label: "Importer une boutique", path: "/admin/studio/importer-boutique" },
       { icon: Network, label: "Domaines personnalisés", path: "/admin/studio/domaines" },
       { icon: PlugZap, label: "Demandes d’intégrations", path: "/admin/studio/integrations" },

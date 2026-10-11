@@ -1447,6 +1447,7 @@ export const adminRouter = router({
       page: z.number().int().positive().max(10_000).optional(),
       pageSize: z.union([z.literal(20), z.literal(50), z.literal(100)]).optional(),
     }).optional()).query(async ({ input }) => db.getStudioStoreInventory(input ?? {})),
+    getProductionBoard: platformProcedure.query(async () => db.getStudioProductionBoard()),
     assistant: router({
       getImageGenerationUsage: platformProcedure.query(async ({ ctx }) => {
         return await db.getStudioImageGenerationUsage(ctx.user.id);

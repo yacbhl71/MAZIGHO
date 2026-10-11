@@ -1,0 +1,133 @@
+import {
+  studioStoreHandoverKeys,
+  studioStoreProjectStageLabels,
+  studioStoreProjectStages,
+  type StudioStoreProjectDesk,
+  type StudioStoreProjectStage,
+} from "./studioStoreProjectDesk";
+import type { StudioInventoryStatus } from "./studioInventoryRegistry";
+
+export type StudioProductionBoardStoreSource = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
+  status: StudioInventoryStatus;
+  giftProvisioned: boolean;
+  activeOwners: number;
+  activeProductCount: number;
+  needsAttention: boolean;
+  stockSignal: {
+    low: number;
+    out: number;
+  };
+  desk: Pick<StudioStoreProjectDesk, "stage" | "handover" | "reminders" | "updatedAt">;
+};
+
+export type StudioProductionBoardItem = {
+  id: number;
+  displayName: string;
+  primaryDomain: string;
+  status: StudioInventoryStatus;
+  stage: StudioStoreProjectStage;
+  stageLabel: string;
+  handoverComplete: number;
+  handoverTotal: number;
+  pendingReminderCount: number;
+  nextReminderDueDate: string | null;
+  attention: string[];
+  action: {
+    href: string;
+    label: string;
+  };
+  updatedAt: string;
+};
+
+export type StudioProductionBoard = {
+  summary: {
+    total: number;
+    needsAttention: number;
+    readyForHandover: number;
+    handedOver: number;
+    withUpcomingReminder: number;
+    byStage: Record<StudioStoreProjectStage, number>;
+  };
+  stores: StudioProductionBoardItem[];
+};
+
+const stageRank = new Map<StudioStoreProjectStage, number>(
+  studioStoreProjectStages.map((stage, index) => [stage, index]),
+);
+
+function getAction(source: StudioProductionBoardStoreSource) {
+  if (source.status === "setup" && source.giftProvisioned) {
+    return { href: `/admin/studio/lancement/${source.id}`, label: "Poursuivre" };
+  }
+  if (source.desk.stage === "ready") {
+    return { href: `/admin/studio/gestion-boutique/${source.id}`, label: "Préparer la remise" };
+  }
+  if (source.desk.stage === "handed_over") {
+    return { href: `/admin/studio/gestion-boutique/${source.id}`, label: "Suivre la boutique" };
+  }
+  return { href: `/admin/studio/gestion-boutique/${source.id}`, label: "Ouvrir le dossier" };
+}
+
+function getAttention(source: StudioProductionBoardStoreSource) {
+  const attention: string[] = [];
+  if (source.needsAttention) attention.push("Suivi opérateur requis");
+  if (source.activeOwners === 0) attention.push("Propriétaire à confirmer");
+  if (source.activeProductCount === 0) attention.push("Catalogue à compléter");
+  if (source.stockSignal.out > 0) attention.push(`${source.stockSignal.out} rupture${source.stockSignal.out > 1 ? "s" : ""}`);
+  else if (source.stockSignal.low > 0) attention.push(`${source.stockSignal.low} stock${source.stockSignal.low > 1 ? "s" : ""} faible${source.stockSignal.low > 1 ? "s" : ""}`);
+  return Array.from(new Set(attention)).slice(0, 3);
+}
+
+/**
+ * Produces a read-only, operator-facing production board. Notes, reminder
+ * titles, client data, credentials, payments and private catalogue content are
+ * intentionally excluded from this compact projection.
+ */
+export function buildStudioProductionBoard(sources: readonly StudioProductionBoardStoreSource[]): StudioProductionBoard {
+  const stores = sources
+    .map(source => {
+      const pendingReminders = source.desk.reminders
+        .filter(reminder => !reminder.completed)
+        .sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+      const handoverComplete = studioStoreHandoverKeys.filter(key => source.desk.handover[key]).length;
+      return {
+        id: source.id,
+        displayName: source.displayName,
+        primaryDomain: source.primaryDomain,
+        status: source.status,
+        stage: source.desk.stage,
+        stageLabel: studioStoreProjectStageLabels[source.desk.stage],
+        handoverComplete,
+        handoverTotal: studioStoreHandoverKeys.length,
+        pendingReminderCount: pendingReminders.length,
+        nextReminderDueDate: pendingReminders[0]?.dueDate ?? null,
+        attention: getAttention(source),
+        action: getAction(source),
+        updatedAt: source.desk.updatedAt,
+      } satisfies StudioProductionBoardItem;
+    })
+    .sort((left, right) => {
+      const rankDifference = (stageRank.get(left.stage) ?? 99) - (stageRank.get(right.stage) ?? 99);
+      if (rankDifference !== 0) return rankDifference;
+      if (Boolean(left.attention.length) !== Boolean(right.attention.length)) return left.attention.length ? -1 : 1;
+      return left.displayName.localeCompare(right.displayName, "fr-CH");
+    });
+
+  const byStage = Object.fromEntries(studioStoreProjectStages.map(stage => [stage, 0])) as Record<StudioStoreProjectStage, number>;
+  for (const store of stores) byStage[store.stage] += 1;
+
+  return {
+    summary: {
+      total: stores.length,
+      needsAttention: stores.filter(store => store.attention.length > 0).length,
+      readyForHandover: byStage.ready,
+      handedOver: byStage.handed_over,
+      withUpcomingReminder: stores.filter(store => store.nextReminderDueDate !== null).length,
+      byStage,
+    },
+    stores,
+  };
+}
