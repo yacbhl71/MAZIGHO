@@ -44,6 +44,7 @@ export default function OwnerCarouselEditor() {
   const upload = trpc.owner.uploadImage.useMutation({ onError: error => toast.error(error.message || "L’image n’a pas pu être téléversée.") });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CarouselBannerForm>(emptyBanner);
+  const [dragOverImage, setDragOverImage] = useState(false);
   const banners = bannersQuery.data ?? [];
 
   const refresh = async () => {
@@ -188,7 +189,108 @@ export default function OwnerCarouselEditor() {
             </div>
             <div className="space-y-2"><Label htmlFor="owner-carousel-subtitle">Texte secondaire</Label><Textarea id="owner-carousel-subtitle" rows={3} value={form.subtitle} onChange={event => setForm(current => ({ ...current, subtitle: event.target.value }))} placeholder="Une phrase courte pour présenter votre sélection." /></div>
             <div className="space-y-2"><Label htmlFor="owner-carousel-link">Lien du bouton</Label><Input id="owner-carousel-link" value={form.linkUrl} onChange={event => setForm(current => ({ ...current, linkUrl: event.target.value }))} placeholder="/boutique" /><p className="text-xs text-slate-500">Par exemple : <code>/boutique</code>, <code>/categorie/diamond-painting</code> ou une URL https://.</p></div>
-            <div className="space-y-2"><Label htmlFor="owner-carousel-image">Image ou URL vidéo MP4 *</Label><div className="flex items-center gap-3"><div className="grid h-20 w-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-violet-700">{form.imageUrl ? (isCarouselVideoUrl(form.imageUrl) ? <video src={form.imageUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />) : <ImagePlus className="h-6 w-6" />}</div><div className="min-w-0 flex-1"><Input id="owner-carousel-image" value={form.imageUrl} onChange={event => setForm(current => ({ ...current, imageUrl: event.target.value }))} placeholder="https://… (image ou vidéo .mp4)" /><label className="mt-2 inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-violet-800"><Upload className="h-4 w-4" /> {upload.isPending ? "Téléversement…" : "Téléverser une image"}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={upload.isPending} onChange={async event => { const file = event.target.files?.[0]; if (file) await uploadImage(file); }} /></label><p className="mt-1 text-xs leading-5 text-slate-500">Les images se téléversent ici. Pour une vidéo, collez son URL HTTPS finissant par <code>.mp4</code>.</p></div></div></div>
+            <div className="space-y-2">
+              <Label htmlFor="owner-carousel-image">Image ou URL vidéo MP4 *</Label>
+              {/* Drag and drop image dropzone */}
+              <div
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverImage(true);
+                }}
+                onDragLeave={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverImage(false);
+                }}
+                onDrop={async e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDragOverImage(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file && file.type.startsWith("image/")) {
+                    await uploadImage(file);
+                  } else if (file) {
+                    toast.error("Veuillez déposer un fichier image valide (PNG, JPG, WEBP).");
+                  }
+                }}
+                className={`relative rounded-2xl border-2 border-dashed p-4 transition ${
+                  dragOverImage
+                    ? "border-violet-600 bg-violet-50/80 ring-2 ring-violet-400"
+                    : "border-slate-300 bg-slate-50/50 hover:border-violet-400 hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="grid h-24 w-36 shrink-0 place-items-center overflow-hidden rounded-xl bg-slate-100 text-violet-700 shadow-sm border border-slate-200">
+                    {upload.isPending ? (
+                      <Loader2 className="h-7 w-7 animate-spin text-violet-600" />
+                    ) : form.imageUrl ? (
+                      isCarouselVideoUrl(form.imageUrl) ? (
+                        <video src={form.imageUrl} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                      ) : (
+                        <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />
+                      )
+                    ) : (
+                      <div className="text-center p-2">
+                        <ImagePlus className="mx-auto h-7 w-7 text-slate-400" />
+                        <span className="text-[10px] text-slate-400 mt-1 block">Aucun visuel</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-2 text-center sm:text-left">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {dragOverImage ? "Relâchez pour déposer l’image !" : "Glissez-déposez votre image ici"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Glissez directement un fichier depuis votre bureau, ou cliquez sur le bouton ci-dessous.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-violet-700 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-800 transition">
+                        <Upload className="h-3.5 w-3.5" />
+                        {upload.isPending ? "Téléversement…" : "Parcourir l'ordinateur"}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          disabled={upload.isPending}
+                          onChange={async event => {
+                            const file = event.target.files?.[0];
+                            if (file) await uploadImage(file);
+                          }}
+                        />
+                      </label>
+                      {form.imageUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                          onClick={() => setForm(current => ({ ...current, imageUrl: "" }))}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" /> Supprimer l'image
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="owner-carousel-image"
+                      value={form.imageUrl}
+                      onChange={event => setForm(current => ({ ...current, imageUrl: event.target.value }))}
+                      placeholder="Ou collez une URL d'image / vidéo .mp4 : https://…"
+                      className="text-xs h-9 bg-white"
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Pour une vidéo, collez son URL HTTPS se terminant par <code>.mp4</code>.
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4"><div><p className="font-semibold text-slate-950">Visible sur la vitrine</p><p className="mt-1 text-xs leading-5 text-slate-600">Désactivez pour préparer la diapositive sans l’afficher.</p></div><Button type="button" variant={form.active ? "default" : "outline"} className={form.active ? "bg-emerald-600 hover:bg-emerald-700" : ""} onClick={() => setForm(current => ({ ...current, active: !current.active }))}>{form.active ? "Visible" : "Masquée"}</Button></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button><Button disabled={saving || upload.isPending} onClick={submit} className="bg-violet-700 hover:bg-violet-800">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{form.id ? "Enregistrer" : "Ajouter la diapositive"}</Button></DialogFooter>
