@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "MAZIGHO",
+  "short_name": "MAZIGHO",
+  "description": "Votre vitrine MAZIGHO, installable sur cet appareil.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#f97316",
+  "icons": [
+    { "src": "/pwa-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

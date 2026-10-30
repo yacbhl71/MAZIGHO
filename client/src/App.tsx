@@ -16,6 +16,7 @@ import { trpc } from "@/lib/trpc";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 import { MaintenancePage } from "./components/MaintenancePage";
+import PWAOnlineStatus from "./components/PWAOnlineStatus";
 import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
@@ -590,6 +591,7 @@ function App() {
             <MarketingConsentProvider>
               <TooltipProvider>
                 <Toaster />
+                <PWAOnlineStatus />
                 <Router />
               </TooltipProvider>
             </MarketingConsentProvider>

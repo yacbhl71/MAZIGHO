@@ -24,6 +24,16 @@ if (typeof window !== "undefined") {
   window.addEventListener("error", event => {
     if (recoverFromStaleDynamicImport(event.error || event.message)) event.preventDefault();
   });
+
+  // The service worker remains network-only: installation is supported, while
+  // catalogues, accounts, carts and orders are never retained on this device.
+  if (window.isSecureContext && "serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      void navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).catch(() => {
+        // Installation is optional; the storefront keeps working in the browser.
+      });
+    }, { once: true });
+  }
 }
 
 const queryClient = new QueryClient();

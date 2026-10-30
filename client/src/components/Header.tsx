@@ -17,6 +17,7 @@ import { getLocalizedCategoryPresentation } from "@/lib/categoryPresentation";
 import { getLimitedStorefrontCopy } from "@/lib/limitedStorefrontCopy";
 import { useDesignProfile } from "@/hooks/useDesignProfile";
 import ThemeToggle from "./ThemeToggle";
+import PWAInstallPrompt from "./PWAInstallPrompt";
 import { MAZIGHO_BOUTIQUE_LOGO } from "@/const";
 import { hasVisibleCountrySelector, hasVisibleLanguageSelector } from "@shared/storeMarketSettings";
 
@@ -194,6 +195,7 @@ export default function Header() {
           {/* Right Icons */}
           <div className="ml-auto flex items-center gap-0.5 xl:ml-0">
             <ThemeToggle />
+            <PWAInstallPrompt brandName={brandName} accentColor={palette.accent} />
             <Link href="/favoris" aria-label="Favoris">
               <div className="relative p-1.5 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer hidden 2xl:block">
                 <Heart className="h-5 w-5 text-gray-700" />
