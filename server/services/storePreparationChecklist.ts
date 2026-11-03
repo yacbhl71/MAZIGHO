@@ -110,10 +110,12 @@ export function buildStorePreparationChecklist(input: StorePreparationChecklistI
     {
       key: "private_preview",
       label: "Aperçu privé",
-      state: input.status === "setup" ? "ready" : "manual",
+      state: input.status === "setup" || input.status === "limited" ? "ready" : "manual",
       detail: input.status === "setup"
         ? "Le rendu de la boutique est consultable dans Studio, sans exposition publique."
-        : "Cet aperçu de préparation est prévu pour une boutique encore en setup.",
+        : input.status === "limited"
+          ? "Le rendu de la boutique est consultable dans Studio en mode limité, sans activer le commerce."
+          : "Cet aperçu de préparation reste disponible pour une boutique pilotable en setup ou limited.",
       action: "storefront_preview",
     },
     {

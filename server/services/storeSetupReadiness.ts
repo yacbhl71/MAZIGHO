@@ -30,6 +30,10 @@ function isStudioDemoBusinessType(value: StoreSetupReadinessInput["businessType"
   return value === "animalier" || value === "bijoux" || value === "vetements";
 }
 
+function isPrivatePreparationEligible(status: StoreSetupReadinessInput["status"]) {
+  return status === "setup" || status === "limited";
+}
+
 /**
  * Read-only private readiness for MAZIGHO Studio.
  *
@@ -41,13 +45,18 @@ export function buildStoreSetupReadiness(input: StoreSetupReadinessInput) {
   const supportedBusiness = isStudioDemoBusinessType(businessType);
   const businessLabel = supportedBusiness ? BUSINESS_LABELS[businessType] : "non pris en charge";
   const hasCatalogue = input.categoryCount >= 1 && input.activeProductCount >= 1;
+  const preparationEligible = isPrivatePreparationEligible(input.status);
 
   const checks: StoreSetupReadinessCheck[] = [
     {
       key: "store_status",
       label: "Boutique en préparation",
-      state: input.status === "setup" ? "ready" : "blocked",
-      detail: input.status === "setup" ? "La boutique demeure isolée du public et peut être préparée dans Studio." : "Cette lecture concerne uniquement une boutique encore en état setup.",
+      state: preparationEligible ? "ready" : "blocked",
+      detail: input.status === "setup"
+        ? "La boutique demeure isolée du public et peut être préparée dans Studio."
+        : input.status === "limited"
+          ? "La boutique est en mode limité et peut continuer à être pilotée dans Studio sans activer le commerce."
+          : "Cette lecture concerne une boutique encore pilotable en mode setup ou limited.",
     },
     {
       key: "gift_scope",
@@ -108,7 +117,7 @@ export function buildStoreSetupReadiness(input: StoreSetupReadinessInput) {
     readyCount,
     blockedCount,
     manualCount,
-    privatePreviewUsable: input.status === "setup" && input.isGiftProvisioned && supportedBusiness,
+    privatePreviewUsable: preparationEligible && input.isGiftProvisioned && supportedBusiness,
     publicStorefront: false as const,
   };
 }

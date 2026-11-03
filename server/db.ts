@@ -1285,7 +1285,7 @@ export async function getStudioOwnerBuilderConfiguration(storeId: number) {
 
   const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
   if (!store) throw new Error("STORE_NOT_FOUND");
-  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER");
+  if (store.isPlatformStore || (store.status !== "setup" && store.status !== "limited")) throw new Error("STORE_NOT_ELIGIBLE_FOR_OWNER_BUILDER");
 
   const settingRows = await db.select({ key: storeSettings.key, value: storeSettings.value })
     .from(storeSettings)
@@ -2157,7 +2157,7 @@ export async function importOwnerCatalogueProducts(input: { storeId: number; row
 }
 
 /**
- * Private progress checklist for one offered store in setup. It returns only
+ * Private progress checklist for one offered store in setup or limited mode. It returns only
  * minimized preparation states; it never verifies or changes public opening.
  */
 export async function getStudioGiftStorePreparationChecklist(storeId: number) {
@@ -2437,7 +2437,7 @@ export async function getStudioGiftStoreSetupReadiness(storeId: number) {
 
   const [store] = await db.select().from(stores).where(eq(stores.id, storeId)).limit(1);
   if (!store) throw new Error("STORE_NOT_FOUND");
-  if (store.isPlatformStore || store.status !== "setup") throw new Error("STORE_NOT_ELIGIBLE_FOR_SETUP_READINESS");
+  if (store.isPlatformStore || (store.status !== "setup" && store.status !== "limited")) throw new Error("STORE_NOT_ELIGIBLE_FOR_SETUP_READINESS");
 
   const [settingRows, ownerRows, categoryRows, activeProductRows] = await Promise.all([
     db.select({ key: storeSettings.key, value: storeSettings.value }).from(storeSettings).where(eq(storeSettings.storeId, store.id)),

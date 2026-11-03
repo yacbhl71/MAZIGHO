@@ -49,4 +49,13 @@ describe("buildStoreSetupReadiness", () => {
     expect(readiness.checks.find(check => check.key === "owner")).toMatchObject({ state: "manual" });
     expect(readiness.checks.find(check => check.key === "legal")).toMatchObject({ state: "manual" });
   });
+
+  it("keeps a limited showcase available for private Studio preparation without making it public commerce", () => {
+    const readiness = buildStoreSetupReadiness({ ...readyBase, status: "limited" });
+
+    expect(readiness.privatePreviewUsable).toBe(true);
+    expect(readiness.publicStorefront).toBe(false);
+    expect(readiness.checks.find(check => check.key === "store_status")).toMatchObject({ state: "ready" });
+    expect(readiness.checks.find(check => check.key === "public_opening")).toMatchObject({ state: "manual" });
+  });
 });

@@ -85,5 +85,5 @@ export default function AdminStudioLaunchCenter() {
 }
 
 function InvalidStore() {
-  return <Card className="border-rose-200 bg-rose-50"><CardContent className="flex gap-3 p-5 text-sm leading-6 text-rose-950"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Centre de lancement indisponible.</p><p className="mt-1">Cette vue est réservée aux boutiques offertes encore en préparation, depuis MAZIGHO Studio.</p></div></CardContent></Card>;
+  return <Card className="border-rose-200 bg-rose-50"><CardContent className="flex gap-3 p-5 text-sm leading-6 text-rose-950"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-semibold">Centre de lancement indisponible.</p><p className="mt-1">Cette vue est réservée aux boutiques offertes en préparation ou en mode limité, depuis MAZIGHO Studio.</p></div></CardContent></Card>;
 }
