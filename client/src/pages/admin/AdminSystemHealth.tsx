@@ -56,7 +56,7 @@ export default function AdminSystemHealth() {
   const data = healthQuery.data;
 
   const dbOk = Boolean(data?.database.ok);
-  const odooOk = Boolean(data?.odoo.configured);
+  const odooConfigured = Boolean(data?.odoo.configured);
   const emailConfigured = Boolean(data?.email.configured);
   const emailReady = emailTest?.sent || emailHealth?.senderReady === true;
   const emailStatus = emailTest?.sent ? "Test accepté" : emailReady ? "Prêt" : emailHealth?.authenticated === false && emailHealth?.configured ? "Clé à corriger" : emailConfigured ? "À vérifier" : "À configurer";
@@ -70,7 +70,7 @@ export default function AdminSystemHealth() {
               <Activity className="h-6 w-6 text-orange-500" /> Santé du système
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              État en temps réel de la base de données, du service e-mail, de la synchronisation Odoo et de la version déployée du site.
+              État en temps réel de la base de données, du service e-mail, de l’intégration ERP optionnelle et de la version déployée du site.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -193,23 +193,25 @@ export default function AdminSystemHealth() {
             <Card data-testid="health-card-odoo">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base"><Network className="h-4 w-4 text-slate-500" /> Synchro Odoo</CardTitle>
-                  <StatusDot ok={odooOk} />
+                  <CardTitle className="flex items-center gap-2 text-base"><Network className="h-4 w-4 text-slate-500" /> Intégration Odoo (facultative)</CardTitle>
+                  <StatusDot ok={true} />
                 </div>
-                <CardDescription>ERP — commandes payées</CardDescription>
+                <CardDescription>ERP — commandes payées, au choix du propriétaire</CardDescription>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Statut</span>
-                  <span className={`font-semibold ${odooOk ? "text-emerald-600" : "text-red-600"}`} data-testid="health-odoo-status">
-                    {odooOk ? "Configuré" : "Non configuré"}
+                  <span className="font-semibold text-emerald-600" data-testid="health-odoo-status">
+                    {odooConfigured ? "Activé" : "Optionnel — non activé"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Dernière synchro</span>
                   <span className="font-semibold text-foreground">{formatDateTime(data?.odoo.lastSyncAt)}</span>
                 </div>
-                <p className="pt-1 text-xs leading-5 text-muted-foreground">{data?.odoo.message}</p>
+                <p className="pt-1 text-xs leading-5 text-muted-foreground">
+                  {data?.odoo.message || "Odoo n’est pas requis pour faire fonctionner la boutique. S’il est activé, sa connexion doit être configurée pour l’environnement concerné."}
+                </p>
               </CardContent>
             </Card>
 

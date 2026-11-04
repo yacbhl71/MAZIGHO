@@ -647,7 +647,7 @@ export default function AdminSuppliers() {
             </div>
             <div className="flex flex-wrap gap-2"><Button onClick={() => verifyOdoo.mutate()} disabled={verifyOdoo.isPending} data-testid="verify-odoo-btn" className="bg-emerald-600 text-white hover:bg-emerald-700">{verifyOdoo.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Tester la connexion</Button></div>
           </div>
-          <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-950">Confirme que les variables <strong>ODOO_URL, ODOO_DB, ODOO_USERNAME, ODOO_API_KEY</strong> configurées dans Vercel répondent. Les commandes payées créent automatiquement le client et une vente chiffrée dans Odoo. Ce test lit uniquement l’état d’authentification (aucune donnée n’est modifiée).</div>
+          <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-950">Odoo est une intégration facultative, configurée séparément pour la boutique concernée avec les identifiants de son propriétaire. Les commandes payées peuvent alors créer automatiquement le client et une vente chiffrée dans son Odoo. Ce test lit uniquement l’état d’authentification (aucune donnée n’est modifiée).</div>
         </section>
 
         <section className="rounded-2xl border border-violet-100 bg-violet-50/40 p-5 shadow-sm md:p-6">

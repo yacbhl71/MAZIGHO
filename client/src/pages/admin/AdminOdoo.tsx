@@ -108,7 +108,7 @@ export default function AdminOdoo() {
                 {partnersQuery.isLoading ? (
                   <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></TableCell></TableRow>
                 ) : partners.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground" data-testid="odoo-partners-empty">{configured ? "Aucun client Odoo pour le moment." : "Odoo non configuré : ajoutez les variables ODOO_* dans Vercel pour voir les clients."}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground" data-testid="odoo-partners-empty">{configured ? "Aucun client Odoo pour le moment." : "Odoo est facultatif : configurez l’instance du propriétaire de cette boutique pour afficher ses clients."}</TableCell></TableRow>
                 ) : partners.map((p) => (
                   <TableRow key={p.id} data-testid={`odoo-partner-row-${p.id}`}>
                     <TableCell className="font-mono text-xs">{p.id}</TableCell>

@@ -72,7 +72,7 @@ export function getOdooStatus(): OdooStatus {
     db: config?.db ?? null,
     message: config
       ? "Odoo est configuré. Les commandes payées sont synchronisées automatiquement."
-      : "Odoo n'est pas configuré. Ajoutez ODOO_URL, ODOO_DB, ODOO_USERNAME et ODOO_API_KEY (ou ODOO_PASSWORD) dans Vercel.",
+      : "Odoo est une intégration facultative. Il n'est pas activé pour cette installation et cela ne bloque ni la boutique ni les commandes.",
   };
 }
 
