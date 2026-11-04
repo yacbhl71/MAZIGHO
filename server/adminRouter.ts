@@ -33,7 +33,7 @@ import { navigationItem, ownerHomepageSections, ownerProductVariantFields } from
 import { storefrontThemeIds, storefrontThemeLabels, type StorefrontThemeId } from "../shared/storefrontThemeCatalog";
 import { storeFactoryModelIds } from "../shared/storeFactoryModel";
 import { isStoreLaunchMarketId } from "../shared/storeLaunchMarket";
-import { ensureVercelManagedStoreDomain } from "./services/vercelManagedStoreDomain";
+import { ensureManagedStoreDomain } from "./services/unifiedStoreDomainAutomation";
 import { invokeLLM } from "./_core/llm";
 import { generateImage, listImageModels } from "./_core/imageGeneration";
 import { buildStudioImageGenerationPrompt, studioImageFormats, studioImageStyles } from "./services/studioImageGenerationPolicy";
@@ -3336,7 +3336,7 @@ export const adminRouter = router({
     provisionGiftStore: platformProcedure.input(z.object({ draftId: z.number().int().positive(), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
       try {
         const provisioned = await db.provisionGiftStoreFromDraft(input);
-        const domainAutomation = await ensureVercelManagedStoreDomain(provisioned.store.primaryDomain);
+        const domainAutomation = await ensureManagedStoreDomain(provisioned.store.primaryDomain);
         let themeApplied = false;
         if (provisioned.themePreset && storefrontThemeIdSchema.safeParse(provisioned.themePreset).success) {
           try {
