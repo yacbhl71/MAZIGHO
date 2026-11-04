@@ -9,10 +9,22 @@ function normalizeCloudRunDomain(value: string): string | null {
   const domain = normalizeDomain(value);
   return new RegExp(`^${DOMAIN_LABEL}\\.${CLOUD_RUN_BASE_DOMAIN}$`).test(domain) ? domain : null;
 }
-function cloudRunConfig() {
-  const token = process.env.GCP_BEARER_TOKEN?.trim();
-  const projectId = process.env.GCP_PROJECT_ID?.trim();
-  const service = process.env.CLOUD_RUN_SERVICE?.trim();
+async function metadataValue(path: string): Promise<string | null> {
+  try {
+    const response = await fetch(`http://metadata.google.internal/computeMetadata/v1/${path}`, {
+      headers: { "Metadata-Flavor": "Google" },
+      signal: AbortSignal.timeout(1500),
+    });
+    return response.ok ? (await response.text()).trim() || null : null;
+  } catch { return null; }
+}
+
+async function cloudRunConfig() {
+  const token = process.env.GCP_BEARER_TOKEN?.trim() || await metadataValue("instance/service-accounts/default/token").then(value => {
+    try { return value ? (JSON.parse(value) as { access_token?: string }).access_token ?? null : null; } catch { return null; }
+  });
+  const projectId = process.env.GCP_PROJECT_ID?.trim() || process.env.GOOGLE_CLOUD_PROJECT?.trim() || await metadataValue("project/project-id");
+  const service = process.env.CLOUD_RUN_SERVICE?.trim() || process.env.K_SERVICE?.trim();
   const region = process.env.CLOUD_RUN_REGION?.trim() || "europe-west1";
   return token && projectId && service ? { token, projectId, service, region } : null;
 }
@@ -23,7 +35,7 @@ export async function ensureManagedStoreDomain(domainInput: string): Promise<Man
   if (domain.endsWith(".mazigho.ch")) return ensureVercelManagedStoreDomain(domain);
   const cloudRunDomain = normalizeCloudRunDomain(domain);
   if (!cloudRunDomain) return result(domain, "invalid", "Le domaine doit être un sous-domaine MAZIGHO en .ch ou en .com.");
-  const config = cloudRunConfig();
+  const config = await cloudRunConfig();
   if (!config) return result(cloudRunDomain, "not_configured", "L’automatisation Cloud Run des sous-domaines .mazigho.com n’est pas encore configurée.");
   const url = `${CLOUD_RUN_API_BASE}/projects/${encodeURIComponent(config.projectId)}/locations/${encodeURIComponent(config.region)}/domainmappings`;
   const headers = { authorization: `Bearer ${config.token}`, "content-type": "application/json" };
