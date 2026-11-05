@@ -1,5 +1,3 @@
-import { DEFAULT_STORE_MEDIA_QUOTA_BYTES } from "../storage";
-
 export type TenantResourceCounters = {
   clientStores: number;
   categories: number;
@@ -35,10 +33,10 @@ export function buildTenantResourceSummary(counters: TenantResourceCounters, gen
       detail: "Nombre d’enregistrements cloisonnés. Ce n’est pas une mesure d’octets de base de données.",
     },
     media: {
-      quotaCeilingBytes: stores * DEFAULT_STORE_MEDIA_QUOTA_BYTES,
-      perStoreQuotaBytes: DEFAULT_STORE_MEDIA_QUOTA_BYTES,
-      status: "on_demand" as const,
-      detail: "Le volume Blob réel est lu à la demande, boutique par boutique, afin de ne pas parcourir tout le stockage partagé à chaque ouverture de Studio.",
+      quotaCeilingBytes: null,
+      perStoreQuotaBytes: null,
+      status: "not_connected" as const,
+      detail: "Le volume Blob réel n’est pas encore mesuré dans cette vue. Consultez la fiche Médias d’une boutique pour une lecture isolée à la demande.",
     },
     traffic: {
       status: "not_connected" as const,
