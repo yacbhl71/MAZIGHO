@@ -18,6 +18,8 @@ export type SaasPlanEntitlements = {
   maxWorkspaceTemplates: number;
   /** Supplier import space. A Studio grant can extend this to one chosen store. */
   dropshippingEnabled: boolean;
+  /** Premium visual product search, enabled only for PRO and LIFETIME. */
+  visualSearchEnabled: boolean;
 };
 
 /**
@@ -34,6 +36,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxWorkspaceDocuments: 10,
     maxWorkspaceTemplates: 5,
     dropshippingEnabled: false,
+    visualSearchEnabled: false,
   },
   basic: {
     planId: "basic",
@@ -44,6 +47,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxWorkspaceDocuments: 40,
     maxWorkspaceTemplates: 15,
     dropshippingEnabled: false,
+    visualSearchEnabled: false,
   },
   pro: {
     planId: "pro",
@@ -54,6 +58,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxWorkspaceDocuments: 80,
     maxWorkspaceTemplates: 30,
     dropshippingEnabled: true,
+    visualSearchEnabled: true,
   },
   lifetime: {
     planId: "lifetime",
@@ -64,6 +69,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     maxWorkspaceDocuments: 40,
     maxWorkspaceTemplates: 15,
     dropshippingEnabled: false,
+    visualSearchEnabled: true,
   },
 };
 

@@ -14,6 +14,7 @@ import { stripeCheckoutRouter } from "./stripeCheckout";
 import { customCreationRequestRouter } from "./customCreationRequestRouter";
 import { DEFAULT_STORE_MAINTENANCE_MODE } from "../shared/storeMaintenanceMode";
 import { orderBundleProducts } from "../shared/storeProductBundles";
+import { visualSearchRouter } from "./visualSearchRouter";
 
 type PublicProductLocale = "fr" | "de" | "it" | "en" | "es" | "nl" | "ar";
 const publicProductLocales: PublicProductLocale[] = ["fr", "de", "it", "en", "es", "nl", "ar"];
@@ -79,6 +80,7 @@ export const appRouter = router({
   storefrontSystemPages: storefrontSystemPagesRouter,
   customCreationRequests: customCreationRequestRouter,
   checkout: stripeCheckoutRouter,
+  visualSearch: visualSearchRouter,
 
   // Only visual URLs are public. Mutations are platformProcedure-only through
   // admin.platformIdentity, so customer boutiques cannot alter this setting.

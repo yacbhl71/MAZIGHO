@@ -12,6 +12,7 @@ export const saasPlanFeatureIds = [
   "media_quota",
   "priority_support",
   "dropshipping_import",
+  "visual_search",
 ] as const;
 
 export type SaasPlanFeatureId = (typeof saasPlanFeatureIds)[number];
@@ -28,6 +29,7 @@ export const saasPlanFeatureCatalog: ReadonlyArray<{ id: SaasPlanFeatureId; titl
   { id: "media_quota", title: "Quota média", description: "Stockage isolé et lecture du quota." },
   { id: "priority_support", title: "Support prioritaire", description: "Repère interne de priorité, sans ticket ni SLA actif." },
   { id: "dropshipping_import", title: "Dropshipping contrôlé", description: "Import fournisseur en brouillon, avec validation manuelle avant publication." },
+  { id: "visual_search", title: "Recherche par image", description: "Recherche visuelle de produits à partir d’une photo, réservée aux offres premium." },
 ] as const;
 
 export type SaasPlanCatalogItem = {
@@ -59,8 +61,8 @@ const defaultPlanCatalog: SaasPlanCatalog = {
   plans: [
     { id: "free", name: "FREE", description: "0 CHF/mois + 2,5 % de commission. Les essentiels pour préparer et lancer une boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "variant_stock", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
     { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
-    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import"], status: "draft" },
-    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
+    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé et recherche par image.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search"], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "visual_search"], status: "draft" },
   ],
 };
 

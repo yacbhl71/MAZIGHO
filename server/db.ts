@@ -15,6 +15,7 @@ import { parseSetupWizardStatus } from "./services/setupWizard";
 import { normalizeOwnerShippingReturnsSettings, parseOwnerShippingReturnsSettings, type OwnerShippingReturnsSettings } from "./services/ownerShippingReturns";
 import { normalizeOwnerStockAlertSettings, parseOwnerStockAlertSettings, type OwnerStockAlertSettings } from "./services/ownerStockAlert";
 import { buildOwnerPrivateCartSimulation, type OwnerPrivateCartLineInput } from "./services/ownerPrivateCartSimulation";
+import { defaultVisualSearchConfig, visualSearchConfigSchema, type VisualSearchConfig } from "../shared/visualSearchConfig";
 import { summarizeOwnerOrderItems } from "./services/ownerOrderItems";
 import { getStoreTaxDisclosureReadiness } from "./services/storeTaxDisclosureReadiness";
 import { normalizeOwnerProductVariantDraft, type OwnerProductVariantDraft } from "../shared/ownerProductVariant";
@@ -14325,4 +14326,18 @@ export async function getActiveCampaign(storeId?: number) {
     placement: campaign.placement,
     promo,
   };
+}
+const VISUAL_SEARCH_SETTING_KEY = "marketing_visual_search";
+
+export async function getVisualSearchConfig(storeId: number): Promise<VisualSearchConfig> {
+  const raw = await getStoreSettingValue(storeId, VISUAL_SEARCH_SETTING_KEY);
+  if (!raw) return defaultVisualSearchConfig;
+  try {
+    const parsed = visualSearchConfigSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : defaultVisualSearchConfig;
+  } catch { return defaultVisualSearchConfig; }
+}
+
+export async function setVisualSearchConfig(storeId: number, config: VisualSearchConfig) {
+  return setStoreSettingValue(storeId, VISUAL_SEARCH_SETTING_KEY, JSON.stringify(config), "Configuration de recherche visuelle isolée par boutique");
 }
