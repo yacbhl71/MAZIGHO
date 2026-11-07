@@ -68,7 +68,7 @@ export const saasPlanEntitlements: Readonly<Record<MazighoSaasPlanId, SaasPlanEn
     monthlyAiRequests: 400,
     maxWorkspaceDocuments: 40,
     maxWorkspaceTemplates: 15,
-    dropshippingEnabled: false,
+    dropshippingEnabled: true,
     visualSearchEnabled: true,
   },
 };
