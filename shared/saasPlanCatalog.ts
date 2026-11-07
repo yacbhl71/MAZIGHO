@@ -33,6 +33,10 @@ export const saasPlanFeatureIds = [
   "whatsapp_sms_marketing",
   "currency_converter",
   "supplier_hub",
+  "advanced_discounts",
+  "customer_segmentation",
+  "shipping_labels",
+  "return_portal",
 ] as const;
 
 export type SaasPlanFeatureId = (typeof saasPlanFeatureIds)[number];
@@ -70,6 +74,10 @@ export const saasPlanFeatureCatalog: ReadonlyArray<{ id: SaasPlanFeatureId; titl
   { id: "whatsapp_sms_marketing", title: "Marketing WhatsApp/SMS", description: "Campagnes de communication sortante." },
   { id: "currency_converter", title: "Convertisseur multi-devises", description: "Affichage et conversion multi-devises." },
   { id: "supplier_hub", title: "Hub fournisseurs", description: "Comptes fournisseurs et import contrôlé." },
+  { id: "advanced_discounts", title: "Remises avancées", description: "Règles de remise et promotions conditionnelles." },
+  { id: "customer_segmentation", title: "Segmentation clients", description: "Segments clients isolés par boutique." },
+  { id: "shipping_labels", title: "Expédition et étiquettes", description: "Préparation des expéditions et suivi transporteur." },
+  { id: "return_portal", title: "Portail retours", description: "Demandes de retour et remboursements suivis." },
 ] as const;
 
 export type SaasPlanCatalogItem = {
@@ -101,8 +109,8 @@ const defaultPlanCatalog: SaasPlanCatalog = {
   plans: [
     { id: "free", name: "FREE", description: "0 CHF/mois + 2,5 % de commission. Les essentiels pour préparer et lancer une boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "variant_stock", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
     { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc"], status: "draft" },
-    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé et recherche par image.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub"], status: "draft" },
-    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub"], status: "draft" },
+    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé et recherche par image.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub", "advanced_discounts", "customer_segmentation", "shipping_labels", "return_portal"], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub", "advanced_discounts", "customer_segmentation", "shipping_labels", "return_portal"], status: "draft" },
   ],
 };
 
