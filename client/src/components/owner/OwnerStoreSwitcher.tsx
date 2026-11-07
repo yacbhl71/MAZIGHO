@@ -1,4 +1,5 @@
 import { ExternalLink, Store } from "lucide-react";
+import { useMemo } from "react";
 import { getSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import { getOwnerStoreStatusPresentation } from "@shared/ownerStoreStatus";
 import { getStoreMembershipRolePresentation } from "@shared/storeMembershipRole";
@@ -30,6 +31,15 @@ function getOwnerStoreWorkspaceHref(store: OwnerStoreSwitcherOption) {
 }
 
 export default function OwnerStoreSwitcher({ stores, currentStoreId, open, onOpenChange }: Props) {
+  const uniqueStores = useMemo(() => {
+    const seen = new Set<string>();
+    return stores.filter(store => {
+      const domain = store.primaryDomain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+      if (!domain || domain === "mazigho.com" || domain.endsWith(".mazigho.com") || seen.has(domain)) return false;
+      seen.add(domain);
+      return true;
+    });
+  }, [stores]);
   return <Dialog open={open} onOpenChange={onOpenChange}>
     <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
@@ -37,7 +47,7 @@ export default function OwnerStoreSwitcher({ stores, currentStoreId, open, onOpe
         <DialogDescription className="max-w-xl leading-6">Un seul compte peut gérer plusieurs boutiques qui vous sont attribuées. Chaque ouverture bascule vers son espace isolé : catalogue, commandes, clients, paiements et équipe ne se mélangent jamais.</DialogDescription>
       </DialogHeader>
       <div className="space-y-3 pt-2">
-        {stores.map(store => {
+        {uniqueStores.map(store => {
           const current = store.id === currentStoreId;
           const status = getOwnerStoreStatusPresentation(store.status);
           const membership = getStoreMembershipRolePresentation(store.role);

@@ -3277,7 +3277,7 @@ export async function getOwnerStoreSwitcherOptionsForUser(userId: number) {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) return [];
-  return await db
+  const rows = await db
     .select({
       id: stores.id,
       displayName: stores.displayName,
@@ -3289,6 +3289,14 @@ export async function getOwnerStoreSwitcherOptionsForUser(userId: number) {
     .innerJoin(stores, eq(stores.id, storeMemberships.storeId))
     .where(and(eq(storeMemberships.userId, userId), eq(storeMemberships.status, "active"), inArray(storeMemberships.role, ["owner", "manager"])))
     .orderBy(asc(stores.displayName));
+  const seenDomains = new Set<string>();
+  return rows.filter(store => {
+    const domain = store.primaryDomain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    if (!domain || domain === "mazigho.com" || domain.endsWith(".mazigho.com")) return false;
+    if (seenDomains.has(domain)) return false;
+    seenDomains.add(domain);
+    return true;
+  });
 }
 
 export async function getStoreMembershipForUser(storeId: number, userId: number) {
