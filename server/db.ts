@@ -4363,7 +4363,7 @@ async function getPrimaryStoreId() {
   return rows[0].id;
 }
 
-async function getStoreSettingValue(storeId: number | undefined, key: string): Promise<string | null> {
+export async function getStoreSettingValue(storeId: number | undefined, key: string): Promise<string | null> {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) return null;
@@ -4373,7 +4373,7 @@ async function getStoreSettingValue(storeId: number | undefined, key: string): P
   return rows[0]?.value ?? null;
 }
 
-async function setStoreSettingValue(storeId: number | undefined, key: string, value: string, description?: string) {
+export async function setStoreSettingValue(storeId: number | undefined, key: string, value: string, description?: string) {
   await ensureMultiStoreSchema();
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -11901,6 +11901,92 @@ export async function isStorefrontThemeAllowedForStore(storeId: number, themeId:
   const access = await getStorefrontThemeAccess(storeId);
   return access.themeIds.includes(themeId);
 }
+
+const STOREFRONT_THEME_HISTORY_KEY = "storefront_theme_history";
+
+type StorefrontThemeCategorySnapshot = { categoryId: number; imageUrl: string | null };
+type StorefrontThemeBannerSnapshot = { id: number; title: string; subtitle: string; imageUrl: string; linkUrl: string; active: number; displayOrder: number };
+type StorefrontThemeSnapshot = {
+  id: string;
+  storeId: number;
+  themeId: string | null;
+  profile: unknown;
+  categories: StorefrontThemeCategorySnapshot[];
+  banners: StorefrontThemeBannerSnapshot[];
+  createdAt: string;
+};
+
+async function getStorefrontThemeCategorySnapshot(storeId: number): Promise<StorefrontThemeCategorySnapshot[]> {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ categoryId: categories.id, imageUrl: categories.imageUrl })
+    .from(categories)
+    .where(eq(categories.storeId, storeId))
+    .orderBy(asc(categories.displayOrder), asc(categories.name));
+}
+
+export async function getStorefrontThemeHistory(storeId: number): Promise<StorefrontThemeSnapshot[]> {
+  const raw = await getStoreSettingValue(storeId, STOREFRONT_THEME_HISTORY_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === "object").slice(-10) as StorefrontThemeSnapshot[] : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getStorefrontThemeComparison(storeId: number, snapshotId: string) {
+  const history = await getStorefrontThemeHistory(storeId);
+  const snapshot = history.find(item => item.id === snapshotId);
+  if (!snapshot) throw new Error("STOREFRONT_THEME_SNAPSHOT_NOT_FOUND");
+  const activeRaw = await getStoreSettingValue(storeId, "storefront_theme_active");
+  let currentThemeId: string | null = null;
+  try {
+    currentThemeId = activeRaw ? (JSON.parse(activeRaw) as { themeId?: string }).themeId ?? null : null;
+  } catch {
+    currentThemeId = null;
+  }
+  return { currentThemeId, snapshot };
+}
+
+/** Capture only presentation state. Catalog, commerce, access and ownership are intentionally excluded. */
+export async function createStorefrontThemeSnapshot(input: { storeId: number; themeId: string | null; profile: unknown }) {
+  const history = await getStorefrontThemeHistory(input.storeId);
+  const snapshot: StorefrontThemeSnapshot = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    storeId: input.storeId,
+    themeId: input.themeId,
+    profile: input.profile,
+    categories: await getStorefrontThemeCategorySnapshot(input.storeId),
+    banners: (await getAllBanners(input.storeId)).map(banner => ({ id: banner.id, title: banner.title, subtitle: banner.subtitle ?? "", imageUrl: banner.imageUrl, linkUrl: banner.linkUrl ?? "/boutique", active: banner.active, displayOrder: banner.displayOrder })),
+    createdAt: new Date().toISOString(),
+  };
+  await setStoreSettingValue(input.storeId, STOREFRONT_THEME_HISTORY_KEY, JSON.stringify([...history, snapshot].slice(-10)), "Historique des thèmes visuels, isolé par boutique.");
+  return snapshot;
+}
+
+export async function restoreStorefrontThemeSnapshot(storeId: number, snapshotId: string) {
+  const history = await getStorefrontThemeHistory(storeId);
+  const snapshot = history.find(item => item.id === snapshotId);
+  if (!snapshot) throw new Error("STOREFRONT_THEME_SNAPSHOT_NOT_FOUND");
+  if (!snapshot.profile || typeof snapshot.profile !== "object") throw new Error("STOREFRONT_THEME_SNAPSHOT_INVALID");
+  const profile = await saveStudioOwnerPublicStorefrontProfile({ storeId, profile: snapshot.profile as DesignProfileInput });
+  const database = await getDb();
+  if (database) {
+    await Promise.all(snapshot.categories.map(category => database.update(categories).set({ imageUrl: category.imageUrl })
+      .where(and(eq(categories.storeId, storeId), eq(categories.id, category.categoryId)))));
+  }
+  const currentBanners = await getAllBanners(storeId);
+  await Promise.all(currentBanners.map(async banner => {
+    const saved = (snapshot.banners ?? []).find(item => item.id === banner.id);
+    const restored = saved ?? { id: banner.id, title: banner.title, subtitle: banner.subtitle ?? "", imageUrl: banner.imageUrl, linkUrl: banner.linkUrl ?? "/boutique", active: 0, displayOrder: banner.displayOrder };
+    return updateBanner(banner.id, restored, storeId);
+  }));
+  await setStoreSettingValue(storeId, "storefront_theme_active", JSON.stringify({ themeId: snapshot.themeId, restoredAt: new Date().toISOString() }), "Thème visuel actif de la boutique.");
+  return { profile, themeId: snapshot.themeId, restoredSnapshotId: snapshot.id, categoryCount: snapshot.categories.length };
+}
+
 
 export async function getDesignProfile(storeId?: number): Promise<DesignProfile> {
   const value = await getStoreSettingValue(storeId, "design_profile");

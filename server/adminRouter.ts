@@ -1254,6 +1254,16 @@ type StorefrontThemeBanner = {
 export async function applyStorefrontTheme(ctx: any, storeId: number, themeId: StorefrontThemeId, source: "studio" | "owner" = "studio") {
   const preset = storefrontThemePresets[themeId];
   const current = await db.getDesignProfile(storeId);
+  if (source === "studio") {
+    const activeTheme = await db.getStoreSettingValue(storeId, "storefront_theme_active");
+    let previousThemeId: string | null = null;
+    try {
+      previousThemeId = activeTheme ? (JSON.parse(activeTheme) as { themeId?: string }).themeId ?? null : null;
+    } catch {
+      previousThemeId = null;
+    }
+    await db.createStorefrontThemeSnapshot({ storeId, themeId: previousThemeId, profile: current });
+  }
   const presetProfile = preset.profile as Record<string, unknown>;
   const currentProfile = current as Record<string, unknown>;
   const sections = ownerHomepageSections.parse({
@@ -1298,6 +1308,7 @@ export async function applyStorefrontTheme(ctx: any, storeId: number, themeId: S
   const categoryImages = await db.applyStorefrontThemeCategoryImages(storeId, preset.categoryImages);
   await Promise.all(categoryImages.updatedCategoryIds.map(categoryId => db.markPublicContentTranslationsStale("category", categoryId, storeId)));
   await db.markPublicContentTranslationsStale("design", 1, storeId);
+  await db.setStoreSettingValue(storeId, "storefront_theme_active", JSON.stringify({ themeId, appliedAt: new Date().toISOString() }), "Thème visuel actif de la boutique.");
   logAudit(ctx, {
     action: `${source}.storefront.template.${themeId}.apply`,
     entityType: "store",
@@ -2577,6 +2588,19 @@ export const adminRouter = router({
       return profile;
     }),
     getStorefrontThemeAccess: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => await db.getStorefrontThemeAccess(input.storeId)),
+    getStorefrontThemeHistory: platformProcedure.input(z.object({ storeId: z.number().int().positive() })).query(async ({ input }) => {
+      const history = await db.getStorefrontThemeHistory(input.storeId);
+      return history.map(snapshot => ({ id: snapshot.id, themeId: snapshot.themeId, createdAt: snapshot.createdAt, categoryCount: snapshot.categories.length }));
+    }),
+    getStorefrontThemeComparison: platformProcedure.input(z.object({ storeId: z.number().int().positive(), snapshotId: z.string().trim().min(8).max(80) })).query(async ({ input }) => {
+      const result = await db.getStorefrontThemeComparison(input.storeId, input.snapshotId);
+      return { currentThemeId: result.currentThemeId, snapshot: { id: result.snapshot.id, themeId: result.snapshot.themeId, createdAt: result.snapshot.createdAt, categoryCount: result.snapshot.categories.length } };
+    }),
+    restoreStorefrontTheme: platformProcedure.input(z.object({ storeId: z.number().int().positive(), snapshotId: z.string().trim().min(8).max(80), confirmationName: z.string().trim().min(2).max(160) })).mutation(async ({ ctx, input }) => {
+      const result = await db.restoreStorefrontThemeSnapshot(input.storeId, input.snapshotId);
+      logAudit(ctx, { action: "studio.storefront.theme.restore", entityType: "store", entityId: input.storeId, summary: "Version visuelle précédente restaurée", metadata: { storeId: input.storeId, snapshotId: input.snapshotId, themeId: result.themeId, categoryCount: result.categoryCount } });
+      return result;
+    }),
     saveStorefrontThemeAccess: platformProcedure.input(z.object({ storeId: z.number().int().positive(), themeIds: z.array(storefrontThemeIdSchema).min(1).max(storefrontThemeIds.length) })).mutation(async ({ ctx, input }) => {
       const saved = await db.saveStorefrontThemeAccess(input.storeId, { themeIds: input.themeIds });
       logAudit(ctx, { action: "studio.storefront.theme_access.save", entityType: "store", entityId: input.storeId, summary: "Bibliothèque de thèmes attribuée à la boutique", metadata: { storeId: input.storeId, themeCount: saved.themeIds.length } });
