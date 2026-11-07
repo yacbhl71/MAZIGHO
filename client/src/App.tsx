@@ -17,6 +17,7 @@ import { useDesignProfile } from "@/hooks/useDesignProfile";
 import { getStorefrontBrandName, withStorefrontBrand } from "@/lib/storefrontIdentity";
 import { MaintenancePage } from "./components/MaintenancePage";
 import PWAOnlineStatus from "./components/PWAOnlineStatus";
+import { PrincipalSurfaceSwitcher } from "./components/PrincipalSurfaceSwitcher";
 import { isPrivateSetupOwnerPanelPath } from "@shared/setupStoreOwnerAccess";
 import Home from "./pages/Home";
 const MazighoSaasLanding = lazy(() => import("./pages/MazighoSaasLanding"));
@@ -572,6 +573,7 @@ function Router() {
         <Route component={NotFound} />
         </Switch>
       </Suspense>
+      <PrincipalSurfaceSwitcher />
       <StorefrontMarketing />
     </>
   );
