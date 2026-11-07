@@ -71,7 +71,7 @@ import { getStudioCustomDomainConnectionStatus, inspectStoreCustomDomainDns, mak
 import { normalizeStoreCommercialOfferMode, type StoreCommercialOfferMode } from "../shared/storeCommercialOffer";
 import { getStoreSaasBillingDraftReadiness, makeDraftInvoice, normalizeSaasBillingPlan, parseStoreSaasBillingProfile, type SaasBillingCurrency } from "../shared/storeSaasBilling";
 import { makeStoreIntegrationRequestProfile, parseStoreIntegrationRequestProfile, type StoreIntegrationId } from "../shared/storeIntegrationRequests";
-import { normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog } from "../shared/saasPlanCatalog";
+import { defaultSaasPlanCatalog, normalizeSaasPlanCatalog, parseSaasPlanCatalog, type SaasPlanCatalog, type SaasPlanFeatureId } from "../shared/saasPlanCatalog";
 import { assignStoreSaasPlanTemplate, parseStoreSaasPlanAssignment } from "../shared/storeSaasPlanAssignment";
 import { createStoreCommissionOverride, parseStoreCommissionOverride, type StoreCommissionOverride } from "../shared/storeCommissionOverride";
 import { applyStoreQuotaOverride, createStoreQuotaOverride, parseStoreQuotaOverride, type StoreQuotaOverride, type StoreQuotaOverrideInput } from "../shared/storeQuotaOverride";
@@ -8047,6 +8047,14 @@ export async function getStoreSaasEntitlements(storeId: number): Promise<SaasPla
   return studioGrantEnabled && !entitlements.dropshippingEnabled
     ? { ...entitlements, dropshippingEnabled: true }
     : entitlements;
+}
+
+/** Resolves one store-scoped feature from its assigned plan snapshot. */
+export async function hasStoreSaasFeature(storeId: number, feature: SaasPlanFeatureId): Promise<boolean> {
+  const assignment = await getOwnerSaasPlanAssignment(storeId);
+  if (assignment) return assignment.features.includes(feature);
+  const entitlements = await getStoreSaasEntitlements(storeId);
+  return defaultSaasPlanCatalog().plans.find(plan => plan.id === entitlements.planId)?.features.includes(feature) ?? false;
 }
 
 export type StoreAiUsageSummary = {

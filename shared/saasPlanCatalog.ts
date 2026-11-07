@@ -13,6 +13,26 @@ export const saasPlanFeatureIds = [
   "priority_support",
   "dropshipping_import",
   "visual_search",
+  "product_compare",
+  "quick_view",
+  "slide_out_cart",
+  "sticky_add_to_cart",
+  "frequently_bought_together",
+  "back_in_stock",
+  "reviews_ugc",
+  "flash_sales",
+  "social_proof",
+  "loyalty_program",
+  "shoppable_stories",
+  "spin_to_win",
+  "live_sales_chat",
+  "gift_cards",
+  "subscriptions",
+  "affiliate_program",
+  "abandoned_cart_automation",
+  "whatsapp_sms_marketing",
+  "currency_converter",
+  "supplier_hub",
 ] as const;
 
 export type SaasPlanFeatureId = (typeof saasPlanFeatureIds)[number];
@@ -30,6 +50,26 @@ export const saasPlanFeatureCatalog: ReadonlyArray<{ id: SaasPlanFeatureId; titl
   { id: "priority_support", title: "Support prioritaire", description: "Repère interne de priorité, sans ticket ni SLA actif." },
   { id: "dropshipping_import", title: "Dropshipping contrôlé", description: "Import fournisseur en brouillon, avec validation manuelle avant publication." },
   { id: "visual_search", title: "Recherche par image", description: "Recherche visuelle de produits à partir d’une photo, réservée aux offres premium." },
+  { id: "product_compare", title: "Comparateur de produits", description: "Comparer plusieurs produits côte à côte." },
+  { id: "quick_view", title: "Aperçu rapide", description: "Consulter un produit sans quitter le catalogue." },
+  { id: "slide_out_cart", title: "Panier latéral", description: "Panier coulissant accessible depuis la vitrine." },
+  { id: "sticky_add_to_cart", title: "Ajout au panier persistant", description: "Barre d’achat persistante sur les fiches produits." },
+  { id: "frequently_bought_together", title: "Achats fréquents", description: "Suggestions de produits complémentaires." },
+  { id: "back_in_stock", title: "Retour en stock", description: "Inscription et notification lorsqu’un produit revient." },
+  { id: "reviews_ugc", title: "Avis clients enrichis", description: "Avis, notes et contenus clients modérés." },
+  { id: "flash_sales", title: "Ventes flash", description: "Campagnes limitées avec compte à rebours." },
+  { id: "social_proof", title: "Preuve sociale", description: "Notifications de ventes et activité récente." },
+  { id: "loyalty_program", title: "Fidélité", description: "Points, compte fidélité et récompenses." },
+  { id: "shoppable_stories", title: "Stories shoppables", description: "Stories visuelles avec produits associés." },
+  { id: "spin_to_win", title: "Spin-to-Win", description: "Animation promotionnelle avec récompense contrôlée." },
+  { id: "live_sales_chat", title: "Chat commercial", description: "Conversation commerciale contextualisée." },
+  { id: "gift_cards", title: "Cartes cadeaux", description: "Création et gestion de cartes cadeaux." },
+  { id: "subscriptions", title: "Abonnements produits", description: "Commandes récurrentes et abonnements." },
+  { id: "affiliate_program", title: "Affiliation", description: "Liens et commissions d’affiliés." },
+  { id: "abandoned_cart_automation", title: "Paniers abandonnés", description: "Suivi et automatisation des paniers abandonnés." },
+  { id: "whatsapp_sms_marketing", title: "Marketing WhatsApp/SMS", description: "Campagnes de communication sortante." },
+  { id: "currency_converter", title: "Convertisseur multi-devises", description: "Affichage et conversion multi-devises." },
+  { id: "supplier_hub", title: "Hub fournisseurs", description: "Comptes fournisseurs et import contrôlé." },
 ] as const;
 
 export type SaasPlanCatalogItem = {
@@ -60,9 +100,9 @@ const commonFeatures: SaasPlanFeatureId[] = [
 const defaultPlanCatalog: SaasPlanCatalog = {
   plans: [
     { id: "free", name: "FREE", description: "0 CHF/mois + 2,5 % de commission. Les essentiels pour préparer et lancer une boutique.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: ["brand_customization", "variant_stock", "markets_languages", "storefront_seo", "custom_domain_request", "checkout_rehearsal", "media_quota"], status: "draft" },
-    { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support"], status: "draft" },
-    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé et recherche par image.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search"], status: "draft" },
-    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "visual_search"], status: "draft" },
+    { id: "basic", name: "BASIC", description: "7,90 CHF/mois + 1,0 % de commission. Catalogue sans plafond et outils de croissance.", monthlyAmountCents: 790, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc"], status: "draft" },
+    { id: "pro", name: "PRO", description: "12,90 CHF/mois + 1,0 % de commission. Basic, avec dropshipping contrôlé et recherche par image.", monthlyAmountCents: 1290, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "dropshipping_import", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub"], status: "draft" },
+    { id: "lifetime", name: "LIFETIME", description: "300 CHF unique ; 0 % de commission. Vente et attribution manuelles depuis MAZIGHO Studio.", monthlyAmountCents: 0, yearlyAmountCents: 0, currency: "CHF", features: [...commonFeatures, "priority_support", "visual_search", "quick_view", "slide_out_cart", "sticky_add_to_cart", "frequently_bought_together", "back_in_stock", "reviews_ugc", "product_compare", "flash_sales", "social_proof", "loyalty_program", "shoppable_stories", "spin_to_win", "live_sales_chat", "gift_cards", "subscriptions", "affiliate_program", "abandoned_cart_automation", "whatsapp_sms_marketing", "currency_converter", "supplier_hub"], status: "draft" },
   ],
 };
 
